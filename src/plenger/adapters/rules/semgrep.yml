@@ -1,0 +1,13 @@
+rules:
+  - id: plenger.python.dynamic-code-execution
+    languages:
+      - python
+    message: Dynamic code execution candidate
+    severity: WARNING
+    metadata:
+      plenger_rule_id: WK-PY-001
+      license_ref: plenger-original
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: exec(...)

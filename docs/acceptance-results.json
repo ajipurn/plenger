@@ -1,0 +1,389 @@
+[
+  {
+    "test_id": "AC01",
+    "requirement_ids": [
+      "FR01"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "blocked",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Descriptor-relative capture, read-only Git commit/dirty capture when repository metadata is available, deterministic file/directory swaps between metadata observation and open, same-UID concurrent replacement stress, post-open directory-entry identity checks, stable child-directory/file device-inode binding, no-follow/owner/nlink checks, and SQLite inode/device replacement detection before first connection, on connection, and on pool checkout pass on macOS plus a Linux container subset; the complete cross-platform matrix remains."
+  },
+  {
+    "test_id": "AC02",
+    "requirement_ids": [
+      "FR02"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "67 authored tuning/holdout Python/FastAPI definition/route cases and an 11-case explicit agent/tool/model/retriever expected-node/edge corpus pass with precision and recall 1.0; the holdout is not independently audited, and dynamic/runtime reachability remains outside the supported grammar."
+  },
+  {
+    "test_id": "AC03",
+    "requirement_ids": [
+      "FR03"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "blocked",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Managed Semgrep 1.176.0 with the packaged rule, binary or immutable image pinning, bounded transient version probing, fail-closed revalidation errors, macOS default-deny Seatbelt containment, digest-pinned container execution with no host fallback, explicit allowlisted-digest pull provisioning, positive/negative fixture execution, bounded non-zero/empty/oversized-output/timeout failure controls, path normalization, redaction, fresh-project provisioning, pinned Linux amd64 production-source image smoke, and baseline persistence pass locally; clean-host compatibility, licensing, and the broader failure matrix remain."
+  },
+  {
+    "test_id": "AC04",
+    "requirement_ids": [
+      "FR04"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "AC04 passed for targeted local acceptance. On 23 September 2026, fresh provisioning of the digest-pinned OSV container database completed at 291,671,377 bytes and exposed cargo, composer, go, maven, npm, python, and ruby. Vulnerable controls for requests, uv.lock, npm, Cargo, Go, Ruby, Composer, and Maven were detected and corresponding fixed controls stayed clean; unresolved/ranged inputs remained explicit unknowns. Missing/stale database, fingerprint, alias, and offline scan behavior are covered by the smoke and regression tests. A separate host-native setup attempt timed out, but the pinned-container path succeeded. Clean-host, full lockfile/advisory recall, and cross-platform freshness matrices remain open."
+  },
+  {
+    "test_id": "AC05",
+    "requirement_ids": [
+      "FR05",
+      "FR14"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "blocked",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Managed Trivy 0.74.0 secret-only execution, binary or immutable image pinning, explicit allowlisted-digest pull provisioning, macOS default-deny Seatbelt containment, digest-pinned container execution with no host fallback, fresh-project provisioning, pinned Linux amd64 production-source image smoke, positive/negative filesystem controls, redaction, temporary staging, baseline persistence, and persistent-artifact checks pass locally; broader formats, licensing, and clean-host compatibility remain."
+  },
+  {
+    "test_id": "AC06",
+    "requirement_ids": [
+      "FR06"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Conservative cross-engine correlation, OSV upstream alias/group canonicalization, and explicit advisory aliasing are unit-tested with preserved multi-engine evidence; configured Semgrep/OSV/Trivy results now flow into the default baseline. The acceptance is bounded to the authored adversarial cases and does not claim exhaustive correlation recall."
+  },
+  {
+    "test_id": "AC07",
+    "requirement_ids": [
+      "FR07"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Local AC07 acceptance passed: changes to target revision, allowed IPs, profile, snapshot, auth identity, budget, data classes, rubric, or selected cases invalidate approval; drafts without approval and expired/revoked approvals cannot queue; parallel consumption creates at most one run; and reusing an idempotency key with a different plan/approval conflicts. The preview displays the project, target revision/IPs, profile and rubric digests, exact cases, snapshot, auth identity, data classes, full budget, approver, and TTL. Legacy plans without an IP binding require re-planning; only the core profile is currently supported."
+  },
+  {
+    "test_id": "AC08",
+    "requirement_ids": [
+      "FR08",
+      "FR14"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "blocked",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Local loopback and public-HTTPS staging broker contracts pass, including plan-bound canonical DNS IP sets with per-dispatch change rejection, direct pinned-IP connection with hostname-preserving TLS SNI/Host, scope checks, redirect blocking, proxy bypass, response bounds, and absolute wall-time deadline handling for delayed headers and trickle reads on real sockets. Regressions accept reordered IPv4/IPv6 answers but reject address removal, addition, or replacement before a second connection; a real loopback hostname request succeeds with every proxy variable pointed at an unreachable address. Mixed public/private, loopback, metadata, IPv6 private/link-local DNS, empty/invalid/failing DNS, unsafe IPv4/IPv6 literals, and wildcard/trailing-dot hostnames are covered locally. A bounded capability-protected Unix broker IPC contract for dispatch/cancel/stats also passes with wrong-capability and cleanup checks; active execution routes through a separate broker process on supported POSIX hosts. Digest-pinned scanner container isolation is implemented and locally exercised, A new macOS runtime regression confirms a managed scanner cannot connect to an active loopback listener under Seatbelt; live staging authorization and complete direct-egress isolation for native active workers and other platforms remain blocked."
+  },
+  {
+    "test_id": "AC09",
+    "requirement_ids": [
+      "FR08"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "blocked",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Local attempt/concurrency budgets, 100 dispatchers against a budget of 10, wall-time handling, lease heartbeat, running-worker cancellation including preservation of cancelled state when the runner raises after cancellation, dispatch/report-write crash cases, and strict-cost rejection before approval consumption pass; the authenticated dashboard smoke also exercised one-use approval, a local fixed-suite request-only run, and cancellation against a slow loopback fixture. Target-side cost reconciliation/telemetry and the broader process-kill recovery matrix remain."
+  },
+  {
+    "test_id": "AC10",
+    "requirement_ids": [
+      "FR09"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "All ten OWASP LLM categories remain present. Active reports bind the profile digest and selected-case denominator; pass/fail results map to executed, blocked/skipped/error/inconclusive states remain distinct, and unselected categories stay planned. Static reports mark every category not_tested. Python regression tests cover these mappings; the Chrome E2E checks the displayed digest, denominator, planned categories, and skipped summary label. The vulnerable/fixed cases are synthetic contract fixtures; this result does not claim OWASP effectiveness, certification, or independent ground truth."
+  },
+  {
+    "test_id": "AC11",
+    "requirement_ids": [
+      "FR10"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "blocked",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Typed Choice/Score/Noul provider, bounded 10-second request/64KiB response, stream-failure abstention, probability/confidence validation, bounded retry exhaustion, retry/error policy, resolved-model pin validation, mocked HTTP contract tests, and the 120-case bilingual local benchmark pass; live key/model verification and independent evaluator acceptance remain."
+  },
+  {
+    "test_id": "AC12",
+    "requirement_ids": [
+      "FR10"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Local AC12 acceptance passed with a hostile untrusted observation asking to change target, read a synthetic sentinel, alter severity/validation/lifecycle, and run a check outside the plan. A valid contradictory Jev MockTransport response persisted only as an assessment: finding authority stayed unchanged, sentinel contents were absent from provider input, and no plan, approval, or active run was created. No live model/provider behavior or independent evaluator accuracy is claimed."
+  },
+  {
+    "test_id": "AC13",
+    "requirement_ids": [
+      "FR11"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "blocked",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Pairing/CSRF/project/API checks and an authenticated disposable-project browser smoke pass, including Playwright hostile Origin/Host rejection with security headers, invalid-pairing error, missing-CSRF rejection, pairing/report/evidence/graph/logout smoke, inert HTML payload rendering in report/finding/evidence/graph views, stale-view cleanup when a selected foreign/nonexistent report returns an error, deterministic assessment history with the explicit cached-result label, browser-verified 100-item assessment-history pagination and next-page loading, local Jev consent preview/grant/revoke without provider calls, active scope locking, stale revoked-plan approval error recovery, plan revoke/replan, one-use active plan/approval/execution, active-run polling/cancel restoration after a browser refresh, and cancellation against a local mock target, JSON export download, empty state, real static result, finding rendering, cancelled-run history refresh, and selected graph-edge detail; consistent security headers on success and error paths, packaged-asset traversal rejection, project-scoped run history, selected-report loading, selected-run normalized graph/findings pagination and filter APIs pass; complete hostile-browser E2E matrix remains. Additional real Chrome checks pass for a hostile second-loopback-port page (credentialed logout denied, opaque response, session read blocked), one-use pairing replay, HttpOnly/SameSite cookie attributes, logout cookie removal, revoked-cookie replay rejection, and pairing after reload; cross-browser/platform and expiry acceptance remain open."
+  },
+  {
+    "test_id": "AC14",
+    "requirement_ids": [
+      "FR12"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Revisioned lifecycle, suppression actor/reason/expiry with expired visibility, evidence retention purge, project-scoped history/comparison, and the full authored new/recurring/resolved/not_observed/reopened plus rule-identity diff matrix pass; browser-verified acknowledge/suppress/reopen/resolve transitions also pass. The acceptance remains bounded to authored local fixtures and one browser workflow, not an exhaustive hostile UI/history matrix."
+  },
+  {
+    "test_id": "AC15",
+    "requirement_ids": [
+      "FR13"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "JSON/HTML export and candidate-safe 0/1/2/3/130 CI semantics pass; a 16-case local policy matrix now covers state, error, candidate/support/confirmed, threshold, cancellation, and unknown-severity combinations. The acceptance is bounded to the covered CLI/export formats and policy permutations."
+  },
+  {
+    "test_id": "AC16",
+    "requirement_ids": [
+      "FR14"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "AC16 passed for this local macOS environment. A disposable full static baseline completed with Semgrep, OSV, and Trivy using pre-provisioned scanner identities and a local OSV database; the native workers run under a Seatbelt profile that denies network access, and the OSV scan uses its offline mode. Jev without this project’s consent is rejected before the provider is called; missing API key abstains. A regression proves project A consent does not authorize project B, and Chrome verifies the preview shows api.typesafe.ai plus metadata, code_excerpt, and response before granting consent. A focused Seatbelt regression also attempts TCP to an active loopback listener from a managed scanner process; curl is denied (exit 7) and the listener accepts no connection. This is local acceptance only; the native cross-platform egress matrix and live provider verification remain open."
+  },
+  {
+    "test_id": "AC17",
+    "requirement_ids": [
+      "FR15"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Local acceptance passed: normalized evidence and snapshot digests detect tamper/missing/wrong-run data, expired artifacts are visibly marked, and tool/retrieval claims rely on observer evidence rather than response text. The fixed suite now rejects unbound or wrong-run traces; signed canonical HMAC ingress covers tamper, replay, and attempt binding, with API/background/CLI opt-in wiring and owner-only key loading. This does not claim production sidecar deployment or anti-tamper protection against the host owner."
+  },
+  {
+    "test_id": "AC18",
+    "requirement_ids": [
+      "FR16"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Local macOS acceptance passed: recovery marks static and active in-flight work interrupted without replay, orphan cleanup is bounded, queued/running cancellation and dispatch/write-result/process-kill recovery preserve ledger state, and storage deletion requires exact project identity and only removes private plenger data. Linux and other platform recovery behavior is not claimed by this local acceptance record."
+  },
+  {
+    "test_id": "AC19",
+    "requirement_ids": [
+      "FR17"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "blocked",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Real Semgrep, OSV-Scanner, and Trivy compatibility runs, managed binary/image identities, macOS Seatbelt containment, and digest-pinned container isolation are recorded locally; independent license review and clean cross-platform release verification remain."
+  },
+  {
+    "test_id": "AC20",
+    "requirement_ids": [
+      "FR18"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Pass limited deterministic vertical slice only; no claim of complete MVP."
+  },
+  {
+    "test_id": "AC21",
+    "requirement_ids": [
+      "FR18"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Local synthetic acceptance passed: four priority families (LLM01, LLM02, LLM06, LLM08) each have vulnerable and fixed negative-control modes; all four record independent run/attempt/sequence-bound observer events, wrong-run and unbound evidence is rejected, and missing LLM06/LLM08 trace is inconclusive. LLM06 only records a synthetic local mailbox-tool outcome; no SMTP/provider is called, and retrieval IDs are synthetic tenant documents. This does not claim production target effectiveness."
+  },
+  {
+    "test_id": "AC22",
+    "requirement_ids": [
+      "FR18"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "pass",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "Host-local AC22 benchmark pass: 20 runs on generated 10,000 LOC and 5,000 findings, with CPU/RAM/OS/worker image and cache state recorded; p95 targets pass for parser, deterministic warm scan, application startup plus root asset response, and findings paging. Browser rendering, third-party warm scanners, cold-install, and cross-platform acceptance are separate release gates and remain absent."
+  },
+  {
+    "test_id": "AC23",
+    "requirement_ids": [
+      "FR18"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "blocked",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "The repeatable clean-install probe builds the wheel, installs locked runtime dependencies into a fresh Python 3.12 virtualenv, and verifies the installed CLI, package version, source-tree separation, UI entrypoint, and referenced assets; a legacy `0001` database upgrades to schema `0014` without losing its report, while a separate current-schema fixture preserves normalized findings/evidence, snapshots, run events, semantic assessment cache index, and historical reusable plan records across reopen. Revoked or consumed plans can be recreated with the same digest without mutating history. An attempted destructive downgrade fails closed without changing schema/data. The explicit container worker, allowlisted-image pull path, and clean-install parser path pass locally; all-platform isolation, clean-host image/database verification, supported rollback, and cross-platform packaging matrix remain incomplete."
+  },
+  {
+    "test_id": "AC24",
+    "requirement_ids": [
+      "FR10",
+      "FR18"
+    ],
+    "milestone": "see TRACEABILITY.md",
+    "product_commit": null,
+    "environment": "macOS-27.0-arm64-arm-64bit",
+    "engine_model_identities": {
+      "parser": "python-ast-v2",
+      "jev": null
+    },
+    "result": "blocked",
+    "evidence_path": "docs/TEST_RESULTS.md",
+    "limitation": "A 120-case bilingual synthetic MockTransport benchmark now reports tuning/holdout confusion, abstentions, latency, and synthetic-price accounting; live provider verification, independently held-out cases, and production evaluator acceptance remain absent."
+  }
+]

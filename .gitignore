@@ -1,0 +1,13 @@
+.venv/
+.plenger/
+.Wonderkit/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+web/node_modules/
+web/test-results/
+web/playwright-report/
+dist/
+*.egg-info/
+.DS_Store

@@ -1,0 +1,6 @@
+# Current checkpoint schema only. No active/hosted consent or executable settings.
+schema_version: 1
+profile: deterministic
+max_files: 50000
+max_file_bytes: 2097152
+max_total_bytes: 524288000

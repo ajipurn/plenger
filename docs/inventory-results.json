@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "corpus": "python-inventory-v1",
+  "fixture_count": 11,
+  "inventory_kinds": [
+    "agent",
+    "llm_call",
+    "retriever",
+    "tool"
+  ],
+  "inventory_edge_kinds": [
+    "calls",
+    "invokes_tool",
+    "retrieves_from"
+  ],
+  "parser": "python-ast-v2",
+  "precision": 1.0,
+  "recall": 1.0,
+  "records": [
+    {
+      "case_id": "agent-tool-model-runner",
+      "expected": 8,
+      "actual": 8,
+      "matched": 8,
+      "exact": true
+    },
+    {
+      "case_id": "aliased-agent-runner",
+      "expected": 4,
+      "actual": 4,
+      "matched": 4,
+      "exact": true
+    },
+    {
+      "case_id": "imported-openai-client",
+      "expected": 2,
+      "actual": 2,
+      "matched": 2,
+      "exact": true
+    },
+    {
+      "case_id": "module-openai-client",
+      "expected": 2,
+      "actual": 2,
+      "matched": 2,
+      "exact": true
+    },
+    {
+      "case_id": "retriever-search",
+      "expected": 2,
+      "actual": 2,
+      "matched": 2,
+      "exact": true
+    },
+    {
+      "case_id": "vector-store-method",
+      "expected": 2,
+      "actual": 2,
+      "matched": 2,
+      "exact": true
+    },
+    {
+      "case_id": "document-store-retrieve",
+      "expected": 2,
+      "actual": 2,
+      "matched": 2,
+      "exact": true
+    },
+    {
+      "case_id": "agent-dynamic-tools-not-expanded",
+      "expected": 2,
+      "actual": 2,
+      "matched": 2,
+      "exact": true
+    },
+    {
+      "case_id": "multiple-explicit-tools",
+      "expected": 6,
+      "actual": 6,
+      "matched": 6,
+      "exact": true
+    },
+    {
+      "case_id": "qualified-tool-reference",
+      "expected": 4,
+      "actual": 4,
+      "matched": 4,
+      "exact": true
+    },
+    {
+      "case_id": "plain-name-negative-control",
+      "expected": 0,
+      "actual": 0,
+      "matched": 0,
+      "exact": true
+    }
+  ],
+  "limitations": [
+    "Authored explicit-import corpus, not independently audited or held-out",
+    "Dynamic imports, runtime reachability, aliases not resolved by the supported patterns, and tool registration are unknown",
+    "Results do not estimate whole-program inventory accuracy"
+  ]
+}
