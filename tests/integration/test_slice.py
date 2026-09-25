@@ -7,7 +7,8 @@ from typer.testing import CliRunner
 
 from plenger.adapters.python_parser import IMAGE, docker_env, probe, sandbox_argv
 from plenger.cli.main import app
-from plenger.services.application import export_report, latest, scan
+from plenger.services.application import scan
+from plenger.services.reports import export_report, latest
 from plenger.services.workspace import initialize
 
 

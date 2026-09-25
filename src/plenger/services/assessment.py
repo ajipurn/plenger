@@ -18,8 +18,9 @@ from plenger.evaluators.providers import (
 )
 from plenger.evaluators.rubric import QUESTIONS
 from plenger.policy.consent import HOSTED_DATA_CLASSES, normalize_data_classes
-from plenger.services.application import latest, project_id
+from plenger.services.application import project_id
 from plenger.services.integrity import redact_preserving_integrity
+from plenger.services.reports import latest
 from plenger.services.workspace import load_config
 from plenger.storage.assessments import (
     count_assessments,

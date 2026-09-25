@@ -1,6 +1,6 @@
 import pytest
 
-from plenger.services.application import ci_exit_code, ungated_candidate_count
+from plenger.services.ci_gate import ci_exit_code, ungated_candidate_count
 from plenger.services.diff import diff_reports
 
 

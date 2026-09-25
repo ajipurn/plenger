@@ -3,13 +3,10 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 
-from plenger.services.application import (
-    findings_page,
-    latest,
-    project_id,
-    queue_scan,
-    update_finding_lifecycle,
-)
+from plenger.services.application import project_id, queue_scan
+from plenger.services.ci_gate import ci_exit_code
+from plenger.services.findings import findings_page, update_finding_lifecycle
+from plenger.services.reports import latest
 from plenger.services.workspace import initialize
 from plenger.storage.database import open_store
 from plenger.storage.findings import (
@@ -587,9 +584,7 @@ def test_recurring_findings_keep_acknowledgment_and_active_suppression(tmp_path,
     update_finding_lifecycle(tmp_path, second["id"], "suppressed", "accepted risk", 0)
     third_run, third = scan("triage-3")
     assert third["lifecycle_state"] == "suppressed"
-    assert (
-        application.ci_exit_code(latest(tmp_path, third_run), "high", include_candidates=True) == 0
-    )
+    assert ci_exit_code(latest(tmp_path, third_run), "high", include_candidates=True) == 0
 
     engine = open_store(tmp_path)
     try:
@@ -604,7 +599,7 @@ def test_recurring_findings_keep_acknowledgment_and_active_suppression(tmp_path,
 
 
 def test_evidence_expiry_rewrites_only_affected_mirrors_once(tmp_path, monkeypatch):
-    from plenger.services import application
+    from plenger.services import application, evidence
 
     initialize(tmp_path)
     (tmp_path / "fixture.py").write_text("value = 1\n")
@@ -656,9 +651,9 @@ def test_evidence_expiry_rewrites_only_affected_mirrors_once(tmp_path, monkeypat
     finally:
         engine.dispose()
     rewrites = []
-    original = application.redact_preserving_integrity
+    original = evidence.redact_preserving_integrity
     monkeypatch.setattr(
-        application,
+        evidence,
         "redact_preserving_integrity",
         lambda payload: rewrites.append(payload.get("run_id")) or original(payload),
     )

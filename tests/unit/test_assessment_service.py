@@ -7,13 +7,14 @@ import pytest
 from sqlalchemy import text
 
 from plenger.services import application
-from plenger.services.application import export_stored_report, queue_scan
+from plenger.services.application import queue_scan
 from plenger.services.assessment import (
     assessment_consent_preview,
     assessments_for_run,
     evaluate_finding,
     grant_hosted_consent_for_project,
 )
+from plenger.services.reports import export_stored_report, latest
 from plenger.services.workspace import initialize
 from plenger.storage.database import open_store
 
@@ -68,7 +69,7 @@ def prepared_run(
 
 def test_deterministic_assessment_is_separate_from_finding_authority(tmp_path, monkeypatch):
     run_id, finding_id = prepared_run(tmp_path, monkeypatch)
-    before = application.latest(tmp_path, run_id)
+    before = latest(tmp_path, run_id)
     assert before
     authority_before = {
         key: before["findings"][0][key]
@@ -78,7 +79,7 @@ def test_deterministic_assessment_is_separate_from_finding_authority(tmp_path, m
     assert assessment["state"] == "needs_review"
     assert assessment["evaluator"] == "deterministic"
     assert assessments_for_run(tmp_path, run_id)[0]["finding_id"] == finding_id
-    report = application.latest(tmp_path, run_id)
+    report = latest(tmp_path, run_id)
     assert report and report["assessments"][0]["finding_id"] == finding_id
     assert {
         key: report["findings"][0][key]
@@ -94,7 +95,7 @@ def test_adversarial_jev_evidence_cannot_authorize_or_mutate_findings(tmp_path, 
     sentinel = tmp_path / "private-synthetic-sentinel.txt"
     sentinel.write_text("PLENGER_SYNTHETIC_FILE_SECRET_7F31")
     run_id, finding_id = prepared_run(tmp_path, monkeypatch, observed=instruction)
-    before = application.latest(tmp_path, run_id)
+    before = latest(tmp_path, run_id)
     assert before
     authority_before = {
         key: before["findings"][0][key]
@@ -154,7 +155,7 @@ def test_adversarial_jev_evidence_cannot_authorize_or_mutate_findings(tmp_path, 
     assert sentinel.read_text() == "PLENGER_SYNTHETIC_FILE_SECRET_7F31"
     assert "PLENGER_SYNTHETIC_FILE_SECRET_7F31" not in serialized_request
 
-    after = application.latest(tmp_path, run_id)
+    after = latest(tmp_path, run_id)
     assert after
     assert {
         key: after["findings"][0][key]
@@ -358,7 +359,7 @@ def test_concurrent_assessments_preserve_report_view_cache(tmp_path, monkeypatch
 
     assert len({result["id"] for result in results}) == 2
     assert len(assessments_for_run(tmp_path, run_id, finding_id)) == 2
-    report = application.latest(tmp_path, run_id)
+    report = latest(tmp_path, run_id)
     assert report is not None
     assert len(report["assessments"]) == 2
 
@@ -371,7 +372,7 @@ def test_assessment_report_mirror_is_bounded_but_export_remains_complete(tmp_pat
     for _ in range(3):
         evaluate_finding(tmp_path, run_id, finding_id, "deterministic", False)
 
-    report = application.latest(tmp_path, run_id)
+    report = latest(tmp_path, run_id)
     assert report is not None
     assert len(report["assessments"]) == 2
     assert len(assessments_for_run(tmp_path, run_id)) == 3

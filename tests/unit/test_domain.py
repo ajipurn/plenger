@@ -4,7 +4,7 @@ import pytest
 
 from plenger.domain.runs import RunState, transition
 from plenger.graph.worker import analyze
-from plenger.services.application import export_report
+from plenger.services.reports import export_report
 
 
 @pytest.mark.parametrize("state", list(RunState))

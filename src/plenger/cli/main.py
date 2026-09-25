@@ -27,17 +27,10 @@ from plenger.runner.observer import (
 )
 from plenger.services.active.plans import approve_for_project, plan_for_project
 from plenger.services.active.runs import cancel_active_run, execute_active_run, queue_active_run
-from plenger.services.application import (
-    capabilities,
-    ci_exit_code,
-    export_stored_report,
-    latest,
-    project_id,
-    run_status,
-    scan,
-    ungated_candidate_count,
-)
+from plenger.services.application import capabilities, project_id, run_status, scan
 from plenger.services.assessment import evaluate_finding
+from plenger.services.ci_gate import ci_exit_code, ungated_candidate_count
+from plenger.services.reports import export_stored_report, latest
 from plenger.services.scanners.provisioning import provision_osv_database, provision_scanners
 from plenger.services.workspace import initialize, load_config
 from plenger.storage.backup import create_database_backup, restore_database_backup
