@@ -6,8 +6,25 @@ build-backend = "hatchling.build"
 name = "plenger"
 version = "0.1.0"
 description = "Local-first repository security analysis (development checkpoint)"
+readme = "README.md"
 requires-python = ">=3.12.4,<3.13"
-dependencies = ["fastapi==0.141.1", "pydantic==2.13.5", "sqlalchemy==2.0.54", "alembic==1.20.0", "typer==0.27.2", "uvicorn==0.53.0", "pyyaml==6.0.3", "httpx==0.28.1"]
+classifiers = [
+    # Local working name only; never publish to a package index (docs/CODING_AGENT.md).
+    "Private :: Do Not Upload",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = [
+    "fastapi==0.141.1",
+    "pydantic==2.13.5",
+    "sqlalchemy==2.0.54",
+    "alembic==1.20.0",
+    "typer==0.27.2",
+    "uvicorn==0.53.0",
+    "pyyaml==6.0.3",
+    "httpx==0.28.1",
+]
 
 [project.scripts]
 plenger = "plenger.cli.main:app"
