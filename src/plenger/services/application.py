@@ -18,7 +18,7 @@ from plenger.adapters.promptfoo import capability as promptfoo_capability
 from plenger.broker.ipc import active_runner_capability
 from plenger.domain import RunState
 from plenger.policy import redact
-from plenger.services.integrity import check_report
+from plenger.services.integrity import check_report, redact_preserving_integrity
 from plenger.services.scanners import (
     run_managed_scanners,
     scanner_capabilities,
@@ -572,8 +572,10 @@ def latest(root: Path, run_id: str | None = None) -> dict[str, Any] | None:
         purge_expired_evidence(engine, project_id(root))
         expired = expired_evidence_ids(engine, project_id(root))
         _purge_report_mirrors(engine, project_id(root), expired)
-        result = reports(engine, project_id(root), run_id)
-        clean: dict[str, Any] | None = check_report(redact(result)) if result else None
+        # Verify evidence against the stored bytes, then redact for output. Read-side
+        # redaction changes must never be mistaken for evidence corruption.
+        stored = reports(engine, project_id(root), run_id, redacted=False)
+        clean: dict[str, Any] | None = redact(check_report(stored)) if stored else None
         if clean:
             _expire_report_evidence(clean, expired)
             for finding in clean.get("findings", []):
@@ -747,7 +749,7 @@ def _purge_report_mirrors(engine: Engine, identity: str, expired: set[str]) -> N
                 continue
             if not isinstance(payload, dict):
                 continue
-            payload = redact(payload)
+            payload = redact_preserving_integrity(payload)
             before = json.dumps(payload, ensure_ascii=False, sort_keys=True)
             _expire_report_evidence(payload, expired)
             after = json.dumps(payload, ensure_ascii=False, sort_keys=True)
@@ -793,7 +795,7 @@ def update_finding_lifecycle(
                 {"run": row["run_id"], "project": identity},
             ).first()
             if report_row is not None:
-                payload = redact(json.loads(report_row[1]))
+                payload = redact_preserving_integrity(json.loads(report_row[1]))
                 for finding in payload.get("findings", []):
                     if finding.get("id") == finding_id:
                         finding["lifecycle_state"] = lifecycle_state

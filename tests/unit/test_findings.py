@@ -459,3 +459,75 @@ def test_baseline_scan_is_incomplete_when_a_dependency_input_is_skipped(tmp_path
     assert {"path": "package-lock.json", "reason": "too_large"} in report["skipped"]
     assert {"engine": "osv", "reason": "dependency_input_skipped"} in report["scanner_errors"]
     assert report["state"] == "completed_with_errors"
+
+
+def test_broader_redaction_rules_do_not_turn_intact_evidence_into_mismatch(tmp_path, monkeypatch):
+    import re
+
+    from plenger import policy
+    from plenger.services import application
+
+    initialize(tmp_path)
+    (tmp_path / "fixture.py").write_text("value = 1\n")
+    monkeypatch.setattr(application, "probe", lambda: {"status": "ready"})
+    monkeypatch.setattr(
+        application,
+        "execute",
+        lambda files, identity, run_id: {
+            "nodes": [],
+            "edges": [],
+            "findings": [
+                {
+                    "id": "a" * 64,
+                    "fingerprint": "b" * 64,
+                    "rule_id": "WK-PY-001",
+                    "kind": "dynamic_code_execution",
+                    "severity": "high",
+                    "severity_source": "plenger-rule",
+                    "validation_state": "candidate",
+                    "lifecycle_state": "open",
+                    "assessment_state": "needs_review",
+                    "title": "Review",
+                    "source_ref": {"path": "fixture.py", "line": 1},
+                    "evidence": {
+                        "id": "c" * 64,
+                        "source": "python-ast-v2",
+                        "observed": "future-sensitive-value observed",
+                        "redaction_version": "metadata-only-v1",
+                    },
+                }
+            ],
+            "errors": [],
+            "limitations": [],
+        },
+    )
+    run_id, _ = queue_scan(tmp_path, "deterministic", False, "redaction-upgrade")
+    application.execute_scan(tmp_path, run_id)
+    assert latest(tmp_path, run_id)["findings"][0]["evidence_integrity"] == "verified"
+
+    # A later release adds a broader rule that matches already-stored evidence.
+    monkeypatch.setattr(
+        policy, "PATTERNS", [*policy.PATTERNS, re.compile(r"future-sensitive-value")]
+    )
+    current = latest(tmp_path, run_id)
+    finding = current["findings"][0]
+    assert finding["evidence_integrity"] == "verified"
+    assert "future-sensitive-value" not in finding["evidence"]["observed"]
+
+    update_finding_lifecycle(tmp_path, finding["id"], "acknowledged", "triaged", 0)
+    rewritten = latest(tmp_path, run_id)["findings"][0]
+    assert rewritten["evidence_integrity"] == "verified"
+
+
+def test_report_write_back_keeps_tampered_evidence_visible(tmp_path, monkeypatch):
+    from plenger.services.integrity import redact_preserving_integrity
+    from plenger.storage.findings import evidence_digest
+
+    evidence = {"id": "e1", "source": "s", "observed": "original", "redaction_version": "v"}
+    evidence["sha256_redacted"] = evidence_digest(evidence)
+    tampered = dict(evidence, observed="changed after write")
+    report = {"findings": [{"evidence": tampered}]}
+
+    rewritten = redact_preserving_integrity(report)
+
+    assert rewritten["findings"][0]["evidence"]["sha256_redacted"] == evidence["sha256_redacted"]

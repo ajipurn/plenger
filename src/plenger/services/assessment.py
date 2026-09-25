@@ -19,9 +19,9 @@ from plenger.evaluators import (
     ManualReviewProvider,
     semantic_assessment_digests,
 )
-from plenger.policy import redact
 from plenger.policy.consent import normalize_data_classes
 from plenger.services.application import latest, project_id
+from plenger.services.integrity import redact_preserving_integrity
 from plenger.services.workspace import load_config
 from plenger.storage import open_store
 from plenger.storage.assessments import (
@@ -247,7 +247,7 @@ def evaluate_finding(
                 assessments = []
             assessments.append(result)
             current_report["assessments"] = assessments[-ASSESSMENT_REPORT_VIEW_LIMIT:]
-            current_report = redact(current_report)
+            current_report = redact_preserving_integrity(current_report)
             connection.execute(
                 text("UPDATE reports SET payload=:payload WHERE id=:run AND project_id=:project"),
                 {

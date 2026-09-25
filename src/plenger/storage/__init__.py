@@ -218,7 +218,11 @@ def save_report(engine: Engine, report: dict[str, Any]) -> None:
         )
 
 
-def reports(engine: Engine, project_id: str, run_id: str | None = None) -> dict[str, Any] | None:
+def reports(
+    engine: Engine, project_id: str, run_id: str | None = None, *, redacted: bool = True
+) -> dict[str, Any] | None:
+    """Load one report. ``redacted=False`` is only for integrity checks before output."""
+
     query = "SELECT payload FROM reports WHERE project_id=:p"
     args = {"p": project_id}
     if run_id is not None:
@@ -227,7 +231,10 @@ def reports(engine: Engine, project_id: str, run_id: str | None = None) -> dict[
     query += " ORDER BY rowid DESC LIMIT 1"
     with engine.connect() as connection:
         row = connection.execute(text(query), args).first()
-    return redact(json.loads(row[0])) if row else None
+    if not row:
+        return None
+    payload = json.loads(row[0])
+    return redact(payload) if redacted else payload
 
 
 def latest_report_id(engine: Engine, project_id: str) -> str | None:

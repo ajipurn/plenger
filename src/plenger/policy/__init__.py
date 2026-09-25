@@ -4,7 +4,23 @@ import re
 from typing import Any
 
 PATTERNS = [
-    re.compile(r"(?i)(?<![A-Za-z0-9])(?:sk|ghp|github_pat|AKIA)[-_a-zA-Z0-9]{12,}"),
+    # Credential prefixes are case-sensitive and must be followed by their own
+    # delimiter, so identifiers and paths such as ``sklearn_utils.py`` or
+    # ``skip-tls-verify`` are left intact while ``sk-…``/``ghp_…`` keys are not.
+    re.compile(
+        r"(?<![A-Za-z0-9])(?:"
+        r"sk-(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{16,}"
+        r"|sk_(?:live|test)_[A-Za-z0-9]{16,}"
+        r"|gh[pousr]_[A-Za-z0-9]{20,}"
+        r"|github_pat_[A-Za-z0-9_]{20,}"
+        r"|(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Za-z])"
+        r")"
+    ),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/-]{16,}=*"),
+    re.compile(
+        r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----"
+        r"(?:[\s\S]*?-----END (?:[A-Z0-9]+ )*PRIVATE KEY-----|[\s\S]*)"
+    ),
     re.compile(r"(?i)(?:secret|password|token|api_key)\s*[=:]\s*[^\s,;]+"),
     re.compile(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}"),
 ]
