@@ -15,7 +15,7 @@ from plenger.services.assessment import (
     grant_hosted_consent_for_project,
 )
 from plenger.services.workspace import initialize
-from plenger.storage import open_store
+from plenger.storage.database import open_store
 
 
 def fake_result(rule_id="WK-PY-001", observed="synthetic observed text"):
@@ -101,7 +101,7 @@ def test_adversarial_jev_evidence_cannot_authorize_or_mutate_findings(tmp_path, 
         for key in ("severity", "validation_state", "lifecycle_state", "assessment_state")
     }
 
-    from plenger import evaluators
+    from plenger.evaluators import providers as evaluators
     from plenger.services import assessment as assessment_service
 
     request_capture: dict[str, object] = {}
@@ -299,7 +299,7 @@ def test_assessment_row_metadata_stays_authoritative_over_payload(tmp_path, monk
 
 def test_save_assessment_redacts_untrusted_answers(tmp_path, monkeypatch):
     run_id, finding_id = prepared_run(tmp_path, monkeypatch)
-    from plenger.evaluators import Assessment
+    from plenger.evaluators.models import Assessment
     from plenger.storage.assessments import save_assessment
 
     assessment = Assessment(
@@ -455,7 +455,7 @@ def test_hosted_payload_is_limited_to_the_consented_data_classes(tmp_path, monke
     run_id, finding_id = prepared_run(
         tmp_path, monkeypatch, observed="PRIVATE_CODE_EXCERPT_SENTINEL"
     )
-    from plenger import evaluators
+    from plenger.evaluators import providers as evaluators
     from plenger.services import assessment as assessment_service
 
     captured: list[dict[str, object]] = []

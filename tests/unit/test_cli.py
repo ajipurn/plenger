@@ -8,7 +8,7 @@ from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
 from plenger.services.active import approve_for_project, plan_for_project
 from plenger.services.application import project_id
 from plenger.services.workspace import initialize
-from plenger.storage import open_store
+from plenger.storage.database import open_store
 
 
 def test_plan_cli_creates_preview_without_dispatch(tmp_path):

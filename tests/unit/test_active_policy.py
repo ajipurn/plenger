@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import text
 
-from plenger.assessment_rubric import ACTIVE_RUBRIC_HASH
+from plenger.evaluators.rubric import ACTIVE_RUBRIC_HASH
 from plenger.policy.active import BudgetSpec, PlanSpec, PolicyViolation, TargetSpec, dispatch_url
 from plenger.services.active import (
     approve_for_project,
@@ -17,7 +17,7 @@ from plenger.services.active import (
 )
 from plenger.services.application import run_status
 from plenger.services.workspace import initialize
-from plenger.storage import open_store
+from plenger.storage.database import open_store
 from plenger.storage.plans import consume_approval
 from plenger.storage.runs import RunConflict
 

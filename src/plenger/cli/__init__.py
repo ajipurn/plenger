@@ -14,7 +14,7 @@ import uvicorn
 from plenger.adapters import SandboxError
 from plenger.adapters.promptfoo import MAX_OUTPUT_BYTES, PromptfooImportError, import_promptfoo
 from plenger.api import DEFAULT_PORT, Sessions, create_app, safe_code
-from plenger.evaluators import AssessmentError
+from plenger.evaluators.models import AssessmentError
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
 from plenger.runner import (
     FIXED_CASES,

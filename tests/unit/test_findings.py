@@ -11,7 +11,7 @@ from plenger.services.application import (
     update_finding_lifecycle,
 )
 from plenger.services.workspace import initialize
-from plenger.storage import open_store
+from plenger.storage.database import open_store
 from plenger.storage.findings import (
     active_suppression,
     latest_suppression,
@@ -464,7 +464,7 @@ def test_baseline_scan_is_incomplete_when_a_dependency_input_is_skipped(tmp_path
 def test_broader_redaction_rules_do_not_turn_intact_evidence_into_mismatch(tmp_path, monkeypatch):
     import re
 
-    from plenger import policy
+    from plenger.policy import redaction
     from plenger.services import application
 
     initialize(tmp_path)
@@ -507,7 +507,7 @@ def test_broader_redaction_rules_do_not_turn_intact_evidence_into_mismatch(tmp_p
 
     # A later release adds a broader rule that matches already-stored evidence.
     monkeypatch.setattr(
-        policy, "PATTERNS", [*policy.PATTERNS, re.compile(r"future-sensitive-value")]
+        redaction, "PATTERNS", [*redaction.PATTERNS, re.compile(r"future-sensitive-value")]
     )
     current = latest(tmp_path, run_id)
     finding = current["findings"][0]

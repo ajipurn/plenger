@@ -27,7 +27,7 @@ from plenger.adapters import IMAGE, execute, probe
 from plenger.api import ORIGIN, create_app
 from plenger.services.application import execute_scan, findings_page, project_id, queue_scan
 from plenger.services.workspace import initialize
-from plenger.storage import open_store, save_report
+from plenger.storage.database import open_store, save_report
 from plenger.storage.findings import persist_report_entities
 from plenger.storage.runs import create_run
 

@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
 
-from plenger.policy import redact
 from plenger.policy.active import (
     BudgetSpec,
     PolicyViolation,
@@ -22,6 +21,7 @@ from plenger.policy.active import (
     dispatch_url,
     is_public_address,
 )
+from plenger.policy.redaction import redact
 
 
 class BrokerError(RuntimeError):

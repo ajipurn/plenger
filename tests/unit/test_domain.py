@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from plenger.domain import RunState, transition
+from plenger.domain.runs import RunState, transition
 from plenger.graph.worker import analyze
 from plenger.services.application import export_report
 
@@ -64,7 +64,7 @@ def test_exports_inert_and_redacted():
 
 
 def test_redaction_masks_plain_sensitive_fields_but_keeps_token_metadata():
-    from plenger.policy import redact
+    from plenger.policy.redaction import redact
 
     value = {
         "secret": "plain-synthetic-secret",
@@ -90,7 +90,7 @@ def test_redaction_masks_plain_sensitive_fields_but_keeps_token_metadata():
 
 
 def test_redaction_does_not_match_token_prefix_inside_product_markers():
-    from plenger.policy import redact
+    from plenger.policy.redaction import redact
 
     marker = "PLENGER_SYNTHETIC_DISCLOSURE_MARKER"
 
@@ -101,7 +101,7 @@ def test_save_report_redacts_before_persistence(tmp_path):
     from sqlalchemy import text
 
     from plenger.services.application import project_id
-    from plenger.storage import open_store, reports, save_report
+    from plenger.storage.database import open_store, reports, save_report
 
     engine = open_store(tmp_path)
     try:
@@ -173,7 +173,7 @@ def test_missing_sandbox_never_executes_target(monkeypatch):
 def test_migration_reopen_preserves_evidence(tmp_path):
     from sqlalchemy import text
 
-    from plenger.storage import open_store, reports, save_report
+    from plenger.storage.database import open_store, reports, save_report
 
     engine = open_store(tmp_path)
     save_report(engine, {"run_id": "r", "project_id": "p", "findings": ["metadata"]})
@@ -203,7 +203,7 @@ def test_migration_reopen_preserves_normalized_findings_and_run_events(tmp_path)
 
     from plenger.services.application import project_id, queue_scan
     from plenger.services.workspace import initialize
-    from plenger.storage import open_store, save_report
+    from plenger.storage.database import open_store, save_report
     from plenger.storage.findings import persist_report_entities
 
     initialize(tmp_path)
@@ -301,7 +301,7 @@ def test_legacy_migration_upgrade_preserves_report_and_rejects_downgrade(tmp_pat
     from sqlalchemy import create_engine, text
 
     from plenger.services.workspace import initialize
-    from plenger.storage import open_store, reports
+    from plenger.storage.database import open_store, reports
 
     initialize(tmp_path)
     private = tmp_path / ".plenger"

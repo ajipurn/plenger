@@ -1,15 +1,15 @@
 import pytest
 from sqlalchemy import text
 
-from plenger.domain import RunState
+from plenger.domain.runs import RunState
 from plenger.services.application import project_id, queue_scan, recover_runs, run_status
 from plenger.services.workspace import initialize
-from plenger.storage import open_store
 from plenger.storage.attempts import (
     finish_active_attempt,
     list_active_attempts,
     start_active_attempt,
 )
+from plenger.storage.database import open_store
 from plenger.storage.runs import advance
 
 

@@ -8,9 +8,9 @@ from typing import Any, cast
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 
-from plenger.domain import RunState, transition
 from plenger.domain.digests import digest as digest
-from plenger.policy import redact
+from plenger.domain.runs import RunState, transition
+from plenger.policy.redaction import redact
 
 
 class RunConflict(ValueError):

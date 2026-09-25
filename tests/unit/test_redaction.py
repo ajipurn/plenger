@@ -1,6 +1,6 @@
 import pytest
 
-from plenger.policy import redact
+from plenger.policy.redaction import redact
 
 
 @pytest.mark.parametrize(

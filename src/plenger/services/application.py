@@ -16,8 +16,8 @@ from sqlalchemy.engine import Engine
 from plenger.adapters import IMAGE, SandboxError, cleanup_run, execute, probe
 from plenger.adapters.promptfoo import capability as promptfoo_capability
 from plenger.broker.ipc import active_runner_capability
-from plenger.domain import RunState
-from plenger.policy import redact
+from plenger.domain.runs import RunState
+from plenger.policy.redaction import redact
 from plenger.services.integrity import check_report, redact_preserving_integrity
 from plenger.services.scanners import (
     run_managed_scanners,
@@ -32,9 +32,9 @@ from plenger.services.workspace import (
     load_config,
     project_identity,
 )
-from plenger.storage import latest_report_id, open_store, reports
 from plenger.storage.assessments import list_assessments
 from plenger.storage.attempts import mark_interrupted_active_attempts
+from plenger.storage.database import latest_report_id, open_store, reports
 from plenger.storage.findings import (
     carry_forward_lifecycle,
     default_retention_until,

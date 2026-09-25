@@ -13,8 +13,8 @@ from plenger.api import ORIGIN, Sessions, create_app
 from plenger.runner import FixtureObserver
 from plenger.services.application import queue_scan
 from plenger.services.workspace import initialize
-from plenger.storage import open_store, save_report
 from plenger.storage.backup import create_database_backup
+from plenger.storage.database import open_store, save_report
 from plenger.storage.locking import StoreBusy
 
 
@@ -285,7 +285,7 @@ def test_hosted_assessment_consent_preview_and_grant_are_scoped(client):
 
 def test_run_history_and_selected_report_are_project_bound(client):
     from plenger.services.application import project_id, queue_scan
-    from plenger.storage import open_store, save_report
+    from plenger.storage.database import open_store, save_report
 
     session = pair(client)
     root = client.app.state.project_root
@@ -530,7 +530,7 @@ def test_assessment_api_persists_history_without_mutating_authority(client, monk
         key: before["findings"][0][key]
         for key in ("severity", "validation_state", "lifecycle_state", "assessment_state")
     }
-    from plenger.storage import open_store
+    from plenger.storage.database import open_store
 
     engine = open_store(client.app.state.project_root)
     try:
@@ -736,11 +736,11 @@ def test_finding_export_and_plan_revoke_routes_enforce_project_and_revision_boun
 
 
 def test_report_view_bounds_assessment_mirror_but_history_api_remains_pageable(client, monkeypatch):
-    from plenger.evaluators import Assessment
+    from plenger.evaluators.models import Assessment
     from plenger.services import application
     from plenger.services.application import queue_scan
-    from plenger.storage import open_store
     from plenger.storage.assessments import save_assessment
+    from plenger.storage.database import open_store
 
     monkeypatch.setattr(application, "probe", lambda: {"status": "ready"})
     monkeypatch.setattr(
@@ -884,7 +884,7 @@ def test_graph_pagination_reads_normalized_rows_not_report_mirror(client, monkey
     )
     run_id, _ = queue_scan(client.app.state.project_root, "deterministic", False, "api-graph")
     report = application.execute_scan(client.app.state.project_root, run_id)
-    from plenger.storage import open_store
+    from plenger.storage.database import open_store
 
     engine = open_store(client.app.state.project_root)
     try:
@@ -964,8 +964,8 @@ def test_post_export_requires_a_stored_report(client):
 
 def test_attempt_ledger_is_project_bound(client):
     from plenger.services.application import project_id, queue_scan
-    from plenger.storage import open_store
     from plenger.storage.attempts import record_active_attempt
+    from plenger.storage.database import open_store
 
     session = pair(client)
     run_id, _ = queue_scan(client.app.state.project_root, "deterministic", False, "attempt-api")

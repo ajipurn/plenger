@@ -174,9 +174,9 @@ def test_real_orphan_container_is_removed_without_replay(tmp_path):
     from sqlalchemy import text
 
     from plenger.adapters import cleanup_run, docker_command
-    from plenger.domain import RunState
+    from plenger.domain.runs import RunState
     from plenger.services.application import project_id, queue_scan, recover_runs, run_status
-    from plenger.storage import open_store
+    from plenger.storage.database import open_store
     from plenger.storage.runs import advance
 
     require_sandbox()

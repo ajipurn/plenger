@@ -17,7 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import Field
 
-from plenger.domain import StrictModel
+from plenger.domain.base import StrictModel
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
 from plenger.runner import TrustedObserver
 from plenger.services.active import (
@@ -53,8 +53,8 @@ from plenger.services.assessment import (
 )
 from plenger.services.diff import diff_reports
 from plenger.services.workspace import load_config
-from plenger.storage import open_store
 from plenger.storage.attempts import list_active_attempts
+from plenger.storage.database import open_store
 from plenger.storage.locking import runtime_lock
 from plenger.storage.runs import RunConflict, list_events
 

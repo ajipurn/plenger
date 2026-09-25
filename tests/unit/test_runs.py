@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from sqlalchemy import text
 
-from plenger.domain import RunState
+from plenger.domain.runs import RunState
 from plenger.services.application import (
     execute_scan,
     project_id,
@@ -14,7 +14,7 @@ from plenger.services.application import (
 )
 from plenger.services.snapshot import manifest
 from plenger.services.workspace import initialize
-from plenger.storage import open_store
+from plenger.storage.database import open_store
 from plenger.storage.locking import StoreBusy, runtime_lock
 from plenger.storage.runs import (
     RunConflict,

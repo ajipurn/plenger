@@ -9,9 +9,9 @@ from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import Field, field_validator, model_validator
 
-from plenger.assessment_rubric import ACTIVE_RUBRIC_HASH
-from plenger.domain import StrictModel
+from plenger.domain.base import StrictModel
 from plenger.domain.digests import digest
+from plenger.evaluators.rubric import ACTIVE_RUBRIC_HASH
 
 
 class PolicyViolation(ValueError):

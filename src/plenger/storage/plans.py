@@ -10,8 +10,8 @@ from typing import Any, cast
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 
-from plenger.policy import redact
 from plenger.policy.active import PlanSpec
+from plenger.policy.redaction import redact
 from plenger.storage.runs import RunConflict, digest, now
 
 

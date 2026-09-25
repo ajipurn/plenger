@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 from plenger.services.application import project_id
 from plenger.services.workspace import PROJECT_ID_FILE, initialize, path_project_id
-from plenger.storage import open_store, reports, save_report
+from plenger.storage.database import open_store, reports, save_report
 
 
 def _store_report(root, run_id="run-before-move"):

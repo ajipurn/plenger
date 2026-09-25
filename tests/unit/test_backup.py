@@ -10,8 +10,8 @@ from typer.testing import CliRunner
 from plenger.cli import app
 from plenger.services.application import project_id
 from plenger.services.workspace import initialize
-from plenger.storage import open_store
 from plenger.storage.backup import create_database_backup, restore_database_backup
+from plenger.storage.database import open_store
 from plenger.storage.locking import StoreBusy, runtime_lock
 
 

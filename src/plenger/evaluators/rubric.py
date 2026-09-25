@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import model_validator
 
-from plenger.domain import StrictModel
+from plenger.domain.base import StrictModel
 from plenger.domain.digests import digest
 
 

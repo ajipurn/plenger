@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from plenger.domain import StrictModel
+from plenger.domain.base import StrictModel
 
 Identifier = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 Text = Annotated[str, Field(max_length=4096)]

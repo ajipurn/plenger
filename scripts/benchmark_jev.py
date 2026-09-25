@@ -18,7 +18,8 @@ from typing import Any
 
 import httpx
 
-from plenger.evaluators import JevProvider, Question
+from plenger.evaluators.providers import JevProvider
+from plenger.evaluators.rubric import Question
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS_PATH = ROOT / "fixtures/evaluator/jev-local-v1.json"

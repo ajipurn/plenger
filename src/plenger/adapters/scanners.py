@@ -25,8 +25,8 @@ from typing import Any, Literal, cast
 
 from pydantic import Field, field_validator, model_validator
 
-from plenger.domain import StrictModel
-from plenger.policy import redact
+from plenger.domain.base import StrictModel
+from plenger.policy.redaction import redact
 
 MAX_OUTPUT_BYTES = 64 * 1024 * 1024
 MAX_STDERR_BYTES = 256 * 1024

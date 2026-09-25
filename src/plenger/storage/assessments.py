@@ -8,8 +8,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 
-from plenger.evaluators import Assessment
-from plenger.policy import redact
+from plenger.evaluators.models import Assessment
+from plenger.policy.redaction import redact
 from plenger.storage.runs import now
 
 MAX_ASSESSMENT_PAGE_SIZE = 100

@@ -225,8 +225,8 @@ def test_local_fixed_suite_runs_only_after_approval(tmp_path):
         assert report["summary"]["pass"] == 2 and report["summary"]["fail"] == 0
         assert run_status(tmp_path, run_id)["state"] == "completed"
         from plenger.services.application import project_id
-        from plenger.storage import open_store
         from plenger.storage.attempts import list_active_attempts
+        from plenger.storage.database import open_store
 
         engine = open_store(tmp_path)
         try:
@@ -630,8 +630,8 @@ def test_recovery_marks_inflight_active_attempt_after_dispatch_crash(tmp_path, m
     from plenger.services import application
     from plenger.services.active import RunConflict
     from plenger.services.application import project_id, recover_runs
-    from plenger.storage import open_store
     from plenger.storage.attempts import list_active_attempts
+    from plenger.storage.database import open_store
 
     run_id = _queued_active_run(tmp_path, "active-dispatch-crash")
     possibly_sent_actions = []
@@ -670,8 +670,8 @@ def test_recovery_marks_inflight_active_attempt_after_dispatch_crash(tmp_path, m
 def test_wall_time_attempt_is_finished_before_run_exits(tmp_path, monkeypatch):
     from plenger.services import active as active_service
     from plenger.services.application import project_id
-    from plenger.storage import open_store
     from plenger.storage.attempts import list_active_attempts
+    from plenger.storage.database import open_store
 
     run_id = _queued_active_run(tmp_path, "active-wall-time")
 
@@ -702,8 +702,8 @@ def test_recovery_keeps_completed_attempt_after_report_write_crash(tmp_path, mon
     from plenger.services import active as active_service
     from plenger.services import application
     from plenger.services.application import project_id, recover_runs
-    from plenger.storage import open_store
     from plenger.storage.attempts import list_active_attempts
+    from plenger.storage.database import open_store
 
     run_id = _queued_active_run(tmp_path, "active-report-crash")
 
@@ -747,8 +747,8 @@ def test_recovery_marks_attempt_after_worker_process_is_killed(tmp_path, monkeyp
     from plenger.services import application
     from plenger.services.active import RunConflict
     from plenger.services.application import project_id, recover_runs
-    from plenger.storage import open_store
     from plenger.storage.attempts import list_active_attempts
+    from plenger.storage.database import open_store
 
     TargetHandler.request_count = 0
     TargetHandler.observer = None

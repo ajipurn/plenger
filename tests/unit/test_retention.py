@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from plenger.services.application import project_id, queue_scan
 from plenger.services.workspace import initialize
-from plenger.storage import open_store
+from plenger.storage.database import open_store
 from plenger.storage.retention import purge_expired_metadata
 
 

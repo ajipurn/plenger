@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from plenger.policy import redact
+from plenger.policy.redaction import redact
 from plenger.storage.runs import digest, now
 
 GIT_TIMEOUT_SECONDS = 2

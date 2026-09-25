@@ -1,7 +1,8 @@
 import httpx
 import pytest
 
-from plenger.evaluators import JevProvider, ManualReviewProvider, Question
+from plenger.evaluators.providers import JevProvider, ManualReviewProvider
+from plenger.evaluators.rubric import Question
 
 QUESTIONS = {
     "sufficient": Question(

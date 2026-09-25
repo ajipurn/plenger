@@ -4,7 +4,7 @@ import hashlib
 import json
 from typing import Any
 
-from plenger.policy import redact
+from plenger.policy.redaction import redact
 from plenger.storage.findings import evidence_digest
 from plenger.storage.runs import digest
 

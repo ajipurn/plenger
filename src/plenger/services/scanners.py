@@ -45,8 +45,8 @@ from plenger.adapters.scanners import (
     unresolved_dependency_findings,
     version_probe,
 )
-from plenger.domain import StrictModel
-from plenger.policy import redact
+from plenger.domain.base import StrictModel
+from plenger.policy.redaction import redact
 from plenger.services.workspace import (
     WorkspaceError,
     capture,

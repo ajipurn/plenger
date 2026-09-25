@@ -4,7 +4,7 @@ import threading
 
 import pytest
 
-from plenger.domain import ProjectConfig
+from plenger.domain.config import ProjectConfig
 from plenger.services.workspace import (
     WorkspaceError,
     capture,
@@ -270,7 +270,7 @@ def test_per_file_limit_can_be_raised_explicitly(tmp_path):
 
 
 def test_private_storage_symlink_rejected(tmp_path):
-    from plenger.storage import open_store
+    from plenger.storage.database import open_store
 
     (tmp_path / ".plenger").symlink_to(tmp_path, target_is_directory=True)
     with pytest.raises(OSError):
@@ -291,7 +291,7 @@ def test_hardlinked_file_rejected(tmp_path):
 
 
 def test_existing_engine_rejects_database_replacement(tmp_path):
-    from plenger.storage import open_store
+    from plenger.storage.database import open_store
 
     initialize(tmp_path)
     engine = open_store(tmp_path)
@@ -315,7 +315,7 @@ def test_existing_engine_rejects_database_replacement(tmp_path):
 
 
 def test_store_rejects_database_replacement_before_first_connection(tmp_path, monkeypatch):
-    from plenger import storage
+    from plenger.storage import database as storage
 
     initialize(tmp_path)
     database = tmp_path / ".plenger" / "state.sqlite3"
@@ -340,7 +340,7 @@ def test_store_rejects_database_replacement_before_first_connection(tmp_path, mo
 
 
 def test_pooled_engine_rejects_database_replacement_on_checkout(tmp_path):
-    from plenger.storage import open_store
+    from plenger.storage.database import open_store
 
     initialize(tmp_path)
     engine = open_store(tmp_path)

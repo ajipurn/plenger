@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 from yaml.tokens import AliasToken, AnchorToken, TagToken
 
-from plenger.domain import ProjectConfig
+from plenger.domain.config import ProjectConfig
 
 EXCLUDED = {
     ".git",

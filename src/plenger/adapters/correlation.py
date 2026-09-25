@@ -17,7 +17,7 @@ from collections.abc import Iterable
 from pydantic import Field
 
 from plenger.adapters.scanners import ScannerFinding, ScannerResult
-from plenger.domain import StrictModel
+from plenger.domain.base import StrictModel
 
 
 class CorrelatedFinding(StrictModel):

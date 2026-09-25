@@ -10,8 +10,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Connection, Engine
 
-from plenger.policy import redact
 from plenger.policy.consent import normalize_data_classes
+from plenger.policy.redaction import redact
 from plenger.storage.runs import now
 
 
