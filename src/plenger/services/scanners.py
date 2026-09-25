@@ -14,6 +14,7 @@ import os
 import shutil
 import stat
 import tempfile
+import threading
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -358,9 +359,58 @@ def _database_home(root: Path, *, create: bool) -> Path | None:
         os.close(private)
 
 
+_fingerprint_cache_lock = threading.Lock()
+_fingerprint_cache: dict[tuple[object, ...], tuple[str, int]] = {}
+
+
+def _database_signature(home: Path) -> tuple[object, ...] | None:
+    """Cheap stat-only signature; any content change alters at least ctime."""
+
+    entries: list[tuple[str, int, int, int, int, int]] = []
+    try:
+        for current, directories, filenames in os.walk(home, followlinks=False):
+            for name in [*directories, *filenames]:
+                if (Path(current) / name).is_symlink():
+                    return None
+            for name in filenames:
+                info = os.stat(Path(current) / name, follow_symlinks=False)
+                entries.append(
+                    (
+                        (Path(current) / name).relative_to(home).as_posix(),
+                        info.st_dev,
+                        info.st_ino,
+                        info.st_size,
+                        info.st_mtime_ns,
+                        info.st_ctime_ns,
+                    )
+                )
+                if len(entries) > 10000:
+                    return None
+    except OSError:
+        return None
+    return (str(home), *sorted(entries))
+
+
 def _database_fingerprint(home: Path) -> tuple[str, int] | None:
+    """Hash the provisioned database, reusing the result while no file changed."""
+
     if not home.is_dir():
         return None
+    signature = _database_signature(home)
+    if signature is not None:
+        with _fingerprint_cache_lock:
+            cached = _fingerprint_cache.get(signature)
+        if cached is not None:
+            return cached
+    result = _hash_database(home)
+    if result is not None and signature is not None and _database_signature(home) == signature:
+        with _fingerprint_cache_lock:
+            _fingerprint_cache.clear()
+            _fingerprint_cache[signature] = result
+    return result
+
+
+def _hash_database(home: Path) -> tuple[str, int] | None:
     entries: list[tuple[str, int, str]] = []
     total = 0
     for current, directories, filenames in os.walk(home, followlinks=False):

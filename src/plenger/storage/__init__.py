@@ -224,34 +224,42 @@ def open_store(root: Path) -> Engine:
             os.close(descriptor)
     except (OSError, WorkspaceError):
         config_hash = "unknown"
-    with engine.begin() as connection:
-        connection.execute(
-            text(
-                "INSERT OR IGNORE INTO projects "
-                "(id,created_at,content_key,name,root_identity,config_hash) "
-                "VALUES (:id,:created,:key,:name,:root,:config)"
-            ),
-            {
-                "id": root_identity,
-                "created": now_text(),
-                "key": os.urandom(32),
-                "name": project_name,
-                "root": root_identity,
-                "config": config_hash,
-            },
-        )
-        connection.execute(
-            text(
-                "UPDATE projects SET name=:name,root_identity=:root,config_hash=:config "
-                "WHERE id=:id"
-            ),
-            {
-                "id": root_identity,
-                "name": project_name,
-                "root": root_identity,
-                "config": config_hash,
-            },
-        )
+    expected = (project_name, root_identity, config_hash)
+    with engine.connect() as connection:
+        current = connection.execute(
+            text("SELECT name,root_identity,config_hash FROM projects WHERE id=:id"),
+            {"id": root_identity},
+        ).first()
+    # Read paths open the store too; only take the writer lock when metadata changed.
+    if current is None or tuple(current) != expected:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT OR IGNORE INTO projects "
+                    "(id,created_at,content_key,name,root_identity,config_hash) "
+                    "VALUES (:id,:created,:key,:name,:root,:config)"
+                ),
+                {
+                    "id": root_identity,
+                    "created": now_text(),
+                    "key": os.urandom(32),
+                    "name": project_name,
+                    "root": root_identity,
+                    "config": config_hash,
+                },
+            )
+            connection.execute(
+                text(
+                    "UPDATE projects SET name=:name,root_identity=:root,config_hash=:config "
+                    "WHERE id=:id"
+                ),
+                {
+                    "id": root_identity,
+                    "name": project_name,
+                    "root": root_identity,
+                    "config": config_hash,
+                },
+            )
     from plenger.storage.retention import purge_expired_metadata
 
     purge_expired_metadata(engine, root_identity)

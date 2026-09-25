@@ -601,3 +601,72 @@ def test_recurring_findings_keep_acknowledgment_and_active_suppression(tmp_path,
     _, fourth = scan("triage-4")
     assert fourth["lifecycle_state"] == "open"
     assert second_run != third_run
+
+
+def test_evidence_expiry_rewrites_only_affected_mirrors_once(tmp_path, monkeypatch):
+    from plenger.services import application
+
+    initialize(tmp_path)
+    (tmp_path / "fixture.py").write_text("value = 1\n")
+    monkeypatch.setattr(application, "probe", lambda: {"status": "ready"})
+
+    def fake(label):
+        return lambda files, identity, run_id: {
+            "nodes": [],
+            "edges": [],
+            "findings": [
+                {
+                    "id": label * 64,
+                    "fingerprint": label * 64,
+                    "rule_id": "WK-PY-001",
+                    "kind": "dynamic_code_execution",
+                    "severity": "high",
+                    "severity_source": "plenger-rule",
+                    "validation_state": "candidate",
+                    "lifecycle_state": "open",
+                    "assessment_state": "needs_review",
+                    "title": "Review",
+                    "source_ref": {"path": "fixture.py", "line": 1},
+                    "evidence": {
+                        "id": label * 64,
+                        "source": "python-ast-v2",
+                        "observed": f"evidence {label}",
+                        "redaction_version": "metadata-only-v1",
+                    },
+                }
+            ],
+            "errors": [],
+            "limitations": [],
+        }
+
+    runs = []
+    for label in ("a", "b"):
+        monkeypatch.setattr(application, "execute", fake(label))
+        run_id, _ = queue_scan(tmp_path, "deterministic", False, f"expiry-{label}")
+        application.execute_scan(tmp_path, run_id)
+        runs.append(run_id)
+    expired_run, current_run = runs
+    engine = open_store(tmp_path)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE evidence_artifacts SET retention_until=:past WHERE run_id=:run"),
+                {"past": "2000-01-01T00:00:00+00:00", "run": expired_run},
+            )
+    finally:
+        engine.dispose()
+    rewrites = []
+    original = application.redact_preserving_integrity
+    monkeypatch.setattr(
+        application,
+        "redact_preserving_integrity",
+        lambda payload: rewrites.append(payload.get("run_id")) or original(payload),
+    )
+
+    assert latest(tmp_path, current_run)["findings"][0]["evidence"]["observed"] == "evidence b"
+    assert rewrites == [expired_run]
+    latest(tmp_path, current_run)
+    assert rewrites == [expired_run]
+    expired = latest(tmp_path, expired_run)["findings"][0]
+    assert expired["evidence"]["observed"] == "[EXPIRED]"
+    assert expired["evidence_integrity"] == "expired"

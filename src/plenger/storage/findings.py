@@ -437,21 +437,62 @@ def purge_expired_evidence(
     return {str(item) for item in rows}
 
 
-def expired_evidence_ids(engine: Engine, project_id: str, now_value: str | None = None) -> set[str]:
+def expired_evidence_ids(
+    engine: Engine,
+    project_id: str,
+    now_value: str | None = None,
+    run_id: str | None = None,
+) -> set[str]:
     current = now_value or datetime.now(UTC).isoformat()
+    query = (
+        "SELECT id FROM evidence_artifacts WHERE project_id=:project "
+        "AND retention_until IS NOT NULL AND retention_until<=:current"
+    )
+    values = {"project": project_id, "current": current}
+    if run_id is not None:
+        query += " AND run_id=:run"
+        values["run"] = run_id
     with engine.connect() as connection:
-        rows = (
-            connection.execute(
-                text(
-                    "SELECT id FROM evidence_artifacts WHERE project_id=:project "
-                    "AND retention_until IS NOT NULL AND retention_until<=:current"
-                ),
-                {"project": project_id, "current": current},
-            )
-            .scalars()
-            .all()
-        )
+        rows = connection.execute(text(query), values).scalars().all()
     return {str(item) for item in rows}
+
+
+def suppression_states(
+    engine: Engine, project_id: str, fingerprints: list[str], now_value: str | None = None
+) -> tuple[dict[str, dict[str, Any]], set[str]]:
+    """Batch-load active suppressions and suppression history for many findings."""
+
+    current = now_value or datetime.now(UTC).isoformat()
+    unique = sorted(set(fingerprints))
+    active: dict[str, dict[str, Any]] = {}
+    history: set[str] = set()
+    with engine.connect() as connection:
+        for start in range(0, len(unique), _CARRY_FORWARD_CHUNK):
+            chunk = unique[start : start + _CARRY_FORWARD_CHUNK]
+            names = {f"f{index}": value for index, value in enumerate(chunk)}
+            placeholders = ",".join(f":{name}" for name in names)
+            rows = (
+                connection.execute(
+                    text(
+                        "SELECT * FROM finding_suppressions WHERE project_id=:project "
+                        f"AND finding_fingerprint IN ({placeholders}) "
+                        "ORDER BY expires_at DESC"
+                    ),
+                    {"project": project_id, **names},
+                )
+                .mappings()
+                .all()
+            )
+            for row in rows:
+                fingerprint = str(row["finding_fingerprint"])
+                history.add(fingerprint)
+                if (
+                    row["revoked_at"] is None
+                    and str(row["expires_at"]) > current
+                    and fingerprint not in active
+                ):
+                    active[fingerprint] = cast(dict[str, Any], redact(dict(row)))
+    return active, history
 
 
 def latest_suppression(engine: Engine, project_id: str, fingerprint: str) -> dict[str, Any] | None:

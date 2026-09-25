@@ -36,16 +36,14 @@ from plenger.storage import latest_report_id, open_store, reports
 from plenger.storage.assessments import list_assessments
 from plenger.storage.attempts import mark_interrupted_active_attempts
 from plenger.storage.findings import (
-    active_suppression,
     carry_forward_lifecycle,
     default_retention_until,
     evidence_digest,
     expired_evidence_ids,
-    latest_suppression,
     normalized_findings,
     persist_report_entities,
-    purge_expired_evidence,
     serialize_normalized_finding,
+    suppression_states,
     update_lifecycle,
 )
 from plenger.storage.graph import graph_page as normalized_graph_page
@@ -572,34 +570,104 @@ def ci_exit_code(
     return 1 if _gated_findings(report, threshold, include_candidates) else 0
 
 
+def _apply_suppression_state(engine: Engine, identity: str, findings: list[Any]) -> None:
+    """Attach active suppressions and expose expired ones, with one batched lookup."""
+
+    items = [
+        finding
+        for finding in findings
+        if isinstance(finding, dict) and isinstance(finding.get("fingerprint"), str)
+    ]
+    active, history = suppression_states(
+        engine, identity, [str(finding["fingerprint"]) for finding in items]
+    )
+    for finding in items:
+        fingerprint = str(finding["fingerprint"])
+        suppression = active.get(fingerprint)
+        if suppression:
+            finding["suppression"] = {
+                "actor": suppression["actor"],
+                "reason": suppression["reason"],
+                "expires_at": suppression["expires_at"],
+            }
+        elif finding.get("lifecycle_state") == "suppressed":
+            finding["lifecycle_state"] = "open"
+            finding["suppression_state"] = "expired" if fingerprint in history else "not_found"
+
+
+def _expire_evidence(engine: Engine, identity: str) -> None:
+    """Scrub newly expired evidence and only the report mirrors that reference it.
+
+    Evidence rows and their mirrors change in one transaction, so a crash cannot
+    leave a mirror holding content whose normalized row was already scrubbed.
+    """
+
+    current = now()
+    expiry_filter = (
+        "project_id=:project AND retention_until IS NOT NULL "
+        "AND retention_until<=:current AND observed<>'[EXPIRED]'"
+    )
+    values = {"project": identity, "current": current}
+    # A read-only probe keeps ordinary dashboard reads from taking the writer lock.
+    with engine.connect() as connection:
+        pending = connection.execute(
+            text(f"SELECT 1 FROM evidence_artifacts WHERE {expiry_filter} LIMIT 1"), values
+        ).first()
+    if pending is None:
+        return
+    with engine.begin() as connection:
+        rows = connection.execute(
+            text(
+                "UPDATE evidence_artifacts SET observed='[EXPIRED]',size=0 "
+                f"WHERE {expiry_filter} RETURNING id,run_id"
+            ),
+            values,
+        ).all()
+        by_run: dict[str, set[str]] = {}
+        for evidence_id, evidence_run in rows:
+            by_run.setdefault(str(evidence_run), set()).add(str(evidence_id))
+        for evidence_run, expired in by_run.items():
+            row = connection.execute(
+                text("SELECT payload FROM reports WHERE id=:run AND project_id=:project"),
+                {"run": evidence_run, "project": identity},
+            ).first()
+            if row is None:
+                continue
+            try:
+                payload = json.loads(row[0])
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(payload, dict):
+                continue
+            payload = redact_preserving_integrity(payload)
+            _expire_report_evidence(payload, expired)
+            connection.execute(
+                text("UPDATE reports SET payload=:payload WHERE id=:run AND project_id=:project"),
+                {
+                    "payload": json.dumps(payload, ensure_ascii=False),
+                    "run": evidence_run,
+                    "project": identity,
+                },
+            )
+
+
 def latest(root: Path, run_id: str | None = None) -> dict[str, Any] | None:
     load_config(root)
     engine = open_store(root)
+    identity = project_id(root)
     try:
-        purge_expired_evidence(engine, project_id(root))
-        expired = expired_evidence_ids(engine, project_id(root))
-        _purge_report_mirrors(engine, project_id(root), expired)
+        _expire_evidence(engine, identity)
         # Verify evidence against the stored bytes, then redact for output. Read-side
         # redaction changes must never be mistaken for evidence corruption.
-        stored = reports(engine, project_id(root), run_id, redacted=False)
+        stored = reports(engine, identity, run_id, redacted=False)
         clean: dict[str, Any] | None = redact(check_report(stored)) if stored else None
         if clean:
-            _expire_report_evidence(clean, expired)
-            for finding in clean.get("findings", []):
-                fingerprint = finding.get("fingerprint")
-                if not isinstance(fingerprint, str):
-                    continue
-                suppression = active_suppression(engine, project_id(root), fingerprint)
-                if suppression:
-                    finding["suppression"] = {
-                        "actor": suppression["actor"],
-                        "reason": suppression["reason"],
-                        "expires_at": suppression["expires_at"],
-                    }
-                elif finding.get("lifecycle_state") == "suppressed":
-                    historical = latest_suppression(engine, project_id(root), fingerprint)
-                    finding["lifecycle_state"] = "open"
-                    finding["suppression_state"] = "expired" if historical else "not_found"
+            report_run = clean.get("run_id")
+            if isinstance(report_run, str):
+                _expire_report_evidence(
+                    clean, expired_evidence_ids(engine, identity, run_id=report_run)
+                )
+            _apply_suppression_state(engine, identity, clean.get("findings", []))
         return clean
     finally:
         engine.dispose()
@@ -624,7 +692,7 @@ def findings_page_with_cursor(
     identity = project_id(root)
     engine = open_store(root)
     try:
-        purge_expired_evidence(engine, identity)
+        _expire_evidence(engine, identity)
         key = project_key(engine, identity)
         run_id = requested_run_id or latest_report_id(engine, identity)
         if run_id is None:
@@ -668,20 +736,8 @@ def findings_page_with_cursor(
             ):
                 item["evidence_expired"] = True
                 item["evidence_integrity"] = "expired"
-            fingerprint = item.get("fingerprint")
-            if isinstance(fingerprint, str):
-                suppression = active_suppression(engine, identity, fingerprint)
-                if suppression:
-                    item["suppression"] = {
-                        "actor": suppression["actor"],
-                        "reason": suppression["reason"],
-                        "expires_at": suppression["expires_at"],
-                    }
-                elif item.get("lifecycle_state") == "suppressed":
-                    historical = latest_suppression(engine, identity, fingerprint)
-                    item["lifecycle_state"] = "open"
-                    item["suppression_state"] = "expired" if historical else "not_found"
             output.append(item)
+        _apply_suppression_state(engine, identity, output)
         has_more = len(output) > limit
         page = output[:limit]
         next_cursor = (
@@ -739,34 +795,6 @@ def _expire_report_evidence(report: dict[str, Any], expired: set[str]) -> None:
                 evidence["size"] = 0
                 finding["evidence_expired"] = True
                 finding["evidence_integrity"] = "expired"
-
-
-def _purge_report_mirrors(engine: Engine, identity: str, expired: set[str]) -> None:
-    if not expired:
-        return
-    with engine.begin() as connection:
-        rows = connection.execute(
-            text("SELECT id,payload FROM reports WHERE project_id=:project"),
-            {"project": identity},
-        ).all()
-        for row in rows:
-            try:
-                payload = json.loads(row[1])
-            except (TypeError, json.JSONDecodeError):
-                continue
-            if not isinstance(payload, dict):
-                continue
-            payload = redact_preserving_integrity(payload)
-            before = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-            _expire_report_evidence(payload, expired)
-            after = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-            if before != after:
-                connection.execute(
-                    text(
-                        "UPDATE reports SET payload=:payload WHERE id=:run AND project_id=:project"
-                    ),
-                    {"payload": after, "run": row[0], "project": identity},
-                )
 
 
 def update_finding_lifecycle(

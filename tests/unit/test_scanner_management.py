@@ -294,3 +294,38 @@ def test_osv_database_changes_are_unavailable(tmp_path, monkeypatch):
 
     assert status["status"] == "unavailable"
     assert status["reason"] == "osv_database_changed"
+
+
+def test_database_fingerprint_is_reused_until_a_file_changes(tmp_path, monkeypatch):
+    from plenger.services import scanners as scanner_service
+
+    runtime = tmp_path / "osv"
+    runtime.mkdir()
+    (runtime / "database.bin").write_bytes(b"local-advisory-data")
+    calls = []
+    original = scanner_service._hash_database
+
+    def counting(home):
+        calls.append(home)
+        return original(home)
+
+    monkeypatch.setattr(scanner_service, "_hash_database", counting)
+    first = _database_fingerprint(runtime)
+    assert _database_fingerprint(runtime) == first
+    assert len(calls) == 1
+
+    (runtime / "database.bin").write_bytes(b"local-advisory-DATA")
+    changed = _database_fingerprint(runtime)
+    assert changed != first
+    assert len(calls) == 2
+
+
+def test_binary_identity_cache_rehashes_after_rewrite(tmp_path):
+    from plenger.adapters.scanners import _binary_hash
+
+    binary = tmp_path / "tool"
+    binary.write_bytes(b"version-one")
+    first = _binary_hash(binary)
+    assert _binary_hash(binary) == first
+    binary.write_bytes(b"version-two")
+    assert _binary_hash(binary) == hashlib.sha256(b"version-two").hexdigest()
