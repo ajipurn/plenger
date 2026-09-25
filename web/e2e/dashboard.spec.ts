@@ -36,12 +36,81 @@ test('pairs a browser and renders a real local fixture report', async ({page}) =
   await page.getByLabel('Kode pairing').fill('invalid-pairing-code');
   await page.getByRole('button', {name: 'Pasangkan browser'}).click();
   await expect(page.getByRole('alert')).toHaveText(
-    'Kode pairing salah, kedaluwarsa, atau sudah mencapai batas percobaan.',
+    'Kode pairing salah, kedaluwarsa, atau sudah mencapai batas percobaan. Periksa terminal untuk kode baru.',
   );
   await page.getByLabel('Kode pairing').fill(current.code);
   await page.getByRole('button', {name: 'Pasangkan browser'}).click();
 
   await expect(page.getByRole('heading', {name: 'Hasil analisis'})).toBeVisible();
+  const staticRunOption = page.locator('#history-run option').filter({hasText: 'deterministic'}).first();
+  await expect(staticRunOption).toBeAttached();
+  const staticRunId = await staticRunOption.getAttribute('value');
+  if (!staticRunId) throw new Error('Static run is missing from browser history');
+  await page.locator('#history-run').selectOption(staticRunId);
+  await expect(page.getByRole('button', {name: 'Muat ulang'})).toBeEnabled();
+  let releaseLoadingRequests: (() => void) | undefined;
+  const loadingRequestsGate = new Promise<void>((resolve) => {
+    releaseLoadingRequests = resolve;
+  });
+  const selectedAssessmentHistory = (url: URL) => (
+    url.pathname === `/api/v1/runs/${staticRunId}/assessments`
+    && url.searchParams.get('limit') === '100'
+    && url.searchParams.get('offset') === '0'
+  );
+  const selectedFindings = (url: URL) => (
+    url.pathname.endsWith('/findings') && url.searchParams.get('run_id') === staticRunId
+  );
+  const selectedGraph = (url: URL) => (
+    url.pathname.endsWith('/graph') && url.searchParams.get('run_id') === staticRunId
+  );
+  for (const matches of [selectedAssessmentHistory, selectedFindings, selectedGraph]) {
+    await page.route(matches, async (route) => {
+      await loadingRequestsGate;
+      await route.continue();
+    }, {times: 1});
+  }
+  await page.getByRole('button', {name: 'Muat ulang'}).click();
+  try {
+    await expect(page.getByText('Memuat riwayat assessment…', {exact: true})).toBeVisible();
+    await expect(page.getByText('Memuat temuan…', {exact: true})).toBeVisible();
+    await expect(page.getByText('Memuat peta…', {exact: true})).toBeVisible();
+  } finally {
+    releaseLoadingRequests?.();
+  }
+  await expect(page.getByText('Memuat riwayat assessment…', {exact: true})).not.toBeVisible();
+  await expect(page.getByText('Memuat temuan…', {exact: true})).not.toBeVisible();
+  await expect(page.getByText('Memuat peta…', {exact: true})).not.toBeVisible();
+  await expect(page.getByText('Belum ada hasil assessment. Pilih “Nilai bukti” pada temuan untuk memulai.')).toBeVisible();
+
+  const historySelect = page.locator('#history-run');
+  await historySelect.evaluate((element) => {
+    (element as HTMLSelectElement).add(new Option('empty report fixture', 'empty-report'));
+  });
+  await page.route((url) => (
+    url.pathname.endsWith('/report') && url.searchParams.get('run_id') === 'empty-report'
+  ), async (route) => {
+    await route.fulfill({json: {report: null}});
+  }, {times: 1});
+  await historySelect.selectOption('empty-report');
+  await expect(page.getByText('Belum ada hasil analisis.')).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Belum ada scan'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Temuan & bukti'})).not.toBeVisible();
+  await historySelect.selectOption(staticRunId);
+  await expect(page.getByRole('heading', {name: 'Temuan & bukti'})).toBeVisible();
+  await expect(page.getByRole('heading', {name: 'Peta definisi'})).toBeVisible();
+  await page.locator('#finding-source-path').fill('__no_matching_source__.py');
+  await page.getByRole('button', {name: 'Terapkan filter', exact: true}).click();
+  await expect(page.getByText('Tidak ada temuan untuk filter ini. Ubah atau kosongkan filter.')).toBeVisible();
+  await page.locator('#finding-source-path').fill('');
+  await page.getByRole('button', {name: 'Terapkan filter', exact: true}).click();
+  await expect(page.locator('.findings-panel article h3').first()).toBeVisible();
+  await page.locator('#graph-source-path').fill('__no_matching_source__.py');
+  await page.getByRole('button', {name: 'Terapkan filter peta'}).click();
+  await expect(page.getByText('Belum ada relasi definisi pada input yang didukung.')).toBeVisible();
+  await page.locator('#graph-source-path').fill('');
+  await page.getByRole('button', {name: 'Terapkan filter peta'}).click();
+  await expect(page.locator('.graph-edges button').first()).toBeVisible();
+
   const sessionCookie = (await page.context().cookies()).find((cookie) => cookie.name === 'plenger_session');
   expect(sessionCookie).toMatchObject({httpOnly: true, sameSite: 'Strict', domain: '127.0.0.1', path: '/'});
   expect(await page.evaluate(() => document.cookie)).not.toContain('plenger_session');
@@ -255,10 +324,10 @@ test('pairs a browser and renders a real local fixture report', async ({page}) =
   await expect(page.getByText(/digest [0-9a-f]{64}/)).toBeVisible();
   await expect(page.getByText(/rubric [0-9a-f]{64}/)).toBeVisible();
   await expect(page.getByText(/Kasus yang dipilih: 1\./)).toBeVisible();
-  await expect(page.locator('[aria-label="Ringkasan status coverage"]')).toContainText('Direncanakan');
+  await expect(page.locator('[aria-label="Ringkasan status coverage"]')).toContainText('Belum diuji');
   await expect(page.locator('[aria-label="Ringkasan status coverage"]')).toContainText('Dilewati');
   await expect(page.locator('[aria-label="Ringkasan status coverage"]')).toContainText('9');
-  await expect(page.getByText('LLM10 · planned', {exact: true})).toBeVisible();
+  await expect(page.getByText('LLM10 · not_tested', {exact: true})).toBeVisible();
   await expect(page.locator('.test-results').getByText('LLM01-direct-policy', {exact: true})).toBeVisible();
   await expect(page.getByText('pass', {exact: true})).toBeVisible();
 
@@ -267,9 +336,6 @@ test('pairs a browser and renders a real local fixture report', async ({page}) =
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe('plenger.json');
 
-  const staticRun = page.locator('#history-run option').filter({hasText: 'deterministic'}).first();
-  const staticRunId = await staticRun.getAttribute('value');
-  if (!staticRunId) throw new Error('Static run is missing from browser history');
   await page.locator('#history-run').selectOption(staticRunId);
   await page.getByLabel('Path yang diizinkan').fill('/slow');
   await page.getByLabel(/Saya memahami biaya internal target/).check();

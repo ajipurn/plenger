@@ -18,9 +18,15 @@ describe('dashboard view helpers', () => {
         isolation: 'docker_pinned',
         age_days: '2.5',
       }),
-    ).toBe('ready · engine_completed · versi 2.6.0 · isolasi docker_pinned · umur database 2.5 hari');
+    ).toBe(
+      'ready · engine_completed · versi 2.6.0 · isolasi docker_pinned · umur database 2.5 hari',
+    );
     expect(
-      engineStateSummary('semgrep', {status: 'unavailable', reason: 'missing_binary', age_days: '9'}),
+      engineStateSummary('semgrep', {
+        status: 'unavailable',
+        reason: 'missing_binary',
+        age_days: '9',
+      }),
     ).toBe('unavailable · missing_binary');
   });
 });

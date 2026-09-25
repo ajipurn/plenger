@@ -1,6 +1,18 @@
 import {defineConfig} from '@playwright/test';
 
 const browserPath = process.env.PLENGER_E2E_BROWSER;
+const requestedEngine = process.env.PLENGER_E2E_ENGINE;
+const supportedEngines = ['chromium', 'firefox', 'webkit'] as const;
+type BrowserEngine = (typeof supportedEngines)[number];
+
+if (
+  requestedEngine !== undefined &&
+  !supportedEngines.includes(requestedEngine as BrowserEngine)
+) {
+  throw new Error(`Unsupported PLENGER_E2E_ENGINE: ${requestedEngine}`);
+}
+
+const browserName = (requestedEngine as BrowserEngine | undefined) ?? 'chromium';
 
 export default defineConfig({
   testDir: './e2e',
@@ -13,7 +25,10 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:7331',
     headless: true,
-    launchOptions: browserPath ? {executablePath: browserPath} : undefined,
+    browserName,
+    launchOptions: browserName === 'chromium' && browserPath
+      ? {executablePath: browserPath}
+      : undefined,
     trace: 'retain-on-failure',
   },
 });
