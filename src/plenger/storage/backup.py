@@ -7,6 +7,7 @@ import os
 import re
 import sqlite3
 import stat
+import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,6 +23,9 @@ from plenger.storage.locking import runtime_lock
 
 _BACKUP_DIRECTORY = "migration-backups"
 _BACKUP_ID = re.compile(r"^[0-9a-f]{32}$")
+_BACKUP_FILE = re.compile(r"^backup-[0-9a-f]{32}\.sqlite3$")
+# Backups contain evidence, so they cannot outlive the evidence retention window.
+BACKUP_RETENTION_DAYS = 30
 _DATABASE_NAME = "state.sqlite3"
 _REQUIRED_TABLES = frozenset({"alembic_version", "projects", "reports", "runs"})
 
@@ -127,6 +131,40 @@ def _database_identity(connection: sqlite3.Connection, expected_project: str) ->
     return schema_version
 
 
+def prune_expired_backups(root: Path, max_age_days: int = BACKUP_RETENTION_DAYS) -> int:
+    """Delete rollback snapshots older than the evidence retention window."""
+
+    if not 1 <= max_age_days <= 3650:
+        raise ValueError("invalid_backup_retention_days")
+    try:
+        private, _ = _open_private_directory(root)
+    except (OSError, WorkspaceError):
+        return 0
+    removed = 0
+    cutoff = time.time() - max_age_days * 86400
+    try:
+        try:
+            directory = _open_backup_directory(private, create=False)
+        except (OSError, WorkspaceError):
+            return 0
+        try:
+            with os.scandir(directory) as entries:
+                names = [entry.name for entry in entries if _BACKUP_FILE.fullmatch(entry.name)]
+            for name in names:
+                try:
+                    info = _file_info(directory, name, required=False)
+                except (ValueError, WorkspaceError):
+                    continue
+                if info is not None and info.st_mtime < cutoff:
+                    os.unlink(name, dir_fd=directory)
+                    removed += 1
+        finally:
+            os.close(directory)
+    finally:
+        os.close(private)
+    return removed
+
+
 def create_database_backup(root: Path) -> dict[str, str]:
     """Create a consistent, owner-only backup while the project is offline."""
 
@@ -203,6 +241,7 @@ def create_database_backup(root: Path) -> dict[str, str]:
         "schema_version": schema_version,
         "project_id": identity,
         "created_at": datetime.now(UTC).isoformat(),
+        "retention_days": str(BACKUP_RETENTION_DAYS),
     }
 
 

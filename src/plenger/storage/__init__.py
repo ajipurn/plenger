@@ -260,9 +260,11 @@ def open_store(root: Path) -> Engine:
                     "config": config_hash,
                 },
             )
+    from plenger.storage.backup import prune_expired_backups
     from plenger.storage.retention import purge_expired_metadata
 
     purge_expired_metadata(engine, root_identity)
+    prune_expired_backups(root)
     return engine
 
 

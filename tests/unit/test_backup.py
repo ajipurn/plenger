@@ -155,3 +155,24 @@ def test_database_backup_requires_project_to_be_offline(tmp_path):
                 create_database_backup(tmp_path)
             with pytest.raises(StoreBusy, match="project_worker_busy"):
                 restore_database_backup(tmp_path, backup["backup_id"], identity)
+
+
+def test_backups_older_than_evidence_retention_are_pruned(tmp_path):
+    import os
+    import time
+
+    from plenger.storage.backup import prune_expired_backups
+
+    _seed_database(tmp_path)
+    old = create_database_backup(tmp_path)
+    recent = create_database_backup(tmp_path)
+    directory = tmp_path / ".plenger" / "migration-backups"
+    old_path = directory / f"backup-{old['backup_id']}.sqlite3"
+    stale = time.time() - 31 * 86400
+    os.utime(old_path, (stale, stale))
+    (directory / "notes.txt").write_text("not a managed backup")
+
+    assert prune_expired_backups(tmp_path) == 1
+    assert not old_path.exists()
+    assert (directory / f"backup-{recent['backup_id']}.sqlite3").exists()
+    assert (directory / "notes.txt").exists()
