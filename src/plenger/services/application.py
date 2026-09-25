@@ -19,12 +19,9 @@ from plenger.broker.ipc import active_runner_capability
 from plenger.domain.runs import RunState
 from plenger.policy.redaction import redact
 from plenger.services.integrity import check_report, redact_preserving_integrity
-from plenger.services.scanners import (
-    run_managed_scanners,
-    scanner_capabilities,
-    scanner_findings_to_report,
-    scanner_manifest_digest,
-)
+from plenger.services.scanners.baseline import run_managed_scanners, scanner_findings_to_report
+from plenger.services.scanners.manifest import scanner_manifest_digest
+from plenger.services.scanners.verification import scanner_capabilities
 from plenger.services.snapshot import manifest
 from plenger.services.workspace import (
     capture,

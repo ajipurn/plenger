@@ -9,11 +9,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from plenger.services.scanners import (
-    provision_osv_database,
-    provision_scanners,
-    run_managed_scanners,
-)
+from plenger.services.scanners.baseline import run_managed_scanners
+from plenger.services.scanners.provisioning import provision_osv_database, provision_scanners
 from plenger.services.workspace import initialize
 
 

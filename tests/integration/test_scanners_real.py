@@ -16,11 +16,8 @@ from plenger.adapters.scanners.containers import (
 from plenger.adapters.scanners.execution import execute_scanner
 from plenger.adapters.scanners.planning import plan_scanner
 from plenger.services.application import scan
-from plenger.services.scanners import (
-    provision_scanners,
-    run_managed_scanners,
-    scanner_findings_to_report,
-)
+from plenger.services.scanners.baseline import run_managed_scanners, scanner_findings_to_report
+from plenger.services.scanners.provisioning import provision_scanners
 from plenger.services.workspace import initialize
 
 
@@ -46,7 +43,7 @@ def test_darwin_scanner_cannot_read_outside_staging(tmp_path, monkeypatch):
     )
     binary.chmod(0o700)
     monkeypatch.setattr(
-        "plenger.services.scanners.shutil.which",
+        "plenger.services.scanners.provisioning.shutil.which",
         lambda name: "/usr/bin/sandbox-exec" if name == "sandbox-exec" else str(binary),
     )
     provision_scanners(tmp_path, ["trivy"])

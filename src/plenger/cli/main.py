@@ -43,7 +43,7 @@ from plenger.services.application import (
     ungated_candidate_count,
 )
 from plenger.services.assessment import evaluate_finding
-from plenger.services.scanners import provision_osv_database, provision_scanners
+from plenger.services.scanners.provisioning import provision_osv_database, provision_scanners
 from plenger.services.workspace import initialize, load_config
 from plenger.storage.backup import create_database_backup, restore_database_backup
 from plenger.storage.locking import StoreBusy

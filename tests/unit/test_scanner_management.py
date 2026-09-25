@@ -6,20 +6,18 @@ import pytest
 
 from plenger.adapters.scanners.containers import SCANNER_CONTAINER_IMAGES
 from plenger.adapters.scanners.models import ScannerExecutionError
-from plenger.services.scanners import (
+from plenger.services.scanners.baseline import _stage_files, run_managed_scanners
+from plenger.services.scanners.database import database_fingerprint
+from plenger.services.scanners.manifest import (
     DatabaseMetadata,
     ManagedScanner,
     ManagedScannerManifest,
-    _database_fingerprint,
-    _ensure_private_directory,
-    _stage_files,
+    ensure_private_directory,
     load_scanner_manifest,
-    provision_osv_database,
-    provision_scanners,
-    run_managed_scanners,
     save_scanner_manifest,
-    scanner_capabilities,
 )
+from plenger.services.scanners.provisioning import provision_osv_database, provision_scanners
+from plenger.services.scanners.verification import scanner_capabilities
 from plenger.services.workspace import initialize
 
 
@@ -36,12 +34,12 @@ def test_scanner_private_directory_is_opened_once_and_closed(tmp_path, monkeypat
     closed: list[int] = []
 
     monkeypatch.setattr(
-        "plenger.services.scanners._private_dir",
+        "plenger.services.scanners.manifest.open_private_dir",
         lambda root, *, create: opened.append((root, create)) or 41,
     )
-    monkeypatch.setattr("plenger.services.scanners.os.close", closed.append)
+    monkeypatch.setattr("plenger.services.scanners.manifest.os.close", closed.append)
 
-    _ensure_private_directory(tmp_path)
+    ensure_private_directory(tmp_path)
 
     assert opened == [(tmp_path, True)]
     assert closed == [41]
@@ -51,7 +49,7 @@ def test_host_manifest_is_unavailable_when_container_worker_is_required(tmp_path
     runtime, entry = _managed_osv_fixture(tmp_path)
     save_scanner_manifest(tmp_path, ManagedScannerManifest(engines=[entry]))
     monkeypatch.setattr(
-        "plenger.services.scanners.scanner_isolation_mode",
+        "plenger.services.scanners.verification.scanner_isolation_mode",
         lambda: "docker_pinned",
     )
 
@@ -73,11 +71,11 @@ def test_container_manifest_is_unavailable_without_non_root_user(tmp_path, monke
     )
     save_scanner_manifest(tmp_path, ManagedScannerManifest(engines=[entry]))
     monkeypatch.setattr(
-        "plenger.services.scanners.container_runtime_mode",
+        "plenger.services.scanners.verification.container_runtime_mode",
         lambda: "docker_pinned",
     )
     monkeypatch.setattr(
-        "plenger.services.scanners.container_user_available",
+        "plenger.services.scanners.verification.container_user_available",
         lambda: False,
     )
 
@@ -97,7 +95,7 @@ def test_missing_managed_scanner_is_visible_as_unavailable_not_clean(tmp_path, m
     )
     save_scanner_manifest(tmp_path, ManagedScannerManifest(engines=[entry]))
     monkeypatch.setattr(
-        "plenger.services.scanners.scanner_isolation_mode",
+        "plenger.services.scanners.verification.scanner_isolation_mode",
         lambda: "seatbelt_default_deny",
     )
 
@@ -115,17 +113,23 @@ def test_container_provisioning_can_pull_missing_pinned_image(tmp_path, monkeypa
     initialize(tmp_path)
     image = SCANNER_CONTAINER_IMAGES["semgrep"]
     present: set[str] = set()
-    monkeypatch.setattr("plenger.services.scanners.container_runtime_mode", lambda: "docker_pinned")
-    monkeypatch.setattr("plenger.services.scanners.container_user_available", lambda: True)
     monkeypatch.setattr(
-        "plenger.services.scanners.container_image_present", lambda value: value in present
+        "plenger.services.scanners.provisioning.container_runtime_mode", lambda: "docker_pinned"
     )
     monkeypatch.setattr(
-        "plenger.services.scanners.pull_container_image",
+        "plenger.services.scanners.provisioning.container_user_available", lambda: True
+    )
+    monkeypatch.setattr(
+        "plenger.services.scanners.provisioning.container_image_present",
+        lambda value: value in present,
+    )
+    monkeypatch.setattr(
+        "plenger.services.scanners.provisioning.pull_container_image",
         lambda value: (present.add(value) or True, "container_image_pulled"),
     )
     monkeypatch.setattr(
-        "plenger.services.scanners.container_version_probe", lambda name, value: "1.176.0"
+        "plenger.services.scanners.provisioning.container_version_probe",
+        lambda name, value: "1.176.0",
     )
 
     result = provision_scanners(tmp_path, ["semgrep"], container=True, pull=True)
@@ -150,18 +154,20 @@ def test_osv_provisioning_preserves_safe_scanner_failure_reason(tmp_path, monkey
         ),
     )
     monkeypatch.setattr(
-        "plenger.services.scanners._verify_binary",
+        "plenger.services.scanners.provisioning.verify_engine",
         lambda entry: ("ready", "managed", {"isolation": "docker_pinned"}),
     )
     monkeypatch.setattr(
-        "plenger.services.scanners.plan_scanner",
+        "plenger.services.scanners.provisioning.plan_scanner",
         lambda engine, target_root, **kwargs: SimpleNamespace(container_image=None),
     )
 
     def fail_with_safe_reason(plan):
         raise ScannerExecutionError("scanner_timeout")
 
-    monkeypatch.setattr("plenger.services.scanners.run_scanner_process", fail_with_safe_reason)
+    monkeypatch.setattr(
+        "plenger.services.scanners.provisioning.run_scanner_process", fail_with_safe_reason
+    )
 
     result = provision_osv_database(tmp_path)
 
@@ -200,7 +206,7 @@ def test_osv_provisioning_stages_ecosystem_fixture_for_nested_input(
     )
     staged: dict[str, list[str]] = {}
     monkeypatch.setattr(
-        "plenger.services.scanners._verify_binary",
+        "plenger.services.scanners.provisioning.verify_engine",
         lambda entry: ("ready", "managed", {"isolation": "docker_pinned"}),
     )
 
@@ -212,13 +218,13 @@ def test_osv_provisioning_stages_ecosystem_fixture_for_nested_input(
         )
         return SimpleNamespace(container_image=None)
 
-    monkeypatch.setattr("plenger.services.scanners.plan_scanner", fake_plan)
+    monkeypatch.setattr("plenger.services.scanners.provisioning.plan_scanner", fake_plan)
     monkeypatch.setattr(
-        "plenger.services.scanners.run_scanner_process",
+        "plenger.services.scanners.provisioning.run_scanner_process",
         lambda plan: b'{"results":[]}',
     )
     monkeypatch.setattr(
-        "plenger.services.scanners._database_fingerprint",
+        "plenger.services.scanners.provisioning.database_fingerprint",
         lambda home: ("a" * 64, 1),
     )
 
@@ -241,7 +247,7 @@ def _managed_osv_fixture(tmp_path):
     (tmp_path / ".plenger" / "scanners").chmod(0o700)
     runtime.chmod(0o700)
     (runtime / "database.bin").write_bytes(b"local-advisory-data")
-    fingerprint, size_bytes = _database_fingerprint(runtime)
+    fingerprint, size_bytes = database_fingerprint(runtime)
     assert fingerprint is not None
     entry = ManagedScanner(
         name="osv",
@@ -259,7 +265,7 @@ def _managed_osv_fixture(tmp_path):
 
 def test_osv_database_staleness_is_unavailable(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        "plenger.services.scanners.scanner_isolation_mode",
+        "plenger.services.scanners.verification.scanner_isolation_mode",
         lambda: "seatbelt_default_deny",
     )
     runtime, entry = _managed_osv_fixture(tmp_path)
@@ -282,7 +288,7 @@ def test_osv_database_staleness_is_unavailable(tmp_path, monkeypatch):
 
 def test_osv_database_changes_are_unavailable(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        "plenger.services.scanners.scanner_isolation_mode",
+        "plenger.services.scanners.verification.scanner_isolation_mode",
         lambda: "seatbelt_default_deny",
     )
     _, entry = _managed_osv_fixture(tmp_path)
@@ -298,25 +304,25 @@ def test_osv_database_changes_are_unavailable(tmp_path, monkeypatch):
 
 
 def test_database_fingerprint_is_reused_until_a_file_changes(tmp_path, monkeypatch):
-    from plenger.services import scanners as scanner_service
+    from plenger.services.scanners import database as scanner_database
 
     runtime = tmp_path / "osv"
     runtime.mkdir()
     (runtime / "database.bin").write_bytes(b"local-advisory-data")
     calls = []
-    original = scanner_service._hash_database
+    original = scanner_database._hash_database
 
     def counting(home):
         calls.append(home)
         return original(home)
 
-    monkeypatch.setattr(scanner_service, "_hash_database", counting)
-    first = _database_fingerprint(runtime)
-    assert _database_fingerprint(runtime) == first
+    monkeypatch.setattr(scanner_database, "_hash_database", counting)
+    first = database_fingerprint(runtime)
+    assert database_fingerprint(runtime) == first
     assert len(calls) == 1
 
     (runtime / "database.bin").write_bytes(b"local-advisory-DATA")
-    changed = _database_fingerprint(runtime)
+    changed = database_fingerprint(runtime)
     assert changed != first
     assert len(calls) == 2
 

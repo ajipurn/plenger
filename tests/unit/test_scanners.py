@@ -23,10 +23,10 @@ from plenger.adapters.scanners.models import (
 )
 from plenger.adapters.scanners.normalize import normalize_osv, normalize_semgrep, normalize_trivy
 from plenger.adapters.scanners.planning import plan_scanner
-from plenger.services.scanners import (
+from plenger.services.scanners.baseline import run_managed_scanners
+from plenger.services.scanners.manifest import (
     ManagedScanner,
     ManagedScannerManifest,
-    run_managed_scanners,
     save_scanner_manifest,
 )
 from plenger.services.workspace import initialize
@@ -338,7 +338,7 @@ def test_managed_osv_scan_adds_unresolved_candidates_after_engine_completion(tmp
         ),
     )
     monkeypatch.setattr(
-        "plenger.services.scanners.scanner_capabilities",
+        "plenger.services.scanners.baseline.scanner_capabilities",
         lambda root: {
             "semgrep": {"status": "unavailable", "reason": "not_configured"},
             "osv": {"status": "ready", "reason": "test", "isolation": "test"},
@@ -346,7 +346,7 @@ def test_managed_osv_scan_adds_unresolved_candidates_after_engine_completion(tmp
         },
     )
     monkeypatch.setattr(
-        "plenger.services.scanners.execute_scanner",
+        "plenger.services.scanners.baseline.execute_scanner",
         lambda plan: ScannerResult(
             engine="osv",
             status="completed",
@@ -629,9 +629,11 @@ def test_managed_scanner_revalidation_failure_becomes_bounded_error(tmp_path, mo
             )
         ]
     )
-    monkeypatch.setattr("plenger.services.scanners.load_scanner_manifest", lambda root: manifest)
     monkeypatch.setattr(
-        "plenger.services.scanners.scanner_capabilities",
+        "plenger.services.scanners.baseline.load_scanner_manifest", lambda root: manifest
+    )
+    monkeypatch.setattr(
+        "plenger.services.scanners.baseline.scanner_capabilities",
         lambda root: {
             "semgrep": {"status": "ready", "isolation": "test"},
             "osv": {"status": "unavailable", "isolation": "test"},
@@ -642,7 +644,7 @@ def test_managed_scanner_revalidation_failure_becomes_bounded_error(tmp_path, mo
     def unavailable(*args, **kwargs):
         raise ScannerUnavailable("scanner_version_mismatch")
 
-    monkeypatch.setattr("plenger.services.scanners.plan_scanner", unavailable)
+    monkeypatch.setattr("plenger.services.scanners.baseline.plan_scanner", unavailable)
     results, states = run_managed_scanners(tmp_path, {"app.py": "pass\n"})
 
     assert results == []
