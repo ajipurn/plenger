@@ -38,6 +38,7 @@ from plenger.services.application import (
     project_id,
     run_status,
     scan,
+    ungated_candidate_count,
 )
 from plenger.services.assessment import evaluate_finding
 from plenger.services.scanners import provision_osv_database, provision_scanners
@@ -238,7 +239,16 @@ def scan_command(
     profile: str = "baseline",
     fixture: bool = False,
     ci: bool = typer.Option(False, "--ci"),
-    fail_on: str | None = typer.Option(None, "--fail-on"),
+    fail_on: str | None = typer.Option(
+        None,
+        "--fail-on",
+        help="Severity gate (info/low/medium/high/critical) for supported/confirmed findings.",
+    ),
+    fail_on_candidates: bool = typer.Option(
+        False,
+        "--fail-on-candidates",
+        help="Let the --fail-on gate count scanner/parser candidates as well.",
+    ),
 ) -> None:
     try:
         report = scan(project, profile, fixture)
@@ -260,9 +270,22 @@ def scan_command(
     typer.echo(json.dumps(report, indent=2, ensure_ascii=False))
     if ci:
         try:
-            code = ci_exit_code(report, fail_on)
+            code = ci_exit_code(report, fail_on, include_candidates=fail_on_candidates)
+            ignored = 0 if fail_on_candidates else ungated_candidate_count(report, fail_on)
         except ValueError:
             raise typer.Exit(2) from None
+        if ignored:
+            # Keep stdout machine-readable; explain the gate semantics on stderr.
+            typer.echo(
+                json.dumps(
+                    {
+                        "warning": "candidate_findings_not_gated",
+                        "count": ignored,
+                        "hint": "use --fail-on-candidates to fail on scanner candidates",
+                    }
+                ),
+                err=True,
+            )
         if code:
             raise typer.Exit(code)
     elif report["state"] != "completed":
@@ -297,14 +320,17 @@ def _latest_snapshot_digest(project: Path) -> str | None:
     return digest if isinstance(digest, str) else None
 
 
-def _active_exit(state: str) -> int:
-    if state == "completed":
-        return 0
+def _active_exit(result: dict[str, Any]) -> int:
+    """Exit 1 when a fixed case observed a failure, with the shared CI precedence."""
+
+    state = str(result.get("state", "failed"))
     if state == "cancelled":
         return 130
     if state == "blocked":
         return 3
-    return 2
+    if state != "completed":
+        return 2
+    return ci_exit_code(result)
 
 
 @app.command(name="plan")
@@ -440,7 +466,7 @@ def run_command(
                 if result is None:
                     raise RunConflict("run_not_found")
         typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
-        raise typer.Exit(_active_exit(str(result.get("state", "failed"))))
+        raise typer.Exit(_active_exit(result))
     except (RunConflict, ValueError, OSError) as exc:
         typer.echo(json.dumps({"code": str(exc)}))
         raise typer.Exit(
@@ -476,7 +502,7 @@ def cancel_command(run_id: str, project: Project = Path(".")) -> None:
             typer.echo('{"code":"not_found"}')
             raise typer.Exit(2)
         typer.echo(json.dumps({"run_id": run_id, "state": state}))
-        raise typer.Exit(_active_exit(state))
+        raise typer.Exit(_active_exit({"state": state}))
     except (RunConflict, ValueError, OSError) as exc:
         typer.echo(json.dumps({"code": str(exc)}))
         raise typer.Exit(2) from None

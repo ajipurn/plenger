@@ -1,6 +1,6 @@
 import pytest
 
-from plenger.services.application import ci_exit_code
+from plenger.services.application import ci_exit_code, ungated_candidate_count
 from plenger.services.diff import diff_reports
 
 
@@ -189,3 +189,29 @@ def test_ci_exit_code_complete_policy_matrix(
         current[error_field] = [{"reason": "synthetic"}]
 
     assert ci_exit_code(current, fail_on) == expected
+
+
+def test_candidate_gate_is_explicit_and_skips_suppressed_findings():
+    current = report("run", ["a", "b"])
+    for finding in current["findings"]:
+        finding["severity"] = "critical"
+    assert ci_exit_code(current, "high") == 0
+    assert ungated_candidate_count(current, "high") == 2
+    assert ci_exit_code(current, "high", include_candidates=True) == 1
+    assert ci_exit_code(current, "critical", include_candidates=True) == 1
+
+    for finding in current["findings"]:
+        finding["lifecycle_state"] = "suppressed"
+    assert ci_exit_code(current, "high", include_candidates=True) == 0
+    assert ungated_candidate_count(current, "high") == 0
+
+
+def test_active_report_with_failed_case_fails_ci_and_errors_take_precedence():
+    active = report("active", [])
+    active["test_results"] = [
+        {"case_id": "LLM01-direct-policy", "result": "pass"},
+        {"case_id": "LLM02-synthetic-disclosure", "result": "fail"},
+    ]
+    assert ci_exit_code(active) == 1
+    active["state"] = "completed_with_errors"
+    assert ci_exit_code(active) == 2

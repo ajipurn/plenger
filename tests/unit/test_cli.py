@@ -425,3 +425,70 @@ def test_scan_cli_redacts_unexpected_runtime_error(tmp_path, monkeypatch):
     assert result.exit_code == 2, result.stdout
     assert json.loads(result.stdout)["code"] == "scan_failed"
     assert "sensitive-scanner-detail" not in result.stdout
+
+
+def _candidate_report(severity="critical"):
+    return {
+        "run_id": "run",
+        "state": "completed",
+        "errors": [],
+        "findings": [
+            {
+                "id": "f" * 64,
+                "severity": severity,
+                "validation_state": "candidate",
+                "lifecycle_state": "open",
+            }
+        ],
+    }
+
+
+def test_scan_ci_warns_when_candidates_are_not_gated(tmp_path, monkeypatch):
+    from plenger import cli as cli_module
+
+    initialize(tmp_path)
+    monkeypatch.setattr(cli_module, "scan", lambda *args: _candidate_report())
+    runner = CliRunner()
+
+    ignored = runner.invoke(app, ["scan", "--project", str(tmp_path), "--ci", "--fail-on", "high"])
+    assert ignored.exit_code == 0
+    assert "candidate_findings_not_gated" in ignored.stderr
+
+    gated = runner.invoke(
+        app,
+        [
+            "scan",
+            "--project",
+            str(tmp_path),
+            "--ci",
+            "--fail-on",
+            "high",
+            "--fail-on-candidates",
+        ],
+    )
+    assert gated.exit_code == 1
+    assert "candidate_findings_not_gated" not in gated.stderr
+
+
+def test_run_cli_exits_one_when_a_fixed_case_fails(tmp_path, monkeypatch):
+    from plenger import cli as cli_module
+
+    initialize(tmp_path)
+    monkeypatch.setattr(cli_module, "queue_active_run", lambda *args: ("run-id", True))
+    monkeypatch.setattr(
+        cli_module,
+        "execute_active_run",
+        lambda *args, **kwargs: {
+            "run_id": "run-id",
+            "state": "completed",
+            "errors": [],
+            "findings": [],
+            "test_results": [{"case_id": "LLM02-synthetic-disclosure", "result": "fail"}],
+        },
+    )
+
+    result = CliRunner().invoke(
+        app, ["run", "plan-id", "--project", str(tmp_path), "--approval", "approval-id"]
+    )
+
+    assert result.exit_code == 1, result.stdout
