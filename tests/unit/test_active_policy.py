@@ -280,10 +280,27 @@ def test_request_only_requires_explicit_cost_acknowledgment():
     )
 
 
-def test_strict_cost_guard_rejects_queue_without_target_control(tmp_path):
+def test_strict_cost_guard_is_rejected_when_planning(tmp_path):
     initialize(tmp_path)
     strict = plan().model_copy(update={"budget": BudgetSpec()})
-    created = plan_for_project(tmp_path, strict)
+    with pytest.raises(ValueError, match="strict_cost_guard_requires_target_control"):
+        plan_for_project(tmp_path, strict)
+
+
+def test_stored_strict_plan_is_still_rejected_before_queueing(tmp_path):
+    from plenger.services.application import project_id
+    from plenger.storage.plans import create_plan
+
+    initialize(tmp_path)
+    strict = plan().model_copy(update={"budget": BudgetSpec()})
+    strict = strict.model_copy(
+        update={"target": strict.target.model_copy(update={"allowed_ips": ["127.0.0.1"]})}
+    )
+    engine = open_store(tmp_path)
+    try:
+        created, _ = create_plan(engine, project_id(tmp_path), strict)
+    finally:
+        engine.dispose()
     approval = approve_for_project(
         tmp_path,
         created["id"],
@@ -293,6 +310,36 @@ def test_strict_cost_guard_rejects_queue_without_target_control(tmp_path):
     )
     with pytest.raises(RunConflict, match="strict_cost_guard_requires_target_control"):
         queue_active_run(tmp_path, created["id"], approval["id"], "strict-cost")
+    assert get_project_plan(tmp_path, created["id"])["state"] == "approved"
+
+
+def test_expired_unused_approval_can_be_replaced(tmp_path):
+    initialize(tmp_path)
+    created = plan_for_project(tmp_path, plan())
+    first = approve_for_project(
+        tmp_path, created["id"], "local-user", "I_AUTHORIZE_THIS_EXPLICIT_SCOPE", 5
+    )
+    with pytest.raises(RunConflict, match="plan_already_approved"):
+        approve_for_project(
+            tmp_path, created["id"], "local-user", "I_AUTHORIZE_THIS_EXPLICIT_SCOPE", 5
+        )
+    engine = open_store(tmp_path)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE approvals SET expires_at=:past WHERE id=:id"),
+                {"past": "2000-01-01T00:00:00+00:00", "id": first["id"]},
+            )
+    finally:
+        engine.dispose()
+    with pytest.raises(RunConflict, match="approval_expired_or_used"):
+        queue_active_run(tmp_path, created["id"], first["id"], "expired-approval")
+
+    second = approve_for_project(
+        tmp_path, created["id"], "local-user", "I_AUTHORIZE_THIS_EXPLICIT_SCOPE", 5
+    )
+
+    assert second["id"] != first["id"]
     assert get_project_plan(tmp_path, created["id"])["state"] == "approved"
 
 
@@ -610,3 +657,27 @@ def test_staging_literal_targets_reject_transition_and_shared_ranges(base_url):
             allowed_paths=["/test"],
             allowed_methods=["POST"],
         )
+
+
+def test_database_allows_only_one_live_approval_per_plan(tmp_path):
+    import sqlalchemy.exc
+
+    initialize(tmp_path)
+    created = plan_for_project(tmp_path, plan())
+    approval = approve_for_project(
+        tmp_path, created["id"], "local-user", "I_AUTHORIZE_THIS_EXPLICIT_SCOPE", 5
+    )
+    engine = open_store(tmp_path)
+    try:
+        with pytest.raises(sqlalchemy.exc.IntegrityError):
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "INSERT INTO approvals (id,plan_id,project_id,plan_digest,scope_digest,"
+                        "actor,expires_at,created_at) SELECT :id,plan_id,project_id,plan_digest,"
+                        "scope_digest,actor,expires_at,created_at FROM approvals WHERE id=:source"
+                    ),
+                    {"id": "duplicate-live-approval-000000000000", "source": approval["id"]},
+                )
+    finally:
+        engine.dispose()

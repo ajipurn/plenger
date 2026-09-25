@@ -1,6 +1,7 @@
 """Loopback API with one-use pairing, short sessions and CSRF protection."""
 
 import json
+import re
 import secrets
 import threading
 import time
@@ -181,6 +182,16 @@ class Sessions:
             return session
 
 
+_SAFE_CODE = re.compile(r"[a-z][a-z0-9_]{0,63}")
+
+
+def safe_code(exc: Exception, fallback: str) -> str:
+    """Expose an exception's own stable error code, never free-form messages."""
+
+    code = str(exc)
+    return code if _SAFE_CODE.fullmatch(code) else fallback
+
+
 def error(code: str, status: int) -> JSONResponse:
     response = JSONResponse(
         {"code": code, "message": code, "request_id": str(uuid.uuid4()), "details": {}},
@@ -343,7 +354,9 @@ def create_app(
             return error("not_found", 404)
         try:
             return JSONResponse(plan_for_project(root, body.to_plan()), status_code=201)
-        except (ValueError, OSError):
+        except ValueError as exc:
+            return error(safe_code(exc, "invalid_plan"), 422)
+        except OSError:
             return error("invalid_plan", 422)
 
     @app.get("/api/v1/plans/{plan_id}")

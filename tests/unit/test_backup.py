@@ -91,7 +91,7 @@ def test_cli_backup_and_restore_preserves_data_and_revokes_authorization(tmp_pat
     backup = runner.invoke(app, ["backup", "--project", str(tmp_path)])
     assert backup.exit_code == 0, backup.stdout
     backup_payload = json.loads(backup.stdout)
-    assert backup_payload["schema_version"] == "0014"
+    assert backup_payload["schema_version"] == "0015"
 
     engine = open_store(tmp_path)
     with engine.begin() as connection:
@@ -128,7 +128,7 @@ def test_cli_backup_and_restore_preserves_data_and_revokes_authorization(tmp_pat
         assert connection.execute("SELECT revoked_at FROM approvals").fetchone()[0]
         assert connection.execute("SELECT revoked_at FROM hosted_consents").fetchone()[0]
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == (
-            "0014"
+            "0015"
         )
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:

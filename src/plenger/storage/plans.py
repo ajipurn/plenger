@@ -240,12 +240,33 @@ def approve_plan(
         )
         if not plan:
             raise RunConflict("plan_not_found")
-        if plan["state"] != "draft":
+        created_at = now()
+        if plan["state"] == "approved":
+            # An approval that expired unused must not strand the plan: allow a new
+            # one-use approval, but never two live approvals for the same plan.
+            live = connection.execute(
+                text(
+                    "SELECT 1 FROM approvals WHERE plan_id=:plan AND project_id=:project "
+                    "AND consumed_at IS NULL AND revoked_at IS NULL AND expires_at>:current"
+                ),
+                {"plan": plan_id, "project": project_id, "current": created_at},
+            ).first()
+            if live is not None:
+                raise RunConflict("plan_already_approved")
+            # Retire the expired approval explicitly; the live-approval index then
+            # admits exactly one replacement.
+            connection.execute(
+                text(
+                    "UPDATE approvals SET revoked_at=:current WHERE plan_id=:plan "
+                    "AND project_id=:project AND consumed_at IS NULL AND revoked_at IS NULL"
+                ),
+                {"plan": plan_id, "project": project_id, "current": created_at},
+            )
+        elif plan["state"] != "draft":
             raise RunConflict("plan_not_approvable")
         validate_plan_row(dict(plan), project_id)
         approval_id = str(uuid.uuid4())
         expires_at = _expires(ttl_minutes)
-        created_at = now()
         connection.execute(
             text(
                 "INSERT INTO approvals "
@@ -263,13 +284,21 @@ def approve_plan(
                 "created": created_at,
             },
         )
-        connection.execute(
+        changed = connection.execute(
             text(
                 "UPDATE plans SET state='approved', revision=revision+1, updated_at=:updated "
-                "WHERE id=:id AND project_id=:project AND state='draft'"
+                "WHERE id=:id AND project_id=:project AND state IN ('draft','approved') "
+                "AND revision=:revision"
             ),
-            {"updated": created_at, "id": plan_id, "project": project_id},
+            {
+                "updated": created_at,
+                "id": plan_id,
+                "project": project_id,
+                "revision": plan["revision"],
+            },
         )
+        if changed.rowcount != 1:
+            raise RunConflict("plan_not_approvable")
     return {
         "id": approval_id,
         "plan_id": plan_id,

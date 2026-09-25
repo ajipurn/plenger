@@ -1255,26 +1255,8 @@ def test_strict_cost_guard_is_rejected_before_active_queue(client):
         },
         headers=headers,
     )
-    assert created.status_code == 201
-    plan = created.json()
-    approval = client.post(
-        f"/api/v1/plans/{plan['id']}/approvals",
-        json={
-            "actor": "local-user",
-            "acknowledgment": "I_AUTHORIZE_THIS_EXPLICIT_SCOPE",
-            "ttl_minutes": 5,
-        },
-        headers=headers,
-    )
-    assert approval.status_code == 201
-    blocked = client.post(
-        f"/api/v1/plans/{plan['id']}/runs",
-        json={"approval_id": approval.json()["id"]},
-        headers={**headers, "Idempotency-Key": "strict-cost-test"},
-    )
-    assert blocked.status_code == 409
-    assert blocked.json()["code"] == "strict_cost_guard_requires_target_control"
-    assert client.get(f"/api/v1/plans/{plan['id']}").json()["state"] == "approved"
+    assert created.status_code == 422
+    assert created.json()["code"] == "strict_cost_guard_requires_target_control"
 
 
 def test_inline_hosted_consent_requires_explicit_acknowledgment(client):

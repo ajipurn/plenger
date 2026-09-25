@@ -13,7 +13,7 @@ import uvicorn
 
 from plenger.adapters import SandboxError
 from plenger.adapters.promptfoo import MAX_OUTPUT_BYTES, PromptfooImportError, import_promptfoo
-from plenger.api import Sessions, create_app
+from plenger.api import Sessions, create_app, safe_code
 from plenger.evaluators import AssessmentError
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
 from plenger.runner import (
@@ -398,7 +398,10 @@ def plan_command(
             ),
         )
         typer.echo(json.dumps(plan_for_project(project, plan), indent=2, ensure_ascii=False))
-    except (ValueError, OSError):
+    except ValueError as exc:
+        typer.echo(json.dumps({"code": safe_code(exc, "invalid_plan")}))
+        raise typer.Exit(2) from None
+    except OSError:
         typer.echo('{"code":"invalid_plan"}')
         raise typer.Exit(2) from None
 

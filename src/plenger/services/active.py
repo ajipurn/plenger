@@ -201,6 +201,10 @@ _ACTIVE_RUNS_LOCK = threading.Lock()
 def plan_for_project(root: Path, plan: PlanSpec) -> dict[str, Any]:
     load_config(root)
     validate_case_ids(plan.case_ids)
+    if plan.budget.cost_guard == "strict":
+        # No trusted target-side cost control exists yet, so a strict plan could be
+        # approved but never run. Reject it before the user reviews and approves it.
+        raise ValueError("strict_cost_guard_requires_target_control")
     addresses = resolve_target_addresses(plan.target)
     plan = plan.model_copy(
         update={

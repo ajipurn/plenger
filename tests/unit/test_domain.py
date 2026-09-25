@@ -184,7 +184,7 @@ def test_migration_reopen_preserves_evidence(tmp_path):
     with engine.connect() as connection:
         assert connection.execute(text("PRAGMA foreign_keys")).scalar() == 1
         assert (
-            connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0014"
+            connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == "0015"
         )
         assert (
             connection.execute(
@@ -266,7 +266,7 @@ def test_migration_reopen_preserves_normalized_findings_and_run_events(tmp_path)
         with engine.connect() as connection:
             assert (
                 connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
-                == "0014"
+                == "0015"
             )
             assert (
                 connection.execute(
@@ -339,7 +339,7 @@ def test_legacy_migration_upgrade_preserves_report_and_rejects_downgrade(tmp_pat
         with engine.connect() as connection:
             assert (
                 connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
-                == "0014"
+                == "0015"
             )
         assert reports(engine, "legacy-project", "legacy-run") == {
             "run_id": "legacy-run",
@@ -357,7 +357,7 @@ def test_legacy_migration_upgrade_preserves_report_and_rejects_downgrade(tmp_pat
         with engine.connect() as connection:
             assert (
                 connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
-                == "0014"
+                == "0015"
             )
         assert reports(engine, "legacy-project", "legacy-run") is not None
     finally:

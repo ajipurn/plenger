@@ -23,6 +23,9 @@ def test_plan_cli_creates_preview_without_dispatch(tmp_path):
             "local-fixture",
             "--snapshot-digest",
             "a" * 64,
+            "--cost-guard",
+            "request_only",
+            "--cost-acknowledged",
         ],
     )
     assert result.exit_code == 0, result.stdout
@@ -492,3 +495,21 @@ def test_run_cli_exits_one_when_a_fixed_case_fails(tmp_path, monkeypatch):
     )
 
     assert result.exit_code == 1, result.stdout
+
+
+def test_plan_cli_reports_strict_cost_guard_before_approval(tmp_path):
+    initialize(tmp_path)
+    result = CliRunner().invoke(
+        app,
+        [
+            "plan",
+            "--project",
+            str(tmp_path),
+            "--target",
+            "local-fixture",
+            "--snapshot-digest",
+            "a" * 64,
+        ],
+    )
+    assert result.exit_code == 2
+    assert json.loads(result.stdout)["code"] == "strict_cost_guard_requires_target_control"
