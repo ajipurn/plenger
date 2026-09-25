@@ -53,6 +53,7 @@ from plenger.services.assessment import (
 from plenger.services.diff import diff_reports
 from plenger.storage import open_store
 from plenger.storage.attempts import list_active_attempts
+from plenger.storage.locking import runtime_lock
 from plenger.storage.runs import RunConflict, list_events
 
 ORIGIN = "http://127.0.0.1:7331"
@@ -196,9 +197,12 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        recover_runs(root)
         try:
-            yield
+            engine = open_store(root)
+            engine.dispose()
+            with runtime_lock(root, "server.lock"):
+                recover_runs(root)
+                yield
         finally:
             pool.shutdown(wait=True, cancel_futures=True)
 

@@ -382,6 +382,8 @@ def test_scanner_output_is_fail_closed(payload):
 def test_scanner_plan_requires_pinned_binary_and_uses_managed_rules(tmp_path, monkeypatch):
     binary = tmp_path / "semgrep"
     binary.write_bytes(b"managed-semgrep")
+    target_override = tmp_path / "semgrep.yml"
+    target_override.write_text("rules: []\n")
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
     monkeypatch.setattr("plenger.adapters.scanners.version_probe", lambda name: "1.2.3")
     plan = plan_scanner(
@@ -395,7 +397,18 @@ def test_scanner_plan_requires_pinned_binary_and_uses_managed_rules(tmp_path, mo
     assert plan.manifest.supported_patterns == ["python_ast_rules"]
     assert "--metrics=off" in plan.argv
     assert "--config" in plan.argv
-    assert str(tmp_path / "semgrep.yml") not in plan.argv
+    config_path = plan.argv[plan.argv.index("--config") + 1]
+    assert config_path == str(plan.managed_rule_path)
+    assert config_path != str(target_override)
+    with pytest.raises(ScannerUnavailable, match="managed_rules_missing_or_outside_package"):
+        plan_scanner(
+            "semgrep",
+            tmp_path,
+            expected_version="1.2",
+            expected_binary_hash=binary_hash,
+            executable=binary,
+            managed_rule_path=target_override,
+        )
     with pytest.raises(ScannerUnavailable, match="hash_mismatch"):
         plan_scanner(
             "semgrep",
@@ -677,7 +690,11 @@ def test_scanner_execution_maps_target_paths_and_fails_closed(monkeypatch, tmp_p
 
 @pytest.mark.parametrize(
     ("script", "expected_reason"),
-    [("exit 7", "scanner_failed"), ("printf ''", "scanner_empty_output")],
+    [
+        ("exit 7", "scanner_failed"),
+        ("printf ''", "scanner_empty_output"),
+        ("printf '{'", "malformed_scanner_output"),
+    ],
 )
 def test_scanner_execution_rejects_failed_or_empty_process_output(
     monkeypatch, tmp_path, script, expected_reason

@@ -421,6 +421,7 @@ def test_broker_rejects_dispatch_after_wall_deadline(server):
 
 
 def test_broker_enforces_absolute_wall_deadline_during_response_read(server):
+    Handler.post_calls = 0
     broker = RequestBroker(
         make_target(server, ["/trickle"]), BudgetSpec(max_attempts=1, request_timeout_seconds=2)
     )
@@ -429,6 +430,10 @@ def test_broker_enforces_absolute_wall_deadline_during_response_read(server):
         broker.dispatch("POST", "/trickle", {"value": "x"}, deadline=time.monotonic() + 0.1)
     assert time.monotonic() - started < 0.4
     assert broker.stats()["reserved_attempts"] == 1
+    assert Handler.post_calls == 1
+    with pytest.raises(BrokerError, match="budget_exhausted"):
+        broker.dispatch("POST", "/trickle", {"value": "x"})
+    assert Handler.post_calls == 1
 
 
 def test_broker_enforces_wall_deadline_after_response_headers(server):
@@ -517,7 +522,7 @@ def test_unix_socket_broker_is_capability_bound_and_cleans_up(server):
     target = make_target(server, ["/echo"])
     budget = BudgetSpec(max_attempts=2, concurrency=1)
     backend = RequestBroker(target, budget)
-    with tempfile.TemporaryDirectory(prefix="wkbkr-", dir="/tmp") as directory:
+    with tempfile.TemporaryDirectory(prefix="plenger-broker-", dir="/tmp") as directory:
         socket_path = Path(directory) / "broker.sock"
         with UnixBrokerServer(backend, socket_path) as transport:
             endpoint = transport.endpoint
@@ -545,7 +550,7 @@ def test_unix_socket_broker_waits_for_bounded_target_response(server):
     target = make_target(server, ["/slow"])
     budget = BudgetSpec(max_attempts=1, request_timeout_seconds=2)
     backend = RequestBroker(target, budget)
-    with tempfile.TemporaryDirectory(prefix="wkbkr-", dir="/tmp") as directory:
+    with tempfile.TemporaryDirectory(prefix="plenger-broker-", dir="/tmp") as directory:
         socket_path = Path(directory) / "broker.sock"
         with UnixBrokerServer(backend, socket_path) as transport:
             client = UnixSocketRequestBroker(transport.endpoint, target, budget)
@@ -557,7 +562,7 @@ def test_unix_socket_broker_cleans_partial_bind_failure(server, monkeypatch):
     target = make_target(server, ["/echo"])
     budget = BudgetSpec(max_attempts=1)
     backend = RequestBroker(target, budget)
-    with tempfile.TemporaryDirectory(prefix="wkbkr-", dir="/tmp") as directory:
+    with tempfile.TemporaryDirectory(prefix="plenger-broker-", dir="/tmp") as directory:
         socket_path = Path(directory) / "broker.sock"
 
         def fail_activate(_server):

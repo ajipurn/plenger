@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -12,6 +13,9 @@ from plenger.api import ORIGIN, Sessions, create_app
 from plenger.runner import FixtureObserver
 from plenger.services.application import queue_scan
 from plenger.services.workspace import initialize
+from plenger.storage import open_store, save_report
+from plenger.storage.backup import create_database_backup
+from plenger.storage.locking import StoreBusy
 
 
 @pytest.fixture
@@ -28,6 +32,16 @@ def pair(client):
     return response.json()
 
 
+def test_api_lifespan_holds_server_lock_against_backup(tmp_path):
+    initialize(tmp_path)
+    with TestClient(create_app(tmp_path), base_url=ORIGIN) as client:
+        assert client.get("/api/v1/health").status_code == 200
+        with pytest.raises(StoreBusy, match="project_worker_busy"):
+            create_database_backup(tmp_path)
+
+    assert create_database_backup(tmp_path)["status"] == "ready"
+
+
 def test_pairing_session_and_project_boundary(client):
     assert client.get("/api/v1/capabilities").status_code == 401
     session = pair(client)
@@ -42,6 +56,50 @@ def test_pairing_session_and_project_boundary(client):
         ).status_code
         == 401
     )
+
+
+def test_foreign_project_finding_and_evidence_ids_are_not_retrievable(client):
+    root = client.app.state.project_root
+    foreign_run = str(uuid.uuid4())
+    foreign_project = "foreign-project-identity"
+    foreign_finding = "a" * 64
+    foreign_evidence = "b" * 64
+    engine = open_store(root)
+    try:
+        save_report(
+            engine,
+            {
+                "run_id": foreign_run,
+                "project_id": foreign_project,
+                "profile": "deterministic",
+                "state": "completed",
+                "errors": [],
+                "limitations": [],
+                "findings": [
+                    {
+                        "id": foreign_finding,
+                        "evidence": {
+                            "id": foreign_evidence,
+                            "source": "foreign-fixture",
+                            "observed": "foreign project evidence marker",
+                            "redaction_version": "metadata-only-v1",
+                        },
+                    }
+                ],
+            },
+        )
+    finally:
+        engine.dispose()
+
+    session = pair(client)
+    project_id = session["project_id"]
+    assert client.get(f"/api/v1/projects/{project_id}/report").json() == {"report": None}
+    assert (
+        client.get(f"/api/v1/projects/{project_id}/report?run_id={foreign_run}").status_code == 404
+    )
+    foreign_detail = client.get(f"/api/v1/findings/{foreign_finding}?run_id={foreign_run}")
+    assert foreign_detail.status_code == 404
+    assert foreign_evidence not in foreign_detail.text
 
 
 def test_corrupt_assessment_payload_uses_safe_storage_error(client, monkeypatch):

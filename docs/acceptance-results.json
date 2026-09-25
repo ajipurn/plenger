@@ -43,9 +43,9 @@
       "parser": "python-ast-v2",
       "jev": null
     },
-    "result": "blocked",
+    "result": "pass",
     "evidence_path": "docs/TEST_RESULTS.md",
-    "limitation": "Managed Semgrep 1.176.0 with the packaged rule, binary or immutable image pinning, bounded transient version probing, fail-closed revalidation errors, macOS default-deny Seatbelt containment, digest-pinned container execution with no host fallback, explicit allowlisted-digest pull provisioning, positive/negative fixture execution, bounded non-zero/empty/oversized-output/timeout failure controls, path normalization, redaction, fresh-project provisioning, pinned Linux amd64 production-source image smoke, and baseline persistence pass locally; clean-host compatibility, licensing, and the broader failure matrix remain."
+    "limitation": "Bounded local macOS acceptance passed: managed Semgrep 1.176.0 detects the positive fixture and ignores its fixed control; a missing managed binary remains visibly unavailable; target-supplied Semgrep configuration is ignored and an out-of-package rules override is rejected; non-zero, empty, malformed, oversized, schema-invalid, and timed-out output return an error rather than an empty clean result; and the bundled rule declares license_ref=plenger-original. Clean-host compatibility and independent third-party package/container license review remain open under AC19."
   },
   {
     "test_id": "AC04",
@@ -61,7 +61,7 @@
     },
     "result": "pass",
     "evidence_path": "docs/TEST_RESULTS.md",
-    "limitation": "AC04 passed for targeted local acceptance. On 23 September 2026, fresh provisioning of the digest-pinned OSV container database completed at 291,671,377 bytes and exposed cargo, composer, go, maven, npm, python, and ruby. Vulnerable controls for requests, uv.lock, npm, Cargo, Go, Ruby, Composer, and Maven were detected and corresponding fixed controls stayed clean; unresolved/ranged inputs remained explicit unknowns. Missing/stale database, fingerprint, alias, and offline scan behavior are covered by the smoke and regression tests. A separate host-native setup attempt timed out, but the pinned-container path succeeded. Clean-host, full lockfile/advisory recall, and cross-platform freshness matrices remain open."
+    "limitation": "AC04 passed for targeted local acceptance. The full local gate on 24 September freshly provisioned the digest-pinned OSV database at 291,813,642 bytes for cargo, composer, go, maven, npm, python, and ruby, and all 18 vulnerable/fixed/unresolved/ranged controls completed on docker_pinned. Vulnerable controls for requests, uv.lock, npm, Cargo, Go, Ruby, Composer, and Maven were detected and corresponding fixed controls stayed clean. Missing/stale database, fingerprint, alias, and offline scan behavior are covered by the smoke and regression tests. A separate host-native setup attempt timed out, but the pinned-container path succeeds. Clean-host, full lockfile/advisory recall, and cross-platform freshness matrices remain open."
   },
   {
     "test_id": "AC05",
@@ -76,9 +76,9 @@
       "parser": "python-ast-v2",
       "jev": null
     },
-    "result": "blocked",
+    "result": "pass",
     "evidence_path": "docs/TEST_RESULTS.md",
-    "limitation": "Managed Trivy 0.74.0 secret-only execution, binary or immutable image pinning, explicit allowlisted-digest pull provisioning, macOS default-deny Seatbelt containment, digest-pinned container execution with no host fallback, fresh-project provisioning, pinned Linux amd64 production-source image smoke, positive/negative filesystem controls, redaction, temporary staging, baseline persistence, and persistent-artifact checks pass locally; broader formats, licensing, and clean-host compatibility remain."
+    "limitation": "AC05 passed for bounded current-host acceptance. Real Trivy 0.74.0 detects the synthetic marker in supported .txt, .toml, .yaml, and .py inputs with secret kind and source path/line preserved. The raw value is absent from the report, authenticated report API response consumed by the dashboard, JSON/HTML exports, mocked hosted Jev request, every .plenger artifact, captured logs, stdout, and stderr; scanner staging/runtime temporary directories are empty after the scan. .env* and private keys remain excluded by current policy and are not tested. This is not exhaustive secret-format/engine coverage; clean-host and licensing gates are tracked separately under AC19/AC23."
   },
   {
     "test_id": "AC06",
@@ -125,9 +125,9 @@
       "parser": "python-ast-v2",
       "jev": null
     },
-    "result": "blocked",
+    "result": "pass",
     "evidence_path": "docs/TEST_RESULTS.md",
-    "limitation": "Local loopback and public-HTTPS staging broker contracts pass, including plan-bound canonical DNS IP sets with per-dispatch change rejection, direct pinned-IP connection with hostname-preserving TLS SNI/Host, scope checks, redirect blocking, proxy bypass, response bounds, and absolute wall-time deadline handling for delayed headers and trickle reads on real sockets. Regressions accept reordered IPv4/IPv6 answers but reject address removal, addition, or replacement before a second connection; a real loopback hostname request succeeds with every proxy variable pointed at an unreachable address. Mixed public/private, loopback, metadata, IPv6 private/link-local DNS, empty/invalid/failing DNS, unsafe IPv4/IPv6 literals, and wildcard/trailing-dot hostnames are covered locally. A bounded capability-protected Unix broker IPC contract for dispatch/cancel/stats also passes with wrong-capability and cleanup checks; active execution routes through a separate broker process on supported POSIX hosts. Digest-pinned scanner container isolation is implemented and locally exercised, A new macOS runtime regression confirms a managed scanner cannot connect to an active loopback listener under Seatbelt; live staging authorization and complete direct-egress isolation for native active workers and other platforms remain blocked."
+    "limitation": "Bounded local macOS acceptance passed: approved loopback fixtures work through the broker; public-HTTPS staging-contract, IPv4/IPv6 DNS pinning and rebinding, unsafe-address rejection, path/method scope, redirect denial, proxy bypass, and response/deadline bounds pass; the confined active worker can reach its exact per-job broker Unix socket while direct TCP to a live loopback listener is denied; Promptfoo imports provider references as inert data and native replay delegates to the supplied broker. Native Linux bubblewrap and other cross-platform direct-egress acceptance, live staging authorization, and approved sidecar deployment remain open."
   },
   {
     "test_id": "AC09",
@@ -141,9 +141,9 @@
       "parser": "python-ast-v2",
       "jev": null
     },
-    "result": "blocked",
+    "result": "pass",
     "evidence_path": "docs/TEST_RESULTS.md",
-    "limitation": "Local attempt/concurrency budgets, 100 dispatchers against a budget of 10, wall-time handling, lease heartbeat, running-worker cancellation including preservation of cancelled state when the runner raises after cancellation, dispatch/report-write crash cases, and strict-cost rejection before approval consumption pass; the authenticated dashboard smoke also exercised one-use approval, a local fixed-suite request-only run, and cancellation against a slow loopback fixture. Target-side cost reconciliation/telemetry and the broader process-kill recovery matrix remain."
+    "limitation": "Bounded local macOS acceptance passed: 100 dispatchers against a budget of 10 produce no more than 10 outbound attempts; a timed-out request observed by the target consumes its slot and cannot be retried; cancelling during a blocked first request stops the worker within five seconds and sends no second case; strict-cost rejection occurs before approval consumption; and killing the runner after a real target POST response recovers the run as interrupted without replay. Request-only accounting continues to expose unknown target cost. Target-side cost reconciliation/telemetry and cross-platform acceptance remain open under FR08/M3."
   },
   {
     "test_id": "AC10",
@@ -205,9 +205,9 @@
       "parser": "python-ast-v2",
       "jev": null
     },
-    "result": "blocked",
+    "result": "pass",
     "evidence_path": "docs/TEST_RESULTS.md",
-    "limitation": "Pairing/CSRF/project/API checks and an authenticated disposable-project browser smoke pass, including Playwright hostile Origin/Host rejection with security headers, invalid-pairing error, missing-CSRF rejection, pairing/report/evidence/graph/logout smoke, inert HTML payload rendering in report/finding/evidence/graph views, stale-view cleanup when a selected foreign/nonexistent report returns an error, deterministic assessment history with the explicit cached-result label, browser-verified 100-item assessment-history pagination and next-page loading, local Jev consent preview/grant/revoke without provider calls, active scope locking, stale revoked-plan approval error recovery, plan revoke/replan, one-use active plan/approval/execution, active-run polling/cancel restoration after a browser refresh, and cancellation against a local mock target, JSON export download, empty state, real static result, finding rendering, cancelled-run history refresh, and selected graph-edge detail; consistent security headers on success and error paths, packaged-asset traversal rejection, project-scoped run history, selected-report loading, selected-run normalized graph/findings pagination and filter APIs pass; complete hostile-browser E2E matrix remains. Additional real Chrome checks pass for a hostile second-loopback-port page (credentialed logout denied, opaque response, session read blocked), one-use pairing replay, HttpOnly/SameSite cookie attributes, logout cookie removal, revoked-cookie replay rejection, and pairing after reload; cross-browser/platform and expiry acceptance remain open."
+    "limitation": "Local AC13 acceptance passed: disposable-project browser smoke covers pairing, real static report, evidence/graph, XSS payload inertness, empty report/findings/graph/assessment states, delayed loading states for findings/graph/assessment, foreign-report error cleanup, fixture labeling, cached assessment history, Jev consent preview/grant/revoke, one-use active plan/approval/execution, slow-target cancellation and restoration after refresh, JSON export, and logout. Chrome and Playwright WebKit each pass 1/1. API tests cover expired pairing/session, hostile Origin/Host, CSRF, asset path traversal, project-scoped resources, and foreign-project finding/evidence IDs. Firefox 155 cannot launch on this macOS 27.0 host (Could not find profile folder; Mozilla Bug 2062988); native cross-platform browser acceptance remains open."
   },
   {
     "test_id": "AC14",
@@ -367,7 +367,7 @@
     },
     "result": "blocked",
     "evidence_path": "docs/TEST_RESULTS.md",
-    "limitation": "The repeatable clean-install probe builds the wheel, installs locked runtime dependencies into a fresh Python 3.12 virtualenv, and verifies the installed CLI, package version, source-tree separation, UI entrypoint, and referenced assets; a legacy `0001` database upgrades to schema `0014` without losing its report, while a separate current-schema fixture preserves normalized findings/evidence, snapshots, run events, semantic assessment cache index, and historical reusable plan records across reopen. Revoked or consumed plans can be recreated with the same digest without mutating history. An attempted destructive downgrade fails closed without changing schema/data. The explicit container worker, allowlisted-image pull path, and clean-install parser path pass locally; all-platform isolation, clean-host image/database verification, supported rollback, and cross-platform packaging matrix remain incomplete."
+    "limitation": "The repeatable clean-install probe builds the wheel, installs locked runtime dependencies into a fresh Python 3.12 virtualenv, and verifies the installed CLI, package version, source-tree separation, UI entrypoint, and referenced assets; a legacy `0001` database upgrades to schema `0014` without losing its report, while a separate current-schema fixture preserves normalized findings/evidence, snapshots, run events, semantic assessment cache index, and historical reusable plan records across reopen. Revoked or consumed plans can be recreated with the same digest without mutating history. An attempted destructive downgrade fails closed without changing schema/data. The explicit container worker, allowlisted-image pull path, clean-install parser, and backup-based application rollback pass locally. All-platform isolation, clean-host image/database verification, and the cross-platform packaging matrix remain incomplete. The active macOS worker now runs in a Seatbelt network-denied process with access only to its job broker socket; the Linux bubblewrap worker path and clean native Linux packaging/isolation matrix remain unverified."
   },
   {
     "test_id": "AC24",

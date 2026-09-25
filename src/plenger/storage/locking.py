@@ -20,7 +20,7 @@ def runtime_lock_in_directory(
 ) -> Iterator[None]:
     """Lock a control file beneath an already-open, validated private directory."""
 
-    if name not in {"worker.lock", "migration.lock"}:
+    if name not in {"worker.lock", "migration.lock", "server.lock"}:
         raise ValueError("invalid_runtime_lock")
     info = os.fstat(private)
     if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:

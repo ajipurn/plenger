@@ -168,6 +168,144 @@ def test_managed_trivy_redacts_positive_secret_and_keeps_negative_control(tmp_pa
     assert synthetic_key not in json.dumps(report_findings)
 
 
+@pytest.mark.skipif(shutil.which("trivy") is None, reason="BLOCKED: Trivy is not installed")
+def test_trivy_secret_never_reaches_storage_api_exports_or_hosted_request(
+    tmp_path, monkeypatch, caplog, capsys
+):
+    import tempfile
+
+    import httpx
+    from fastapi.testclient import TestClient
+
+    from plenger import evaluators
+    from plenger.api import ORIGIN, create_app
+    from plenger.services import application
+    from plenger.services import assessment as assessment_service
+    from plenger.services.assessment import (
+        JEV_CONSENT_DATA_CLASSES,
+        evaluate_finding,
+        grant_hosted_consent_for_project,
+    )
+
+    initialize(tmp_path)
+    scanner_temporaries = tmp_path / "scanner-temporaries"
+    scanner_temporaries.mkdir(mode=0o700)
+    monkeypatch.setattr(tempfile, "tempdir", str(scanner_temporaries))
+    provision_scanners(tmp_path, ["trivy"])
+    synthetic_key = "AKIA" + "C" * 16
+    fixtures = {
+        "settings.yaml": f"aws_access_key_id: {synthetic_key}\n",
+        "credentials.toml": f'aws_access_key_id = "{synthetic_key}"\n',
+        "src/settings.py": f'aws_access_key_id = "{synthetic_key}"\n',
+        "positive.txt": f"token = {synthetic_key}\n",
+        "negative.txt": "token = deliberately-not-a-provider-key\n",
+    }
+    for relative, content in fixtures.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+
+    monkeypatch.setattr(application, "probe", lambda: {"status": "ready"})
+    monkeypatch.setattr(
+        application,
+        "execute",
+        lambda files, project, run_id: {
+            "nodes": [],
+            "edges": [],
+            "findings": [],
+            "errors": [],
+            "limitations": [],
+        },
+    )
+    report = application.scan(tmp_path, "baseline")
+    secret_locations = {
+        item["source_ref"]["path"]: item["source_ref"]["line"]
+        for item in report["findings"]
+        if item["kind"] == "secret"
+    }
+    assert secret_locations == {
+        "credentials.toml": 1,
+        "positive.txt": 1,
+        "settings.yaml": 1,
+        "src/settings.py": 1,
+    }
+    assert synthetic_key not in json.dumps(report)
+    assert list(scanner_temporaries.iterdir()) == []
+
+    with TestClient(create_app(tmp_path), base_url=ORIGIN) as client:
+        paired = client.post(
+            "/api/v1/pair",
+            json={"code": client.app.state.pairing.code},
+            headers={"Origin": ORIGIN},
+        )
+        assert paired.status_code == 200
+        report_response = client.get(
+            f"/api/v1/projects/{report['project_id']}/report?run_id={report['run_id']}"
+        )
+        assert report_response.status_code == 200
+        assert synthetic_key not in report_response.text
+        json_export = client.get(f"/api/v1/runs/{report['run_id']}/exports/json")
+        html_export = client.get(f"/api/v1/runs/{report['run_id']}/exports/html")
+        assert json_export.status_code == html_export.status_code == 200
+        assert synthetic_key not in json_export.text
+        assert synthetic_key not in html_export.text
+
+    grant_hosted_consent_for_project(
+        tmp_path,
+        "jev",
+        JEV_CONSENT_DATA_CLASSES,
+    )
+    request_capture: dict[str, object] = {}
+    provider_response = {
+        "model": evaluators.JEV_DEFAULT_MODEL,
+        "answers": {
+            "evidence_sufficiency": {
+                "type": "choice",
+                "choice": "sufficient",
+                "probabilities": {"sufficient": 1.0, "insufficient": 0.0, "contradictory": 0.0},
+                "confidence": 0.99,
+            },
+            "policy_violation": {"type": "noul", "noul": 0.0},
+        },
+        "usage": {"input_tokens": 32, "output_tokens": 5},
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        request_capture["body"] = json.loads(request.content)
+        return httpx.Response(200, json=provider_response)
+
+    provider_client = httpx.Client(transport=httpx.MockTransport(handler))
+    monkeypatch.setenv("TYPESAFE_API_KEY", "synthetic-jev-key")
+    original_provider = assessment_service.JevProvider
+    monkeypatch.setattr(
+        assessment_service,
+        "JevProvider",
+        lambda api_key: original_provider(api_key, client=provider_client),
+    )
+    finding_id = next(item["id"] for item in report["findings"] if item["kind"] == "secret")
+    try:
+        assessment = evaluate_finding(
+            tmp_path,
+            report["run_id"],
+            finding_id,
+            "jev",
+            True,
+            data_classes=JEV_CONSENT_DATA_CLASSES,
+        )
+    finally:
+        provider_client.close()
+    assert assessment["state"] == "evaluated"
+    assert synthetic_key not in json.dumps(request_capture["body"])
+
+    storage = tmp_path / ".plenger"
+    for artifact in storage.rglob("*"):
+        if artifact.is_file():
+            assert synthetic_key.encode() not in artifact.read_bytes()
+    assert synthetic_key not in caplog.text
+    captured = capsys.readouterr()
+    assert synthetic_key not in captured.out + captured.err
+
+
 @pytest.mark.skipif(
     container_runtime_mode() != "docker_pinned"
     or not container_image_present(SCANNER_CONTAINER_IMAGES["trivy"]),

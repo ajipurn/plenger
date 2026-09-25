@@ -101,6 +101,29 @@ installed CLI from this product environment; do not install target dependencies.
 Review the target exclusions and add `.plenger/` to its `.gitignore` yourself.
 Init does not edit existing configuration or `.gitignore`.
 
+Before upgrading a project that has local scan data, stop its dashboard, active
+workers, and concurrent CLI commands. Make an owner-only database backup and save
+the returned `backup_id` and `project_id` outside the upgrade session:
+
+```sh
+uv run --locked plenger doctor --project PATH_TO_PROJECT
+uv run --locked plenger backup --project PATH_TO_PROJECT
+```
+
+If the upgrade must be rolled back, use the rollback-capable CLI to restore the
+matching snapshot before starting the previous release:
+
+```sh
+uv run --locked plenger restore BACKUP_ID --project PATH_TO_PROJECT \
+  --confirm-project-id PROJECT_ID
+```
+
+Restore checks the project identity and database integrity, does not run
+migrations, and revokes persisted active-test approvals and hosted-assessment
+consents from the snapshot. Stop all Plenger commands before restore. Alembic
+destructive downgrades remain disabled. Keep the backup until the upgraded
+release is accepted.
+
 Projects created by an earlier release continue to work with their existing
 `.Wonderkit/` data directory and `Wonderkit.yaml` configuration. New projects use
 `.plenger/` and `plenger.yaml`.

@@ -26,11 +26,13 @@ MAX_BROKER_REMAINING_SECONDS = 600.0
 
 
 def active_runner_capability() -> dict[str, str]:
-    """Report whether the active Unix broker process can run on this host."""
+    """Report whether a network-isolated active worker can run on this host."""
 
     if os.name != "posix" or not hasattr(os, "getuid") or not hasattr(socket, "AF_UNIX"):
         return {"status": "unavailable", "reason": "posix_unix_socket_required"}
-    return {"status": "ready", "reason": "bounded_local_and_staging_fixed_suite"}
+    from plenger.runner.sandbox import active_worker_capability
+
+    return active_worker_capability()
 
 
 def _reject_json_constant(_: str) -> Any:
@@ -354,7 +356,7 @@ def _run_unix_broker_process(
             pass
 
 
-class UnixSocketRequestBroker:
+class UnixSocketRequestBroker(RequestBroker):
     """RequestBroker-compatible client for a job-scoped Unix broker socket."""
 
     def __init__(
@@ -373,8 +375,7 @@ class UnixSocketRequestBroker:
             raise ValueError("invalid_broker_configuration")
         if not 0.1 <= timeout_seconds <= 5.0:
             raise ValueError("broker_socket_timeout_invalid")
-        self.target = target
-        self.budget = budget
+        super().__init__(target, budget)
         self._endpoint = endpoint
         self._timeout_seconds = timeout_seconds
 

@@ -15,6 +15,7 @@ from plenger.services.scanners import (
     load_scanner_manifest,
     provision_osv_database,
     provision_scanners,
+    run_managed_scanners,
     save_scanner_manifest,
     scanner_capabilities,
 )
@@ -83,6 +84,30 @@ def test_container_manifest_is_unavailable_without_non_root_user(tmp_path, monke
 
     assert status["status"] == "unavailable"
     assert status["reason"] == "container_non_root_user_unavailable"
+
+
+def test_missing_managed_scanner_is_visible_as_unavailable_not_clean(tmp_path, monkeypatch):
+    initialize(tmp_path)
+    entry = ManagedScanner(
+        name="semgrep",
+        executable=str(tmp_path / "missing-semgrep"),
+        version="1.176.0",
+        binary_hash="a" * 64,
+    )
+    save_scanner_manifest(tmp_path, ManagedScannerManifest(engines=[entry]))
+    monkeypatch.setattr(
+        "plenger.services.scanners.scanner_isolation_mode",
+        lambda: "seatbelt_default_deny",
+    )
+
+    results, states = run_managed_scanners(tmp_path, {"vulnerable.py": "value = eval(input())"})
+
+    assert results == []
+    assert states["semgrep"] == {
+        "status": "unavailable",
+        "reason": "managed_binary_missing",
+        "isolation": "seatbelt_default_deny",
+    }
 
 
 def test_container_provisioning_can_pull_missing_pinned_image(tmp_path, monkeypatch):

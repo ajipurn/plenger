@@ -1,5 +1,6 @@
 import getpass
 import json
+import sqlite3
 import tempfile
 import uuid
 from collections.abc import Iterator
@@ -41,6 +42,7 @@ from plenger.services.application import (
 from plenger.services.assessment import evaluate_finding
 from plenger.services.scanners import provision_osv_database, provision_scanners
 from plenger.services.workspace import initialize, load_config
+from plenger.storage.backup import create_database_backup, restore_database_backup
 from plenger.storage.locking import StoreBusy
 from plenger.storage.purge import delete_project_storage
 from plenger.storage.runs import RunConflict
@@ -119,6 +121,46 @@ def delete_storage_command(
         raise typer.Exit(3) from None
     except (ValueError, OSError):
         typer.echo('{"code":"project_storage_delete_failed"}')
+        raise typer.Exit(2) from None
+    typer.echo(json.dumps(result, indent=2))
+
+
+@app.command(name="backup")
+def backup_command(project: Project = Path(".")) -> None:
+    """Create an offline SQLite snapshot before upgrading plenger."""
+
+    try:
+        load_config(project)
+        result = create_database_backup(project)
+    except StoreBusy:
+        typer.echo('{"code":"project_must_be_stopped_for_backup"}')
+        raise typer.Exit(3) from None
+    except (ValueError, OSError, sqlite3.DatabaseError):
+        typer.echo('{"code":"database_backup_failed"}')
+        raise typer.Exit(2) from None
+    typer.echo(json.dumps(result, indent=2))
+
+
+@app.command(name="restore")
+def restore_command(
+    backup_id: Annotated[str, typer.Argument()],
+    project: Project = Path("."),
+    confirm_project_id: str = typer.Option(
+        ...,
+        "--confirm-project-id",
+        help="Harus sama dengan project_id dari `plenger doctor`.",
+    ),
+) -> None:
+    """Restore an offline same-project database snapshot without migrating it."""
+
+    try:
+        load_config(project)
+        result = restore_database_backup(project, backup_id, confirm_project_id)
+    except StoreBusy:
+        typer.echo('{"code":"project_must_be_stopped_for_restore"}')
+        raise typer.Exit(3) from None
+    except (ValueError, OSError, sqlite3.DatabaseError):
+        typer.echo('{"code":"database_restore_failed"}')
         raise typer.Exit(2) from None
     typer.echo(json.dumps(result, indent=2))
 
@@ -502,6 +544,9 @@ def serve(
                 access_log=False,
                 proxy_headers=False,
             )
+    except StoreBusy:
+        typer.echo('{"code":"project_server_busy"}')
+        raise typer.Exit(3) from None
     except (ValueError, OSError):
         typer.echo('{"code":"invalid_workspace_or_config"}')
         raise typer.Exit(3) from None

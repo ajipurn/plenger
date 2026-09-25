@@ -1,7 +1,8 @@
 # ADR 0002 — Offline Docker parser
 
-Status: accepted for the limited static parser; active container sandbox remains
-unimplemented while the local broker process boundary is implemented separately.
+Status: accepted for the limited static parser. Active fixed-suite cases now use
+a separate OS-confined worker process; native Linux clean-host acceptance remains
+open.
 
 Use the locally available Python image pinned by repository digest. Runtime uses
 `--pull=never`, network none, non-root user, readonly rootfs, dropped capabilities,
@@ -17,3 +18,9 @@ Tests exercised the real Docker Desktop environment on this macOS host. Linux
 active IPC and orphan recovery are verified in the compatibility subset; the
 active broker process boundary is not a container or comprehensive syscall
 sandbox. Containers and local checks do not resist a compromised host.
+
+Active fixed-suite cases now run under Seatbelt on macOS, allowing only the
+per-job broker Unix socket, or under bubblewrap network-namespace isolation on
+Linux. The macOS runtime regression verifies broker-socket access and denied
+direct loopback TCP. The Linux bubblewrap path and clean-host platform matrix
+still require native verification.

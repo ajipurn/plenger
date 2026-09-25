@@ -9,7 +9,7 @@ from pathlib import Path
 from plenger.services.workspace import WorkspaceError, private_directory_name, root_fd
 from plenger.storage.locking import runtime_lock_in_directory
 
-_LOCK_FILES = frozenset({"worker.lock", "migration.lock"})
+_LOCK_FILES = frozenset({"worker.lock", "migration.lock", "server.lock"})
 
 
 def _project_identity(root: Path) -> str:
@@ -87,14 +87,14 @@ def delete_project_storage(root: Path, confirmation: str) -> dict[str, int | str
         return {"status": "not_found", "project_id": identity, "removed_entries": 0}
     removed = 0
     try:
-        # Keep both control-plane locks while removing every data entry.  A
-        # caller must stop the dashboard before deleting its project storage.
+        # Keep all control-plane locks while removing every data entry.
         with runtime_lock_in_directory(private, "migration.lock", blocking=False):
             with runtime_lock_in_directory(private, "worker.lock", blocking=False):
-                with os.scandir(private) as entries:
-                    for entry in entries:
-                        if entry.name not in _LOCK_FILES:
-                            removed += _remove_entry(private, entry.name)
+                with runtime_lock_in_directory(private, "server.lock", blocking=False):
+                    with os.scandir(private) as entries:
+                        for entry in entries:
+                            if entry.name not in _LOCK_FILES:
+                                removed += _remove_entry(private, entry.name)
     finally:
         os.close(private)
     return {"status": "deleted", "project_id": identity, "removed_entries": removed}

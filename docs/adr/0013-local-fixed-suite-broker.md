@@ -30,12 +30,16 @@ deadlock where a cancel endpoint waits for the worker to finish before recording
 intent. The local implementation also provides a bounded job-scoped Unix-socket
 IPC contract for dispatch, cancel, and stats with a per-job capability, exact
 request/response schemas, frame limits, deadline-aware responses, and
-inode-checked cleanup. `execute_active_run` uses this transport with a separate
-broker process for its local fixed-suite calls on supported POSIX hosts. The
-contract is transport evidence, not a claim that it provides a container or
-host sandbox. The active capability probe rejects queueing before approval
-consumption when Unix-process support is unavailable; an unexpected broker
-startup failure blocks the queued run with a bounded reason.
+inode-checked cleanup. Each reviewed case runs in a separate OS-confined worker
+process. On macOS, Seatbelt denies network access except to that job's exact
+broker socket path. On Linux, bubblewrap places the worker in a network
+namespace and exposes the broker socket as a read-only mount. The worker gets a
+minimal environment and no target credentials; observer calls are relayed over
+stdio pipes and checked against the current attempt by the trusted parent. The
+broker remains a separate process with the only target-network access. Active
+capability probing fails closed when the platform sandbox cannot start. The
+macOS direct-egress regression passes locally. Linux bubblewrap, clean-host, and
+full platform matrices remain unverified.
 
 Arbitrary URLs, credential injection, adaptive generated cases, Promptfoo
 execution, live production targets, and production-security claims remain

@@ -25,14 +25,17 @@ and expiry is scrubbed in normalized rows and report mirrors. On store open,
 terminal run metadata and audit rows older than the 90-day window are deleted
 transactionally; active runs, active hosted consent, and unexpired suppressions
 remain. Suppression references to purged evidence are cleared before the evidence
-row is removed. A complete crash
-matrix and migration rollback remain explicitly unsupported. A same-UID process can tamper
+row is removed. A complete crash matrix remains unsupported. The explicit
+`backup`/`restore` CLI provides a same-project, integrity-checked offline database
+restore for application rollback, without applying migrations; it revokes stored
+active-test approvals and hosted consents after restore. Alembic destructive
+downgrades still fail closed. A same-UID process can tamper
 with local data or race runtime directory checks; no tamper-proof or encrypted-
 storage claim is made.
 Manual project cleanup is an explicit CLI operation: the operator must confirm the
-exact project identity shown by `doctor`, and the implementation holds both
-runtime locks from the same already-open private-directory descriptor used to
-remove entries beneath `.plenger`. Lock files remain so the lock protocol
+exact project identity shown by `doctor`, and the implementation holds its server,
+worker, and migration locks from the same already-open private-directory descriptor
+used to remove entries beneath `.plenger`. Lock files remain so the lock protocol
 cannot be recreated mid-operation; source files and project configuration are
 outside the deletion boundary.
 The full path-race acceptance gate remains open pending stronger runtime storage
