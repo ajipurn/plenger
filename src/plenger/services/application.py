@@ -32,6 +32,7 @@ from plenger.storage.assessments import list_assessments
 from plenger.storage.attempts import mark_interrupted_active_attempts
 from plenger.storage.findings import (
     active_suppression,
+    carry_forward_lifecycle,
     default_retention_until,
     evidence_digest,
     expired_evidence_ids,
@@ -444,6 +445,7 @@ def execute_scan(root: Path, run_id: str) -> dict[str, Any]:
                 safe_report = cast(dict[str, Any], redact(report))
                 # Report, snapshot and final state commit together or not at all.
                 with engine.begin() as connection:
+                    carry_forward_lifecycle(connection, identity, safe_report)
                     connection.execute(
                         text(
                             "INSERT INTO snapshots "

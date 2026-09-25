@@ -24,6 +24,65 @@ def evidence_digest(evidence: dict[str, Any]) -> str:
     )
 
 
+_CARRY_FORWARD_CHUNK = 500
+
+
+def carry_forward_lifecycle(
+    connection: Connection, project_id: str, report: dict[str, Any]
+) -> None:
+    """Carry reviewer triage onto recurring findings of a new run, by fingerprint.
+
+    An active suppression keeps a recurring finding suppressed and an earlier
+    acknowledgment stays acknowledged. ``resolved`` is deliberately not carried:
+    a resolved finding that reappears must surface as reopened.
+    """
+
+    findings = [
+        finding
+        for finding in report.get("findings", [])
+        if isinstance(finding, dict) and isinstance(finding.get("fingerprint"), str)
+    ]
+    fingerprints = sorted({str(finding["fingerprint"]) for finding in findings})
+    if not fingerprints:
+        return
+    run_id = str(report.get("run_id", ""))
+    current = datetime.now(UTC).isoformat()
+    suppressed: set[str] = set()
+    latest_state: dict[str, tuple[str, str]] = {}
+    for start in range(0, len(fingerprints), _CARRY_FORWARD_CHUNK):
+        chunk = fingerprints[start : start + _CARRY_FORWARD_CHUNK]
+        names = {f"f{index}": value for index, value in enumerate(chunk)}
+        placeholders = ",".join(f":{name}" for name in names)
+        suppressed.update(
+            str(value)
+            for value in connection.execute(
+                text(
+                    "SELECT DISTINCT finding_fingerprint FROM finding_suppressions "
+                    "WHERE project_id=:project AND revoked_at IS NULL AND expires_at>:current "
+                    f"AND finding_fingerprint IN ({placeholders})"
+                ),
+                {"project": project_id, "current": current, **names},
+            ).scalars()
+        )
+        rows = connection.execute(
+            text(
+                "SELECT fingerprint,lifecycle_state,updated_at FROM finding_records "
+                f"WHERE project_id=:project AND run_id<>:run AND fingerprint IN ({placeholders})"
+            ),
+            {"project": project_id, "run": run_id, **names},
+        ).all()
+        for fingerprint, lifecycle_state, updated_at in rows:
+            previous = latest_state.get(str(fingerprint))
+            if previous is None or str(updated_at) > previous[1]:
+                latest_state[str(fingerprint)] = (str(lifecycle_state), str(updated_at))
+    for finding in findings:
+        fingerprint = str(finding["fingerprint"])
+        if fingerprint in suppressed:
+            finding["lifecycle_state"] = "suppressed"
+        elif latest_state.get(fingerprint, ("", ""))[0] == "acknowledged":
+            finding["lifecycle_state"] = "acknowledged"
+
+
 def persist_report_entities(connection: Connection, report: dict[str, Any]) -> None:
     """Persist redacted finding rows without making the JSON report authoritative."""
 

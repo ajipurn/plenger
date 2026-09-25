@@ -531,3 +531,73 @@ def test_report_write_back_keeps_tampered_evidence_visible(tmp_path, monkeypatch
     rewritten = redact_preserving_integrity(report)
 
     assert rewritten["findings"][0]["evidence"]["sha256_redacted"] == evidence["sha256_redacted"]
+
+
+def test_recurring_findings_keep_acknowledgment_and_active_suppression(tmp_path, monkeypatch):
+    from plenger.services import application
+
+    initialize(tmp_path)
+    (tmp_path / "fixture.py").write_text("value = 1\n")
+    monkeypatch.setattr(application, "probe", lambda: {"status": "ready"})
+    monkeypatch.setattr(
+        application,
+        "execute",
+        lambda files, identity, run_id: {
+            "nodes": [],
+            "edges": [],
+            "findings": [
+                {
+                    "id": "a" * 64,
+                    "fingerprint": "b" * 64,
+                    "rule_id": "WK-PY-001",
+                    "kind": "dynamic_code_execution",
+                    "severity": "high",
+                    "severity_source": "plenger-rule",
+                    "validation_state": "candidate",
+                    "lifecycle_state": "open",
+                    "assessment_state": "needs_review",
+                    "title": "Review",
+                    "source_ref": {"path": "fixture.py", "line": 1},
+                    "evidence": {
+                        "id": "c" * 64,
+                        "source": "python-ast-v2",
+                        "observed": "synthetic evidence",
+                        "redaction_version": "metadata-only-v1",
+                    },
+                }
+            ],
+            "errors": [],
+            "limitations": [],
+        },
+    )
+
+    def scan(key):
+        run_id, _ = queue_scan(tmp_path, "deterministic", False, key)
+        report = application.execute_scan(tmp_path, run_id)
+        return run_id, report["findings"][0]
+
+    _, first = scan("triage-1")
+    update_finding_lifecycle(tmp_path, first["id"], "acknowledged", "known issue", 0)
+
+    second_run, second = scan("triage-2")
+    assert second["lifecycle_state"] == "acknowledged"
+    page = findings_page(tmp_path)
+    assert page[0]["lifecycle_state"] == "acknowledged"
+
+    update_finding_lifecycle(tmp_path, second["id"], "suppressed", "accepted risk", 0)
+    third_run, third = scan("triage-3")
+    assert third["lifecycle_state"] == "suppressed"
+    assert (
+        application.ci_exit_code(latest(tmp_path, third_run), "high", include_candidates=True) == 0
+    )
+
+    engine = open_store(tmp_path)
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("UPDATE finding_suppressions SET revoked_at=expires_at"))
+    finally:
+        engine.dispose()
+    update_finding_lifecycle(tmp_path, third["id"], "resolved", "fixed upstream", 0)
+    _, fourth = scan("triage-4")
+    assert fourth["lifecycle_state"] == "open"
+    assert second_run != third_run

@@ -59,6 +59,15 @@ def test_metadata_retention_purges_terminal_run_children_but_keeps_active_data(t
                 text("INSERT INTO reports (id,project_id,payload) VALUES (:id,:project,:payload)"),
                 {"id": old_run, "project": identity, "payload": json.dumps({"run_id": old_run})},
             )
+            # A newer report exists, so the old run is not the project's last baseline.
+            connection.execute(
+                text("INSERT INTO reports (id,project_id,payload) VALUES (:id,:project,:payload)"),
+                {
+                    "id": active_run,
+                    "project": identity,
+                    "payload": json.dumps({"run_id": active_run}),
+                },
+            )
             connection.execute(
                 text(
                     "INSERT INTO evidence_artifacts "
@@ -345,5 +354,39 @@ def test_metadata_retention_rejects_invalid_window(tmp_path):
     try:
         with pytest.raises(ValueError, match="invalid_metadata_retention_days"):
             purge_expired_metadata(engine, project_id(tmp_path), retention_days=0)
+    finally:
+        engine.dispose()
+
+
+def test_metadata_retention_keeps_the_latest_report_of_an_inactive_project(tmp_path):
+    initialize(tmp_path)
+    only_run, _ = queue_scan(tmp_path, "deterministic", False, "retention-only")
+    identity = project_id(tmp_path)
+    old_timestamp = "2020-01-01T00:00:00+00:00"
+    engine = open_store(tmp_path)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE runs SET state='completed',created_at=:created,updated_at=:created "
+                    "WHERE id=:run"
+                ),
+                {"created": old_timestamp, "run": only_run},
+            )
+            connection.execute(
+                text("INSERT INTO reports (id,project_id,payload) VALUES (:id,:project,:payload)"),
+                {"id": only_run, "project": identity, "payload": json.dumps({"run_id": only_run})},
+            )
+
+        counts = purge_expired_metadata(engine, identity, now_value="2020-05-01T00:00:00+00:00")
+
+        assert counts["runs"] == 0 and counts["reports"] == 0
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT COUNT(*) FROM reports WHERE id=:run"), {"run": only_run}
+                ).scalar_one()
+                == 1
+            )
     finally:
         engine.dispose()

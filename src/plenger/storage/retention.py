@@ -33,7 +33,8 @@ def purge_expired_metadata(
 ) -> dict[str, int]:
     """Delete terminal run metadata older than the local retention window.
 
-    Evidence content has its own shorter expiry.  This cleanup removes the
+    The newest report and newest static report are kept. Evidence content has its
+    own shorter expiry.  This cleanup removes the
     remaining run-bound metadata only after the longer audit window and keeps
     queued/running/cancelling runs intact.  Active hosted consent is user
     configuration rather than historical audit data, so only revoked consent
@@ -43,9 +44,16 @@ def purge_expired_metadata(
     if not project_id or len(project_id) > 128:
         raise ValueError("invalid_metadata_project")
     cutoff = _retention_cutoff(now_value, retention_days)
+    # The newest report (and the newest static report, which carries triage state
+    # forward) survive the window so an inactive project keeps its last baseline.
+    # Their evidence content still expires on its own shorter schedule.
     old_runs = (
         "SELECT id FROM runs WHERE project_id=:project AND created_at<=:cutoff "
-        f"AND state NOT IN ({_ACTIVE_RUN_STATES})"
+        f"AND state NOT IN ({_ACTIVE_RUN_STATES}) "
+        "AND id NOT IN (SELECT id FROM reports WHERE project_id=:project "
+        "ORDER BY rowid DESC LIMIT 1) "
+        "AND id NOT IN (SELECT r.id FROM reports r JOIN runs u ON u.id=r.id "
+        "WHERE r.project_id=:project AND u.profile<>'active' ORDER BY r.rowid DESC LIMIT 1)"
     )
     old_evidence = (
         f"SELECT id FROM evidence_artifacts WHERE project_id=:project AND run_id IN ({old_runs})"
