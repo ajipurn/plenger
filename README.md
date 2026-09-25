@@ -219,52 +219,11 @@ finding fingerprint in later scans; a resolved finding that reappears is reopene
 Missing Docker/image blocks scanning (exit 3); parser/input errors return exit 2.
 No fallback executes the target on the host.
 
-## Verification and development
+## Development
 
-```sh
-uv run --locked ruff check src tests scripts
-uv run --locked ruff format --check src tests scripts
-uv run --locked mypy src scripts/check_dependency_inventory.py scripts/check_osv_scanner.py scripts/check_scanner_images.py
-uv run --locked pytest -q
-npm ci --prefix web --ignore-scripts
-npm run build --prefix web
-npm run test:unit --prefix web
-npm run test:e2e --prefix web
-uv build
-uv run --locked python scripts/check_dependency_inventory.py --check
-```
-
-Browser E2E uses an installed local Chrome/Chromium binary and a disposable
-plenger project plus mock target. Set `PLENGER_E2E_BROWSER` to an explicit
-browser path when the default is not discoverable; without a browser, the test
-reports an explicit environment skip rather than a product pass.
-
-Untuk smoke rilis scanner yang reproducible dan tanpa network, pastikan tiga image
-digest sudah tersedia lalu jalankan:
-
-```sh
-uv run --locked python scripts/check_scanner_images.py
-```
-
-Perintah ini memverifikasi ketiga digest, menjalankan Semgrep dan Trivy pada source
-produksi dengan container read-only/non-root/network-none, lalu gagal jika ada
-temuan. Image OSV hanya diverifikasi keberadaannya; database OSV tetap harus
-diprovisionkan melalui `provision-osv-db` secara eksplisit.
-
-Untuk memverifikasi dependency controls OSV secara nyata, termasuk vulnerable/fixed
-dan requirement tanpa pin atau dengan range, jalankan smoke berikut. Perintah ini
-memakai temporary workspace dan melakukan provisioning database sebagai satu-satunya
-langkah network-enabled; empat scan setelahnya offline:
-
-```sh
-uv run --locked python scripts/check_osv_scanner.py
-```
-
-Integration tests use the pinned local Docker image and no hosted API. They report
-**skipped/blocked**, not passed, when the image/runtime is absent. For the local
-quality gate—including the explicit network-enabled OSV provisioning smoke—run
-`scripts/check.sh`. The OSV smoke still keeps its network access limited to the
-explicit database setup phase; all scanner cases after provisioning are offline.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the repository layout, and the
+quality gates. The common entry points are `make install`, `make lint`,
+`make typecheck`, `make test` and `make check`.
 
 See [implementation status](docs/IMPLEMENTATION_STATUS.md),
 [test evidence](docs/TEST_RESULTS.md), and [architecture decisions](docs/adr/0001-local-first.md).
