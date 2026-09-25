@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from plenger.adapters.python_parser import IMAGE, execute, probe
-from plenger.api import ORIGIN, create_app
+from plenger.api.app import ORIGIN, create_app
 from plenger.services.application import execute_scan, findings_page, project_id, queue_scan
 from plenger.services.workspace import initialize
 from plenger.storage.database import open_store, save_report

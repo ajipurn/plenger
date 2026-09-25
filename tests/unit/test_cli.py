@@ -3,7 +3,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from plenger.cli import app
+from plenger.cli.main import app
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
 from plenger.services.active import approve_for_project, plan_for_project
 from plenger.services.application import project_id
@@ -113,7 +113,7 @@ def test_doctor_cli_exposes_project_id_when_capability_is_unavailable(tmp_path):
 
 
 def test_provision_scanners_allows_explicit_osv_database_follow_up(tmp_path, monkeypatch):
-    from plenger import cli as cli_module
+    from plenger.cli import main as cli_module
 
     initialize(tmp_path)
     monkeypatch.setattr(
@@ -143,7 +143,7 @@ def test_provision_scanners_allows_explicit_osv_database_follow_up(tmp_path, mon
 
 
 def test_serve_opt_in_observer_socket_is_wired_and_cleaned(tmp_path, monkeypatch):
-    from plenger import cli as cli_module
+    from plenger.cli import main as cli_module
 
     initialize(tmp_path)
     secret_path = tmp_path / "observer.key"
@@ -304,7 +304,7 @@ def test_run_cli_reports_unavailable_active_runner_as_blocked(tmp_path, monkeypa
 
 
 def test_run_cli_passes_opt_in_observer_to_executor(tmp_path, monkeypatch):
-    from plenger import cli as cli_module
+    from plenger.cli import main as cli_module
 
     initialize(tmp_path)
     plan = plan_for_project(
@@ -364,7 +364,7 @@ def test_run_cli_passes_opt_in_observer_to_executor(tmp_path, monkeypatch):
 
 
 def test_run_cli_redacts_unexpected_runtime_error(tmp_path, monkeypatch):
-    from plenger import cli as cli_module
+    from plenger.cli import main as cli_module
 
     initialize(tmp_path)
     plan = plan_for_project(
@@ -415,7 +415,7 @@ def test_run_cli_redacts_unexpected_runtime_error(tmp_path, monkeypatch):
 
 
 def test_scan_cli_redacts_unexpected_runtime_error(tmp_path, monkeypatch):
-    from plenger import cli as cli_module
+    from plenger.cli import main as cli_module
 
     initialize(tmp_path)
 
@@ -447,7 +447,7 @@ def _candidate_report(severity="critical"):
 
 
 def test_scan_ci_warns_when_candidates_are_not_gated(tmp_path, monkeypatch):
-    from plenger import cli as cli_module
+    from plenger.cli import main as cli_module
 
     initialize(tmp_path)
     monkeypatch.setattr(cli_module, "scan", lambda *args: _candidate_report())
@@ -474,7 +474,7 @@ def test_scan_ci_warns_when_candidates_are_not_gated(tmp_path, monkeypatch):
 
 
 def test_run_cli_exits_one_when_a_fixed_case_fails(tmp_path, monkeypatch):
-    from plenger import cli as cli_module
+    from plenger.cli import main as cli_module
 
     initialize(tmp_path)
     monkeypatch.setattr(cli_module, "queue_active_run", lambda *args: ("run-id", True))
@@ -516,7 +516,7 @@ def test_plan_cli_reports_strict_cost_guard_before_approval(tmp_path):
 
 
 def test_scan_cli_uses_configured_profile_by_default(tmp_path, monkeypatch):
-    from plenger import cli as cli_module
+    from plenger.cli import main as cli_module
 
     initialize(tmp_path)
     (tmp_path / "plenger.yaml").write_text("schema_version: 1\nprofile: baseline\n")

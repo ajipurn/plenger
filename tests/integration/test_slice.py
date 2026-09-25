@@ -6,7 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from plenger.adapters.python_parser import IMAGE, docker_env, probe, sandbox_argv
-from plenger.cli import app
+from plenger.cli.main import app
 from plenger.services.application import export_report, latest, scan
 from plenger.services.workspace import initialize
 
@@ -93,7 +93,7 @@ def test_async_scan_api_and_full_export(tmp_path):
 
     from fastapi.testclient import TestClient
 
-    from plenger.api import ORIGIN, create_app
+    from plenger.api.app import ORIGIN, create_app
 
     require_sandbox()
     initialize(tmp_path)

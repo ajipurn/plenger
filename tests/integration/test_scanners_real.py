@@ -177,7 +177,7 @@ def test_trivy_secret_never_reaches_storage_api_exports_or_hosted_request(
     import httpx
     from fastapi.testclient import TestClient
 
-    from plenger.api import ORIGIN, create_app
+    from plenger.api.app import ORIGIN, create_app
     from plenger.evaluators import providers as evaluators
     from plenger.services import application
     from plenger.services import assessment as assessment_service

@@ -9,7 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from plenger.api import ORIGIN, Sessions, create_app
+from plenger.api.app import ORIGIN, create_app
+from plenger.api.pairing import Sessions
 from plenger.runner.observer import FixtureObserver
 from plenger.services.application import queue_scan
 from plenger.services.workspace import initialize
@@ -105,7 +106,7 @@ def test_foreign_project_finding_and_evidence_ids_are_not_retrievable(client):
 def test_corrupt_assessment_payload_uses_safe_storage_error(client, monkeypatch):
     session = pair(client)
     monkeypatch.setattr(
-        "plenger.api.assessments_page_for_run",
+        "plenger.api.app.assessments_page_for_run",
         lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("invalid_assessment_payload")),
     )
     run_id, _ = queue_scan(client.app.state.project_root, "deterministic", False, "bad-assessment")
@@ -133,7 +134,7 @@ def test_hostile_host_or_origin(client, headers):
 def test_unexpected_api_error_uses_safe_envelope(client, monkeypatch):
     session = pair(client)
     monkeypatch.setattr(
-        "plenger.api.capabilities",
+        "plenger.api.app.capabilities",
         lambda root: (_ for _ in ()).throw(RuntimeError("sensitive-provider-detail")),
     )
 
@@ -399,7 +400,9 @@ def test_findings_pagination_reads_normalized_rows_not_report_mirror(client, mon
     run_id, _ = queue_scan(client.app.state.project_root, "deterministic", False, "api-page")
     application.execute_scan(client.app.state.project_root, run_id)
     session = pair(client)
-    monkeypatch.setattr("plenger.api.latest", lambda *args, **kwargs: pytest.fail("report loaded"))
+    monkeypatch.setattr(
+        "plenger.api.app.latest", lambda *args, **kwargs: pytest.fail("report loaded")
+    )
     response = client.get(f"/api/v1/projects/{session['project_id']}/findings?limit=1&offset=1")
     assert response.status_code == 200
     assert [item["title"] for item in response.json()["items"]] == ["Finding 2"]
@@ -906,7 +909,9 @@ def test_graph_pagination_reads_normalized_rows_not_report_mirror(client, monkey
     finally:
         engine.dispose()
     session = pair(client)
-    monkeypatch.setattr("plenger.api.latest", lambda *args, **kwargs: pytest.fail("report loaded"))
+    monkeypatch.setattr(
+        "plenger.api.app.latest", lambda *args, **kwargs: pytest.fail("report loaded")
+    )
     response = client.get(f"/api/v1/projects/{session['project_id']}/graph?limit=1&offset=1")
     assert response.status_code == 200
     payload = response.json()
@@ -1058,7 +1063,7 @@ def test_active_api_passes_configured_observer_to_background_runner(tmp_path, mo
         captured["observer"] = observer
         dispatched.set()
 
-    monkeypatch.setattr("plenger.api.execute_active_run", capture)
+    monkeypatch.setattr("plenger.api.app.execute_active_run", capture)
     with TestClient(application, base_url=ORIGIN) as configured_client:
         session = pair(configured_client)
         headers = {
@@ -1152,7 +1157,7 @@ def test_active_run_cancel_route_requires_csrf_and_completes_cancellation(client
     assert approval.status_code == 201
 
     # Keep the queued run observable while exercising the API control plane.
-    monkeypatch.setattr("plenger.api.execute_active_run", lambda *args, **kwargs: None)
+    monkeypatch.setattr("plenger.api.app.execute_active_run", lambda *args, **kwargs: None)
     active = client.post(
         f"/api/v1/plans/{plan['id']}/runs",
         json={"approval_id": approval.json()["id"]},
@@ -1276,7 +1281,7 @@ def test_inline_hosted_consent_requires_explicit_acknowledgment(client):
 
 
 def test_exhausted_pairing_code_rotates_to_a_terminal_only_code(monkeypatch):
-    from plenger import api as api_module
+    from plenger.api import pairing as api_module
 
     announced: list[str] = []
     sessions = Sessions(announce=announced.append)
