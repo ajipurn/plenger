@@ -3,17 +3,21 @@
 import hashlib
 import json
 import os
+import sqlite3
 import stat
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 
 from plenger.policy import redact
 from plenger.services.workspace import (
+    PROJECT_ID_FILE,
     WorkspaceError,
     config_filename,
+    parse_project_id,
+    path_project_id,
     private_directory_name,
     read_regular_stable,
     root_fd,
@@ -21,16 +25,72 @@ from plenger.services.workspace import (
 from plenger.storage.locking import runtime_lock
 
 
+def _adopt_database_identity(database_path: Path) -> str | None:
+    """Recover the identity of a store created before identities were persisted.
+
+    Such stores keyed everything by the original absolute path. If the project was
+    moved, its single ``projects`` row still names that original identity.
+    """
+
+    try:
+        connection = sqlite3.connect(database_path.as_uri() + "?mode=ro", uri=True, timeout=5)
+    except sqlite3.Error:
+        return None
+    try:
+        rows = connection.execute("SELECT id FROM projects LIMIT 2").fetchall()
+    except sqlite3.Error:
+        return None
+    finally:
+        connection.close()
+    if len(rows) != 1 or not isinstance(rows[0][0], str):
+        return None
+    try:
+        return parse_project_id(rows[0][0].encode())
+    except WorkspaceError:
+        return None
+
+
+def _project_identity_in(private: int, root: Path, private_name: str) -> str:
+    """Read, adopt, or create the identity that travels with the private directory."""
+
+    try:
+        return parse_project_id(read_regular_stable(private, PROJECT_ID_FILE, 128))
+    except FileNotFoundError:
+        pass
+    identity: str | None = None
+    try:
+        existing = os.stat("state.sqlite3", dir_fd=private, follow_symlinks=False)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None and existing.st_size > 0:
+        identity = _adopt_database_identity(root.resolve() / private_name / "state.sqlite3")
+    identity = identity or path_project_id(root)
+    try:
+        descriptor = os.open(
+            PROJECT_ID_FILE,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=private,
+        )
+    except FileExistsError:
+        return parse_project_id(read_regular_stable(private, PROJECT_ID_FILE, 128))
+    try:
+        os.write(descriptor, (identity + "\n").encode())
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    return identity
+
+
+def _database_marker(identity: str) -> int:
+    return (int(identity[:8], 16) & 0x7FFFFFFF) or 1
+
+
 def open_store(root: Path) -> Engine:
     database_identity: tuple[int, int] | None = None
     # Keep the original inode pinned until SQLite has completed its first migration.
     database_fd = -1
-    database_marker = (
-        int.from_bytes(hashlib.sha256(str(root.resolve()).encode()).digest()[:4], "big")
-        & 0x7FFFFFFF
-    )
-    if database_marker == 0:
-        database_marker = 1
+    root_identity = ""
     root_handle = root_fd(root)
     try:
         private_name = private_directory_name(root_handle)
@@ -56,6 +116,7 @@ def open_store(root: Path) -> Engine:
                         raise WorkspaceError("unsafe_database_file")
                 except FileNotFoundError:
                     pass
+            root_identity = _project_identity_in(private, root, private_name)
             fd = os.open(
                 "state.sqlite3", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600, dir_fd=private
             )
@@ -78,8 +139,9 @@ def open_store(root: Path) -> Engine:
             os.close(private)
     finally:
         os.close(root_handle)
-    if database_identity is None:
+    if database_identity is None or not root_identity:
         raise WorkspaceError("unsafe_database_file")
+    database_marker = _database_marker(root_identity)
     database_path = root.resolve() / private_name / "state.sqlite3"
     try:
         engine = create_engine("sqlite:///" + str(database_path))
@@ -151,7 +213,6 @@ def open_store(root: Path) -> Engine:
     finally:
         if database_fd >= 0:
             os.close(database_fd)
-    root_identity = hashlib.sha256(str(root.resolve()).encode()).hexdigest()
     project_name = root.name[:128] or "plenger project"
     try:
         descriptor = root_fd(root)
@@ -233,8 +294,8 @@ def reports(
         row = connection.execute(text(query), args).first()
     if not row:
         return None
-    payload = json.loads(row[0])
-    return redact(payload) if redacted else payload
+    payload: dict[str, Any] = json.loads(row[0])
+    return cast(dict[str, Any], redact(payload)) if redacted else payload
 
 
 def latest_report_id(engine: Engine, project_id: str) -> str | None:

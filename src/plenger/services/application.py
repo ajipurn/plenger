@@ -26,7 +26,12 @@ from plenger.services.scanners import (
     scanner_manifest_digest,
 )
 from plenger.services.snapshot import manifest
-from plenger.services.workspace import capture, is_dependency_input, load_config
+from plenger.services.workspace import (
+    capture,
+    is_dependency_input,
+    load_config,
+    project_identity,
+)
 from plenger.storage import latest_report_id, open_store, reports
 from plenger.storage.assessments import list_assessments
 from plenger.storage.attempts import mark_interrupted_active_attempts
@@ -64,7 +69,7 @@ from plenger.storage.runs import (
 
 
 def project_id(root: Path) -> str:
-    return hashlib.sha256(str(root.resolve()).encode()).hexdigest()
+    return project_identity(root)
 
 
 _FINDING_CURSOR_VERSION = 2

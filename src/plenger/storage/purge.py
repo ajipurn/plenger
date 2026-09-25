@@ -1,19 +1,23 @@
 """Explicit, project-scoped deletion of plenger's private storage."""
 
-import hashlib
 import os
 import secrets
 import stat
 from pathlib import Path
 
-from plenger.services.workspace import WorkspaceError, private_directory_name, root_fd
+from plenger.services.workspace import (
+    WorkspaceError,
+    private_directory_name,
+    project_identity,
+    root_fd,
+)
 from plenger.storage.locking import runtime_lock_in_directory
 
 _LOCK_FILES = frozenset({"worker.lock", "migration.lock", "server.lock"})
 
 
 def _project_identity(root: Path) -> str:
-    return hashlib.sha256(str(root.resolve()).encode()).hexdigest()
+    return project_identity(root)
 
 
 def _open_private(root: Path) -> int | None:

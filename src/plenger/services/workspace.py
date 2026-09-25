@@ -1,6 +1,8 @@
 """Descriptor-relative input capture. Never follows target symlinks or imports target code."""
 
+import hashlib
 import os
+import re
 import stat
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,8 @@ EXCLUDED = {
 }
 
 PRIVATE_DIRECTORY = ".plenger"
+PROJECT_ID_FILE = "project-id"
+_PROJECT_ID = re.compile(r"[0-9a-f]{64}")
 LEGACY_PRIVATE_DIRECTORY = ".Wonderkit"
 CONFIG_FILE = "plenger.yaml"
 LEGACY_CONFIG_FILE = "Wonderkit.yaml"
@@ -234,6 +238,58 @@ def config_filename(directory: int) -> str:
     """Read new config first and fall back to the existing Wonderkit filename."""
 
     return _existing_name(directory, (CONFIG_FILE, LEGACY_CONFIG_FILE), CONFIG_FILE)
+
+
+def path_project_id(root: Path) -> str:
+    """Identity for a project that has no persisted identity yet."""
+
+    return hashlib.sha256(str(root.resolve()).encode()).hexdigest()
+
+
+def parse_project_id(raw: bytes) -> str:
+    value = raw.decode("ascii", errors="replace").strip()
+    if _PROJECT_ID.fullmatch(value) is None:
+        raise WorkspaceError("invalid_project_identity")
+    return value
+
+
+def stored_project_id(root: Path) -> str | None:
+    """Read the identity persisted beside the project database, if present.
+
+    The identity travels with ``.plenger`` so renaming or moving the project
+    directory keeps its database, backups and confirmations valid.
+    """
+
+    try:
+        parent = root_fd(root)
+    except WorkspaceError:
+        return None
+    try:
+        try:
+            private = os.open(
+                private_directory_name(parent),
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=parent,
+            )
+        except OSError:
+            return None
+        try:
+            info = os.fstat(private)
+            if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+                return None
+            try:
+                raw = read_regular_stable(private, PROJECT_ID_FILE, 128)
+            except FileNotFoundError:
+                return None
+            return parse_project_id(raw)
+        finally:
+            os.close(private)
+    finally:
+        os.close(parent)
+
+
+def project_identity(root: Path) -> str:
+    return stored_project_id(root) or path_project_id(root)
 
 
 def load_config(root: Path) -> ProjectConfig:

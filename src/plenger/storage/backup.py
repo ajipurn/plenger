@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 import os
 import re
@@ -13,7 +12,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from plenger.services.workspace import WorkspaceError, private_directory_name, root_fd
+from plenger.services.workspace import (
+    WorkspaceError,
+    private_directory_name,
+    project_identity,
+    root_fd,
+)
 from plenger.storage.locking import runtime_lock
 
 _BACKUP_DIRECTORY = "migration-backups"
@@ -23,7 +27,7 @@ _REQUIRED_TABLES = frozenset({"alembic_version", "projects", "reports", "runs"})
 
 
 def _project_id(root: Path) -> str:
-    return hashlib.sha256(str(root.resolve()).encode()).hexdigest()
+    return project_identity(root)
 
 
 def _open_private_directory(root: Path) -> tuple[int, str]:
