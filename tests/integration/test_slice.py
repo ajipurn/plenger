@@ -5,7 +5,7 @@ import uuid
 import pytest
 from typer.testing import CliRunner
 
-from plenger.adapters import IMAGE, docker_env, probe, sandbox_argv
+from plenger.adapters.python_parser import IMAGE, docker_env, probe, sandbox_argv
 from plenger.cli import app
 from plenger.services.application import export_report, latest, scan
 from plenger.services.workspace import initialize
@@ -142,7 +142,7 @@ def test_async_scan_api_and_full_export(tmp_path):
 def test_labeled_grammar_through_real_sandbox():
     from pathlib import Path
 
-    from plenger.adapters import execute
+    from plenger.adapters.python_parser import execute
 
     require_sandbox()
     fixture_root = Path(__file__).parents[2] / "fixtures/grammar"
@@ -173,7 +173,7 @@ def test_real_orphan_container_is_removed_without_replay(tmp_path):
 
     from sqlalchemy import text
 
-    from plenger.adapters import cleanup_run, docker_command
+    from plenger.adapters.python_parser import cleanup_run, docker_command
     from plenger.domain.runs import RunState
     from plenger.services.application import project_id, queue_scan, recover_runs, run_status
     from plenger.storage.database import open_store
@@ -214,7 +214,7 @@ def test_real_orphan_container_is_removed_without_replay(tmp_path):
 
 
 def test_real_parser_merges_bounded_batches(monkeypatch):
-    from plenger import adapters
+    from plenger.adapters import python_parser as adapters
 
     require_sandbox()
     monkeypatch.setattr(adapters, "BATCH_MAX_FILES", 1)

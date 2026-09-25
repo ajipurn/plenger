@@ -12,11 +12,11 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from plenger.broker import RequestBroker
+from plenger.broker.dispatch import RequestBroker
 from plenger.domain.base import StrictModel
 from plenger.policy.active import PlanSpec
 from plenger.policy.redaction import redact
-from plenger.runner import run_fixed_cases
+from plenger.runner.cases import run_fixed_cases
 
 MAX_OUTPUT_BYTES = 64 * 1024 * 1024
 PromptfooStatus = Literal["pass", "fail", "inconclusive", "error"]

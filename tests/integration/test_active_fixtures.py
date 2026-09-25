@@ -2,14 +2,10 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from plenger.broker import RequestBroker
+from plenger.broker.dispatch import RequestBroker
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
-from plenger.runner import (
-    FIXED_CASES,
-    FORBIDDEN_RESPONSE_MARKERS,
-    FixtureObserver,
-    run_fixed_cases,
-)
+from plenger.runner.cases import FIXED_CASES, FORBIDDEN_RESPONSE_MARKERS, run_fixed_cases
+from plenger.runner.observer import FixtureObserver
 
 
 class ModeHandler(BaseHTTPRequestHandler):

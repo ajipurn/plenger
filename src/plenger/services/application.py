@@ -13,8 +13,8 @@ from typing import Any, cast
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from plenger.adapters import IMAGE, SandboxError, cleanup_run, execute, probe
 from plenger.adapters.promptfoo import capability as promptfoo_capability
+from plenger.adapters.python_parser import IMAGE, SandboxError, cleanup_run, execute, probe
 from plenger.broker.ipc import active_runner_capability
 from plenger.domain.runs import RunState
 from plenger.policy.redaction import redact

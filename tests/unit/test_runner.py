@@ -6,17 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from plenger.broker import DispatchOutcome, body_excerpt
+from plenger.broker.dispatch import DispatchOutcome, body_excerpt
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
-from plenger.runner import (
-    FIXED_CASES,
-    FixedCaseError,
+from plenger.runner.cases import FIXED_CASES, FixedCaseError, run_case, run_fixed_cases
+from plenger.runner.observer import (
     FixtureObserver,
     SignedTraceObserver,
     SignedTraceObserverSocket,
     load_observer_secret,
-    run_case,
-    run_fixed_cases,
     sign_trace_event,
 )
 
@@ -515,7 +512,7 @@ def test_large_json_response_still_uses_declared_output_path():
 
 
 def test_parser_batches_are_bounded_and_complete(monkeypatch):
-    from plenger import adapters
+    from plenger.adapters import python_parser as adapters
 
     monkeypatch.setattr(adapters, "BATCH_INPUT_BYTES", 40)
     files = {f"m{index}.py": "x" * 15 for index in range(5)}

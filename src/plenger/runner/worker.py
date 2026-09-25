@@ -9,7 +9,8 @@ from typing import Any
 
 from plenger.broker.ipc import UnixBrokerEndpoint, UnixSocketRequestBroker
 from plenger.policy.active import BudgetSpec, TargetSpec
-from plenger.runner import FIXED_CASES, TrustedObserver, run_case
+from plenger.runner.cases import FIXED_CASES, run_case
+from plenger.runner.observer import TrustedObserver
 
 MAX_WORKER_FRAME_BYTES = 64 * 1024
 

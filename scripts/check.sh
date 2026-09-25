@@ -3,7 +3,7 @@ set -eu
 uv run --locked ruff check src tests scripts
 uv run --locked ruff format --check src tests scripts
 uv run --locked mypy src scripts/check_dependency_inventory.py scripts/check_osv_scanner.py scripts/check_scanner_images.py
-uv run --locked python -c 'from plenger.adapters import probe; assert probe()["status"] == "ready", "BLOCKED: sandbox integration required"'
+uv run --locked python -c 'from plenger.adapters.python_parser import probe; assert probe()["status"] == "ready", "BLOCKED: sandbox integration required"'
 uv run --locked python scripts/check_scanner_images.py
 uv run --locked python scripts/check_osv_scanner.py
 uv run --locked pytest -q

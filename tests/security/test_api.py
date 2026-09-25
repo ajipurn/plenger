@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from plenger.api import ORIGIN, Sessions, create_app
-from plenger.runner import FixtureObserver
+from plenger.runner.observer import FixtureObserver
 from plenger.services.application import queue_scan
 from plenger.services.workspace import initialize
 from plenger.storage.backup import create_database_backup

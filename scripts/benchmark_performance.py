@@ -23,7 +23,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from plenger.adapters import IMAGE, execute, probe
+from plenger.adapters.python_parser import IMAGE, execute, probe
 from plenger.api import ORIGIN, create_app
 from plenger.services.application import execute_scan, findings_page, project_id, queue_scan
 from plenger.services.workspace import initialize

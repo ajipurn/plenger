@@ -163,7 +163,7 @@ def test_worker_schema_rejects_forged_refs_and_authority():
 
 
 def test_missing_sandbox_never_executes_target(monkeypatch):
-    from plenger import adapters
+    from plenger.adapters import python_parser as adapters
 
     monkeypatch.setattr(adapters, "probe", lambda: {"status": "unavailable"})
     with pytest.raises(adapters.SandboxError, match="sandbox_unavailable"):

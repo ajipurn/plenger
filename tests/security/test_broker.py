@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from plenger.broker import BrokerError, RequestBroker
+from plenger.broker.dispatch import BrokerError, RequestBroker
 from plenger.broker.ipc import (
     UnixBrokerEndpoint,
     UnixBrokerServer,
@@ -141,7 +141,7 @@ def test_broker_connects_to_resolved_loopback_ip_without_using_proxy_environment
             pytest.fail(f"unexpected DNS lookup for {host}")
         return [(AF_INET, SOCK_STREAM, 6, "", ("127.0.0.1", port))]
 
-    monkeypatch.setattr("plenger.broker.socket.getaddrinfo", resolve)
+    monkeypatch.setattr("plenger.broker.dispatch.socket.getaddrinfo", resolve)
     for key in ("http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
         monkeypatch.setenv(key, "http://192.0.2.1:9")
 
@@ -245,9 +245,9 @@ def test_broker_pins_public_staging_dns_and_preserves_hostname(monkeypatch):
         def close(self):
             calls["closed"] = True
 
-    monkeypatch.setattr("plenger.broker._PinnedHTTPSConnection", Connection)
+    monkeypatch.setattr("plenger.broker.dispatch._PinnedHTTPSConnection", Connection)
     monkeypatch.setattr(
-        "plenger.broker.socket.getaddrinfo",
+        "plenger.broker.dispatch.socket.getaddrinfo",
         lambda host, port, type: [(AF_INET, SOCK_STREAM, 6, "", ("93.184.216.34", port))],
     )
     broker = RequestBroker(target, BudgetSpec(max_attempts=1))
@@ -271,7 +271,7 @@ def test_broker_rejects_dns_set_change_after_plan_binding(monkeypatch):
         allowed_ips=["93.184.216.34"],
     )
     monkeypatch.setattr(
-        "plenger.broker.socket.getaddrinfo",
+        "plenger.broker.dispatch.socket.getaddrinfo",
         lambda host, port, type: [(AF_INET, SOCK_STREAM, 6, "", ("1.1.1.1", port))],
     )
     with pytest.raises(BrokerError, match="target_address_set_changed"):
@@ -310,7 +310,7 @@ def test_broker_revalidates_complete_dns_set_before_every_dispatch(monkeypatch, 
     ]
     answers = iter([initial_records, changed_records])
     monkeypatch.setattr(
-        "plenger.broker.socket.getaddrinfo",
+        "plenger.broker.dispatch.socket.getaddrinfo",
         lambda host, port, type: next(answers),
     )
     connections = []
@@ -342,7 +342,7 @@ def test_broker_revalidates_complete_dns_set_before_every_dispatch(monkeypatch, 
         def close(self):
             pass
 
-    monkeypatch.setattr("plenger.broker._PinnedHTTPSConnection", Connection)
+    monkeypatch.setattr("plenger.broker.dispatch._PinnedHTTPSConnection", Connection)
     broker = RequestBroker(target, BudgetSpec(max_attempts=2))
 
     assert broker.dispatch("POST", "/echo", {}).status_code == 200
@@ -391,7 +391,7 @@ def test_broker_rejects_private_or_mixed_staging_dns(monkeypatch, family, unsafe
     )
     sockaddr = (unsafe_address, 443, 0, 0) if family == AF_INET6 else (unsafe_address, 443)
     monkeypatch.setattr(
-        "plenger.broker.socket.getaddrinfo",
+        "plenger.broker.dispatch.socket.getaddrinfo",
         lambda host, port, type: [
             (AF_INET, SOCK_STREAM, 6, "", ("93.184.216.34", port)),
             (family, SOCK_STREAM, 6, "", sockaddr),
@@ -426,7 +426,7 @@ def test_broker_fails_closed_on_dns_resolution_errors(monkeypatch, resolver_mode
             return []
         return [(AF_INET, SOCK_STREAM, 6, "", ("not-an-ip", 443))]
 
-    monkeypatch.setattr("plenger.broker.socket.getaddrinfo", resolve)
+    monkeypatch.setattr("plenger.broker.dispatch.socket.getaddrinfo", resolve)
     with pytest.raises(BrokerError, match=error):
         RequestBroker(target, BudgetSpec(max_attempts=1)).dispatch("GET", "/echo")
 
@@ -503,8 +503,8 @@ def test_broker_carries_wall_deadline_into_connection_after_dns_resolution(monke
         def close(self):
             calls["closed"] = True
 
-    monkeypatch.setattr("plenger.broker.socket.getaddrinfo", slow_getaddrinfo)
-    monkeypatch.setattr("plenger.broker._PinnedHTTPConnection", Connection)
+    monkeypatch.setattr("plenger.broker.dispatch.socket.getaddrinfo", slow_getaddrinfo)
+    monkeypatch.setattr("plenger.broker.dispatch._PinnedHTTPConnection", Connection)
     broker = RequestBroker(target, BudgetSpec(max_attempts=1, request_timeout_seconds=2))
 
     outcome = broker.dispatch("POST", "/echo", {}, deadline=time.monotonic() + 0.2)

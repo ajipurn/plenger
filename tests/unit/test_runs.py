@@ -208,7 +208,7 @@ def test_git_metadata_reports_commit_and_dirty_state(tmp_path):
 
 
 def test_worker_failure_persists_safe_reason(tmp_path, monkeypatch):
-    from plenger import adapters
+    from plenger.adapters import python_parser as adapters
     from plenger.services import application
 
     initialize(tmp_path)
@@ -246,7 +246,7 @@ def test_run_reason_readers_redact_tampered_metadata(tmp_path):
 
 
 def test_recovery_cleanup_failure_blocks_new_worker(tmp_path, monkeypatch):
-    from plenger.adapters import SandboxError
+    from plenger.adapters.python_parser import SandboxError
     from plenger.services import application
 
     initialize(tmp_path)
@@ -267,7 +267,7 @@ def test_recovery_cleanup_failure_blocks_new_worker(tmp_path, monkeypatch):
 def test_remote_docker_context_is_rejected(monkeypatch):
     import subprocess
 
-    from plenger import adapters
+    from plenger.adapters import python_parser as adapters
 
     monkeypatch.setattr(adapters.shutil, "which", lambda name: "/trusted/docker")
     calls = []

@@ -18,7 +18,7 @@ from multiprocessing.connection import Connection
 from pathlib import Path
 from typing import Any
 
-from plenger.broker import (
+from plenger.broker.dispatch import (
     BODY_EXCERPT_CHARACTERS,
     BrokerError,
     DispatchOutcome,

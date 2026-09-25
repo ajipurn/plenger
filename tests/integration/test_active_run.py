@@ -14,15 +14,14 @@ from socket import AF_INET, SOCK_STREAM
 
 import pytest
 
-from plenger.broker import RequestBroker
+from plenger.broker.dispatch import RequestBroker
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
-from plenger.runner import (
-    FIXED_CASES,
+from plenger.runner.cases import FIXED_CASES, run_fixed_cases
+from plenger.runner.observer import (
     FixtureObserver,
     SignedTraceObserver,
     SignedTraceObserverSocket,
     SignedTraceSocketEndpoint,
-    run_fixed_cases,
     sign_trace_event,
 )
 from plenger.runner.sandbox import active_worker_capability, confined_worker_command
@@ -445,9 +444,9 @@ def test_staging_fixed_suite_runs_through_pinned_https_contract(monkeypatch):
         def close(self):
             return None
 
-    monkeypatch.setattr("plenger.broker._PinnedHTTPSConnection", Connection)
+    monkeypatch.setattr("plenger.broker.dispatch._PinnedHTTPSConnection", Connection)
     monkeypatch.setattr(
-        "plenger.broker.socket.getaddrinfo",
+        "plenger.broker.dispatch.socket.getaddrinfo",
         lambda host, port, type: [(AF_INET, SOCK_STREAM, 6, "", ("93.184.216.34", port))],
     )
     plan = PlanSpec(

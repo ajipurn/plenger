@@ -19,7 +19,7 @@ from pydantic import Field
 
 from plenger.domain.base import StrictModel
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
-from plenger.runner import TrustedObserver
+from plenger.runner.observer import TrustedObserver
 from plenger.services.active import (
     approve_for_project,
     cancel_active_run,
