@@ -885,17 +885,30 @@ def _active_report(
         category_states[category] = (
             result if result in {"blocked", "error", "inconclusive", "skipped"} else "executed"
         )
+    selected_categories = {FIXED_CASES[case_id].category for case_id in plan.case_ids}
     coverage = [
         {
-            "category": f"LLM{index:02d}",
-            "state": category_states.get(f"LLM{index:02d}", "planned"),
+            "category": category,
+            # Selected cases that never ran (cancel/timeout) stay "planned";
+            # categories outside the approved selection were never going to run.
+            "state": category_states.get(
+                category, "planned" if category in selected_categories else "not_tested"
+            ),
         }
-        for index in range(1, 11)
+        for category in (f"LLM{index:02d}" for index in range(1, 11))
     ]
+    summary = {
+        outcome: sum(1 for item in results if item["result"] == outcome)
+        for outcome in ("pass", "fail", "error", "inconclusive", "blocked", "skipped")
+    }
+    summary["not_run"] = len(plan.case_ids) - len(results)
     return {
         "schema_version": 1,
         "active": True,
-        "fixture": True,
+        # Inputs are synthetic fixed cases, but the target is a user-approved endpoint,
+        # not plenger's synthetic demonstration code.
+        "fixture": False,
+        "synthetic_cases": True,
         "run_id": run["id"],
         "snapshot_id": None,
         "plan_id": run["plan_id"],
@@ -920,6 +933,7 @@ def _active_report(
         "engine_states": capabilities(root),
         "assessments": [],
         "test_results": results,
+        "summary": summary,
         "accounting": {
             "reserved_attempts": stats["reserved_attempts"],
             "cost": None,

@@ -221,7 +221,8 @@ def test_local_fixed_suite_runs_only_after_approval(tmp_path):
         assert set(coverage) == {f"LLM{index:02d}" for index in range(1, 11)}
         assert coverage["LLM01"] == "executed"
         assert coverage["LLM06"] == "executed"
-        assert coverage["LLM02"] == "planned"
+        assert coverage["LLM02"] == "not_tested"
+        assert report["summary"]["pass"] == 2 and report["summary"]["fail"] == 0
         assert run_status(tmp_path, run_id)["state"] == "completed"
         from plenger.services.application import project_id
         from plenger.storage import open_store
@@ -326,10 +327,10 @@ def test_active_coverage_keeps_unexecuted_and_nonpass_states_distinct(tmp_path):
         "LLM04": "skipped",
         "LLM05": "error",
         "LLM06": "inconclusive",
-        "LLM07": "planned",
-        "LLM08": "planned",
-        "LLM09": "planned",
-        "LLM10": "planned",
+        "LLM07": "not_tested",
+        "LLM08": "not_tested",
+        "LLM09": "not_tested",
+        "LLM10": "not_tested",
     }
     assert report["case_count"] == len(selected_cases)
     assert report["profile_digest"] == plan.profile_digest()
