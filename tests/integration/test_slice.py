@@ -1,5 +1,6 @@
 import json
 import subprocess
+import uuid
 
 import pytest
 from typer.testing import CliRunner
@@ -210,3 +211,22 @@ def test_real_orphan_container_is_removed_without_replay(tmp_path):
         engine.dispose()
     finally:
         cleanup_run(run_id)
+
+
+def test_real_parser_merges_bounded_batches(monkeypatch):
+    from plenger import adapters
+
+    require_sandbox()
+    monkeypatch.setattr(adapters, "BATCH_MAX_FILES", 1)
+    files = {
+        "a.py": "def a(value):\n    return eval(value)\n",
+        "b.py": "x = " + "+".join(["1"] * 5000) + "\n",
+        "c.py": "def c():\n    return 1\n",
+    }
+    assert len(adapters.parser_batches(files)) == 3
+
+    result = adapters.execute(files, "p" * 64, str(uuid.uuid4()))
+
+    assert {node["label"] for node in result["nodes"] if node["kind"] == "file"} == set(files)
+    assert [finding["source_ref"]["path"] for finding in result["findings"]] == ["a.py"]
+    assert result["errors"] == [{"path": "b.py", "reason": "analysis_depth_limit"}]

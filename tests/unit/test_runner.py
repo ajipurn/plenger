@@ -512,3 +512,18 @@ def test_large_json_response_still_uses_declared_output_path():
     result = run_case(broker, FIXED_CASES["LLM07-system-prompt-leakage"], "POST", "/test")
 
     assert result["result"] == "fail"
+
+
+def test_parser_batches_are_bounded_and_complete(monkeypatch):
+    from plenger import adapters
+
+    monkeypatch.setattr(adapters, "BATCH_INPUT_BYTES", 40)
+    files = {f"m{index}.py": "x" * 15 for index in range(5)}
+    batches = adapters.parser_batches(files)
+
+    assert len(batches) > 1
+    assert {path: source for batch in batches for path, source in batch.items()} == files
+    assert all(
+        sum(len(path) + len(source) for path, source in batch.items()) <= 40 for batch in batches
+    )
+    assert adapters.parser_batches({}) == [{}]

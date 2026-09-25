@@ -88,7 +88,7 @@ class Finding(StrictModel):
 
 class ParseError(StrictModel):
     path: Text
-    reason: Literal["parse_error"]
+    reason: Literal["parse_error", "analysis_depth_limit"]
 
 
 class ParserResult(StrictModel):

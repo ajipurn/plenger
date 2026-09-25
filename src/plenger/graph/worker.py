@@ -119,7 +119,11 @@ def analyze(files: dict[str, str], project_id: str) -> dict[str, Any]:
             errors.append({"path": path, "reason": "parse_error"})
             continue
 
-        receivers = fastapi_receivers(tree)
+        try:
+            receivers = fastapi_receivers(tree)
+        except RecursionError:
+            errors.append({"path": path, "reason": "analysis_depth_limit"})
+            continue
 
         imported = {
             alias.asname or alias.name.split(".")[0]: alias.name
@@ -421,7 +425,13 @@ def analyze(files: dict[str, str], project_id: str) -> dict[str, Any]:
                         return keyword.value.value if isinstance(keyword.value.value, str) else None
                 return None
 
-        Visitor(path, file_id, receivers).visit(tree)
+        counts = (len(nodes), len(edges), len(findings))
+        try:
+            Visitor(path, file_id, receivers).visit(tree)
+        except RecursionError:
+            # Drop this file's partial graph; one pathological file must not fail the run.
+            del nodes[counts[0] :], edges[counts[1] :], findings[counts[2] :]
+            errors.append({"path": path, "reason": "analysis_depth_limit"})
     return {
         "nodes": nodes,
         "edges": edges,

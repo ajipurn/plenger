@@ -12,6 +12,11 @@ from plenger.domain.parser import ParserResult
 
 IMAGE = "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea"
 OUTPUT_LIMIT = 16 * 1024 * 1024
+# The worker container has a fixed memory/time budget, so large captures are parsed
+# in bounded batches instead of one payload sized by the whole repository.
+BATCH_INPUT_BYTES = 24 * 1024 * 1024
+BATCH_MAX_FILES = 2000
+BATCH_TIMEOUT_SECONDS = 60
 
 
 class SandboxError(RuntimeError):
@@ -146,11 +151,28 @@ def sandbox_argv(name: str, worker: Path) -> list[str]:
     ]
 
 
-def execute(files: dict[str, str], project_id: str, run_id: str | None = None) -> dict[str, Any]:
-    if probe()["status"] != "ready":
-        raise SandboxError("sandbox_unavailable")
+def parser_batches(files: dict[str, str]) -> list[dict[str, str]]:
+    """Split captured sources into deterministic batches bounded by size and count."""
+
+    batches: list[dict[str, str]] = []
+    current: dict[str, str] = {}
+    current_bytes = 0
+    for path, source in sorted(files.items()):
+        size = len(path.encode()) + len(source.encode())
+        if current and (
+            current_bytes + size > BATCH_INPUT_BYTES or len(current) >= BATCH_MAX_FILES
+        ):
+            batches.append(current)
+            current, current_bytes = {}, 0
+        current[path] = source
+        current_bytes += size
+    if current or not batches:
+        batches.append(current)
+    return batches
+
+
+def _execute_batch(files: dict[str, str], project_id: str, name: str) -> ParserResult:
     worker = Path(__file__).resolve().parents[1] / "graph" / "worker.py"
-    name = "plenger-" + (uuid.UUID(run_id).hex if run_id else uuid.uuid4().hex)
     payload = json.dumps({"files": files, "project_id": project_id}).encode()
     process = subprocess.Popen(
         sandbox_argv(name, worker),
@@ -186,19 +208,18 @@ def execute(files: dict[str, str], project_id: str, run_id: str | None = None) -
     for thread in threads:
         thread.start()
     try:
-        code = process.wait(timeout=30)
+        code = process.wait(timeout=BATCH_TIMEOUT_SECONDS)
         for thread in threads:
             thread.join(timeout=2)
         if overflow.is_set() or code != 0 or any(t.is_alive() for t in threads):
             raise SandboxError("worker_failed_or_output_limit")
-        result = json.loads(buffers[0])
-        validated = ParserResult.model_validate(result)
+        validated = ParserResult.model_validate(json.loads(buffers[0]))
         refs = [node.source_ref for node in validated.nodes]
         refs += [edge.source_ref for edge in validated.edges]
         refs += [finding.source_ref for finding in validated.findings]
         if any(ref.path not in files for ref in refs):
             raise SandboxError("invalid_source_reference")
-        return validated.model_dump()
+        return validated
     except subprocess.TimeoutExpired:
         raise SandboxError("worker_timeout") from None
     except (ValueError, UnicodeDecodeError):
@@ -219,3 +240,25 @@ def execute(files: dict[str, str], project_id: str, run_id: str | None = None) -
             pass
         for thread in threads:
             thread.join(timeout=2)
+
+
+def execute(files: dict[str, str], project_id: str, run_id: str | None = None) -> dict[str, Any]:
+    if probe()["status"] != "ready":
+        raise SandboxError("sandbox_unavailable")
+    # Batches run sequentially under the run's managed container name, so orphan
+    # cleanup by run ID still finds any container left behind by a crash.
+    name = "plenger-" + (uuid.UUID(run_id).hex if run_id else uuid.uuid4().hex)
+    merged: dict[str, Any] = {
+        "nodes": [],
+        "edges": [],
+        "findings": [],
+        "errors": [],
+        "limitations": [],
+    }
+    for batch in parser_batches(files):
+        result = _execute_batch(batch, project_id, name).model_dump()
+        for key in ("nodes", "edges", "findings", "errors"):
+            merged[key].extend(result[key])
+        if not merged["limitations"]:
+            merged["limitations"] = result["limitations"]
+    return merged
