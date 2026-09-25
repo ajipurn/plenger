@@ -2,7 +2,7 @@ import {useEffect, useRef, useState, type FormEvent} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Button} from '@base-ui/react/button';
 import {Checkbox} from '@base-ui/react/checkbox';
-import {engineStateSummary, snapshotWorkingTreeLabel, type EngineState} from './view-utils';
+import {engineStateSummary, snapshotWorkingTreeLabel} from './view-utils';
 import {request} from './api';
 import {
   ActiveSuiteResults,
@@ -12,21 +12,15 @@ import {
   ReportSummary,
 } from './components/report';
 import type {
-  Ref,
   Node,
   GraphEdge,
   GraphPage,
-  Evidence,
   Lifecycle,
   Finding,
-  TestResult,
   Assessment,
-  Snapshot,
   Report,
   RunSummary,
   RunHistoryPage,
-  BudgetPreview,
-  DiffItem,
   DiffResult,
   Plan,
   Approval,
