@@ -27,15 +27,13 @@ from plenger.api.schemas import (
 )
 from plenger.domain.errors import safe_code
 from plenger.runner.observer import TrustedObserver
-from plenger.services.active import (
+from plenger.services.active.plans import (
     approve_for_project,
-    cancel_active_run,
-    execute_active_run,
     get_project_plan,
     plan_for_project,
-    queue_active_run,
     revoke_project_plan,
 )
+from plenger.services.active.runs import cancel_active_run, execute_active_run, queue_active_run
 from plenger.services.application import (
     capabilities,
     execute_scan,

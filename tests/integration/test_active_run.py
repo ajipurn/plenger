@@ -25,14 +25,9 @@ from plenger.runner.observer import (
     sign_trace_event,
 )
 from plenger.runner.sandbox import active_worker_capability, confined_worker_command
-from plenger.services.active import (
-    _active_report,
-    approve_for_project,
-    cancel_active_run,
-    execute_active_run,
-    plan_for_project,
-    queue_active_run,
-)
+from plenger.services.active.plans import approve_for_project, plan_for_project
+from plenger.services.active.report import active_report
+from plenger.services.active.runs import cancel_active_run, execute_active_run, queue_active_run
 from plenger.services.application import run_status
 from plenger.services.workspace import initialize
 
@@ -308,7 +303,7 @@ def test_active_coverage_keeps_unexecuted_and_nonpass_states_distinct(tmp_path):
         )
     ]
 
-    report = _active_report(
+    report = active_report(
         tmp_path,
         {"id": "run-id", "plan_id": "plan-id", "approval_id": "approval-id"},
         plan,
@@ -393,7 +388,7 @@ def test_active_run_accepts_run_bound_signed_sidecar_event(tmp_path):
 
 
 def test_active_broker_start_failure_blocks_queued_run(tmp_path, monkeypatch):
-    from plenger.services import active as active_service
+    from plenger.services.active import runs as active_service
 
     run_id = _queued_active_run(tmp_path, "active-broker-start-failure")
 
@@ -401,7 +396,7 @@ def test_active_broker_start_failure_blocks_queued_run(tmp_path, monkeypatch):
         del args, kwargs
         raise RuntimeError("broker_process_start_failed")
 
-    monkeypatch.setattr(active_service, "_ActiveJobBroker", fail_start)
+    monkeypatch.setattr(active_service, "ActiveJobBroker", fail_start)
     with pytest.raises(RuntimeError, match="broker_process_start_failed"):
         execute_active_run(tmp_path, run_id)
 
@@ -489,7 +484,7 @@ class SlowTargetHandler(BaseHTTPRequestHandler):
 
 
 def test_cancel_reaches_a_running_active_worker(tmp_path):
-    from plenger.services import active as active_service
+    from plenger.services.active import runs as active_service
 
     SlowTargetHandler.started.clear()
     SlowTargetHandler.release.clear()
@@ -556,7 +551,7 @@ def test_cancel_reaches_a_running_active_worker(tmp_path):
 
 
 def test_cancelled_intent_wins_over_runner_exception(tmp_path, monkeypatch):
-    from plenger.services import active as active_service
+    from plenger.services.active import runs as active_service
 
     run_id = _queued_active_run(tmp_path, "active-cancel-exception")
 
@@ -565,7 +560,7 @@ def test_cancelled_intent_wins_over_runner_exception(tmp_path, monkeypatch):
         assert cancel_active_run(tmp_path, run_id) == "cancelling"
         raise RuntimeError("runner_crash_after_cancel")
 
-    monkeypatch.setattr(active_service, "_execute_confined_case", crash_after_cancel)
+    monkeypatch.setattr(active_service, "execute_confined_case", crash_after_cancel)
     with pytest.raises(RuntimeError, match="runner_crash_after_cancel"):
         execute_active_run(tmp_path, run_id)
 
@@ -607,9 +602,9 @@ def _queued_active_run(tmp_path, request_key: str, base_url: str = "http://127.0
 
 
 def _kill_active_child(root: str, run_id: str) -> None:
-    from plenger.services import active as active_service
+    from plenger.services.active import runs as active_service
 
-    execute_confined_case = active_service._execute_confined_case
+    execute_confined_case = active_service.execute_confined_case
 
     def terminate_after_target_response(*args, **kwargs):
         with active_service._ACTIVE_RUNS_LOCK:
@@ -620,17 +615,17 @@ def _kill_active_child(root: str, run_id: str) -> None:
         (Path(root) / "target-response-received.txt").write_text("received")
         os._exit(17)
 
-    active_service._execute_confined_case = terminate_after_target_response
+    active_service.execute_confined_case = terminate_after_target_response
     active_service.execute_active_run(Path(root), run_id)
 
 
 def test_recovery_marks_inflight_active_attempt_after_dispatch_crash(tmp_path, monkeypatch):
-    from plenger.services import active as active_service
     from plenger.services import application
-    from plenger.services.active import RunConflict
+    from plenger.services.active import runs as active_service
     from plenger.services.application import project_id, recover_runs
     from plenger.storage.attempts import list_active_attempts
     from plenger.storage.database import open_store
+    from plenger.storage.runs import RunConflict
 
     run_id = _queued_active_run(tmp_path, "active-dispatch-crash")
     possibly_sent_actions = []
@@ -640,7 +635,7 @@ def test_recovery_marks_inflight_active_attempt_after_dispatch_crash(tmp_path, m
         possibly_sent_actions.append(run_id)
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(active_service, "_execute_confined_case", crash_before_result)
+    monkeypatch.setattr(active_service, "execute_confined_case", crash_before_result)
     with pytest.raises(KeyboardInterrupt):
         execute_active_run(tmp_path, run_id)
 
@@ -667,7 +662,7 @@ def test_recovery_marks_inflight_active_attempt_after_dispatch_crash(tmp_path, m
 
 
 def test_wall_time_attempt_is_finished_before_run_exits(tmp_path, monkeypatch):
-    from plenger.services import active as active_service
+    from plenger.services.active import runs as active_service
     from plenger.services.application import project_id
     from plenger.storage.attempts import list_active_attempts
     from plenger.storage.database import open_store
@@ -684,7 +679,7 @@ def test_wall_time_attempt_is_finished_before_run_exits(tmp_path, monkeypatch):
             "evidence": [],
         }
 
-    monkeypatch.setattr(active_service, "_execute_confined_case", timed_out_case)
+    monkeypatch.setattr(active_service, "execute_confined_case", timed_out_case)
     report = execute_active_run(tmp_path, run_id)
     assert report["state"] == "completed_with_errors"
     engine = open_store(tmp_path)
@@ -698,8 +693,8 @@ def test_wall_time_attempt_is_finished_before_run_exits(tmp_path, monkeypatch):
 
 
 def test_recovery_keeps_completed_attempt_after_report_write_crash(tmp_path, monkeypatch):
-    from plenger.services import active as active_service
     from plenger.services import application
+    from plenger.services.active import runs as active_service
     from plenger.services.application import project_id, recover_runs
     from plenger.storage.attempts import list_active_attempts
     from plenger.storage.database import open_store
@@ -720,8 +715,8 @@ def test_recovery_keeps_completed_attempt_after_report_write_crash(tmp_path, mon
         del args, kwargs
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(active_service, "_execute_confined_case", completed_case)
-    monkeypatch.setattr(active_service, "_active_report", crash_before_report)
+    monkeypatch.setattr(active_service, "execute_confined_case", completed_case)
+    monkeypatch.setattr(active_service, "active_report", crash_before_report)
     with pytest.raises(KeyboardInterrupt):
         execute_active_run(tmp_path, run_id)
 
@@ -744,10 +739,10 @@ def test_recovery_keeps_completed_attempt_after_report_write_crash(tmp_path, mon
 
 def test_recovery_marks_attempt_after_worker_process_is_killed(tmp_path, monkeypatch):
     from plenger.services import application
-    from plenger.services.active import RunConflict
     from plenger.services.application import project_id, recover_runs
     from plenger.storage.attempts import list_active_attempts
     from plenger.storage.database import open_store
+    from plenger.storage.runs import RunConflict
 
     TargetHandler.request_count = 0
     TargetHandler.observer = None

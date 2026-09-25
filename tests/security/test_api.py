@@ -1116,7 +1116,7 @@ def test_active_api_passes_configured_observer_to_background_runner(tmp_path, mo
 
 
 def test_active_run_cancel_route_requires_csrf_and_completes_cancellation(client, monkeypatch):
-    from plenger.services.active import execute_active_run as execute_active
+    from plenger.services.active.runs import execute_active_run as execute_active
 
     session = pair(client)
     headers = {
@@ -1181,7 +1181,7 @@ def test_active_run_cancel_route_requires_csrf_and_completes_cancellation(client
 
 
 def test_unavailable_active_runner_is_rejected_before_approval_consumption(client, monkeypatch):
-    from plenger.services import active as active_service
+    from plenger.services.active import runs as active_service
 
     session = pair(client)
     headers = {

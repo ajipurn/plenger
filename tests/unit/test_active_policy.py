@@ -7,14 +7,13 @@ from sqlalchemy import text
 
 from plenger.evaluators.rubric import ACTIVE_RUBRIC_HASH
 from plenger.policy.active import BudgetSpec, PlanSpec, PolicyViolation, TargetSpec, dispatch_url
-from plenger.services.active import (
+from plenger.services.active.plans import (
     approve_for_project,
-    execute_active_run,
     get_project_plan,
     plan_for_project,
-    queue_active_run,
     revoke_project_plan,
 )
+from plenger.services.active.runs import execute_active_run, queue_active_run
 from plenger.services.application import run_status
 from plenger.services.workspace import initialize
 from plenger.storage.database import open_store
@@ -344,7 +343,7 @@ def test_expired_unused_approval_can_be_replaced(tmp_path):
 
 
 def test_unavailable_active_runner_rejects_before_consuming_approval(tmp_path, monkeypatch):
-    from plenger.services import active as active_service
+    from plenger.services.active import runs as active_service
 
     initialize(tmp_path)
     created = plan_for_project(tmp_path, plan())

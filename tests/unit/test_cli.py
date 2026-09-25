@@ -5,7 +5,7 @@ from typer.testing import CliRunner
 
 from plenger.cli.main import app
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
-from plenger.services.active import approve_for_project, plan_for_project
+from plenger.services.active.plans import approve_for_project, plan_for_project
 from plenger.services.application import project_id
 from plenger.services.workspace import initialize
 from plenger.storage.database import open_store
@@ -254,7 +254,7 @@ def test_promptfoo_import_cli_validates_without_executing_provider(tmp_path):
 
 
 def test_run_cli_reports_unavailable_active_runner_as_blocked(tmp_path, monkeypatch):
-    from plenger.services import active as active_service
+    from plenger.services.active import runs as active_service
 
     initialize(tmp_path)
     plan = plan_for_project(

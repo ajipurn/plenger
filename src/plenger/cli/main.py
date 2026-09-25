@@ -25,13 +25,8 @@ from plenger.runner.observer import (
     SignedTraceSocketEndpoint,
     load_observer_secret,
 )
-from plenger.services.active import (
-    approve_for_project,
-    cancel_active_run,
-    execute_active_run,
-    plan_for_project,
-    queue_active_run,
-)
+from plenger.services.active.plans import approve_for_project, plan_for_project
+from plenger.services.active.runs import cancel_active_run, execute_active_run, queue_active_run
 from plenger.services.application import (
     capabilities,
     ci_exit_code,
