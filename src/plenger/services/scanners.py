@@ -23,28 +23,31 @@ from typing import Any
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
-from plenger.adapters.scanners import (
+from plenger.adapters.scanners.binaries import hash_binary, version_probe
+from plenger.adapters.scanners.containers import (
     SCANNER_CONTAINER_IMAGES,
+    container_image_present,
+    container_runtime_mode,
+    container_user_available,
+    container_version_probe,
+    pull_container_image,
+)
+from plenger.adapters.scanners.dependencies import unresolved_dependency_findings
+from plenger.adapters.scanners.execution import (
+    execute_scanner,
+    probe_optional_engines,
+    run_scanner_process,
+    scanner_isolation_mode,
+)
+from plenger.adapters.scanners.models import (
     EngineName,
     ScannerExecutionError,
     ScannerOutputError,
     ScannerResult,
     ScannerUnavailable,
-    _binary_hash,
-    _bounded_process,
-    _map_container_output,
-    container_image_present,
-    container_runtime_mode,
-    container_user_available,
-    container_version_probe,
-    execute_scanner,
-    plan_scanner,
-    probe_optional_engines,
-    pull_container_image,
-    scanner_isolation_mode,
-    unresolved_dependency_findings,
-    version_probe,
 )
+from plenger.adapters.scanners.normalize import map_container_output
+from plenger.adapters.scanners.planning import plan_scanner
 from plenger.domain.base import StrictModel
 from plenger.policy.redaction import redact
 from plenger.services.workspace import (
@@ -260,7 +263,7 @@ def _verify_binary(entry: ManagedScanner) -> tuple[str, str, dict[str, str]]:
     if not executable.is_file():
         return "unavailable", "managed_binary_missing", {"isolation": isolation}
     try:
-        actual_hash = _binary_hash(executable)
+        actual_hash = hash_binary(executable)
         actual_version = version_probe(executable)
     except OSError:
         return "unavailable", "managed_binary_unreadable", {"isolation": isolation}
@@ -620,7 +623,7 @@ def provision_scanners(
             executable = Path(resolved).resolve()
             version = version_probe(executable)
             try:
-                binary_hash = _binary_hash(executable)
+                binary_hash = hash_binary(executable)
             except OSError:
                 binary_hash = None
             if version is None or binary_hash is None:
@@ -798,11 +801,11 @@ def provision_osv_database(root: Path) -> dict[str, Any]:
                         provisioning=True,
                         timeout_seconds=300,
                     )
-                raw = _bounded_process(plan)
+                raw = run_scanner_process(plan)
                 if plan.container_image is not None:
-                    raw = _map_container_output(raw, "osv")
+                    raw = map_container_output(raw, "osv")
                 # Validate that the command returned the schema we will later consume.
-                from plenger.adapters.scanners import normalize_osv
+                from plenger.adapters.scanners.normalize import normalize_osv
 
                 normalize_osv(raw, base_dir=Path(target))
             except ScannerExecutionError as error:
@@ -959,7 +962,7 @@ def run_managed_scanners(
 def scanner_findings_to_report(results: Sequence[ScannerResult]) -> list[dict[str, Any]]:
     """Convert normalized scanner evidence to the report finding contract."""
 
-    from plenger.adapters.correlation import correlate_scanner_results
+    from plenger.adapters.scanners.correlation import correlate_scanner_results
 
     findings: list[dict[str, Any]] = []
     for correlated in correlate_scanner_results(results):

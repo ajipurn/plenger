@@ -17,7 +17,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
-from plenger.adapters.scanners import SCANNER_CONTAINER_IMAGES
+from plenger.adapters.scanners.containers import SCANNER_CONTAINER_IMAGES
 
 _PACKAGE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*")
 _SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")

@@ -59,7 +59,7 @@ ketika diminta; init, doctor, dan scan tidak pernah menarik image. Status
 diharapkan, bukan baseline yang siap dijalankan.
 
 The recorded image identities are the immutable Semgrep, OSV-Scanner, and Trivy
-digests in `src/plenger/adapters/scanners.py`. A missing Docker daemon or image
+digests in `src/plenger/adapters/scanners/containers.py`. A missing Docker daemon or image
 leaves the engine unavailable; it does not execute a target scanner on the host.
 
 ## Run the synthetic fixture

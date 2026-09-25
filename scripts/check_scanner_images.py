@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from plenger.adapters.scanners import SCANNER_CONTAINER_IMAGES
+from plenger.adapters.scanners.containers import SCANNER_CONTAINER_IMAGES
 
 SUPPORTED_PLATFORMS = ("linux/amd64", "linux/arm64")
 
@@ -180,7 +180,9 @@ def run_check(project_root: Path, platform: str | None = None) -> tuple[int, int
     if platform is not None and platform not in SUPPORTED_PLATFORMS:
         raise ScannerImageCheckError("scanner_platform_invalid")
     source = (project_root / "src").resolve()
-    rules = (project_root / "src" / "plenger" / "adapters" / "rules" / "semgrep.yml").resolve()
+    rules = (
+        project_root / "src" / "plenger" / "adapters" / "scanners" / "rules" / "semgrep.yml"
+    ).resolve()
     if not source.is_dir() or not rules.is_file():
         raise ScannerImageCheckError("production_source_missing")
     try:

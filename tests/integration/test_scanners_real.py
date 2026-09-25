@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from plenger.adapters.scanners import (
+from plenger.adapters.scanners.containers import (
     SCANNER_CONTAINER_IMAGES,
     container_image_present,
     container_runtime_mode,
-    execute_scanner,
-    plan_scanner,
 )
+from plenger.adapters.scanners.execution import execute_scanner
+from plenger.adapters.scanners.planning import plan_scanner
 from plenger.services.application import scan
 from plenger.services.scanners import (
     provision_scanners,

@@ -6,25 +6,23 @@ from dataclasses import replace
 import pytest
 from pydantic import ValidationError
 
-from plenger.adapters.correlation import correlate_scanner_results
-from plenger.adapters.scanners import (
+from plenger.adapters.scanners.binaries import VERSION_PROBE_ATTEMPTS, version_probe
+from plenger.adapters.scanners.containers import (
     SCANNER_CONTAINER_IMAGES,
     SCANNER_CONTAINER_MEMORY,
-    VERSION_PROBE_ATTEMPTS,
+    pull_container_image,
+)
+from plenger.adapters.scanners.correlation import correlate_scanner_results
+from plenger.adapters.scanners.dependencies import unresolved_dependency_findings
+from plenger.adapters.scanners.execution import _execution_argv, execute_scanner
+from plenger.adapters.scanners.models import (
     EngineManifest,
     ScannerOutputError,
     ScannerResult,
     ScannerUnavailable,
-    _execution_argv,
-    execute_scanner,
-    normalize_osv,
-    normalize_semgrep,
-    normalize_trivy,
-    plan_scanner,
-    pull_container_image,
-    unresolved_dependency_findings,
-    version_probe,
 )
+from plenger.adapters.scanners.normalize import normalize_osv, normalize_semgrep, normalize_trivy
+from plenger.adapters.scanners.planning import plan_scanner
 from plenger.services.scanners import (
     ManagedScanner,
     ManagedScannerManifest,
@@ -385,7 +383,7 @@ def test_scanner_plan_requires_pinned_binary_and_uses_managed_rules(tmp_path, mo
     target_override = tmp_path / "semgrep.yml"
     target_override.write_text("rules: []\n")
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
-    monkeypatch.setattr("plenger.adapters.scanners.version_probe", lambda name: "1.2.3")
+    monkeypatch.setattr("plenger.adapters.scanners.planning.version_probe", lambda name: "1.2.3")
     plan = plan_scanner(
         "semgrep",
         tmp_path,
@@ -429,11 +427,11 @@ def test_container_scanner_plan_is_digest_pinned_and_mounts_only_managed_inputs(
         container_image=SCANNER_CONTAINER_IMAGES["semgrep"],
     )
     monkeypatch.setattr(
-        "plenger.adapters.scanners._docker_command",
+        "plenger.adapters.scanners.containers._docker_command",
         lambda: ["docker", "--host", "unix:///var/run/docker.sock"],
     )
     monkeypatch.setattr(
-        "plenger.adapters.scanners._container_user",
+        "plenger.adapters.scanners.containers._container_user",
         lambda: "501:20",
     )
 
@@ -467,7 +465,7 @@ def test_pull_container_image_uses_only_configured_digest(monkeypatch):
     image = SCANNER_CONTAINER_IMAGES["semgrep"]
     calls: list[list[str]] = []
     monkeypatch.setattr(
-        "plenger.adapters.scanners._docker_command",
+        "plenger.adapters.scanners.containers._docker_command",
         lambda: ["docker", "--host", "unix:///var/run/docker.sock"],
     )
 
@@ -475,9 +473,9 @@ def test_pull_container_image_uses_only_configured_digest(monkeypatch):
         calls.append(argv)
         return subprocess.CompletedProcess(argv, 0, b"", b"")
 
-    monkeypatch.setattr("plenger.adapters.scanners.subprocess.run", run)
+    monkeypatch.setattr("plenger.adapters.scanners.containers.subprocess.run", run)
     monkeypatch.setattr(
-        "plenger.adapters.scanners.container_image_present", lambda value: value == image
+        "plenger.adapters.scanners.containers.container_image_present", lambda value: value == image
     )
 
     assert pull_container_image(image) == (True, "container_image_pulled")
@@ -492,7 +490,7 @@ def test_osv_scan_plan_is_offline_and_never_downloads(tmp_path, monkeypatch):
     binary = tmp_path / "osv-scanner"
     binary.write_bytes(b"managed-osv")
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
-    monkeypatch.setattr("plenger.adapters.scanners.version_probe", lambda name: "2.6.0")
+    monkeypatch.setattr("plenger.adapters.scanners.planning.version_probe", lambda name: "2.6.0")
 
     plan = plan_scanner(
         "osv",
@@ -518,10 +516,10 @@ def test_osv_provisioning_plan_is_explicitly_network_capable(tmp_path, monkeypat
     binary = tmp_path / "osv-scanner"
     binary.write_bytes(b"managed-osv")
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
-    monkeypatch.setattr("plenger.adapters.scanners.version_probe", lambda name: "2.6.0")
-    monkeypatch.setattr("plenger.adapters.scanners.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("plenger.adapters.scanners.planning.version_probe", lambda name: "2.6.0")
+    monkeypatch.setattr("plenger.adapters.scanners.execution.platform.system", lambda: "Darwin")
     monkeypatch.setattr(
-        "plenger.adapters.scanners.shutil.which",
+        "plenger.adapters.scanners.execution.shutil.which",
         lambda name: "/usr/bin/sandbox-exec" if name == "sandbox-exec" else None,
     )
     plan = plan_scanner(
@@ -552,10 +550,10 @@ def test_darwin_scanner_argv_uses_default_deny_seatbelt(tmp_path, monkeypatch):
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
     runtime = tmp_path / "runtime"
     runtime.mkdir()
-    monkeypatch.setattr("plenger.adapters.scanners.version_probe", lambda name: "0.1.0")
-    monkeypatch.setattr("plenger.adapters.scanners.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("plenger.adapters.scanners.planning.version_probe", lambda name: "0.1.0")
+    monkeypatch.setattr("plenger.adapters.scanners.execution.platform.system", lambda: "Darwin")
     monkeypatch.setattr(
-        "plenger.adapters.scanners.shutil.which",
+        "plenger.adapters.scanners.execution.shutil.which",
         lambda name: "/usr/bin/sandbox-exec" if name == "sandbox-exec" else None,
     )
     plan = plan_scanner(
@@ -581,8 +579,8 @@ def test_non_darwin_host_scanner_argv_requires_container_worker(tmp_path, monkey
     binary = tmp_path / "trivy"
     binary.write_bytes(b"managed-trivy")
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
-    monkeypatch.setattr("plenger.adapters.scanners.version_probe", lambda name: "0.1.0")
-    monkeypatch.setattr("plenger.adapters.scanners.platform.system", lambda: "Linux")
+    monkeypatch.setattr("plenger.adapters.scanners.planning.version_probe", lambda name: "0.1.0")
+    monkeypatch.setattr("plenger.adapters.scanners.execution.platform.system", lambda: "Linux")
     plan = plan_scanner(
         "trivy",
         tmp_path,
@@ -614,7 +612,7 @@ def test_version_probe_retries_a_transient_timeout(monkeypatch, tmp_path):
             raise subprocess.TimeoutExpired(args[0], kwargs["timeout"])
         return subprocess.CompletedProcess(args[0], 0, b"1.2.3\n", b"")
 
-    monkeypatch.setattr("plenger.adapters.scanners.subprocess.run", run)
+    monkeypatch.setattr("plenger.adapters.scanners.binaries.subprocess.run", run)
     assert version_probe(binary) == "1.2.3"
     assert calls == min(2, VERSION_PROBE_ATTEMPTS)
 
@@ -656,7 +654,7 @@ def test_scanner_execution_maps_target_paths_and_fails_closed(monkeypatch, tmp_p
     binary = tmp_path / "trivy"
     binary.write_bytes(b"managed-trivy")
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
-    monkeypatch.setattr("plenger.adapters.scanners.version_probe", lambda name: "0.1.0")
+    monkeypatch.setattr("plenger.adapters.scanners.planning.version_probe", lambda name: "0.1.0")
     plan = plan_scanner(
         "trivy",
         tmp_path,
@@ -665,7 +663,7 @@ def test_scanner_execution_maps_target_paths_and_fails_closed(monkeypatch, tmp_p
         executable=binary,
     )
     monkeypatch.setattr(
-        "plenger.adapters.scanners._bounded_process",
+        "plenger.adapters.scanners.execution.run_scanner_process",
         lambda current: json.dumps(
             {
                 "Results": [
@@ -682,7 +680,8 @@ def test_scanner_execution_maps_target_paths_and_fails_closed(monkeypatch, tmp_p
     assert result.findings[0].path == "config.py"
 
     monkeypatch.setattr(
-        "plenger.adapters.scanners._bounded_process", lambda current: b'{"invalid": true}'
+        "plenger.adapters.scanners.execution.run_scanner_process",
+        lambda current: b'{"invalid": true}',
     )
     failed = execute_scanner(plan)
     assert failed.status == "error" and failed.reason == "invalid_trivy_results"
@@ -702,7 +701,7 @@ def test_scanner_execution_rejects_failed_or_empty_process_output(
     binary = tmp_path / "trivy"
     binary.write_bytes(b"managed-trivy")
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
-    monkeypatch.setattr("plenger.adapters.scanners.version_probe", lambda name: "0.1.0")
+    monkeypatch.setattr("plenger.adapters.scanners.planning.version_probe", lambda name: "0.1.0")
     plan = plan_scanner(
         "trivy",
         tmp_path,
@@ -713,7 +712,7 @@ def test_scanner_execution_rejects_failed_or_empty_process_output(
     fixture = tmp_path / "scanner-fixture.sh"
     fixture.write_text(f"#!/bin/sh\n{script}\n")
     monkeypatch.setattr(
-        "plenger.adapters.scanners._execution_argv",
+        "plenger.adapters.scanners.execution._execution_argv",
         lambda current, runtime_home: ["/bin/sh", str(fixture)],
     )
 
@@ -727,8 +726,8 @@ def test_scanner_execution_rejects_output_over_limit(monkeypatch, tmp_path):
     binary = tmp_path / "trivy"
     binary.write_bytes(b"managed-trivy")
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
-    monkeypatch.setattr("plenger.adapters.scanners.version_probe", lambda name: "0.1.0")
-    monkeypatch.setattr("plenger.adapters.scanners.MAX_OUTPUT_BYTES", 8)
+    monkeypatch.setattr("plenger.adapters.scanners.planning.version_probe", lambda name: "0.1.0")
+    monkeypatch.setattr("plenger.adapters.scanners.execution.MAX_OUTPUT_BYTES", 8)
     plan = plan_scanner(
         "trivy",
         tmp_path,
@@ -739,7 +738,7 @@ def test_scanner_execution_rejects_output_over_limit(monkeypatch, tmp_path):
     fixture = tmp_path / "scanner-fixture.sh"
     fixture.write_text("#!/bin/sh\nprintf 123456789\n")
     monkeypatch.setattr(
-        "plenger.adapters.scanners._execution_argv",
+        "plenger.adapters.scanners.execution._execution_argv",
         lambda current, runtime_home: ["/bin/sh", str(fixture)],
     )
 
@@ -753,7 +752,7 @@ def test_scanner_execution_rejects_timeout(monkeypatch, tmp_path):
     binary = tmp_path / "trivy"
     binary.write_bytes(b"managed-trivy")
     binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
-    monkeypatch.setattr("plenger.adapters.scanners.version_probe", lambda name: "0.1.0")
+    monkeypatch.setattr("plenger.adapters.scanners.planning.version_probe", lambda name: "0.1.0")
     plan = replace(
         plan_scanner(
             "trivy",
@@ -767,7 +766,7 @@ def test_scanner_execution_rejects_timeout(monkeypatch, tmp_path):
     fixture = tmp_path / "scanner-fixture.sh"
     fixture.write_text("#!/bin/sh\nsleep 2\n")
     monkeypatch.setattr(
-        "plenger.adapters.scanners._execution_argv",
+        "plenger.adapters.scanners.execution._execution_argv",
         lambda current, runtime_home: ["/bin/sh", str(fixture)],
     )
 

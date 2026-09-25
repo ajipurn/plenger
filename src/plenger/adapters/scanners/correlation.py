@@ -16,7 +16,7 @@ from collections.abc import Iterable
 
 from pydantic import Field
 
-from plenger.adapters.scanners import ScannerFinding, ScannerResult
+from plenger.adapters.scanners.models import ScannerFinding, ScannerResult
 from plenger.domain.base import StrictModel
 
 

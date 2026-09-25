@@ -1,5 +1,5 @@
-from plenger.adapters.correlation import correlate_findings, correlate_scanner_results
-from plenger.adapters.scanners import ScannerFinding, ScannerResult
+from plenger.adapters.scanners.correlation import correlate_findings, correlate_scanner_results
+from plenger.adapters.scanners.models import ScannerFinding, ScannerResult
 
 
 def _finding(**updates):

@@ -4,7 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from plenger.adapters.scanners import SCANNER_CONTAINER_IMAGES, ScannerExecutionError
+from plenger.adapters.scanners.containers import SCANNER_CONTAINER_IMAGES
+from plenger.adapters.scanners.models import ScannerExecutionError
 from plenger.services.scanners import (
     DatabaseMetadata,
     ManagedScanner,
@@ -160,7 +161,7 @@ def test_osv_provisioning_preserves_safe_scanner_failure_reason(tmp_path, monkey
     def fail_with_safe_reason(plan):
         raise ScannerExecutionError("scanner_timeout")
 
-    monkeypatch.setattr("plenger.services.scanners._bounded_process", fail_with_safe_reason)
+    monkeypatch.setattr("plenger.services.scanners.run_scanner_process", fail_with_safe_reason)
 
     result = provision_osv_database(tmp_path)
 
@@ -213,7 +214,7 @@ def test_osv_provisioning_stages_ecosystem_fixture_for_nested_input(
 
     monkeypatch.setattr("plenger.services.scanners.plan_scanner", fake_plan)
     monkeypatch.setattr(
-        "plenger.services.scanners._bounded_process",
+        "plenger.services.scanners.run_scanner_process",
         lambda plan: b'{"results":[]}',
     )
     monkeypatch.setattr(
@@ -321,11 +322,11 @@ def test_database_fingerprint_is_reused_until_a_file_changes(tmp_path, monkeypat
 
 
 def test_binary_identity_cache_rehashes_after_rewrite(tmp_path):
-    from plenger.adapters.scanners import _binary_hash
+    from plenger.adapters.scanners.binaries import hash_binary
 
     binary = tmp_path / "tool"
     binary.write_bytes(b"version-one")
-    first = _binary_hash(binary)
-    assert _binary_hash(binary) == first
+    first = hash_binary(binary)
+    assert hash_binary(binary) == first
     binary.write_bytes(b"version-two")
-    assert _binary_hash(binary) == hashlib.sha256(b"version-two").hexdigest()
+    assert hash_binary(binary) == hashlib.sha256(b"version-two").hexdigest()
