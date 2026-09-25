@@ -122,6 +122,9 @@ class AssessmentBody(StrictModel):
     finding_id: str = Field(min_length=64, max_length=64)
     provider: Literal["deterministic", "manual", "jev"] = "deterministic"
     consent: bool = False
+    # Granting durable hosted consent inline needs the same explicit acknowledgment
+    # as the dedicated consent endpoint.
+    acknowledgment: Literal["I_AUTHORIZE_HOSTED_ASSESSMENT"] | None = None
     data_classes: list[Literal["metadata", "code_excerpt", "prompt", "response", "trace"]] = Field(
         default_factory=list, max_length=5
     )
@@ -605,6 +608,8 @@ def create_app(
 
     @app.post("/api/v1/runs/{run_id}/assessments", status_code=201)
     def create_assessment(run_id: str, body: AssessmentBody) -> Response:
+        if body.consent and body.acknowledgment is None:
+            return error("hosted_consent_acknowledgment_required", 422)
         try:
             result = evaluate_finding(
                 root,

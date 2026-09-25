@@ -449,3 +449,47 @@ def test_jev_consent_does_not_cross_projects_or_call_provider(tmp_path, monkeypa
     )
     with pytest.raises(PermissionError, match="hosted_consent_required"):
         evaluate_finding(project_b, run_b, finding_b, "jev", False)
+
+
+def test_hosted_payload_is_limited_to_the_consented_data_classes(tmp_path, monkeypatch):
+    run_id, finding_id = prepared_run(
+        tmp_path, monkeypatch, observed="PRIVATE_CODE_EXCERPT_SENTINEL"
+    )
+    from plenger import evaluators
+    from plenger.services import assessment as assessment_service
+
+    captured: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(json.loads(request.content))
+        return httpx.Response(503)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    monkeypatch.setenv("TYPESAFE_API_KEY", "synthetic-jev-key")
+    original_provider = assessment_service.JevProvider
+    monkeypatch.setattr(
+        assessment_service,
+        "JevProvider",
+        lambda api_key: original_provider(api_key, client=client),
+    )
+    grant_hosted_consent_for_project(tmp_path, "jev", ["metadata", "code_excerpt", "response"])
+    try:
+        evaluate_finding(tmp_path, run_id, finding_id, "jev", False, data_classes=["metadata"])
+    finally:
+        client.close()
+
+    assert captured and captured[0]["model"] == evaluators.JEV_DEFAULT_MODEL
+    serialized = json.dumps(captured[0])
+    assert "PRIVATE_CODE_EXCERPT_SENTINEL" not in serialized
+    assert "fixture.py" in serialized
+
+
+def test_state_without_metadata_consent_omits_location_and_claims():
+    from plenger.services.assessment import _state
+
+    finding = fake_result()["findings"][0]
+    state = _state(finding, ["code_excerpt"])
+
+    assert state["deterministic_facts"] == {}
+    assert state["evidence_refs"] == []
+    assert state["untrusted_observation"]["output_excerpt"] == "synthetic observed text"

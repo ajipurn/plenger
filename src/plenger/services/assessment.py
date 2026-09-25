@@ -19,7 +19,7 @@ from plenger.evaluators import (
     ManualReviewProvider,
     semantic_assessment_digests,
 )
-from plenger.policy.consent import normalize_data_classes
+from plenger.policy.consent import HOSTED_DATA_CLASSES, normalize_data_classes
 from plenger.services.application import latest, project_id
 from plenger.services.integrity import redact_preserving_integrity
 from plenger.services.workspace import load_config
@@ -44,7 +44,25 @@ JEV_CONSENT_DATA_CLASSES = ("metadata", "code_excerpt", "response")
 ASSESSMENT_REPORT_VIEW_LIMIT = 100
 
 
-def _state(finding: dict[str, Any]) -> dict[str, Any]:
+def _evidence_data_class(evidence: dict[str, Any]) -> str:
+    """Classify an evidence excerpt so hosted consent can bound what leaves the host."""
+
+    source = str(evidence.get("source", "")).lower()
+    if "trace" in source or "observer" in source:
+        return "trace"
+    if "prompt" in source and "promptfoo" not in source:
+        return "prompt"
+    if "response" in source or "promptfoo" in source or "broker" in source:
+        return "response"
+    return "code_excerpt"
+
+
+def _state(
+    finding: dict[str, Any], data_classes: Sequence[str] = tuple(sorted(HOSTED_DATA_CLASSES))
+) -> dict[str, Any]:
+    """Build evaluator state containing only the consented data classes."""
+
+    allowed = set(data_classes)
     evidence_items: list[dict[str, Any]] = []
     evidence = finding.get("evidence")
     if isinstance(evidence, dict):
@@ -52,28 +70,37 @@ def _state(finding: dict[str, Any]) -> dict[str, Any]:
     extra_evidence = finding.get("evidence_refs")
     if isinstance(extra_evidence, list):
         evidence_items.extend(item for item in extra_evidence if isinstance(item, dict))
-    excerpts = [str(item.get("observed", ""))[:2000] for item in evidence_items]
+    excerpts = [
+        str(item.get("observed", ""))[:2000]
+        for item in evidence_items
+        if _evidence_data_class(item) in allowed
+    ]
     artifact_digests = [
         item["sha256_redacted"]
         for item in evidence_items
         if isinstance(item.get("sha256_redacted"), str) and len(item["sha256_redacted"]) == 64
     ]
+    metadata = "metadata" in allowed
     return {
         "trusted_policy": "A candidate is not confirmed without sufficient evidence and review.",
-        "deterministic_facts": {
-            "validation_state": finding.get("validation_state"),
-            "evidence_integrity": finding.get("evidence_integrity"),
-            "source_ref": finding.get("source_ref"),
-            "finding_claim": {
-                "fingerprint": finding.get("fingerprint"),
-                "rule_id": finding.get("rule_id"),
-                "kind": finding.get("kind"),
-                "title": finding.get("title"),
-            },
-        },
+        "deterministic_facts": (
+            {
+                "validation_state": finding.get("validation_state"),
+                "evidence_integrity": finding.get("evidence_integrity"),
+                "source_ref": finding.get("source_ref"),
+                "finding_claim": {
+                    "fingerprint": finding.get("fingerprint"),
+                    "rule_id": finding.get("rule_id"),
+                    "kind": finding.get("kind"),
+                    "title": finding.get("title"),
+                },
+            }
+            if metadata
+            else {}
+        ),
         # Use content identities rather than run-scoped evidence row IDs so the
         # semantic cache can match the same redacted artifact in a later run.
-        "evidence_refs": artifact_digests,
+        "evidence_refs": artifact_digests if metadata else [],
         "untrusted_observation": {
             "output_excerpt": excerpts[0] if excerpts else "",
             "additional_output_excerpts": excerpts[1:8],
@@ -165,6 +192,7 @@ def evaluate_finding(
     )
     if finding is None:
         raise RunConflict("finding_not_found")
+    requested_classes: tuple[str, ...] = tuple(sorted(HOSTED_DATA_CLASSES))
     if provider == "jev":
         requested_classes = normalize_data_classes(data_classes or JEV_CONSENT_DATA_CLASSES)
         if consent:
@@ -189,7 +217,8 @@ def evaluate_finding(
                     raise PermissionError("hosted_consent_required")
             finally:
                 engine.dispose()
-    state = _state(finding)
+    # Hosted state carries only the consented classes; local evaluators see all.
+    state = _state(finding, requested_classes)
     engine = open_store(root)
     try:
         assessment: Assessment | None = None

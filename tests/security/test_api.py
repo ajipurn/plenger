@@ -1275,3 +1275,19 @@ def test_strict_cost_guard_is_rejected_before_active_queue(client):
     assert blocked.status_code == 409
     assert blocked.json()["code"] == "strict_cost_guard_requires_target_control"
     assert client.get(f"/api/v1/plans/{plan['id']}").json()["state"] == "approved"
+
+
+def test_inline_hosted_consent_requires_explicit_acknowledgment(client):
+    session = pair(client)
+    headers = {"Origin": ORIGIN, "X-CSRF-Token": session["csrf_token"]}
+
+    response = client.post(
+        f"/api/v1/runs/{uuid.uuid4()}/assessments",
+        json={"finding_id": "a" * 64, "provider": "jev", "consent": True},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "hosted_consent_acknowledgment_required"
+    preview = client.get("/api/v1/assessment-consent").json()
+    assert preview["granted"] is False
