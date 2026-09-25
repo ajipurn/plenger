@@ -424,3 +424,38 @@ def test_graph_persistence_redacts_untrusted_metadata(tmp_path):
     assert loaded["nodes"][0]["label"] == "[REDACTED]"
     assert loaded["nodes"][1]["provenance"] == "[REDACTED]"
     assert loaded["edges"][0]["provenance"] == "[REDACTED]"
+
+
+def test_baseline_scan_is_incomplete_when_a_dependency_input_is_skipped(tmp_path, monkeypatch):
+    from plenger.services import application
+
+    initialize(tmp_path)
+    (tmp_path / "plenger.yaml").write_text(
+        "schema_version: 1\nprofile: baseline\nmax_file_bytes: 64\n"
+    )
+    (tmp_path / "app.py").write_text("value = 1\n")
+    (tmp_path / "package-lock.json").write_text("{" + '"x": 1,' * 40 + '"y": 2}')
+    monkeypatch.setattr(application, "probe", lambda: {"status": "ready"})
+    monkeypatch.setattr(
+        application,
+        "execute",
+        lambda files, identity, run_id: {
+            "nodes": [],
+            "edges": [],
+            "findings": [],
+            "errors": [],
+            "limitations": [],
+        },
+    )
+    monkeypatch.setattr(
+        application,
+        "run_managed_scanners",
+        lambda root, files: ([], {"osv": {"status": "completed", "reason": "ok"}}),
+    )
+    run_id, _ = queue_scan(tmp_path, "baseline", False, "skipped-lockfile")
+
+    report = application.execute_scan(tmp_path, run_id)
+
+    assert {"path": "package-lock.json", "reason": "too_large"} in report["skipped"]
+    assert {"engine": "osv", "reason": "dependency_input_skipped"} in report["scanner_errors"]
+    assert report["state"] == "completed_with_errors"

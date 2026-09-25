@@ -255,10 +255,18 @@ def test_config_symlink_rejected(tmp_path):
         load_config(tmp_path)
 
 
-def test_size_limit_fails_closed(tmp_path):
+def test_size_limit_skips_file_without_aborting_capture(tmp_path):
     (tmp_path / "big.py").write_text("x" * 30)
-    with pytest.raises(WorkspaceError):
-        capture(tmp_path, ProjectConfig(max_file_bytes=10))
+    (tmp_path / "small.py").write_text("x = 1\n")
+    files, skipped = capture(tmp_path, ProjectConfig(max_file_bytes=10))
+    assert files == {"small.py": "x = 1\n"}
+    assert {"path": "big.py", "reason": "too_large"} in skipped
+
+
+def test_per_file_limit_can_be_raised_explicitly(tmp_path):
+    assert ProjectConfig(max_file_bytes=16 * 1024 * 1024, max_files=200000).max_file_bytes
+    with pytest.raises(ValueError):
+        ProjectConfig(max_file_bytes=16 * 1024 * 1024 + 1)
 
 
 def test_private_storage_symlink_rejected(tmp_path):
@@ -275,8 +283,11 @@ def test_hardlinked_file_rejected(tmp_path):
     root = tmp_path / "root"
     root.mkdir()
     os.link(outside, root / "copy.py")
-    with pytest.raises(WorkspaceError):
-        capture(root, ProjectConfig())
+    (root / "own.py").write_text("own = True\n")
+    files, skipped = capture(root, ProjectConfig())
+    assert files == {"own.py": "own = True\n"}
+    assert {"path": "copy.py", "reason": "hardlink"} in skipped
+    assert all("private data" not in source for source in files.values())
 
 
 def test_existing_engine_rejects_database_replacement(tmp_path):

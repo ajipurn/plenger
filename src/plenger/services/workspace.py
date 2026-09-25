@@ -311,8 +311,18 @@ def capture(
                         or Path(name).suffix.lower() in SCANNER_INPUT_EXTENSIONS
                     )
                 ):
+                    info = entry.stat(follow_symlinks=False)
+                    # A hardlink may expose content from outside the root, and one
+                    # oversized file must not abort the whole capture. Neither is
+                    # opened; both are reported with a reason. Changes after this
+                    # observation still fail closed inside read_regular.
+                    if info.st_nlink != 1:
+                        skipped.append({"path": path, "reason": "hardlink"})
+                        continue
+                    if info.st_size > config.max_file_bytes:
+                        skipped.append({"path": path, "reason": "too_large"})
+                        continue
                     try:
-                        info = entry.stat(follow_symlinks=False)
                         raw = read_regular(
                             fd,
                             name,
@@ -334,3 +344,14 @@ def capture(
     finally:
         os.close(fd)
     return files, skipped
+
+
+def is_dependency_input(path: str) -> bool:
+    """Return whether a captured path is a manifest/lockfile the OSV adapter needs."""
+
+    name = path.rsplit("/", 1)[-1]
+    return (
+        name in SCANNER_INPUT_NAMES
+        or name.endswith(".lock")
+        or (name.startswith("requirements") and name.endswith(".txt"))
+    )

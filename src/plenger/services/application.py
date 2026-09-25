@@ -26,7 +26,7 @@ from plenger.services.scanners import (
     scanner_manifest_digest,
 )
 from plenger.services.snapshot import manifest
-from plenger.services.workspace import capture, load_config
+from plenger.services.workspace import capture, is_dependency_input, load_config
 from plenger.storage import latest_report_id, open_store, reports
 from plenger.storage.assessments import list_assessments
 from plenger.storage.attempts import mark_interrupted_active_attempts
@@ -378,6 +378,15 @@ def execute_scan(root: Path, run_id: str) -> dict[str, Any]:
                         for engine_name, state in scanner_states.items()
                         if state.get("status") != "completed"
                     ]
+                    if any(
+                        item.get("reason") in {"too_large", "hardlink"}
+                        and is_dependency_input(item.get("path", ""))
+                        for item in skipped
+                    ):
+                        # A skipped lockfile/manifest silently narrows OSV coverage.
+                        scanner_errors.append(
+                            {"engine": "osv", "reason": "dependency_input_skipped"}
+                        )
                     result["findings"].extend(scanner_findings)
                     result["scanner_results"] = scanner_results
                     result["scanner_errors"] = scanner_errors

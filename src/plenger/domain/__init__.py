@@ -13,8 +13,10 @@ class StrictModel(BaseModel):
 class ProjectConfig(StrictModel):
     schema_version: Literal[1] = 1
     profile: Literal["deterministic", "baseline"] = "deterministic"
-    max_files: int = Field(default=50000, ge=1, le=50000)
-    max_file_bytes: int = Field(default=2097152, ge=1, le=2097152)
+    # Defaults follow the SPEC; users may raise per-file and file-count limits
+    # explicitly. The total stays bounded by the parser worker's input budget.
+    max_files: int = Field(default=50000, ge=1, le=200000)
+    max_file_bytes: int = Field(default=2097152, ge=1, le=16777216)
     max_total_bytes: int = Field(default=524288000, ge=1, le=524288000)
 
     @field_validator("schema_version", mode="before")
