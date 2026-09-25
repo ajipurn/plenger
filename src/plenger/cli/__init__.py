@@ -187,12 +187,12 @@ def provision_scanners_command(
     container: bool = typer.Option(
         False,
         "--container",
-        help="Gebruik officiële image-digests en Docker-isolatie voor scanners.",
+        help="Gunakan digest image resmi yang dipin dan isolasi Docker untuk scanner.",
     ),
     pull: bool = typer.Option(
         False,
         "--pull",
-        help="Pull ontbrekende officiële image-digests tijdens provisioning.",
+        help="Tarik digest image resmi yang belum ada selama provisioning.",
     ),
 ) -> None:
     """Pin installed binaries or explicitly provision pinned scanner images."""
