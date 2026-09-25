@@ -15,7 +15,13 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from plenger.policy import redact
-from plenger.policy.active import BudgetSpec, PolicyViolation, TargetSpec, dispatch_url
+from plenger.policy.active import (
+    BudgetSpec,
+    PolicyViolation,
+    TargetSpec,
+    dispatch_url,
+    is_public_address,
+)
 
 
 class BrokerError(RuntimeError):
@@ -116,7 +122,7 @@ def resolve_target_addresses(
     if target.environment == "local":
         if not all(address.is_loopback for address in parsed_addresses):
             raise ValueError("target_address_not_loopback")
-    elif not all(address.is_global for address in parsed_addresses):
+    elif not all(is_public_address(address) for address in parsed_addresses):
         raise ValueError("target_address_not_public")
     return parsed_addresses
 

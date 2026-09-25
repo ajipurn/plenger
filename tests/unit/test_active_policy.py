@@ -595,3 +595,18 @@ def test_active_payload_mutation_after_queue_blocks_execution(tmp_path):
             auth_identity="synthetic-user-a",
             budget=BudgetSpec(max_cases=2, max_attempts=1),
         )
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    ["https://[2002:a00:1::1]", "https://[64:ff9b:1::a00:1]", "https://100.64.0.1"],
+)
+def test_staging_literal_targets_reject_transition_and_shared_ranges(base_url):
+    with pytest.raises(ValueError, match="unsafe_target_address"):
+        TargetSpec(
+            target_ref="staging-target",
+            base_url=base_url,
+            environment="staging",
+            allowed_paths=["/test"],
+            allowed_methods=["POST"],
+        )

@@ -18,6 +18,54 @@ class PolicyViolation(ValueError):
     pass
 
 
+IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
+
+# Explicit special-purpose ranges, including transition prefixes that embed IPv4
+# addresses (6to4, NAT64, Teredo, IPv4-mapped). ``is_global`` alone is not enough:
+# older interpreters (before CPython 3.12.4, CVE-2024-4032) classify some of these
+# as globally reachable.
+_NON_PUBLIC_NETWORKS = tuple(
+    ipaddress.ip_network(network)
+    for network in (
+        "0.0.0.0/8",
+        "10.0.0.0/8",
+        "100.64.0.0/10",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "172.16.0.0/12",
+        "192.0.0.0/24",
+        "192.0.2.0/24",
+        "192.88.99.0/24",
+        "192.168.0.0/16",
+        "198.18.0.0/15",
+        "198.51.100.0/24",
+        "203.0.113.0/24",
+        "224.0.0.0/4",
+        "240.0.0.0/4",
+        "::/128",
+        "::1/128",
+        "::ffff:0:0/96",
+        "64:ff9b::/96",
+        "64:ff9b:1::/48",
+        "100::/64",
+        "2001::/23",
+        "2001:db8::/32",
+        "2002::/16",
+        "fc00::/7",
+        "fe80::/10",
+        "ff00::/8",
+    )
+)
+
+
+def is_public_address(address: IPAddress) -> bool:
+    """Return whether an address may be used as a public staging target."""
+
+    return address.is_global and not any(
+        address in network for network in _NON_PUBLIC_NETWORKS if network.version == address.version
+    )
+
+
 class TargetSpec(StrictModel):
     target_ref: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
     base_url: str = Field(min_length=8, max_length=512)
@@ -85,7 +133,7 @@ class TargetSpec(StrictModel):
             or address.is_multicast
             or address.is_link_local
             or address.is_reserved
-            or (self.environment == "staging" and (address.is_private or address.is_loopback))
+            or (self.environment == "staging" and not is_public_address(address))
         ):
             raise ValueError("unsafe_target_address")
         for path in self.allowed_paths:
@@ -101,7 +149,7 @@ class TargetSpec(StrictModel):
         ):
             raise ValueError("allowed_ip_not_loopback")
         if self.environment == "staging" and any(
-            not address.is_global for address in allowed_addresses
+            not is_public_address(address) for address in allowed_addresses
         ):
             raise ValueError("allowed_ip_not_public")
         return self

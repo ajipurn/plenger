@@ -16,7 +16,7 @@ if [ -z "$wheel" ]; then
     exit 1
 fi
 
-uv venv "$temporary_root/venv" --python 3.12 >/dev/null
+uv venv "$temporary_root/venv" --python ">=3.12.4,<3.13" >/dev/null
 VIRTUAL_ENV="$temporary_root/venv" uv --project "$project_root" sync \
     --locked --active --no-editable --no-dev --no-install-project --offline >/dev/null
 uv pip install --python "$temporary_root/venv/bin/python" --no-deps --reinstall "$wheel" >/dev/null
