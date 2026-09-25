@@ -52,6 +52,7 @@ from plenger.services.assessment import (
     revoke_hosted_consent_for_project,
 )
 from plenger.services.diff import diff_reports
+from plenger.services.workspace import load_config
 from plenger.storage import open_store
 from plenger.storage.attempts import list_active_attempts
 from plenger.storage.locking import runtime_lock
@@ -76,7 +77,8 @@ class PairBody(StrictModel):
 
 
 class ScanBody(StrictModel):
-    profile: Literal["deterministic", "baseline"] = "deterministic"
+    # Omitted profile means the project's configured profile.
+    profile: Literal["deterministic", "baseline"] | None = None
     fixture: bool = False
 
 
@@ -526,7 +528,8 @@ def create_app(
         if not key or len(key) > 128:
             return error("idempotency_key_required", 422)
         try:
-            run_id, created = queue_scan(root, body.profile, body.fixture, key)
+            profile = body.profile or load_config(root).profile
+            run_id, created = queue_scan(root, profile, body.fixture, key)
         except RunConflict as exc:
             return error(str(exc), 429 if str(exc) == "queue_capacity" else 409)
         except (ValueError, OSError):

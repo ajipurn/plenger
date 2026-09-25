@@ -513,3 +513,26 @@ def test_plan_cli_reports_strict_cost_guard_before_approval(tmp_path):
     )
     assert result.exit_code == 2
     assert json.loads(result.stdout)["code"] == "strict_cost_guard_requires_target_control"
+
+
+def test_scan_cli_uses_configured_profile_by_default(tmp_path, monkeypatch):
+    from plenger import cli as cli_module
+
+    initialize(tmp_path)
+    (tmp_path / "plenger.yaml").write_text("schema_version: 1\nprofile: baseline\n")
+    captured = []
+
+    def fake_scan(project, profile, fixture):
+        captured.append(profile)
+        return {"run_id": "run", "state": "completed", "errors": [], "findings": []}
+
+    monkeypatch.setattr(cli_module, "scan", fake_scan)
+    runner = CliRunner()
+    assert runner.invoke(app, ["scan", "--project", str(tmp_path)]).exit_code == 0
+    assert (
+        runner.invoke(
+            app, ["scan", "--project", str(tmp_path), "--profile", "deterministic"]
+        ).exit_code
+        == 0
+    )
+    assert captured == ["baseline", "deterministic"]

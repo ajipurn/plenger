@@ -236,7 +236,11 @@ def provision_osv_db_command(project: Project = Path(".")) -> None:
 @app.command(name="scan")
 def scan_command(
     project: Project = Path("."),
-    profile: str = "baseline",
+    profile: str | None = typer.Option(
+        None,
+        "--profile",
+        help="deterministic or baseline; defaults to the profile in plenger.yaml.",
+    ),
     fixture: bool = False,
     ci: bool = typer.Option(False, "--ci"),
     fail_on: str | None = typer.Option(
@@ -251,7 +255,7 @@ def scan_command(
     ),
 ) -> None:
     try:
-        report = scan(project, profile, fixture)
+        report = scan(project, profile or load_config(project).profile, fixture)
     except StoreBusy:
         typer.echo('{"code":"project_worker_busy"}')
         raise typer.Exit(3) from None
