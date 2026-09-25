@@ -23,6 +23,38 @@ def _sbpl_path(path: Path) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _loaded_image_roots() -> set[Path]:
+    """Directories of dynamic libraries this interpreter already mapped (macOS only).
+
+    Interpreters built by pyenv, Homebrew or conda link libraries such as libintl or
+    OpenSSL from outside the Python prefix. The worker runs the same interpreter and
+    imports the same modules, so these read-only roots are exactly what it needs.
+    """
+
+    if platform.system() != "Darwin":
+        return set()
+    try:
+        import ctypes
+
+        dyld = ctypes.CDLL(None)
+        dyld._dyld_image_count.restype = ctypes.c_uint32
+        dyld._dyld_get_image_name.restype = ctypes.c_char_p
+        dyld._dyld_get_image_name.argtypes = [ctypes.c_uint32]
+        count = int(dyld._dyld_image_count())
+        names = [dyld._dyld_get_image_name(index) for index in range(count)]
+    except (AttributeError, OSError, ValueError):
+        return set()
+    roots: set[Path] = set()
+    for name in names:
+        if not name:
+            continue
+        path = Path(os.fsdecode(name))
+        if not path.is_absolute() or path.parts[:2] in {("/", "System"), ("/", "usr")}:
+            continue
+        roots.add(path.parent)
+    return roots
+
+
 def _python_read_roots() -> set[Path]:
     roots = {
         Path("/System"),
@@ -40,6 +72,11 @@ def _python_read_roots() -> set[Path]:
         Path(sysconfig.get_path("purelib")),
         Path(sysconfig.get_path("platlib")),
         Path(__file__).resolve().parents[2],
+        # Read-only package-manager prefixes that interpreters commonly link against.
+        Path("/opt/homebrew"),
+        Path("/usr/local"),
+        Path("/opt/local"),
+        *_loaded_image_roots(),
     }
     return {path.resolve() for path in roots if path.exists() and path != Path("/")}
 
@@ -75,6 +112,58 @@ def _linux_bwrap() -> str | None:
     return shutil.which("bwrap")
 
 
+_LINUX_SYSTEM_READ_ROOTS = ("/usr", "/lib", "/lib64", "/lib32", "/bin", "/sbin", "/etc")
+
+
+def _linux_bwrap_arguments(bwrap: str, broker_directory: Path | None) -> list[str]:
+    """Build a minimal read-only filesystem instead of binding the host root.
+
+    Binding ``/`` read-only would still let the worker connect() to every host
+    Unix socket (for example ``/var/run/docker.sock``), because a read-only mount
+    does not prevent socket connections. Only system libraries, the interpreter,
+    plenger's source and the job's broker directory are visible here.
+    """
+
+    arguments = [
+        bwrap,
+        "--die-with-parent",
+        "--new-session",
+        "--unshare-all",
+        "--cap-drop",
+        "ALL",
+        "--clearenv",
+    ]
+    system_roots = {Path(root) for root in _LINUX_SYSTEM_READ_ROOTS}
+    for root in _LINUX_SYSTEM_READ_ROOTS:
+        arguments.extend(("--ro-bind-try", root, root))
+    for path in sorted(_python_read_roots() | {Path(sys.executable).parent}):
+        value = os.fspath(path)
+        if path in system_roots or value.startswith(("/dev", "/proc")):
+            continue
+        arguments.extend(("--ro-bind-try", value, value))
+    arguments.extend(("--tmpfs", "/tmp", "--dev", "/dev", "--proc", "/proc"))
+    if broker_directory is not None:
+        arguments.extend(
+            (
+                "--dir",
+                os.fspath(LINUX_BROKER_MOUNT),
+                "--ro-bind",
+                os.fspath(broker_directory),
+                os.fspath(LINUX_BROKER_MOUNT),
+            )
+        )
+    for name, value in (
+        ("HOME", "/nonexistent"),
+        ("PATH", "/usr/bin:/bin"),
+        ("PYTHONDONTWRITEBYTECODE", "1"),
+        ("PYTHONNOUSERSITE", "1"),
+        ("PYTHONPATH", os.fspath(Path(__file__).resolve().parents[2])),
+    ):
+        arguments.extend(("--setenv", name, value))
+    arguments.append("--")
+    return arguments
+
+
 def _probe_command() -> list[str] | None:
     system = platform.system()
     if system == "Darwin":
@@ -87,22 +176,9 @@ def _probe_command() -> list[str] | None:
         bwrap = _linux_bwrap()
         if bwrap is None:
             return None
-        return [
-            bwrap,
-            "--die-with-parent",
-            "--unshare-net",
-            "--ro-bind",
-            "/",
-            "/",
-            "--dev",
-            "/dev",
-            "--proc",
-            "/proc",
-            "--",
-            sys.executable,
-            "-c",
-            "pass",
-        ]
+        # Probe the same minimal layout the worker uses, so an interpreter that cannot
+        # start without extra host paths fails closed here.
+        return [*_linux_bwrap_arguments(bwrap, None), sys.executable, "-c", "import json, socket"]
     return None
 
 
@@ -177,35 +253,9 @@ def confined_worker_command(
         bwrap = _linux_bwrap()
         if bwrap is None:
             raise RuntimeError("active_worker_sandbox_unavailable")
-        parent = socket_path.parent
         in_sandbox = LINUX_BROKER_MOUNT / socket_path.name
         command = [
-            bwrap,
-            "--die-with-parent",
-            "--unshare-net",
-            "--ro-bind",
-            "/",
-            "/",
-            "--dir",
-            os.fspath(LINUX_BROKER_MOUNT.parent),
-            "--dir",
-            os.fspath(LINUX_BROKER_MOUNT),
-            "--ro-bind",
-            os.fspath(parent),
-            os.fspath(LINUX_BROKER_MOUNT),
-            "--tmpfs",
-            "/tmp",
-            "--dev",
-            "/dev",
-            "--proc",
-            "/proc",
-            "--setenv",
-            "HOME",
-            "/nonexistent",
-            "--setenv",
-            "PYTHONDONTWRITEBYTECODE",
-            "1",
-            "--",
+            *_linux_bwrap_arguments(bwrap, socket_path.parent),
             sys.executable,
             *[
                 os.fspath(in_sandbox) if argument == "{broker_socket}" else argument

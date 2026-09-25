@@ -743,10 +743,6 @@ def test_recovery_keeps_completed_attempt_after_report_write_crash(tmp_path, mon
         engine.dispose()
 
 
-@pytest.mark.skipif(
-    "fork" not in multiprocessing.get_all_start_methods(),
-    reason="process-crash test requires fork",
-)
 def test_recovery_marks_attempt_after_worker_process_is_killed(tmp_path, monkeypatch):
     from plenger.services import application
     from plenger.services.active import RunConflict
@@ -764,7 +760,9 @@ def test_recovery_marks_attempt_after_worker_process_is_killed(tmp_path, monkeyp
         "active-process-kill",
         f"http://127.0.0.1:{server.server_address[1]}",
     )
-    context = multiprocessing.get_context("fork")
+    # spawn matches production and avoids fork-after-threads crashes in platform
+    # libraries such as macOS's system SQLite.
+    context = multiprocessing.get_context("spawn")
     process = context.Process(target=_kill_active_child, args=(str(tmp_path), run_id))
     try:
         process.start()
