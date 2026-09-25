@@ -12,7 +12,11 @@ Findings retain candidate/open/needs_review independently. Severity high is the
 local rule's review priority, not CVSS or a verified exploit. Redacted evidence is
 hashed and linked to a run and capture UUID. Captures now include file-manifest
 metadata and read-only commit/dirty probes when Git is available; unavailable
-fields remain unknown. The UUID is still not a content-addressed snapshot, and
+fields remain unknown. The target's own `.git/config` is untrusted: Git runs
+without system/global configuration, with fsmonitor, hooks, submodule recursion
+and the global attributes file disabled, and every repository-declared filter
+driver is overridden with an empty command before `git status` runs. If the
+declared drivers cannot be enumerated safely, the dirty state stays unknown. The UUID is still not a content-addressed snapshot, and
 content comparison remains unfinished.
 
 Static reports do not execute the active OWASP suite; active reports expose the

@@ -32,11 +32,20 @@ IPC contract for dispatch, cancel, and stats with a per-job capability, exact
 request/response schemas, frame limits, deadline-aware responses, and
 inode-checked cleanup. Each reviewed case runs in a separate OS-confined worker
 process. On macOS, Seatbelt denies network access except to that job's exact
-broker socket path. On Linux, bubblewrap places the worker in a network
-namespace and exposes the broker socket as a read-only mount. The worker gets a
-minimal environment and no target credentials; observer calls are relayed over
-stdio pipes and checked against the current attempt by the trusted parent. The
-broker remains a separate process with the only target-network access. Active
+broker socket path. On Linux, bubblewrap unshares every namespace (including the
+network), starts a new session, drops capabilities, clears the environment, and
+builds a minimal read-only filesystem: system library roots, the interpreter,
+plenger's source and the job's broker directory only. The host root is not bound,
+because a read-only bind would still let the worker connect to every host Unix
+socket (for example the Docker socket). The worker gets no target credentials;
+observer calls are relayed over stdio pipes and checked against the current attempt
+by the trusted parent. The broker remains a separate process with the only
+target-network access. The broker hands the worker the complete bounded response
+body so fixed cases are evaluated before redaction or excerpt truncation; only the
+redacted 2,000-character excerpt is ever shown or stored. Staging addresses must be
+globally reachable and outside explicit special-purpose and transition ranges
+(6to4, NAT64, Teredo, IPv4-mapped, shared address space), independent of the
+interpreter's `ipaddress` classification. Active
 capability probing fails closed when the platform sandbox cannot start. The
 macOS direct-egress regression passes locally. Linux bubblewrap, clean-host, and
 full platform matrices remain unverified.

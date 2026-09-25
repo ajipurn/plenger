@@ -7,7 +7,7 @@ general agent analyzer, or a security certification.
 
 ## Setup
 
-Requires Python 3.12 and uv. Docker is also required for the pinned parser worker
+Requires Python 3.12.4 or a newer 3.12 patch release, and uv. Docker is also required for the pinned parser worker
 and for the explicit container scanner worker on non-macOS hosts. UI assets are
 already included in `src/plenger/ui`; Node is needed only when changing the UI.
 
@@ -83,8 +83,11 @@ uv run --locked plenger scan --project fixtures/python --profile baseline
 ```
 
 Open http://127.0.0.1:7331 and enter the terminal pairing code within 60 seconds.
-The dashboard shows real stored results. Re-run `serve` to get a new code after
-expiry/logout. A session lasts 30 minutes. Use **Jalankan scan statis** to queue a real isolated scan. The UI shows progress
+The dashboard shows real stored results. After a code expires, is used, or reaches
+five failed attempts, the next pairing attempt prints a fresh code in the `serve`
+terminal (at most once every 10 seconds); restarting `serve` is not required. Use
+`serve --port PORT` to run the dashboard on another loopback port; Host and Origin
+checks follow that port. A session lasts 30 minutes. Use **Jalankan scan statis** to queue a real isolated scan. The UI shows progress
 and a new report when complete. Keep the synthetic-fixture checkbox enabled for
 this demo. Reports are capped at 100 items per section; JSON download is complete.
 
@@ -100,6 +103,17 @@ For another repository, substitute its directory and omit `--fixture`. Run the
 installed CLI from this product environment; do not install target dependencies.
 Review the target exclusions and add `.plenger/` to its `.gitignore` yourself.
 Init does not edit existing configuration or `.gitignore`.
+
+`scan` uses the `profile` from `plenger.yaml` unless `--profile` is given. Files
+larger than `max_file_bytes` (default 2 MiB, configurable up to 16 MiB) and
+hardlinked files are not read; they are listed in the report's `skipped` section
+with a reason instead of aborting the scan. A baseline scan that had to skip a
+dependency manifest or lockfile is reported as `completed_with_errors`, because
+OSV coverage would otherwise be silently incomplete.
+
+The project identity is stored in `.plenger/project-id`, so renaming or moving the
+project directory keeps its database, backups, and `project_id`. A store created
+before this file existed adopts its original identity on first open.
 
 Before upgrading a project that has local scan data, stop its dashboard, active
 workers, and concurrent CLI commands. Make an owner-only database backup and save
@@ -122,7 +136,9 @@ Restore checks the project identity and database integrity, does not run
 migrations, and revokes persisted active-test approvals and hosted-assessment
 consents from the snapshot. Stop all Plenger commands before restore. Alembic
 destructive downgrades remain disabled. Keep the backup until the upgraded
-release is accepted.
+release is accepted. Backups contain evidence, so plenger deletes managed backups
+older than the 30-day evidence retention window when the store is opened; copy a
+backup elsewhere yourself if a longer rollback window is required.
 
 Projects created by an earlier release continue to work with their existing
 `.Wonderkit/` data directory and `Wonderkit.yaml` configuration. New projects use
@@ -147,7 +163,12 @@ set change forces re-planning; they cannot dispatch to production or discover
 paths automatically.
 Until a trusted target-side cost limit/telemetry adapter is available, CLI plans
 must explicitly use `--cost-guard request_only --cost-acknowledged`; strict plans
-are rejected before queueing. Request-only reports show target cost as unknown.
+are rejected when the plan is created (`strict_cost_guard_requires_target_control`),
+before anyone reviews or approves them. Request-only reports show target cost as
+unknown. If an approval expires unused, the same plan can be approved again; a plan
+never has more than one live approval. `run` exits 1 when any fixed case fails
+(forbidden marker or unauthorized effect observed), following the same 0/1/2/3/130
+precedence as `scan --ci`.
 The dashboard shows per-case active results, cancellation state, and the consent
 preview before execution. It also exposes deterministic/manual evidence assessment
 and an explicit Jev hosted-consent control; assessment output is review context only
@@ -188,8 +209,13 @@ or image-digest pins, stage only captured text inputs in owner-only temporary
 directories, and never load repository scanner configuration. On macOS each
 managed host scanner is wrapped in a default-deny Seatbelt profile with network
 denied; other platforms require the explicit digest-pinned container worker,
-with scan network access disabled. Candidate findings do not fail a
-supported/confirmed severity gate.
+with scan network access disabled. By default `--ci --fail-on SEVERITY` fails only
+on supported/confirmed findings; static parser and scanner results are review
+candidates, so add `--fail-on-candidates` when the pipeline must stop on them.
+Without that flag, candidates at or above the threshold produce a
+`candidate_findings_not_gated` warning on stderr. Suppressed and resolved findings
+never fail the gate. Acknowledgments and active suppressions carry over to the same
+finding fingerprint in later scans; a resolved finding that reappears is reopened.
 Missing Docker/image blocks scanning (exit 3); parser/input errors return exit 2.
 No fallback executes the target on the host.
 

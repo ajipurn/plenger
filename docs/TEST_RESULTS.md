@@ -1,3 +1,33 @@
+# Test results — 26 September 2026 (review hardening)
+
+This rerun covers the fixes from the 26 September code review on the uncommitted
+working tree, using CPython 3.12.13 (the minimum is now 3.12.4).
+
+| Check | Observed result |
+|---|---|
+| Ruff lint and format | passed (99 files formatted) |
+| mypy strict | passed, 61 source files |
+| Python suite | 516 passed, 0 skipped, 2 dependency deprecation warnings in 77.04s |
+| Vitest | 2 passed |
+| UI production build | passed; dashboard split into `api.ts`, `types.ts` and `components/report.tsx` |
+| Chrome E2E | 1/1 passed (28.5s) |
+| Clean wheel install | passed in a fresh `>=3.12.4,<3.13` virtualenv |
+| Mapping / inventory / Jev benchmarks | unchanged: 67 and 11 cases at precision/recall 1.0; Jev mock 114/120 evaluated |
+| Real multi-batch parser | three Docker batches merged; one depth-limited file reported as `analysis_depth_limit` |
+
+New regressions cover: marker detection before redaction/truncation (runner and
+real Unix broker), repository filter drivers and hooks never executing during Git
+probes, candidate and active-failure CI gates, skip-instead-of-abort capture and
+incomplete baselines for skipped lockfiles, redaction of credentials without
+rewriting paths/rule IDs, integrity across broader redaction rules, consent-scoped
+hosted payloads and inline-consent acknowledgment, special-purpose staging
+addresses, triage carry-forward, retention of the newest report, project moves
+(including adoption of pre-identity stores), the minimal Linux bubblewrap layout,
+probe/fingerprint caching, targeted evidence expiry, parser batching, one live
+approval per plan, config-default scan profile, pairing code rotation, custom
+ports, and backup pruning. Not rerun: WebKit, native Linux bubblewrap, the
+performance benchmark, and the network-enabled OSV and scanner-image smokes.
+
 # Test results — 24 September 2026
 
 Development checkpoint, not a release approval. Some 24 September evidence
@@ -57,7 +87,7 @@ after these focused acceptance updates.
 | Source/wheel build | passed for `plenger==0.1.0` | `uv build`; `sh scripts/check_clean_install.sh` |
 | Clean wheel install | latest macOS repeat passed in a fresh Python 3.12 virtualenv with locked runtime dependencies; installed CLI, package version, source-tree separation, UI entrypoint, and referenced assets checked. Earlier pinned Linux container probe also passed. | `sh scripts/check_clean_install.sh` plus the Linux container wheel probe |
 | Offline dependency ledger | passed; 43 locked Python packages, 95 locked frontend packages, and 3 digest-pinned scanner images have validated source/integrity identities; `npm ci` reports 0 audit vulnerabilities. PEP 639 `License-Expression` metadata is recognized, leaving 6 not-cleared license/container review items (including platform-only packages and managed images) | `scripts/check_dependency_inventory.py --check`, `docs/DEPENDENCIES.md`, `tests/unit/test_dependency_inventory.py` |
-| Migration upgrade/reopen integrity | a database created at schema `0001` upgrades to `0014` without losing a legacy report; run event ledger, normalized finding, normalized evidence, snapshot, report payload, semantic assessment cache index, and reusable revoked/consumed plan history survive close/reopen; an attempted destructive downgrade fails closed and leaves schema/data unchanged | `tests/unit/test_domain.py`, `src/plenger/storage/migrations/versions/0014_reusable_plan_digest.py` |
+| Migration upgrade/reopen integrity | a database created at schema `0001` upgrades to `0015` (26 September rerun) without losing a legacy report; run event ledger, normalized finding, normalized evidence, snapshot, report payload, semantic assessment cache index, and reusable revoked/consumed plan history survive close/reopen; an attempted destructive downgrade fails closed and leaves schema/data unchanged | `tests/unit/test_domain.py`, `src/plenger/storage/migrations/versions/0014_reusable_plan_digest.py` |
 | Supported application rollback | offline `backup` writes an integrity-checked, owner-only SQLite snapshot with a schema revision; `restore` requires the matching project ID and backup ID, validates foreign keys and database integrity, restores without migrating, and revokes persisted approvals/hosted consent so they cannot become active again. Backup/restore refuse while the server or worker lock is held. Targeted rollback, API-lifecycle, and storage-purge regressions pass (35 tests) | `tests/unit/test_backup.py`, `tests/security/test_api.py`, `tests/unit/test_purge.py`, `src/plenger/storage/backup.py`, `src/plenger/api/__init__.py` |
 | Static isolation smoke | network attempt blocked; readonly rootfs; UID 65534; Docker socket/provider key absent | `tests/integration/test_slice.py` |
 | Static async API | accepted 202; real scan completed; idempotent repeat reused run; changed body conflicted; evidence/export accessible; CLI scoped approval path and fail-closed CI error/severity policy pass; 16-case CI exit-policy matrix covers candidate/support/confirmed thresholds, mixed findings/errors, blocked/failed/queued states, cancellation, and unknown severity | FastAPI integration tests, `tests/unit/test_cli.py`, `tests/unit/test_workflow.py` |

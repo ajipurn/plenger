@@ -12,10 +12,15 @@ No raw source or literals are stored. Metadata passes pattern redaction before
 persistence and again on retrieval/export. HTML export escapes values; React
 renders text, with same-origin CSP and no remote assets. Redaction is not a universal
 secret detector, especially for secrets embedded in identifiers or filenames.
-Credential-prefix patterns such as `sk` and `ghp` match only at the start of a
-value or after a non-alphanumeric delimiter. This avoids classifying product names
-and ordinary identifiers such as `PLENGER_SYNTHETIC_DISCLOSURE_MARKER` as secrets;
-it does not expand the detector's coverage of secrets embedded inside identifiers.
+Credential patterns are case-sensitive and require the provider's own delimiter
+(`sk-…`, `sk_live_…`, `gh[pousr]_…`, `github_pat_…`, `AKIA…`), plus bearer tokens
+and PEM private-key blocks. Paths and identifiers such as `sklearn_utils.py`,
+`skeleton_generator.py` or rule IDs containing `skip-…` are therefore preserved,
+and product markers are not redacted. This does not expand the detector's coverage
+of secrets embedded inside identifiers. Evidence integrity is verified against the
+stored payload before read-side redaction, and write-backs re-seal only evidence
+that still verifies, so a broader future redaction rule does not look like
+corruption while tampered evidence stays a mismatch.
 
 Migration 0003 adds evidence artifacts, normalized finding records, and finding-
 evidence links. Lifecycle revisions, audit events, suppression expiry checks,
@@ -23,8 +28,11 @@ assessment records, and evidence retention expiry/purge are stored separately
 from the original report payload. The dashboard exposes the retention deadline
 and expiry is scrubbed in normalized rows and report mirrors. On store open,
 terminal run metadata and audit rows older than the 90-day window are deleted
-transactionally; active runs, active hosted consent, and unexpired suppressions
-remain. Suppression references to purged evidence are cleared before the evidence
+transactionally; active runs, active hosted consent, unexpired suppressions, the
+newest report, and the newest static report remain, so an inactive project keeps
+its last baseline (whose evidence content still expires after 30 days). Managed
+rollback backups are deleted after the same 30-day evidence window because they
+contain evidence. Suppression references to purged evidence are cleared before the evidence
 row is removed. A complete crash matrix remains unsupported. The explicit
 `backup`/`restore` CLI provides a same-project, integrity-checked offline database
 restore for application rollback, without applying migrations; it revokes stored

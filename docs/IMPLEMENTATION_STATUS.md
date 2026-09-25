@@ -1,6 +1,26 @@
 # Implementation status
 
-Checkpoint: 24 September 2026, local working tree. Earlier evidence predates
+Review hardening checkpoint: 26 September 2026, local uncommitted working tree.
+A code review found and this checkpoint fixed: active fixed cases evaluated on a
+redacted, 2,000-character excerpt (false passes); `git status` running filter
+drivers from the target's `.git/config` outside any sandbox; CI gates that could
+never fail on static candidates or failed active cases; captures aborted by one
+oversized or hardlinked file; redaction that rewrote paths and rule IDs; hosted
+payloads ignoring the requested consent classes and inline consent without
+acknowledgment; staging address checks that trusted `ipaddress` on Python 3.12.1;
+triage lost on every rescan; stores broken by moving the project; a Linux worker
+that could reach every host Unix socket; plus per-request probe hashing, report
+mirror rewrites, N+1 suppression reads, unbatched parser input, stranded expired
+approvals, unrunnable strict plans, an ignored config `profile`, a fixed port,
+permanent pairing lockout, backups outliving evidence retention, mislabeled active
+coverage, and an unstructured dashboard source file. Results for this checkpoint:
+ruff, format and mypy (61 source files) pass; `pytest` 516 passed in 77s; Vitest
+2 passed; UI production build and Chrome E2E 1/1 pass; clean wheel install
+passes; mapping, inventory and Jev local benchmarks are unchanged. Native Linux
+bubblewrap execution, WebKit, the performance benchmark, and the network-enabled
+OSV/scanner-image smokes were not rerun for this checkpoint.
+
+Previous checkpoint: 24 September 2026, local working tree. Earlier evidence predates
 creation of this Git repository; the latest full gate ran on the
 current uncommitted working tree, so there is no commit-only product identifier.
 This is a substantial local implementation checkpoint, but it is **not a
@@ -19,7 +39,7 @@ release gates.
 
 | Milestone | Status | Evidence / outstanding gate |
 |---|---|---|
-| M0 foundation | berjalan | Strict config, owner-only storage, pairing/CSRF, state ledger, fourteen Alembic migrations, normalized finding/evidence/graph/consent tables, HMAC manifests, project metadata, 30-day evidence expiry, 90-day terminal metadata/audit purge, explicit project-ID-confirmed private-storage deletion, active-attempt ledger, descriptor-relative path checks, deterministic file/directory swap rejection between metadata observation and open, same-UID concurrent replacement stress, post-open directory-entry identity revalidation, stable child-directory/file device-inode binding, and SQLite inode/device identity revalidation before first connection, on connect, and on pool checkout are tested locally on macOS and a Linux container subset. The complete cross-platform path-race matrix remains open. |
+| M0 foundation | berjalan | Strict config, owner-only storage, pairing/CSRF, state ledger, fifteen Alembic migrations, normalized finding/evidence/graph/consent tables, HMAC manifests, project metadata, 30-day evidence expiry, 90-day terminal metadata/audit purge, explicit project-ID-confirmed private-storage deletion, active-attempt ledger, descriptor-relative path checks, deterministic file/directory swap rejection between metadata observation and open, same-UID concurrent replacement stress, post-open directory-entry identity revalidation, stable child-directory/file device-inode binding, and SQLite inode/device identity revalidation before first connection, on connect, and on pool checkout are tested locally on macOS and a Linux container subset. The complete cross-platform path-race matrix remains open. |
 | M1 vertical slice | berjalan | Init → doctor → isolated parser → persisted normalized graph/finding → paired React dashboard → JSON/HTML export works. Explicit agent/model inventory, its 11-case expected-node/edge corpus, the 55-case Python/FastAPI tuning corpus plus 12-case authored holdout corpus, read-only Git commit/dirty capture when available, and a disposable-project Playwright browser smoke—including inert HTML payload rendering in finding/evidence/graph views—are tested. The local AC13 Chrome/WebKit browser acceptance now passes; Firefox and native cross-platform browser coverage remain open. |
 | M2 scanners | berjalan (real local engines) | Semgrep/OSV/Trivy have strict normalizers, managed argv planning, binary or immutable image pin checks, explicit allowlisted-digest pull provisioning, bounded process-group execution, macOS default-deny Seatbelt isolation, an explicit non-macOS Docker worker, owner-only staging, path mapping, manifests, capability probes, baseline wiring, and explicit OSV database provisioning for PyPI plus detected npm, Cargo, Go, Ruby, Composer, and Maven inputs. The full gate freshly provisioned a pinned-container OSV database on 24 September at 291,813,642 bytes covering seven ecosystems; vulnerable/fixed, unresolved/ranged, fingerprint, freshness, and offline-scan controls pass. A separate host-native provisioning attempt timed out, but the supported container path succeeded. Manifest uncertainty is suppressed only by a structurally usable npm lockfile. Real host and container fixtures plus pinned Linux arm64 and amd64 Semgrep/Trivy production-source smoke pass; broader clean-host, platform, licensing, and freshness matrices remain. |
 | M3 authorized LLM testing | berjalan (local + staging transport contract) | Immutable plan, canonical plan-bound DNS IP set with per-dispatch revalidation, preview, one-use approval, fixed local/staging suite, loopback/public-HTTPS DNS-pinned broker, active `execute_active_run` execution in per-case OS-confined workers that can reach targets only through a separate per-job broker process over bounded Unix IPC, bounded job-scoped contract for dispatch/cancel/stats, request/concurrency/wall-time budgets, fail-closed strict cost guard, explicit request-only acknowledgment with unknown-cost accounting, cancellation, lease heartbeat, API/CLI lifecycle, paired dashboard controls, ten-category vulnerable/fixed response matrix, explicit planned/blocked/executed/skipped/inconclusive/error/not-tested coverage semantics with profile digest and selected-case denominator, four observer-backed fixture families, run/attempt/sequence-bound fixture evidence, an independent bounded fixture observer, a bounded HMAC-signed observer ingress contract, and an opt-in capability-protected observer Unix socket transport wired through the API background runner and `serve` CLI are implemented. Promptfoo import/native replay is bounded and non-executable. Live staging verification, target-side cost telemetry, approved production sidecar deployment, and broader category-effectiveness evidence remain blocked. |
