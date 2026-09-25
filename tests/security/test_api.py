@@ -1273,3 +1273,40 @@ def test_inline_hosted_consent_requires_explicit_acknowledgment(client):
     assert response.json()["code"] == "hosted_consent_acknowledgment_required"
     preview = client.get("/api/v1/assessment-consent").json()
     assert preview["granted"] is False
+
+
+def test_exhausted_pairing_code_rotates_to_a_terminal_only_code(monkeypatch):
+    from plenger import api as api_module
+
+    announced: list[str] = []
+    sessions = Sessions(announce=announced.append)
+    original = sessions.code
+    for _ in range(5):
+        assert sessions.pair("wrong") is None
+    assert sessions.rate_limited()
+    # Rotation is rate limited, so repeated failures cannot churn codes quickly.
+    assert sessions.pair(original) is None
+    assert announced == []
+
+    monkeypatch.setattr(api_module, "PAIRING_ROTATION_COOLDOWN_SECONDS", 0.0)
+    assert sessions.pair(original) is None
+    assert len(announced) == 1 and announced[0] == sessions.code != original
+    assert sessions.pair(original) is None
+    assert sessions.pair(sessions.code) is not None
+
+
+def test_server_port_is_part_of_host_and_origin_checks(tmp_path):
+    initialize(tmp_path)
+    origin = "http://127.0.0.1:8123"
+    client = TestClient(create_app(tmp_path, port=8123), base_url=origin)
+    assert client.get("/api/v1/health").status_code == 200
+    default_origin = client.post(
+        "/api/v1/pair", json={"code": client.app.state.pairing.code}, headers={"Origin": ORIGIN}
+    )
+    assert default_origin.status_code == 403
+    paired = client.post(
+        "/api/v1/pair", json={"code": client.app.state.pairing.code}, headers={"Origin": origin}
+    )
+    assert paired.status_code == 200
+    wrong_host = TestClient(create_app(tmp_path, port=8123), base_url=ORIGIN)
+    assert wrong_host.get("/api/v1/health").status_code == 403

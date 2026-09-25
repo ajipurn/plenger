@@ -6,7 +6,7 @@ import secrets
 import threading
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -58,7 +58,8 @@ from plenger.storage.attempts import list_active_attempts
 from plenger.storage.locking import runtime_lock
 from plenger.storage.runs import RunConflict, list_events
 
-ORIGIN = "http://127.0.0.1:7331"
+DEFAULT_PORT = 7331
+ORIGIN = f"http://127.0.0.1:{DEFAULT_PORT}"
 SESSION_COOKIE_NAME = "plenger_session"
 LEGACY_SESSION_COOKIE_NAME = "wonderkit_session"
 SECURITY_HEADERS = {
@@ -149,24 +150,52 @@ class ExportBody(StrictModel):
     format: Literal["json", "html"]
 
 
+PAIRING_CODE_SECONDS = 60
+PAIRING_MAX_ATTEMPTS = 5
+PAIRING_ROTATION_COOLDOWN_SECONDS = 10.0
+
+
 class Sessions:
-    def __init__(self) -> None:
-        self.code = secrets.token_urlsafe(24)
-        self.deadline = time.monotonic() + 60
-        self.used = False
-        self.attempts = 0
+    """One-use pairing codes shown only in the terminal that started the server.
+
+    With ``announce`` set, a code that is used, expired or out of attempts is
+    replaced by a fresh one printed to that terminal (at most once per cooldown),
+    so a failed or finished pairing no longer requires restarting the server.
+    """
+
+    def __init__(self, announce: Callable[[str], None] | None = None) -> None:
+        self.announce = announce
         self.lock = threading.Lock()
         self.sessions: dict[str, tuple[float, str]] = {}
+        self._issue_code()
+
+    def _issue_code(self) -> None:
+        self.code = secrets.token_urlsafe(24)
+        self.deadline = time.monotonic() + PAIRING_CODE_SECONDS
+        self.used = False
+        self.attempts = 0
+        self.rotated_at = time.monotonic()
+
+    def rate_limited(self) -> bool:
+        return self.attempts >= PAIRING_MAX_ATTEMPTS
+
+    def exhausted(self) -> bool:
+        return (
+            self.attempts >= PAIRING_MAX_ATTEMPTS or self.used or time.monotonic() >= self.deadline
+        )
 
     def pair(self, code: str) -> tuple[str, str] | None:
         with self.lock:
+            if self.exhausted():
+                if (
+                    self.announce is not None
+                    and time.monotonic() - self.rotated_at >= PAIRING_ROTATION_COOLDOWN_SECONDS
+                ):
+                    self._issue_code()
+                    self.announce(self.code)
+                return None
             self.attempts += 1
-            if (
-                self.attempts > 5
-                or self.used
-                or time.monotonic() >= self.deadline
-                or not secrets.compare_digest(code, self.code)
-            ):
+            if not secrets.compare_digest(code, self.code):
                 return None
             self.used = True
             token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
@@ -208,7 +237,13 @@ def create_app(
     root: Path,
     sessions: Sessions | None = None,
     active_observer: TrustedObserver | None = None,
+    *,
+    port: int = DEFAULT_PORT,
 ) -> FastAPI:
+    if not 1024 <= port <= 65535:
+        raise ValueError("invalid_server_port")
+    expected_host = f"127.0.0.1:{port}"
+    expected_origin = f"http://{expected_host}"
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="plenger-static")
 
     @asynccontextmanager
@@ -232,13 +267,13 @@ def create_app(
 
     @app.middleware("http")
     async def guard(request: Request, call_next: Any) -> Response:
-        if request.headers.get("host") != "127.0.0.1:7331":
+        if request.headers.get("host") != expected_host:
             return error("invalid_host", 403)
         origin = request.headers.get("origin")
-        if origin is not None and origin != ORIGIN:
+        if origin is not None and origin != expected_origin:
             return error("invalid_origin", 403)
         mutating = request.method not in {"GET", "HEAD", "OPTIONS"}
-        if mutating and origin != ORIGIN:
+        if mutating and origin != expected_origin:
             return error("origin_required", 403)
         path = request.url.path
         if path.startswith("/api/") and path not in {"/api/v1/health", "/api/v1/pair"}:
@@ -284,7 +319,7 @@ def create_app(
     def pair(body: PairBody) -> Response:
         result = pairing.pair(body.code)
         if not result:
-            return error("pairing_invalid_or_expired", 429 if pairing.attempts > 5 else 401)
+            return error("pairing_invalid_or_expired", 429 if pairing.rate_limited() else 401)
         token, csrf = result
         response = JSONResponse({"csrf_token": csrf, "project_id": identity})
         response.set_cookie(

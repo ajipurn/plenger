@@ -13,7 +13,7 @@ import uvicorn
 
 from plenger.adapters import SandboxError
 from plenger.adapters.promptfoo import MAX_OUTPUT_BYTES, PromptfooImportError, import_promptfoo
-from plenger.api import Sessions, create_app, safe_code
+from plenger.api import DEFAULT_PORT, Sessions, create_app, safe_code
 from plenger.evaluators import AssessmentError
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
 from plenger.runner import (
@@ -554,6 +554,9 @@ def serve(
     project: Project = Path("."),
     observer_secret_file: ObserverSecretFile = None,
     observer_socket: ObserverSocket = None,
+    port: int = typer.Option(
+        DEFAULT_PORT, "--port", min=1024, max=65535, help="Loopback port for the dashboard."
+    ),
 ) -> None:
     try:
         load_config(project)
@@ -568,12 +571,16 @@ def serve(
                         ensure_ascii=False,
                     )
                 )
-            pairing = Sessions()
-            typer.echo(f"Buka http://127.0.0.1:7331 — kode sekali pakai (60 detik): {pairing.code}")
+            pairing = Sessions(
+                announce=lambda code: typer.echo(f"Kode pairing baru (60 detik): {code}")
+            )
+            typer.echo(
+                f"Buka http://127.0.0.1:{port} — kode sekali pakai (60 detik): {pairing.code}"
+            )
             uvicorn.run(
-                create_app(project, pairing, observer),
+                create_app(project, pairing, observer, port=port),
                 host="127.0.0.1",
-                port=7331,
+                port=port,
                 access_log=False,
                 proxy_headers=False,
             )
