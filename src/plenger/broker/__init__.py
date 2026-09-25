@@ -59,13 +59,31 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
             raise
 
 
+BODY_EXCERPT_CHARACTERS = 2000
+
+
 @dataclass(frozen=True)
 class DispatchOutcome:
+    """One bounded target response.
+
+    ``body_excerpt`` is the redacted, display-sized excerpt. ``body`` is the complete
+    decoded response (bounded by ``max_response_bytes``) and exists only so the
+    confined worker can evaluate the fixed case before redaction or truncation can
+    hide a forbidden marker. It is never persisted or included in reports.
+    """
+
     attempt: int
     status_code: int
     body_excerpt: str
     response_truncated: bool
     redirect_received: bool
+    body: str = field(default="", repr=False)
+
+
+def body_excerpt(body: str) -> str:
+    """Return the redacted excerpt that is safe to show or store."""
+
+    return str(redact(body))[:BODY_EXCERPT_CHARACTERS]
 
 
 def resolve_target_addresses(
@@ -209,12 +227,14 @@ class RequestBroker:
                 )
         if deadline is not None and time.monotonic() >= deadline:
             raise BrokerError("wall_time_exhausted")
+        body = bytes(content).decode("utf-8", errors="replace")
         return DispatchOutcome(
             attempt=attempt,
             status_code=response.status,
-            body_excerpt=redact(bytes(content).decode("utf-8", errors="replace"))[:2000],
+            body_excerpt=body_excerpt(body),
             response_truncated=False,
             redirect_received=response.status in {301, 302, 303, 307, 308},
+            body=body,
         )
 
     def _dispatch_staging(

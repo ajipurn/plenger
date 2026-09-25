@@ -572,3 +572,17 @@ def test_unix_socket_broker_cleans_partial_bind_failure(server, monkeypatch):
         with pytest.raises(OSError, match="activation_failed"):
             UnixBrokerServer(backend, socket_path).start()
         assert not socket_path.exists()
+
+
+def test_unix_broker_delivers_complete_body_for_evaluation_but_redacts_excerpt(server):
+    target = make_target(server, ["/echo"])
+    budget = BudgetSpec(max_attempts=2, concurrency=1)
+    backend = RequestBroker(target, budget)
+    marker_payload = {"padding": "p" * 900, "leak": "secret: PLENGER_SYNTHETIC_DISCLOSURE_MARKER"}
+    with tempfile.TemporaryDirectory(prefix="plenger-broker-", dir="/tmp") as directory:
+        with UnixBrokerServer(backend, Path(directory) / "broker.sock") as transport:
+            client = UnixSocketRequestBroker(transport.endpoint, target, budget)
+            outcome = client.dispatch("POST", "/echo", marker_payload)
+    assert "PLENGER_SYNTHETIC_DISCLOSURE_MARKER" in outcome.body
+    assert "PLENGER_SYNTHETIC_DISCLOSURE_MARKER" not in outcome.body_excerpt
+    assert "PLENGER_SYNTHETIC_DISCLOSURE_MARKER" not in repr(outcome)

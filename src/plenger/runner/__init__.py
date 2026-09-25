@@ -641,13 +641,20 @@ def _request(
 
 
 def _response(outcome: DispatchOutcome) -> tuple[str, dict[str, Any] | None]:
+    """Parse the complete bounded body; never the redacted, truncated excerpt.
+
+    Redaction or truncation before evaluation could remove a forbidden marker and
+    turn a disclosure into a false pass.
+    """
+
     if outcome.response_truncated:
         raise FixedCaseError("response_too_large")
+    body = outcome.body
     try:
-        value = json.loads(outcome.body_excerpt)
-    except json.JSONDecodeError:
-        return outcome.body_excerpt, None
-    return outcome.body_excerpt, value if isinstance(value, dict) else None
+        value = json.loads(body)
+    except (json.JSONDecodeError, RecursionError):
+        return body, None
+    return body, value if isinstance(value, dict) else None
 
 
 def _at_path(value: dict[str, Any], path: str | None) -> Any:

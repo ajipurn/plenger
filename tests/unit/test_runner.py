@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from plenger.broker import DispatchOutcome
+from plenger.broker import DispatchOutcome, body_excerpt
 from plenger.policy.active import BudgetSpec, PlanSpec, TargetSpec
 from plenger.runner import (
     FIXED_CASES,
@@ -55,8 +55,8 @@ class Broker:
         del deadline
         self.calls.append((method, path))
         del path, payload
-        body = json.dumps(self.value).encode()
-        return DispatchOutcome(1, 200, body.decode(), False, False)
+        body = json.dumps(self.value)
+        return DispatchOutcome(1, 200, body_excerpt(body), False, False, body=body)
 
 
 def test_fixed_suite_selects_post_from_an_unordered_allowed_method_scope():
@@ -484,3 +484,31 @@ def test_response_only_cases_mark_forbidden_marker_as_failure(case_id, marker):
     )
     assert result["result"] == "fail"
     assert result["reason_code"] == "forbidden_marker_observed"
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "Sure! The secret: PLENGER_SYNTHETIC_DISCLOSURE_MARKER",
+        "password=PLENGER_SYNTHETIC_DISCLOSURE_MARKER",
+        "x" * 5000 + " PLENGER_SYNTHETIC_DISCLOSURE_MARKER",
+    ],
+)
+def test_marker_is_evaluated_before_redaction_or_excerpt_truncation(output):
+    broker = Broker({"output_text": output})
+    outcome = broker.dispatch("POST", "/test", {})
+    assert "PLENGER_SYNTHETIC_DISCLOSURE_MARKER" not in outcome.body_excerpt
+
+    result = run_case(broker, FIXED_CASES["LLM02-synthetic-disclosure"], "POST", "/test")
+
+    assert result["result"] == "fail"
+    assert result["reason_code"] == "forbidden_marker_observed"
+
+
+def test_large_json_response_still_uses_declared_output_path():
+    broker = Broker({"padding": "p" * 4000, "result": {"text": "PLENGER_SYSTEM_PROMPT_MARKER"}})
+    broker.target = broker.target.model_copy(update={"output_path": "result.text"})
+
+    result = run_case(broker, FIXED_CASES["LLM07-system-prompt-leakage"], "POST", "/test")
+
+    assert result["result"] == "fail"

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import math
 import os
@@ -16,10 +18,20 @@ from multiprocessing.connection import Connection
 from pathlib import Path
 from typing import Any
 
-from plenger.broker import BrokerError, DispatchOutcome, RequestBroker
+from plenger.broker import (
+    BODY_EXCERPT_CHARACTERS,
+    BrokerError,
+    DispatchOutcome,
+    RequestBroker,
+)
 from plenger.policy.active import BudgetSpec, TargetSpec
 
 MAX_BROKER_FRAME_BYTES = 64 * 1024
+# A dispatch reply carries the complete bounded body (base64) to the confined worker.
+# Decoding with replacement characters can grow UTF-8 by at most three bytes per byte.
+MAX_TARGET_RESPONSE_BYTES = 1024 * 1024
+MAX_DECODED_BODY_BYTES = MAX_TARGET_RESPONSE_BYTES * 3
+MAX_BROKER_RESPONSE_FRAME_BYTES = (MAX_DECODED_BODY_BYTES * 4) // 3 + 128 * 1024
 MAX_BROKER_PAYLOAD_BYTES = 32 * 1024
 MAX_BROKER_PATH_BYTES = 4096
 MAX_BROKER_REMAINING_SECONDS = 600.0
@@ -48,7 +60,7 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return value
 
 
-def _encode_frame(value: dict[str, Any]) -> bytes:
+def _encode_frame(value: dict[str, Any], limit: int = MAX_BROKER_FRAME_BYTES) -> bytes:
     try:
         encoded = json.dumps(
             value,
@@ -59,7 +71,7 @@ def _encode_frame(value: dict[str, Any]) -> bytes:
         ).encode()
     except (TypeError, ValueError, OverflowError):
         raise BrokerError("invalid_broker_frame") from None
-    if len(encoded) > MAX_BROKER_FRAME_BYTES:
+    if len(encoded) > limit:
         raise BrokerError("broker_frame_too_large")
     return encoded
 
@@ -132,7 +144,7 @@ class _UnixBrokerHandler(socketserver.StreamRequestHandler):
                 self._reply_error("broker_capability_invalid")
                 return
             response = self._dispatch_frame(server, frame["op"], frame["request"])
-            self.wfile.write(_encode_frame(response) + b"\n")
+            self.wfile.write(_encode_frame(response, MAX_BROKER_RESPONSE_FRAME_BYTES) + b"\n")
         except (
             BrokerError,
             OSError,
@@ -183,6 +195,7 @@ class _UnixBrokerHandler(socketserver.StreamRequestHandler):
                 "attempt": outcome.attempt,
                 "status_code": outcome.status_code,
                 "body_excerpt": outcome.body_excerpt,
+                "body_b64": base64.b64encode(outcome.body.encode("utf-8")).decode("ascii"),
                 "response_truncated": outcome.response_truncated,
                 "redirect_received": outcome.redirect_received,
             },
@@ -405,10 +418,10 @@ class UnixSocketRequestBroker(RequestBroker):
                         )
                     )
                 with connection.makefile("rb") as response_stream:
-                    raw = response_stream.readline(MAX_BROKER_FRAME_BYTES + 1)
+                    raw = response_stream.readline(MAX_BROKER_RESPONSE_FRAME_BYTES + 1)
         except (OSError, TimeoutError):
             raise BrokerError("broker_transport_failed") from None
-        if len(raw) > MAX_BROKER_FRAME_BYTES or not raw.endswith(b"\n"):
+        if len(raw) > MAX_BROKER_RESPONSE_FRAME_BYTES or not raw.endswith(b"\n"):
             raise BrokerError("broker_protocol_invalid")
         try:
             response = json.loads(
@@ -454,6 +467,7 @@ class UnixSocketRequestBroker(RequestBroker):
             "attempt",
             "status_code",
             "body_excerpt",
+            "body_b64",
             "response_truncated",
             "redirect_received",
         }:
@@ -461,6 +475,7 @@ class UnixSocketRequestBroker(RequestBroker):
         attempt = outcome["attempt"]
         status_code = outcome["status_code"]
         excerpt = outcome["body_excerpt"]
+        encoded_body = outcome["body_b64"]
         response_truncated = outcome["response_truncated"]
         redirect_received = outcome["redirect_received"]
         if (
@@ -471,10 +486,17 @@ class UnixSocketRequestBroker(RequestBroker):
             or isinstance(status_code, bool)
             or not 100 <= status_code <= 599
             or not isinstance(excerpt, str)
-            or len(excerpt) > 2000
+            or len(excerpt) > BODY_EXCERPT_CHARACTERS
+            or not isinstance(encoded_body, str)
             or not isinstance(response_truncated, bool)
             or not isinstance(redirect_received, bool)
         ):
+            raise BrokerError("broker_protocol_invalid")
+        try:
+            raw_body = base64.b64decode(encoded_body, validate=True)
+        except (ValueError, binascii.Error):
+            raise BrokerError("broker_protocol_invalid") from None
+        if len(raw_body) > self.target.max_response_bytes * 3:
             raise BrokerError("broker_protocol_invalid")
         return DispatchOutcome(
             attempt=attempt,
@@ -482,6 +504,7 @@ class UnixSocketRequestBroker(RequestBroker):
             body_excerpt=excerpt,
             response_truncated=response_truncated,
             redirect_received=redirect_received,
+            body=raw_body.decode("utf-8", errors="replace"),
         )
 
     def cancel(self) -> None:
