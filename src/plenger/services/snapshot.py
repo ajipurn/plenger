@@ -17,6 +17,18 @@ from plenger.storage.runs import digest, now
 
 GIT_TIMEOUT_SECONDS = 2
 GIT_OUTPUT_LIMIT = 256
+GIT_CONFIG_OUTPUT_LIMIT = 64 * 1024
+MAX_GIT_FILTER_DRIVERS = 64
+_SAFE_FILTER_DRIVER = re.compile(r"[A-Za-z0-9_.+/-]{1,128}")
+# The target repository's own .git/config is untrusted. These overrides disable the
+# configuration hooks that can make read-only status commands spawn programs.
+_GIT_BASE_OVERRIDES = (
+    "core.fsmonitor=false",
+    "core.hooksPath=" + os.devnull,
+    "core.attributesFile=" + os.devnull,
+    "core.untrackedCache=false",
+    "status.submoduleSummary=false",
+)
 
 
 def _git_environment() -> dict[str, str]:
@@ -24,19 +36,27 @@ def _git_environment() -> dict[str, str]:
         "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin",
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_ATTR_NOSYSTEM": "1",
         "GIT_OPTIONAL_LOCKS": "0",
         "GIT_TERMINAL_PROMPT": "0",
         "LC_ALL": "C",
     }
 
 
-def _git_command(root: Path, args: tuple[str, ...]) -> str | None:
+def _git_base_arguments(executable: str, root: Path) -> list[str]:
+    arguments = [executable, "-C", str(root)]
+    for override in _GIT_BASE_OVERRIDES:
+        arguments.extend(("-c", override))
+    return arguments
+
+
+def _git_run(root: Path, args: tuple[str, ...], limit: int) -> tuple[int, bytes] | None:
     executable = shutil.which("git")
     if executable is None:
         return None
     try:
         result = subprocess.run(
-            [executable, "-C", str(root), "-c", "core.fsmonitor=false", *args],
+            [*_git_base_arguments(executable, root), *args],
             env=_git_environment(),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
@@ -46,9 +66,58 @@ def _git_command(root: Path, args: tuple[str, ...]) -> str | None:
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
-    if result.returncode != 0 or len(result.stdout) > GIT_OUTPUT_LIMIT:
+    if len(result.stdout) > limit:
         return None
-    return result.stdout.decode("utf-8", errors="replace").strip()
+    return result.returncode, result.stdout
+
+
+def _git_command(root: Path, args: tuple[str, ...]) -> str | None:
+    result = _git_run(root, args, GIT_OUTPUT_LIMIT)
+    if result is None or result[0] != 0:
+        return None
+    return result[1].decode("utf-8", errors="replace").strip()
+
+
+def _filter_driver_overrides(root: Path) -> list[str] | None:
+    """Neutralize every filter driver declared by repository-local configuration.
+
+    ``git status`` runs ``filter.<driver>.clean``/``process`` commands for paths whose
+    attributes name that driver. Listing configuration never executes it, so each
+    declared driver is overridden with an empty command. Unexpected output fails
+    closed and leaves the dirty state unknown.
+    """
+
+    result = _git_run(
+        root,
+        ("config", "--null", "--includes", "--get-regexp", r"^filter\."),
+        GIT_CONFIG_OUTPUT_LIMIT,
+    )
+    if result is None:
+        return None
+    code, output = result
+    if code == 1 and not output:
+        return []
+    if code != 0:
+        return None
+    drivers: set[str] = set()
+    for entry in output.split(b"\0"):
+        if not entry:
+            continue
+        key = entry.split(b"\n", 1)[0].decode("utf-8", errors="replace")
+        if not key.startswith("filter.") or key.count(".") < 2:
+            return None
+        driver = key[len("filter.") :].rsplit(".", 1)[0]
+        if _SAFE_FILTER_DRIVER.fullmatch(driver) is None:
+            return None
+        drivers.add(driver)
+        if len(drivers) > MAX_GIT_FILTER_DRIVERS:
+            return None
+    overrides: list[str] = []
+    for driver in sorted(drivers):
+        for variable in ("clean", "smudge", "process"):
+            overrides.extend(("-c", f"filter.{driver}.{variable}="))
+        overrides.extend(("-c", f"filter.{driver}.required=false"))
+    return overrides
 
 
 def _stop_git_process(process: subprocess.Popen[bytes]) -> None:
@@ -72,17 +141,18 @@ def _git_status_has_output(root: Path) -> bool | None:
     executable = shutil.which("git")
     if executable is None:
         return None
+    filter_overrides = _filter_driver_overrides(root)
+    if filter_overrides is None:
+        return None
     try:
         process = subprocess.Popen(
             [
-                executable,
-                "-C",
-                str(root),
-                "-c",
-                "core.fsmonitor=false",
+                *_git_base_arguments(executable, root),
+                *filter_overrides,
                 "status",
                 "--porcelain=v1",
                 "--untracked-files=normal",
+                "--ignore-submodules=all",
                 "--no-renames",
                 "--",
                 ".",

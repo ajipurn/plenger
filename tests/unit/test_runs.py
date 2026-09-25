@@ -303,3 +303,73 @@ def test_recovery_cleanup_retry_is_audited(tmp_path, monkeypatch):
         assert [row[0] for row in events] == [0, 1, 2, 3]
         assert events[-1][1] == "orphan_cleanup_completed"
     engine.dispose()
+
+
+def test_git_metadata_never_runs_repository_configured_filters(tmp_path):
+    import os
+    import shutil
+    import subprocess
+
+    from plenger.services.snapshot import _git_metadata
+
+    git = shutil.which("git")
+    if git is None:
+        pytest.skip("git is unavailable")
+    environment = {
+        "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_TERMINAL_PROMPT": "0",
+        "LC_ALL": "C",
+    }
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    command = [git, "-C", str(repository)]
+    for args in (
+        ("init", "--quiet"),
+        ("config", "user.email", "test@plenger.invalid"),
+        ("config", "user.name", "plenger Test"),
+    ):
+        subprocess.run([*command, *args], env=environment, check=True)
+    (repository / ".gitattributes").write_text("*.py filter=evil filter=other.driver\n")
+    (repository / "a.py").write_text("value = 1\n")
+    subprocess.run([*command, "add", "-A"], env=environment, check=True)
+    subprocess.run(
+        [*command, "commit", "--quiet", "--no-gpg-sign", "-m", "fixture"],
+        env=environment,
+        check=True,
+    )
+    clean_marker = tmp_path / "clean-ran"
+    process_marker = tmp_path / "process-ran"
+    hook_marker = tmp_path / "hook-ran"
+    hooks = repository / ".git" / "hooks"
+    (hooks / "post-index-change").write_text(f"#!/bin/sh\ntouch {hook_marker}\n")
+    (hooks / "post-index-change").chmod(0o755)
+    for key, value in (
+        ("filter.evil.clean", f"sh -c 'touch {clean_marker}; cat'"),
+        ("filter.evil.required", "true"),
+        ("filter.other.driver.process", f"sh -c 'touch {process_marker}; exit 1'"),
+        ("core.fsmonitor", f"sh -c 'touch {clean_marker}'"),
+    ):
+        subprocess.run([*command, "config", key, value], env=environment, check=True)
+    (repository / "a.py").write_text("value = 2\n")
+
+    commit, dirty = _git_metadata(repository)
+
+    assert commit is not None
+    assert dirty is True
+    assert not clean_marker.exists()
+    assert not process_marker.exists()
+    assert not hook_marker.exists()
+
+
+def test_git_metadata_fails_closed_for_unrecognized_filter_driver_names(tmp_path, monkeypatch):
+    from plenger.services import snapshot
+
+    monkeypatch.setattr(
+        snapshot,
+        "_git_run",
+        lambda root, args, limit: (0, b"filter.bad name=x.clean\nsh\0"),
+    )
+
+    assert snapshot._git_status_has_output(tmp_path) is None
