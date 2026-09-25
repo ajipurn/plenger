@@ -669,15 +669,14 @@ def test_database_allows_only_one_live_approval_per_plan(tmp_path):
     )
     engine = open_store(tmp_path)
     try:
-        with pytest.raises(sqlalchemy.exc.IntegrityError):
-            with engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "INSERT INTO approvals (id,plan_id,project_id,plan_digest,scope_digest,"
-                        "actor,expires_at,created_at) SELECT :id,plan_id,project_id,plan_digest,"
-                        "scope_digest,actor,expires_at,created_at FROM approvals WHERE id=:source"
-                    ),
-                    {"id": "duplicate-live-approval-000000000000", "source": approval["id"]},
-                )
+        with pytest.raises(sqlalchemy.exc.IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO approvals (id,plan_id,project_id,plan_digest,scope_digest,"
+                    "actor,expires_at,created_at) SELECT :id,plan_id,project_id,plan_digest,"
+                    "scope_digest,actor,expires_at,created_at FROM approvals WHERE id=:source"
+                ),
+                {"id": "duplicate-live-approval-000000000000", "source": approval["id"]},
+            )
     finally:
         engine.dispose()

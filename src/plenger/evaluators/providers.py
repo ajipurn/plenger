@@ -346,9 +346,9 @@ class ManualReviewProvider:
 
 
 __all__ = [
-    "DeterministicProvider",
     "JEV_DEFAULT_MODEL",
     "JEV_URL",
+    "DeterministicProvider",
     "JevProvider",
     "ManualReviewProvider",
     "abstained",

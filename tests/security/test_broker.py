@@ -23,7 +23,7 @@ class Handler(BaseHTTPRequestHandler):
     post_calls = 0
     post_calls_lock = threading.Lock()
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         if self.path == "/redirect":
             self.send_response(302)
             self.send_header("Location", "http://169.254.169.254/latest")
@@ -40,7 +40,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"ok")
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         with type(self).post_calls_lock:
             type(self).post_calls += 1
         length = int(self.headers.get("Content-Length", "0"))

@@ -45,13 +45,33 @@ packages = ["src/plenger"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+xfail_strict = true
+# Markers are applied from the test directory in tests/conftest.py.
+markers = [
+    "unit: fast tests without external processes",
+    "security: trust-boundary tests (workspace, API, broker, sandbox)",
+    "integration: real Docker, scanners, sockets or subprocesses; skips when unavailable",
+]
 
 [tool.ruff]
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E", "F", "I", "B", "UP", "C4", "PIE", "PT", "RET", "RUF", "SIM"]
+ignore = [
+    "SIM105",  # explicit try/except/pass reads clearer in cleanup paths
+    "SIM117",  # nested with blocks keep lock acquisition order explicit
+    "PT011",   # broad pytest.raises is intentional where the error type is the contract
+    "PT018",   # splitting composite assertions adds churn without clarity
+]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
+files = [
+    "src",
+    "scripts/check_dependency_inventory.py",
+    "scripts/check_osv_scanner.py",
+    "scripts/check_scanner_images.py",
+]

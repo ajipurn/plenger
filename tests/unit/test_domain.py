@@ -21,7 +21,7 @@ def test_run_transitions():
 
 
 @pytest.mark.parametrize(
-    "source, symbols, candidates",
+    ("source", "symbols", "candidates"),
     [
         ("def f(x):\n return eval(x)", 1, 1),
         ("async def f(x):\n return exec(x)", 1, 1),
@@ -347,12 +347,15 @@ def test_legacy_migration_upgrade_preserves_report_and_rejects_downgrade(tmp_pat
             "findings": [],
         }
 
-        with pytest.raises(
-            RuntimeError, match="rollback_requires_backup_and_explicit_data_migration"
-        ):
+        def downgrade_one_revision() -> None:
             with engine.begin() as connection:
                 migration_config.attributes["connection"] = connection
                 command.downgrade(migration_config, "-1")
+
+        with pytest.raises(
+            RuntimeError, match="rollback_requires_backup_and_explicit_data_migration"
+        ):
+            downgrade_one_revision()
 
         with engine.connect() as connection:
             assert (

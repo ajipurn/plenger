@@ -109,8 +109,10 @@ def read_regular(
             not stat.S_ISREG(before.st_mode)
             or before.st_nlink != 1
             or before.st_size > limit
-            or expected_identity is not None
-            and (before.st_dev, before.st_ino) != expected_identity
+            or (
+                expected_identity is not None
+                and (before.st_dev, before.st_ino) != expected_identity
+            )
         ):
             raise WorkspaceError("not_regular_or_too_large")
         if not _directory_entry_matches(directory, name, before):

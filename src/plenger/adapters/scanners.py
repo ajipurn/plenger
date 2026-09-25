@@ -1184,7 +1184,7 @@ def _osv_advisory_alias_map(
     canonical: dict[str, str] = {}
     for component in components.values():
         value = min(component)
-        canonical.update({identifier: value for identifier in component})
+        canonical.update(dict.fromkeys(component, value))
     return canonical
 
 

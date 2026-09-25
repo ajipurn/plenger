@@ -70,7 +70,7 @@ def _state(case: dict[str, Any]) -> dict[str, Any]:
 
 def _response(case: dict[str, Any]) -> dict[str, Any]:
     labels = ["sufficient", "insufficient", "contradictory"]
-    probabilities = {label: 0.1 for label in labels}
+    probabilities = dict.fromkeys(labels, 0.1)
     probabilities[case["mock_label"]] = 0.8
     return {
         "model": "jev-1.13.0",

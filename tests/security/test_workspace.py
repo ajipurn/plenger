@@ -307,9 +307,8 @@ def test_existing_engine_rejects_database_replacement(tmp_path):
     replacement.close()
     os.chmod(database, 0o600)
     try:
-        with pytest.raises(WorkspaceError, match="database_path_race"):
-            with engine.connect():
-                pass
+        with pytest.raises(WorkspaceError, match="database_path_race"), engine.connect():
+            pass
     finally:
         engine.dispose()
 
@@ -352,9 +351,8 @@ def test_pooled_engine_rejects_database_replacement_on_checkout(tmp_path):
     replacement.close()
     os.chmod(database, 0o600)
     try:
-        with pytest.raises(WorkspaceError, match="database_path_race"):
-            with engine.connect():
-                pass
+        with pytest.raises(WorkspaceError, match="database_path_race"), engine.connect():
+            pass
     finally:
         engine.dispose()
 

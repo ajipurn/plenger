@@ -195,15 +195,14 @@ def normalized_findings(
 
     if not 1 <= limit <= 100 or offset < 0:
         raise ValueError("invalid_finding_pagination")
-    if after is not None:
-        if (
-            offset != 0
-            or len(after) != 3
-            or not isinstance(after[0], str)
-            or not isinstance(after[1], int)
-            or not isinstance(after[2], str)
-        ):
-            raise ValueError("invalid_finding_pagination")
+    if after is not None and (
+        offset != 0
+        or len(after) != 3
+        or not isinstance(after[0], str)
+        or not isinstance(after[1], int)
+        or not isinstance(after[2], str)
+    ):
+        raise ValueError("invalid_finding_pagination")
     allowed_filters = {
         "severity": "severity",
         "validation_state": "validation_state",

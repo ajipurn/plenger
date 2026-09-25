@@ -999,11 +999,11 @@ def plan_from_request(
 
 __all__ = [
     "RunConflict",
+    "approve_for_project",
     "cancel_active_run",
     "digest",
     "execute_active_run",
     "get_project_plan",
-    "approve_for_project",
     "plan_for_project",
     "plan_from_request",
     "queue_active_run",

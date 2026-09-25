@@ -217,15 +217,17 @@ class SignedTraceObserver:
     response JSON remains untrusted and cannot populate this observer.
     """
 
-    _EVENT_KEYS = {
-        "event_id",
-        "case_id",
-        "run_id",
-        "attempt_id",
-        "sequence",
-        "timestamp",
-        "trace",
-    }
+    _EVENT_KEYS = frozenset(
+        {
+            "event_id",
+            "case_id",
+            "run_id",
+            "attempt_id",
+            "sequence",
+            "timestamp",
+            "trace",
+        }
+    )
 
     def __init__(self, secret: bytes, *, max_events: int = 256) -> None:
         if not isinstance(secret, bytes) or len(secret) < 32:

@@ -41,7 +41,7 @@ class TargetHandler(BaseHTTPRequestHandler):
     observer: FixtureObserver | None = None
     request_count = 0
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         type(self).request_count += 1
         size = int(self.headers.get("Content-Length", "0"))
         request = json.loads(self.rfile.read(size))
@@ -72,7 +72,7 @@ class SignedObserverTargetHandler(BaseHTTPRequestHandler):
     endpoint: SignedTraceSocketEndpoint | None = None
     secret: bytes | None = None
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         size = int(self.headers.get("Content-Length", "0"))
         request = json.loads(self.rfile.read(size))
         context = request["test_context"]["observer_context"]
@@ -471,7 +471,7 @@ class SlowTargetHandler(BaseHTTPRequestHandler):
     release = threading.Event()
     request_count = 0
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         type(self).request_count += 1
         size = int(self.headers.get("Content-Length", "0"))
         self.rfile.read(size)

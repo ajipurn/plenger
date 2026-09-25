@@ -12,7 +12,7 @@ class ModeHandler(BaseHTTPRequestHandler):
     mode = "fixed"
     observer: FixtureObserver | None = None
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         size = int(self.headers.get("Content-Length", "0"))
         request = json.loads(self.rfile.read(size))
         case_id = request["test_context"]["case_id"]

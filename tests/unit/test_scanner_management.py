@@ -284,7 +284,7 @@ def test_osv_database_changes_are_unavailable(tmp_path, monkeypatch):
         "plenger.services.scanners.scanner_isolation_mode",
         lambda: "seatbelt_default_deny",
     )
-    runtime, entry = _managed_osv_fixture(tmp_path)
+    _, entry = _managed_osv_fixture(tmp_path)
     entry = entry.model_copy(
         update={"database": entry.database.model_copy(update={"fingerprint": "0" * 64})}
     )

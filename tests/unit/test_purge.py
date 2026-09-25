@@ -33,7 +33,7 @@ def test_delete_project_storage_is_scoped_and_requires_exact_confirmation(tmp_pa
     assert not (private / "state.sqlite3").exists()
     assert not (private / "scanners").exists()
     assert not (private / "outside-link").exists()
-    assert set(item.name for item in private.iterdir()) <= {
+    assert {item.name for item in private.iterdir()} <= {
         "worker.lock",
         "migration.lock",
         "server.lock",

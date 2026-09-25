@@ -109,9 +109,8 @@ def test_live_lock_prevents_recovery(tmp_path):
     run_id, _ = queue_scan(tmp_path, "deterministic", False, "key")
     with runtime_lock(tmp_path):
         assert recover_runs(tmp_path) == 0
-        with pytest.raises(StoreBusy):
-            with runtime_lock(tmp_path):
-                pass
+        with pytest.raises(StoreBusy), runtime_lock(tmp_path):
+            pass
     assert run_status(tmp_path, run_id)["state"] == "queued"
 
 

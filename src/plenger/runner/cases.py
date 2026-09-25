@@ -258,14 +258,18 @@ def run_case(
             observed_trace = observer.trace_for(case.case_id, run_id=run_id, attempt_id=attempt_id)
         except (AttributeError, OSError, TypeError, ValueError):
             observed_trace = None
-    if run_id is not None and attempt_id is not None and observed_trace is not None:
-        if (
+    if (
+        run_id is not None
+        and attempt_id is not None
+        and observed_trace is not None
+        and (
             observed_trace.get("run_id") != run_id
             or observed_trace.get("attempt_id") != attempt_id
             or observed_trace.get("sequence")
             != (attempt_sequence if attempt_sequence is not None else 1)
-        ):
-            observed_trace = None
+        )
+    ):
+        observed_trace = None
     trace = _trace_for_case(observed_trace, case.category)
     if case.category in {"LLM06", "LLM08"} and (
         trace is None or not observer_context_ok or not has_attempt_context
