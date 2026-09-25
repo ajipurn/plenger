@@ -23,11 +23,19 @@ make install
 src/plenger/
   cli/main.py        Typer CLI (`plenger`, also `python -m plenger`)
   api/               Loopback HTTP API: app.py routes, schemas.py bodies, pairing.py
-  services/          Use cases shared by CLI and API (scan, active runs, assessment)
+  services/          Use cases shared by CLI and API
+    application.py     static scan runs, recovery and engine capabilities
+    findings.py        paged finding reads, signed cursors, lifecycle updates
+    reports.py         stored reports, graph pages and exports
+    evidence.py        evidence retention expiry; ci_gate.py maps reports to exit codes
+    scanners/          managed scanner manifest, OSV database, setup and baseline runs
+    active/            active-run plans, broker process, confined worker and runs
+    assessment.py      non-authoritative finding assessment
   domain/            Strict contracts: base model, config, run states, parser output
   policy/            Redaction, consent scopes and active-test scope rules
   storage/           SQLite store (database.py), Alembic migrations, retention, backups
-  adapters/          Isolated engines: Docker Python parser, managed scanners, Promptfoo
+  adapters/          Isolated engines: Docker Python parser (python_parser.py), Promptfoo
+    scanners/          Semgrep/OSV/Trivy contracts, normalization, containers, execution
   broker/            DNS-pinned request dispatch and its job-scoped Unix socket IPC
   runner/            Fixed OWASP LLM cases, trusted observers, confined worker/sandbox
   evaluators/        Non-authoritative assessment rubric, models and providers
@@ -104,5 +112,8 @@ explicit database setup phase; all scanner cases after provisioning are offline.
   not need Node.
 - Record behaviour changes in the relevant ADR and in `docs/IMPLEMENTATION_STATUS.md`
   and `docs/TEST_RESULTS.md`, using only results that were actually run.
+- Give each module one responsibility. When one outgrows it, split it into a
+  subpackage (see `services/scanners/`) and patch tests at the module that
+  performs the lookup, not where the name is defined.
 - Keep commits focused on one topic; each commit should pass `make lint`,
   `make typecheck` and `make test`.
