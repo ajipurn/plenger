@@ -1,13 +1,22 @@
+# Python environments and caches
 .venv/
-.plenger/
-.Wonderkit/
 __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+*.egg-info/
+
+# Build output
+dist/
+
+# plenger private project data (current and legacy names)
+.plenger/
+.Wonderkit/
+
+# Dashboard dependencies and test output
 web/node_modules/
 web/test-results/
 web/playwright-report/
-dist/
-*.egg-info/
+
+# OS files
 .DS_Store
