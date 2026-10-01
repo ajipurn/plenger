@@ -95,6 +95,11 @@ class PythonExtractor implements LanguageHooks {
       case "call":
         this.cx.addCall(node, scope);
         break;
+      case "return_statement": {
+        const value = node.namedChildren[0];
+        if (value != null) this.cx.addReturn(value, scope);
+        break;
+      }
     }
     this.visitChildren(node, scope);
   }

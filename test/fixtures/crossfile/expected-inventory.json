@@ -1,0 +1,37 @@
+{
+  "frameworks": [
+    "langchain app/agent.py,app/lc_tools.py,web/src/agent.ts,web/src/lookup.ts",
+    "mcp app/server.py,app/tools.py,web/src/server.ts,web/src/tools.ts",
+    "langgraph app/agent.py,web/src/agent.ts",
+    "fastapi app/main.py"
+  ],
+  "unrecognised": [],
+  "models": [
+    "app/agent.py:9 langchain_openai.ChatOpenAI model=gpt-4o baseUrl=- credential=default",
+    "web/src/agent.ts:6 @langchain/openai#ChatOpenAI model=gpt-4o baseUrl=- credential=default"
+  ],
+  "llmCalls": [],
+  "agents": [
+    "app/agent.py:10 langgraph.prebuilt.create_react_agent name=- model=gpt-4o tools=[restart]+0 prompts=[prompt@10] nodes=[] delegates=[] mcp=[] runs=[16(request.text:param)] capabilities=[process]",
+    "web/src/agent.ts:6 @langchain/langgraph/prebuilt#createReactAgent name=- model=gpt-4o tools=[lookup]+0 prompts=[prompt@6] nodes=[] delegates=[] mcp=[] runs=[] capabilities=[network]"
+  ],
+  "tools": [
+    "app/lc_tools.py:7 restart via=decorator handler=restart params=[service] server=- description=\"Restart a service.\" capabilities=[process:subprocess.run[service:param]@app/helpers.py:7<app/lc_tools.py:9]",
+    "app/tools.py:7 deploy via=mcp handler=deploy params=[environment] server=mcp@3 description=\"Deploy the service.\" capabilities=[process:subprocess.run[environment:param]@app/helpers.py:7<app/tools.py:9,network:requests.post[]@app/helpers.py:11<app/tools.py:10]",
+    "web/src/lookup.ts:4 lookup via=factory handler=<anonymous>@4:28 params=[url] server=- description=\"Fetch a page\" capabilities=[network:fetch[url:param]@web/src/lookup.ts:4]",
+    "web/src/tools.ts:5 read via=mcp handler=<anonymous>@5:43 params=[path] server=mcp@3 description=- capabilities=[file_read:node:fs/promises#readFile[path:param]@web/src/tools.ts:6]"
+  ],
+  "mcpServers": [
+    "app/server.py:3 ops transport=- tools=[deploy] resources=[] prompts=[]",
+    "web/src/server.ts:3 files transport=- tools=[read] resources=[] prompts=[]"
+  ],
+  "mcpClients": [],
+  "prompts": [
+    "app/agent.py:10 system \"You are an operations assistant.\\nOnly re\" dynamic=[] variables=[] usedBy=[agent@10]",
+    "web/src/agent.ts:6 system \"You answer questions about files.\" dynamic=[] variables=[] usedBy=[agent@6]"
+  ],
+  "dataStores": [],
+  "entryPoints": [
+    "app/main.py:14 fastapi POST /ops handler=ops reaches=[agent:agent@10[request.text:param]@app/main.py:16]"
+  ]
+}

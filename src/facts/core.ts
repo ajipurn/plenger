@@ -115,6 +115,9 @@ export class Context {
   readonly #definitions: DefinitionDraft[] = [];
   readonly #assignments: AssignmentDraft[] = [];
   readonly #calls: { node: Node; scope: Scope }[] = [];
+  readonly #returns: { node: Node; scope: Scope }[] = [];
+  /** JS/TS: the name `export default` refers to. */
+  defaultExport: string | undefined;
   readonly #callIndex = new Map<number, number>();
   readonly #inlineDefinitions = new Map<number, string>();
   readonly #ids = new Set<string>();
@@ -172,6 +175,11 @@ export class Context {
   addCall(node: Node, scope: Scope): void {
     this.#callIndex.set(node.id, this.#calls.length);
     this.#calls.push({ node, scope });
+  }
+
+  /** Records a value returned directly by the function that opens `scope`. */
+  addReturn(node: Node, scope: Scope): void {
+    if (scope.kind === "function" && scope.definition !== null) this.#returns.push({ node, scope });
   }
 
   callIndex(node: Node): number | undefined {
@@ -287,7 +295,16 @@ export class Context {
       return fact;
     });
     const calls = this.#calls.map(({ node, scope }) => hooks.call(node, scope));
-    return { imports: this.imports, definitions, assignments, calls };
+    const byId = new Map(definitions.map((definition) => [definition.id, definition]));
+    for (const { node, scope } of this.#returns) {
+      const definition = byId.get(scope.definition as string);
+      if (definition === undefined) continue;
+      definition.returns ??= [];
+      if (definition.returns.length < 10) definition.returns.push(hooks.value(node, scope, 0));
+    }
+    const facts: FileFacts = { imports: this.imports, definitions, assignments, calls };
+    if (this.defaultExport !== undefined) facts.defaultExport = this.defaultExport;
+    return facts;
   }
 }
 

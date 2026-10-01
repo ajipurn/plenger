@@ -7,6 +7,7 @@ import type {
   Value,
 } from "../facts/model.ts";
 import type { Language } from "../languages.ts";
+import type { Project } from "../project/project.ts";
 import { JAVASCRIPT_RULES } from "./catalog/javascript.ts";
 import { PYTHON_RULES } from "./catalog/python.ts";
 import { FRAMEWORKS, frameworkOfModule, unsupportedModule } from "./frameworks.ts";
@@ -104,17 +105,79 @@ type Instance =
   | { kind: "mcp_server"; component: McpServer }
   | { kind: "mcp_client"; component: McpClient };
 
+/** Where a handler function is: its definition id, and the file when it is another one. */
+interface FunctionRef {
+  definition: string;
+  path: string;
+}
+
 /**
- * Detects the agent components in one file. `localModules` are the project's own
- * top-level Python modules: a local `agents` package is not the OpenAI Agents SDK.
+ * Detects agent components across a linked project. Each phase runs over every file
+ * before the next starts, because components refer to each other across files: tools
+ * before the agents that list them, agents before the calls that run them.
  */
-export function detectFile(
-  path: string,
-  language: Language,
-  facts: FileFacts,
-  localModules: ReadonlySet<string> = new Set(),
-): Inventory {
-  return new FileDetector(path, language, facts, localModules).run();
+export class ProjectDetector {
+  readonly project: Project;
+  readonly #detectors = new Map<string, FileDetector>();
+  readonly #returning = new Set<string>();
+
+  constructor(project: Project) {
+    this.project = project;
+    for (const file of project.files.values()) {
+      this.#detectors.set(file.path, new FileDetector(file.path, file.language, file.facts, this));
+    }
+  }
+
+  run(): Inventory[] {
+    const detectors = [...this.#detectors.values()];
+    for (const detector of detectors) detector.frameworks();
+    for (const detector of detectors) detector.constructTools();
+    for (const detector of detectors) detector.constructAgents();
+    for (const detector of detectors) detector.linkAgents();
+    for (const detector of detectors) detector.relate();
+    for (const detector of detectors) detector.finish();
+    return detectors.map((detector) => detector.inventory);
+  }
+
+  detector(path: string): FileDetector | undefined {
+    return this.#detectors.get(path);
+  }
+
+  /** The component a module-level variable of a project file holds. */
+  instanceAt(origin: { path: string; assignment: number } | undefined): Instance | undefined {
+    return origin === undefined
+      ? undefined
+      : this.#detectors.get(origin.path)?.instanceAt(origin.assignment);
+  }
+
+  /** The component a project function returns (`def build_agent(): return create_react_agent(...)`). */
+  returnedInstance(path: string, definition: string): Instance | undefined {
+    const key = `${path}|${definition}`;
+    const detector = this.#detectors.get(path);
+    if (detector === undefined || this.#returning.has(key)) return undefined;
+    this.#returning.add(key);
+    try {
+      return detector.returnedInstance(definition);
+    } finally {
+      this.#returning.delete(key);
+    }
+  }
+
+  /** The tool a project function or class is, in its own file. */
+  toolForDefinition(target: FunctionRef, framework: string): Tool | undefined {
+    return this.#detectors.get(target.path)?.toolForDefinition(target.definition, framework);
+  }
+
+  /** The tool a module-level variable of a project file holds (`lookup = tool(...)`). */
+  toolAt(origin: { path: string; assignment: number }, framework: string): Tool | undefined {
+    return this.#detectors.get(origin.path)?.toolAt(origin.assignment, framework);
+  }
+
+  definition(target: FunctionRef): DefinitionFact | undefined {
+    return this.project.files
+      .get(target.path)
+      ?.facts.definitions.find((candidate) => candidate.id === target.definition);
+  }
 }
 
 class FileDetector {
@@ -125,7 +188,9 @@ class FileDetector {
   readonly #rules: Compiled[];
   readonly #ids = new Set<string>();
   readonly #instanceByCall = new Map<number, Instance>();
-  readonly #instanceByAssignment = new Map<number, Instance>();
+  readonly #instanceAt = new Map<number, Instance>();
+  readonly #resolvingAssignments = new Set<number>();
+  readonly #project: ProjectDetector;
   readonly #toolByHandler = new Map<string, Tool>();
   readonly #toolByCall = new Map<number, Tool>();
   readonly #toolByClass = new Map<string, Tool>();
@@ -136,22 +201,16 @@ class FileDetector {
   readonly #assignmentOfCall = new Map<number, number>();
   readonly #invocations = new Map<Agent, Set<number>>();
   readonly #nodeOrder = new WeakMap<object, number>();
-  readonly #localModules: ReadonlySet<string>;
   /** Agents whose delegates and MCP clients resolve once every agent and client exists. */
   readonly #agentLinks: { agent: Agent; rule: AgentRule; call: CallFact }[] = [];
   /** Decorated tools and prompts to attach to the agent instance they were declared on. */
   readonly #receiverLinks: { receiver: number | undefined; tool?: Tool; prompt?: Prompt }[] = [];
 
-  constructor(
-    path: string,
-    language: Language,
-    facts: FileFacts,
-    localModules: ReadonlySet<string>,
-  ) {
+  constructor(path: string, language: Language, facts: FileFacts, project: ProjectDetector) {
     this.#path = path;
     this.#language = language;
     this.#facts = facts;
-    this.#localModules = localModules;
+    this.#project = project;
     this.#rules = rulesFor(language);
     facts.assignments.forEach((assignment, index) => {
       if (assignment.value.kind === "call" && assignment.member === undefined) {
@@ -160,15 +219,33 @@ class FileDetector {
     });
   }
 
-  run(): Inventory {
-    this.frameworks();
-    this.forEachMatch(true);
-    this.linkInstances();
-    this.linkAgents();
-    this.forEachMatch(false);
+  // Phases, run by ProjectDetector over every file in turn.
+
+  constructTools(): void {
+    this.matchDefinitions(true);
+    const tools = (kind: string) => CONSTRUCTORS.has(kind) && kind !== "agent";
+    for (const [index, call] of this.#facts.calls.entries()) this.matchCall(call, index, tools);
+  }
+
+  constructAgents(): void {
+    for (const [index, call] of this.#facts.calls.entries()) {
+      this.matchCall(call, index, (kind) => kind === "agent");
+    }
+  }
+
+  relate(): void {
+    // Tool bindings first, so graph nodes and LLM calls can find their results.
+    for (const [index, call] of this.#facts.calls.entries()) {
+      this.matchCall(call, index, (kind) => kind === "tool_binding");
+    }
+    const relations = (kind: string) => !CONSTRUCTORS.has(kind) && kind !== "tool_binding";
+    for (const [index, call] of this.#facts.calls.entries()) this.matchCall(call, index, relations);
+    this.matchDefinitions(false);
+  }
+
+  finish(): void {
     this.routeFiles();
     this.componentFrameworks();
-    return this.inventory;
   }
 
   /** Imports of the project's own modules are not framework calls, whatever their name. */
@@ -178,7 +255,9 @@ class FileDetector {
 
   isLocalModule(module: string): boolean {
     if (this.#language !== "python") return false;
-    return module.startsWith(".") || this.#localModules.has(module.split(".")[0] ?? "");
+    return (
+      module.startsWith(".") || this.#project.project.localModules.has(module.split(".")[0] ?? "")
+    );
   }
 
   whereHolds(rule: Rule, args: CallFact["arguments"] | null): boolean {
@@ -188,25 +267,6 @@ class FileDetector {
   }
 
   // Matching
-
-  forEachMatch(constructors: boolean): void {
-    const facts = this.#facts;
-    if (constructors) {
-      // Tools first, then what holds them: agents name their tools in arguments.
-      this.matchDefinitions(true);
-      const tools = (kind: string) => CONSTRUCTORS.has(kind) && kind !== "agent";
-      for (const [index, call] of facts.calls.entries()) this.matchCall(call, index, tools);
-      for (const [index, call] of facts.calls.entries())
-        this.matchCall(call, index, (kind) => kind === "agent");
-      return;
-    }
-    // Tool bindings first, so graph nodes and LLM calls can find their results.
-    for (const [index, call] of facts.calls.entries())
-      this.matchCall(call, index, (kind) => kind === "tool_binding");
-    const relations = (kind: string) => !CONSTRUCTORS.has(kind) && kind !== "tool_binding";
-    for (const [index, call] of facts.calls.entries()) this.matchCall(call, index, relations);
-    this.matchDefinitions(false);
-  }
 
   matchDefinitions(constructors: boolean): void {
     for (const definition of this.#facts.definitions) {
@@ -368,6 +428,7 @@ class FileDetector {
       delegates: [],
       mcpClients: [],
       invocations: [],
+      capabilities: [],
     };
     const variables =
       rule.variables === undefined
@@ -446,8 +507,8 @@ class FileDetector {
 
   toolFactory(rule: ToolFactoryRule, call: CallFact, index: number): void {
     const facts = this.#facts;
-    const handlerId = this.functionId(select(call.arguments, facts, rule.handler)[0]);
-    const handler = facts.definitions.find((definition) => definition.id === handlerId);
+    const handlerRef = this.functionRef(select(call.arguments, facts, rule.handler)[0]);
+    const handler = handlerRef === null ? undefined : this.#project.definition(handlerRef);
     const explicitName =
       rule.name === undefined ? null : this.literal(select(call.arguments, facts, rule.name));
     const assigned = this.assignedName(index);
@@ -462,7 +523,7 @@ class FileDetector {
           : this.literal(select(call.arguments, facts, rule.description))) ??
         handler?.doc ??
         null,
-      handler: handlerId,
+      ...this.handlerFields(handlerRef),
       params: handler === undefined ? [] : withoutReceiver(handler),
       via: "factory",
       server: null,
@@ -557,21 +618,59 @@ class FileDetector {
   // Instances
 
   /** Maps variables to the components assigned to them, following `compile()`-style chains. */
-  linkInstances(): void {
-    this.#facts.assignments.forEach((assignment, index) => {
-      const value = assignment.value;
-      if (value.kind !== "call" || assignment.member !== undefined) return;
-      let instance = this.#instanceByCall.get(value.call);
-      const call = this.#facts.calls[value.call];
-      if (
-        instance === undefined &&
-        call !== undefined &&
-        SAME_INSTANCE.test(`${call.ref?.name ?? ""}()`)
-      ) {
-        instance = this.instanceOfCall(call);
+  /**
+   * The component a variable holds: a constructor call, a call that keeps the instance
+   * (`builder.compile()`), a project function that returns one, or a variable of
+   * another file. Resolved lazily, because the answer can depend on other files.
+   */
+  instanceAt(assignment: number): Instance | undefined {
+    const cached = this.#instanceAt.get(assignment);
+    if (cached !== undefined || this.#resolvingAssignments.has(assignment)) return cached;
+    this.#resolvingAssignments.add(assignment);
+    try {
+      const fact = this.#facts.assignments[assignment];
+      let instance: Instance | undefined;
+      if (fact !== undefined && fact.member === undefined) {
+        if (fact.value.kind === "call") instance = this.instanceOfResult(fact.value.call);
+        else if (fact.value.kind === "name") {
+          instance =
+            this.#project.instanceAt(fact.value.ref?.origin) ??
+            (fact.value.assignment === undefined
+              ? undefined
+              : this.instanceAt(fact.value.assignment));
+        }
       }
-      if (instance !== undefined) this.#instanceByAssignment.set(index, instance);
-    });
+      if (instance !== undefined) this.#instanceAt.set(assignment, instance);
+      return instance;
+    } finally {
+      this.#resolvingAssignments.delete(assignment);
+    }
+  }
+
+  /** The component a call's result is. */
+  instanceOfResult(callIndex: number): Instance | undefined {
+    const constructed = this.#instanceByCall.get(callIndex);
+    if (constructed !== undefined) return constructed;
+    const call = this.#facts.calls[callIndex];
+    if (call === undefined) return undefined;
+    if (SAME_INSTANCE.test(`${call.ref?.name ?? ""}()`)) {
+      const instance = this.instanceOfCall(call);
+      if (instance !== undefined) return instance;
+    }
+    if (call.ref?.kind === "local" && call.ref.path === "") {
+      return this.#project.returnedInstance(call.ref.file ?? this.#path, call.ref.definition);
+    }
+    return undefined;
+  }
+
+  /** The component a function of this file returns. */
+  returnedInstance(definition: string): Instance | undefined {
+    const fact = this.#facts.definitions.find((candidate) => candidate.id === definition);
+    for (const value of fact?.returns ?? []) {
+      const instance = this.instanceIn([value]);
+      if (instance !== undefined) return instance;
+    }
+    return undefined;
   }
 
   /** Resolves agent delegates and MCP clients, and attaches decorated tools and prompts. */
@@ -629,20 +728,21 @@ class FileDetector {
   }
 
   instanceOf(receiver: number | undefined): Instance | undefined {
-    if (receiver === undefined) return undefined;
-    const linked = this.#instanceByAssignment.get(receiver);
-    if (linked !== undefined) return linked;
-    // Before linkInstances() runs: the variable holds a constructor call plenger matched.
-    const value = this.#facts.assignments[receiver]?.value;
-    return value?.kind === "call" ? this.#instanceByCall.get(value.call) : undefined;
+    return receiver === undefined ? undefined : this.instanceAt(receiver);
   }
 
-  /** The model or agent an argument holds, directly or through a variable. */
+  /** The component an argument holds, directly, through a variable or from another file. */
   instanceIn(values: Value[]): Instance | undefined {
     for (const value of values) {
+      if (value.kind === "name") {
+        const instance =
+          (value.assignment === undefined ? undefined : this.instanceAt(value.assignment)) ??
+          this.#project.instanceAt(value.ref?.origin);
+        if (instance !== undefined) return instance;
+      }
       const target = deref(value, this.#facts);
       if (target.kind === "call") {
-        const instance = this.#instanceByCall.get(target.call);
+        const instance = this.instanceOfResult(target.call);
         if (instance !== undefined) return instance;
       }
     }
@@ -655,14 +755,24 @@ class FileDetector {
    * starts at the same position.
    */
   instanceOfCall(call: CallFact): Instance | undefined {
-    const byReceiver = this.instanceOf(call.receiver);
+    return this.instanceVia(call.receiver, call.ref, call.span);
+  }
+
+  /** The instance reached through a receiver variable, a variable of another file, or a chain. */
+  instanceVia(
+    receiver: number | undefined,
+    ref: CallFact["ref"],
+    span: Span,
+  ): Instance | undefined {
+    const byReceiver = this.instanceOf(receiver) ?? this.#project.instanceAt(ref?.origin);
     if (byReceiver !== undefined) return byReceiver;
     for (const [index, instance] of this.#instanceByCall) {
       const candidate = this.#facts.calls[index];
       if (
-        candidate !== call &&
-        candidate?.span.line === call.span.line &&
-        candidate.span.column === call.span.column
+        candidate !== undefined &&
+        candidate.span !== span &&
+        candidate.span.line === span.line &&
+        candidate.span.column === span.column
       ) {
         return instance;
       }
@@ -788,10 +898,11 @@ class FileDetector {
       // `add_node(fn)` names the node after the function.
       handlerValue = select(call.arguments, facts, rule.name)[0];
     }
-    const handler = this.functionId(handlerValue);
-    name ??= facts.definitions.find((definition) => definition.id === handler)?.name ?? "<node>";
+    const handlerRef = this.functionRef(handlerValue);
+    name ??=
+      (handlerRef === null ? undefined : this.#project.definition(handlerRef)?.name) ?? "<node>";
     // Chained `.addNode()` calls are recorded outermost first; keep source order.
-    const node = { name, handler };
+    const node = { name, ...this.handlerFields(handlerRef) };
     this.#nodeOrder.set(node, call.span.endLine * 1e6 + call.span.endColumn);
     agent.nodes.push(node);
     agent.nodes.sort((a, b) => (this.#nodeOrder.get(a) ?? 0) - (this.#nodeOrder.get(b) ?? 0));
@@ -837,7 +948,7 @@ class FileDetector {
 
   mcpMemberDecorator(rule: McpMemberRule, definition: DefinitionFact, decorator: Decorator): void {
     const facts = this.#facts;
-    const server = this.serverFor(decorator.receiver);
+    const server = this.serverFor(decorator.receiver, decorator.ref);
     const name =
       (rule.name === undefined
         ? null
@@ -853,7 +964,7 @@ class FileDetector {
       server,
       name,
       description,
-      definition.id,
+      { definition: definition.id, path: this.#path },
       definition.span,
       withoutReceiver(definition),
     );
@@ -861,12 +972,12 @@ class FileDetector {
 
   mcpMemberCall(rule: McpMemberRule, call: CallFact): void {
     const facts = this.#facts;
-    const server = this.serverFor(call.receiver);
-    const handlerId =
+    const server = this.serverFor(call.receiver, call.ref);
+    const handlerRef =
       rule.handler === undefined
         ? null
-        : this.functionId(select(call.arguments, facts, rule.handler)[0]);
-    const handler = facts.definitions.find((definition) => definition.id === handlerId);
+        : this.functionRef(select(call.arguments, facts, rule.handler)[0]);
+    const handler = handlerRef === null ? undefined : this.#project.definition(handlerRef);
     const name =
       (rule.name === undefined ? null : this.literal(select(call.arguments, facts, rule.name))) ??
       handler?.name ??
@@ -882,14 +993,14 @@ class FileDetector {
       server,
       name,
       description,
-      handlerId,
+      handlerRef,
       call.span,
       handler === undefined ? [] : withoutReceiver(handler),
     );
   }
 
-  serverFor(receiver: number | undefined): McpServer | undefined {
-    const instance = this.instanceOf(receiver);
+  serverFor(receiver: number | undefined, ref: CallFact["ref"]): McpServer | undefined {
+    const instance = this.instanceOf(receiver) ?? this.#project.instanceAt(ref?.origin);
     return instance?.kind === "mcp_server"
       ? instance.component
       : this.soleInstance("mcp_server")?.component;
@@ -900,7 +1011,7 @@ class FileDetector {
     server: McpServer | undefined,
     name: string,
     description: string | null,
-    handler: string | null,
+    handlerRef: FunctionRef | null,
     span: Span,
     params: string[],
   ): void {
@@ -911,7 +1022,7 @@ class FileDetector {
         location: this.location(span),
         name,
         description,
-        handler,
+        ...this.handlerFields(handlerRef),
         params,
         via: "mcp",
         server: server?.id ?? null,
@@ -919,13 +1030,13 @@ class FileDetector {
       server?.tools.push(tool.id);
       return;
     }
-    const member = { name, handler, location: this.location(span) };
+    const member = { name, ...this.handlerFields(handlerRef), location: this.location(span) };
     if (rule.member === "resource") server?.resources.push(member);
     else server?.prompts.push(member);
   }
 
   mcpTransport(rule: McpTransportRule, call: CallFact): void {
-    const server = this.serverFor(call.receiver);
+    const server = this.serverFor(call.receiver, call.ref);
     if (server === undefined) return;
     let transport = rule.fixed;
     if (rule.transport !== undefined) {
@@ -944,14 +1055,20 @@ class FileDetector {
 
   routeDecorator(rule: RouteRule, definition: DefinitionFact, decorator: Decorator): void {
     const name = decorator.ref?.name ?? "";
-    this.addRoute(rule, name, decorator.arguments, definition.id, decorator.span);
+    this.addRoute(
+      rule,
+      name,
+      decorator.arguments,
+      { definition: definition.id, path: this.#path },
+      decorator.span,
+    );
   }
 
   routeCall(rule: RouteRule, call: CallFact): void {
     const handler =
       rule.handler === undefined
         ? null
-        : this.functionId(select(call.arguments, this.#facts, rule.handler).at(-1));
+        : this.functionRef(select(call.arguments, this.#facts, rule.handler).at(-1));
     this.addRoute(rule, call.ref?.name ?? "", call.arguments, handler, call.span);
   }
 
@@ -959,7 +1076,7 @@ class FileDetector {
     rule: RouteRule,
     target: string,
     args: CallFact["arguments"] | null,
-    handler: string | null,
+    handlerRef: FunctionRef | null,
     span: Span,
   ): void {
     const facts = this.#facts;
@@ -991,7 +1108,8 @@ class FileDetector {
         kind: "http",
         method,
         path,
-        handler,
+        ...this.handlerFields(handlerRef),
+        reaches: [],
       };
       this.inventory.entryPoints.push(entry);
     }
@@ -1015,6 +1133,7 @@ class FileDetector {
         method,
         path,
         handler: definition.id,
+        reaches: [],
       });
     if (app !== null) {
       const segments = (app[1] ?? "")
@@ -1039,7 +1158,8 @@ class FileDetector {
 
   // Tools
 
-  addTool(tool: Tool): Tool {
+  addTool(fields: Omit<Tool, "capabilities">): Tool {
+    const tool: Tool = { ...fields, capabilities: [] };
     this.inventory.tools.push(tool);
     if (tool.handler !== null && !this.#toolByHandler.has(tool.handler))
       this.#toolByHandler.set(tool.handler, tool);
@@ -1071,17 +1191,26 @@ class FileDetector {
   toolOf(value: Value, key: string | null, span: Span, framework: string): Tool | undefined {
     let tool: Tool | undefined;
     if (value.kind === "name" && value.ref?.kind === "local" && value.ref.path === "") {
+      const path = value.ref.file ?? this.#path;
       tool =
-        this.#toolByHandler.get(value.ref.definition) ??
-        this.#toolByClass.get(value.ref.definition) ??
-        this.functionTool(value.ref.definition, framework);
+        path === this.#path
+          ? this.toolForDefinition(value.ref.definition, framework)
+          : this.#project.toolForDefinition({ definition: value.ref.definition, path }, framework);
+    } else if (value.kind === "name" && value.ref?.origin !== undefined) {
+      tool = this.#project.toolAt(value.ref.origin, framework);
     } else if (value.kind === "function") {
       tool = this.#toolByHandler.get(value.definition);
     } else if (value.kind === "call") {
       tool = this.#toolByCall.get(value.call) ?? this.agentTool(value.call, framework);
       const ref = this.#facts.calls[value.call]?.ref;
-      if (tool === undefined && ref?.kind === "local" && ref.path === "")
-        tool = this.#toolByClass.get(ref.definition);
+      if (tool === undefined && ref?.kind === "local" && ref.path === "") {
+        // An instance of a tool class: `FetchTool()`
+        const path = ref.file ?? this.#path;
+        tool =
+          path === this.#path
+            ? this.#toolByClass.get(ref.definition)
+            : this.#project.detector(path)?.toolForClass(ref.definition);
+      }
     } else if (value.kind === "object" && isSchema(value)) {
       tool = this.schemaTool(value, span);
     }
@@ -1116,6 +1245,26 @@ class FileDetector {
     });
     this.#toolByCall.set(callIndex, tool);
     return tool;
+  }
+
+  /** The tool a function or class of this file is, making a plain function one if needed. */
+  toolForDefinition(definition: string, framework: string): Tool | undefined {
+    return (
+      this.#toolByHandler.get(definition) ??
+      this.#toolByClass.get(definition) ??
+      this.functionTool(definition, framework)
+    );
+  }
+
+  toolForClass(definition: string): Tool | undefined {
+    return this.#toolByClass.get(definition);
+  }
+
+  /** The tool a module-level variable of this file holds. */
+  toolAt(assignment: number, framework: string): Tool | undefined {
+    const value = this.#facts.assignments[assignment]?.value;
+    if (value?.kind !== "call") return undefined;
+    return this.#toolByCall.get(value.call) ?? this.agentTool(value.call, framework);
   }
 
   /** A plain function passed in a tool list: the framework builds the tool from its signature and docstring. */
@@ -1327,13 +1476,23 @@ class FileDetector {
     return result;
   }
 
-  functionId(value: Value | undefined): string | null {
+  /** The function a value names: an inline function, or a project function in this or another file. */
+  functionRef(value: Value | undefined): FunctionRef | null {
     if (value === undefined) return null;
     const target = deref(value, this.#facts);
-    if (target.kind === "function") return target.definition;
-    if (target.kind === "name" && target.ref?.kind === "local" && target.ref.path === "")
-      return target.ref.definition;
+    if (target.kind === "function") return { definition: target.definition, path: this.#path };
+    if (target.kind === "name" && target.ref?.kind === "local" && target.ref.path === "") {
+      return { definition: target.ref.definition, path: target.ref.file ?? this.#path };
+    }
     return null;
+  }
+
+  /** `handler`, plus `handlerPath` when the function is in another file. */
+  handlerFields(ref: FunctionRef | null): { handler: string | null; handlerPath?: string } {
+    if (ref === null) return { handler: null };
+    return ref.path === this.#path
+      ? { handler: ref.definition }
+      : { handler: ref.definition, handlerPath: ref.path };
   }
 
   assignedName(callIndex: number): string | null {

@@ -136,13 +136,47 @@ builder function (`agent = build_agent()`), is not linked, so its tools, transpo
 or runs can be missing. Values derived from a parameter through a call (`(await
 req.json()).messages`) are not yet marked as coming from outside.
 
-### M3 Tool capabilities
+### M3 Cross-file links and tool capabilities (done)
 
-For each tool, what its body can do, following calls into the project's own
-functions to a bounded depth: process execution, dynamic code evaluation, file
-writes and deletes, file reads, network requests, database writes, outbound
-messages (email, chat), payments and credential access. Each capability carries the
-call chain from the tool to the sink.
+**Project linking** ([src/project/project.ts](../src/project/project.ts)). Imports of
+the project's own modules resolve to files: Python absolute, relative and
+namespace-package imports, JS/TS relative paths (with `.js` to `.ts` and index
+files), CommonJS `require` and `tsconfig.json` path aliases. Refs through those
+imports are rewritten to what the other file defines, so `@mcp.tool()` in `tools.py`
+attaches to the `FastMCP` server created in `server.py`, a prompt constant imported
+from `prompts.py` is read, and an agent returned by a builder function
+(`agent = build_agent()`) is the agent its runs attach to. Detection runs in phases
+over the whole project (tools, then agents, then everything that uses them).
+
+**Capabilities** ([src/capabilities/](../src/capabilities/)). For every tool handler
+and HTTP entry point, plenger follows calls into project functions, methods and
+constructors (across files, six levels deep, recursion-safe) down to calls with an
+outside effect, from a data catalog of sinks: process execution, code evaluation,
+file reads, writes and deletes, network, databases, outbound messages, payments,
+secret and environment reads, unsafe deserialization and browser automation. Each
+capability carries the call chain and the non-constant parts of the effect's main
+argument (command, path, URL, query), with caller arguments bound to callee
+parameters at every step: `restart(service)` → `helpers.run(f"systemctl restart
+{service}")` → `subprocess.run(command)` reports `service` as the command's input.
+Entry points also report the models and agents they reach and with what input.
+Agents roll up their tools' capabilities, their MCP servers, delegates and their own
+code execution (smolagents `CodeAgent`, CrewAI `allow_code_execution`, AutoGen
+`CodeExecutorAgent`, AG2 `code_execution_config`); framework built-in tools map to
+known capabilities, marked `hosted` when they run at the provider.
+
+Measured on 2 October 2026: 141 tests; the fixture corpora (frameworks and
+crossfile) score precision and recall 1.0, now including capabilities and entry
+point reach. On real code: the openai-agents-python examples (shell, computer,
+apply-patch and hosted tools, nine agents-as-tools), the MCP TypeScript SDK (six
+network tools) and langgraphjs, where it found four example calculator tools that
+evaluate the model's `expression` with `Function(...)`. Peak memory stays under
+260 MB on the largest repositories (about 1,200 files).
+
+Known limits: data flow is name-based (a parameter used in an argument), not
+field- or path-sensitive; effects are found through calls, so environment reads are
+seen only in arguments, assignments and return values; dynamic dispatch, callbacks
+passed in from other files and framework-internal effects (a vector store writing to
+disk) are not followed.
 
 ### M4 Risk rules and triage
 

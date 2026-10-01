@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { analyzeCapabilities } from "./capabilities/analyze.ts";
 import { extractFacts, type FileFacts } from "./facts/index.ts";
 import {
   type CollectOptions,
@@ -7,10 +8,10 @@ import {
   type ExcludedDir,
   type SkipReason,
 } from "./files.ts";
-import { type Inventory, InventoryBuilder } from "./inventory/index.ts";
-import { localPythonModules } from "./inventory/modules.ts";
+import { buildInventory, type Inventory } from "./inventory/index.ts";
 import { LANGUAGE_OF, type Language } from "./languages.ts";
 import { SourceParser } from "./parser.ts";
+import { Project, type ProjectFile } from "./project/project.ts";
 
 export interface ScannedFile {
   path: string;
@@ -48,11 +49,9 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
   const collected = await collectSourceFiles(root, options);
   const files: ScannedFile[] = [];
+  const parsed: ProjectFile[] = [];
   const skipped: ScanResult["skipped"] = [...collected.skipped];
   const parser = await SourceParser.create();
-  const inventory = new InventoryBuilder(
-    localPythonModules(collected.files.map((file) => file.path)),
-  );
 
   try {
     for (const file of collected.files) {
@@ -75,7 +74,7 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
           syntaxErrors: tree.rootNode.hasError,
         };
         const facts = extractFacts(tree, file.grammar);
-        inventory.addFile(file.path, scanned.language, facts);
+        parsed.push({ path: file.path, language: scanned.language, facts });
         if (options.facts) scanned.facts = facts;
         files.push(scanned);
       } finally {
@@ -86,6 +85,12 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
     parser.dispose();
   }
 
+  // Facts are per file; linking points imports of project files at what those files define.
+  const project = new Project(collected.root, parsed);
+  project.link();
+  const inventory = buildInventory(project);
+  analyzeCapabilities(project, inventory);
+
   skipped.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   return {
     root: collected.root,
@@ -93,7 +98,7 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
     skipped,
     excludedDirs: collected.excludedDirs,
     truncated: collected.truncated,
-    inventory: inventory.build(),
+    inventory,
     durationMs: Math.round(performance.now() - started),
   };
 }

@@ -3,11 +3,17 @@ import type { Credential, DynamicPart } from "./model.ts";
 
 const DEREF_DEPTH = 6;
 
-/** Follows a name to the value last assigned to it, when plenger recorded one. */
+/**
+ * Follows a name to the value last assigned to it, when plenger recorded one, or to
+ * the constant project linking found in another file.
+ */
 export function deref(value: Value, facts: FileFacts): Value {
   let current = value;
   for (let depth = 0; depth < DEREF_DEPTH; depth++) {
-    if (current.kind !== "name" || current.assignment === undefined) return current;
+    if (current.kind !== "name") return current;
+    // A constant imported from another project file (`from .prompts import SYSTEM`).
+    if (current.ref?.constant !== undefined) return current.ref.constant;
+    if (current.assignment === undefined) return current;
     const assignment = facts.assignments[current.assignment];
     // A destructured target holds a member of the value, not the value itself.
     if (assignment === undefined || assignment.member !== undefined) return current;

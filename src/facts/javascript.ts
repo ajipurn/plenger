@@ -138,6 +138,11 @@ class JavaScriptExtractor implements LanguageHooks {
       case "new_expression":
         this.cx.addCall(node, scope);
         break;
+      case "return_statement": {
+        const value = node.namedChildren[0];
+        if (value != null) this.cx.addReturn(value, scope);
+        break;
+      }
     }
     this.visitChildren(node, scope);
   }
@@ -223,6 +228,9 @@ class JavaScriptExtractor implements LanguageHooks {
     // `@Dec export class X {}` attaches the decorator to the export statement.
     const decorators = this.decoratorsOf(node, scope);
     const declaration = node.childForFieldName("declaration");
+    if (declaration !== null && hasChild(node, "default")) {
+      this.cx.defaultExport = declaration.childForFieldName("name")?.text ?? "default";
+    }
     if (declaration !== null) {
       if (CLASSES.has(declaration.type) && decorators.length > 0) {
         const name = declaration.childForFieldName("name")?.text ?? null;
@@ -240,10 +248,14 @@ class JavaScriptExtractor implements LanguageHooks {
       // export default <expression>
       if (FUNCTIONS.has(value.type) || CLASSES.has(value.type)) {
         const name = value.childForFieldName("name")?.text ?? "default";
+        this.cx.defaultExport = name;
         if (CLASSES.has(value.type)) this.class(value, scope, name, true, decorators);
         else this.function(value, scope, name, true);
       } else {
-        if (value.type === "identifier") this.#exportedNames.add(value.text);
+        if (value.type === "identifier") {
+          this.#exportedNames.add(value.text);
+          this.cx.defaultExport = value.text;
+        }
         this.visit(value, scope);
       }
       return;
@@ -361,7 +373,11 @@ class JavaScriptExtractor implements LanguageHooks {
     const body = node.childForFieldName("body");
     if (body !== null) {
       if (body.type === "statement_block") this.visitChildren(body, inner);
-      else this.visit(body, inner);
+      else {
+        // `() => value` returns its body.
+        this.cx.addReturn(body, inner);
+        this.visit(body, inner);
+      }
     }
     return id;
   }

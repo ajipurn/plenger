@@ -1,4 +1,4 @@
-import type { Inventory, Location } from "../src/inventory/model.ts";
+import type { Capability, Inventory, Location } from "../src/inventory/model.ts";
 
 /**
  * A line-per-item form of an inventory, used as the expected-results format for the
@@ -11,6 +11,10 @@ const ref = (id: string | null) =>
   id === null ? "-" : id.replace(/^([\w-]+):.*:(\d+):\d+(?:#\d+)?$/, "$1@$2");
 const text = (value: string | null, width = 40) =>
   value === null ? "-" : JSON.stringify(value.slice(0, width));
+const capability = (item: Capability) =>
+  `${item.kind}:${item.kind === "agent" ? ref(item.target) : item.target}${item.hosted ? "(hosted)" : ""}` +
+  `[${item.inputs.map((input) => `${input.text}:${input.source}`)}]@${at(item.location)}` +
+  (item.via.length > 0 ? `<${item.via.map(at).join("<")}` : "");
 
 export function compact(inventory: Inventory): CompactInventory {
   const toolName = new Map(inventory.tools.map((tool) => [tool.id, tool.name]));
@@ -32,11 +36,11 @@ export function compact(inventory: Inventory): CompactInventory {
     ),
     agents: inventory.agents.map(
       (agent) =>
-        `${at(agent.location)} ${agent.target} name=${agent.name ?? "-"} model=${agent.model ?? "-"} tools=${tools(agent.tools)}+${agent.unresolvedTools} prompts=[${agent.prompts.map(ref)}] nodes=[${agent.nodes.map((node) => `${node.name}->${node.handler ?? "-"}`)}] delegates=[${agent.delegates.map(ref)}] mcp=[${agent.mcpClients.map(ref)}] runs=[${agent.invocations.map((run) => `${run.location.line}(${run.inputs.map((input) => `${input.text}:${input.source}`)})`)}]`,
+        `${at(agent.location)} ${agent.target} name=${agent.name ?? "-"} model=${agent.model ?? "-"} tools=${tools(agent.tools)}+${agent.unresolvedTools} prompts=[${agent.prompts.map(ref)}] nodes=[${agent.nodes.map((node) => `${node.name}->${node.handler ?? "-"}`)}] delegates=[${agent.delegates.map(ref)}] mcp=[${agent.mcpClients.map(ref)}] runs=[${agent.invocations.map((run) => `${run.location.line}(${run.inputs.map((input) => `${input.text}:${input.source}`)})`)}] capabilities=[${[...new Set(agent.capabilities.map((item) => item.kind))].sort()}]`,
     ),
     tools: inventory.tools.map(
       (tool) =>
-        `${at(tool.location)} ${tool.name} via=${tool.via} handler=${tool.handler ?? "-"} params=[${tool.params}] server=${ref(tool.server)} description=${text(tool.description)}`,
+        `${at(tool.location)} ${tool.name} via=${tool.via} handler=${tool.handler ?? "-"} params=[${tool.params}] server=${ref(tool.server)} description=${text(tool.description)} capabilities=[${tool.capabilities.map(capability)}]`,
     ),
     mcpServers: inventory.mcpServers.map(
       (server) =>
@@ -55,7 +59,7 @@ export function compact(inventory: Inventory): CompactInventory {
     ),
     entryPoints: inventory.entryPoints.map(
       (entry) =>
-        `${at(entry.location)} ${entry.framework} ${entry.method ?? "-"} ${entry.path ?? "-"} handler=${entry.handler ?? "-"}`,
+        `${at(entry.location)} ${entry.framework} ${entry.method ?? "-"} ${entry.path ?? "-"} handler=${entry.handler ?? "-"} reaches=[${entry.reaches.map(capability)}]`,
     ),
   };
 }

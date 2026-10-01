@@ -4,11 +4,11 @@ import { scan } from "../src/scan.ts";
 import { fixturePath } from "./helpers.ts";
 import { type CompactInventory, compact, score } from "./inventory-compact.ts";
 
-describe("agent inventory on the framework corpus", async () => {
+describe.each(["frameworks", "crossfile"])("agent inventory on the %s corpus", async (corpus) => {
   const expected: CompactInventory = JSON.parse(
-    await readFile(fixturePath("frameworks/expected-inventory.json"), "utf8"),
+    await readFile(fixturePath(`${corpus}/expected-inventory.json`), "utf8"),
   );
-  const actual = compact((await scan(fixturePath("frameworks"))).inventory);
+  const actual = compact((await scan(fixturePath(corpus))).inventory);
 
   it.each(Object.keys(expected))("finds exactly the expected %s", (kind) => {
     expect([...(actual[kind] ?? [])].sort()).toEqual([...(expected[kind] ?? [])].sort());

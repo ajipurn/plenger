@@ -23,10 +23,22 @@ export interface Span {
  * - local: the definition id and path, e.g. `Agent().run`
  * - global: e.g. `fetch`, `eval`, `process.env.OPENAI_API_KEY`
  */
-export type Ref =
+export type Ref = (
   | { kind: "import"; module: string; path: string; name: string }
   | { kind: "local"; definition: string; path: string; name: string }
-  | { kind: "global"; path: string; name: string };
+  | { kind: "global"; path: string; name: string }
+) &
+  ProjectLinks;
+
+/** Added by project linking (src/project) when a ref crosses into another project file. */
+export interface ProjectLinks {
+  /** For a local ref: the project file its definition is in, when that is another file. */
+  file?: string;
+  /** The module-level variable of another project file the ref goes through. */
+  origin?: { path: string; assignment: number };
+  /** That variable's value, when it is a constant: strings, numbers, and lists and dicts of them. */
+  constant?: Value;
+}
 
 /** A bounded summary of an expression. */
 export type Value =
@@ -107,6 +119,8 @@ export interface DefinitionFact {
   bases: Value[];
   /** Python docstring, truncated. */
   doc: string | null;
+  /** Values the function returns directly (not from nested functions), at most 10. */
+  returns?: Value[];
   span: Span;
 }
 
@@ -143,4 +157,6 @@ export interface FileFacts {
   definitions: DefinitionFact[];
   assignments: AssignmentFact[];
   calls: CallFact[];
+  /** JS/TS: the module-level name `export default` refers to (`default` for an anonymous one). */
+  defaultExport?: string;
 }

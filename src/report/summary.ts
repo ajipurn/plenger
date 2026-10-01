@@ -1,5 +1,5 @@
 import { styleText } from "node:util";
-import type { Inventory } from "../inventory/model.ts";
+import type { CapabilityKind, Inventory } from "../inventory/model.ts";
 import { LANGUAGE_LABEL, type Language } from "../languages.ts";
 import type { ScanResult, ScanSkipReason } from "../scan.ts";
 import { VERSION } from "../version.ts";
@@ -29,7 +29,12 @@ export function formatSummary(result: ScanResult, color: boolean): string {
   const style = (format: Parameters<typeof styleText>[0]) => (text: string) =>
     color ? styleText(format, text) : text;
   const s: Styles = { bold: style("bold"), dim: style("dim"), warn: style("yellow") };
-  return `${[...fileLines(result, s), ...inventoryLines(result.inventory, s)].join("\n")}\n`;
+  const lines = [
+    ...fileLines(result, s),
+    ...inventoryLines(result.inventory, s),
+    ...capabilityLines(result.inventory, s),
+  ];
+  return `${lines.join("\n")}\n`;
 }
 
 function fileLines(result: ScanResult, s: Styles): string[] {
@@ -162,6 +167,91 @@ function inventoryLines(inventory: Inventory, s: Styles): string[] {
     );
     lines.push(s.warn(`    Not understood yet: ${clip(modules.join(", "), DETAIL_WIDTH)}`));
   }
+  return lines;
+}
+
+const CAPABILITY_LABEL: Record<CapabilityKind, string> = {
+  process: "run commands",
+  code: "execute code",
+  file_write: "write files",
+  file_delete: "delete files",
+  file_read: "read files",
+  network: "use the network",
+  database: "use databases",
+  message: "send messages",
+  payment: "make payments",
+  secret: "read secrets",
+  deserialize: "load unsafe data",
+  browser: "drive a browser",
+  mcp: "use MCP servers",
+  agent: "run other agents",
+  llm: "call models",
+};
+
+/** Ordered roughly by how much damage a misused tool can do. */
+const CAPABILITY_ORDER: CapabilityKind[] = [
+  "process",
+  "code",
+  "file_delete",
+  "file_write",
+  "payment",
+  "message",
+  "database",
+  "deserialize",
+  "browser",
+  "network",
+  "file_read",
+  "secret",
+  "mcp",
+  "agent",
+  "llm",
+];
+
+function capabilityLines(inventory: Inventory, s: Styles): string[] {
+  const lines = ["", `  ${s.bold("Capabilities")}`];
+  const agentName = new Map(
+    inventory.agents.map((agent) => [agent.id, agent.name ?? shortName(agent.target)]),
+  );
+  for (const kind of CAPABILITY_ORDER) {
+    const tools = inventory.tools.filter((tool) =>
+      tool.capabilities.some((item) => item.kind === kind),
+    );
+    if (tools.length === 0) continue;
+    const detail = clip(unique(tools.map((tool) => tool.name)).join(", "), DETAIL_WIDTH);
+    lines.push(
+      `    ${`Tools that ${CAPABILITY_LABEL[kind]}`.padEnd(34)}${String(tools.length).padStart(4)}  ${s.dim(detail)}`,
+    );
+  }
+  const coding = inventory.agents.filter((agent) =>
+    agent.capabilities.some((item) => item.kind === "code" && item.tool === undefined),
+  );
+  if (coding.length > 0) {
+    lines.push(
+      `    ${"Agents that execute code".padEnd(34)}${String(coding.length).padStart(4)}  ${s.dim(clip(coding.map((agent) => agentName.get(agent.id) ?? agent.id).join(", "), DETAIL_WIDTH))}`,
+    );
+  }
+  const reaching = inventory.entryPoints.filter((entry) =>
+    entry.reaches.some((item) => item.kind === "agent" || item.kind === "llm"),
+  );
+  if (reaching.length > 0) {
+    lines.push(
+      `    ${"Entry points reaching a model".padEnd(34)}${String(reaching.length).padStart(4)}`,
+    );
+    for (const entry of reaching.slice(0, LIST_LIMIT)) {
+      const targets = entry.reaches
+        .filter((item) => item.kind === "agent" || item.kind === "llm")
+        .map((item) =>
+          item.kind === "agent"
+            ? `agent ${agentName.get(item.target) ?? item.target}`
+            : callLabel(item.target),
+        );
+      const route = `${entry.method ?? ""} ${entry.path ?? "?"}`.trim();
+      lines.push(`      ${route} ${s.dim(`→ ${clip(unique(targets).join(", "), DETAIL_WIDTH)}`)}`);
+    }
+    if (reaching.length > LIST_LIMIT)
+      lines.push(s.dim(`      … ${reaching.length - LIST_LIMIT} more`));
+  }
+  if (lines.length === 2) lines.push("    No tool or entry point with an outside effect found.");
   return lines;
 }
 

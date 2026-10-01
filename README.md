@@ -6,10 +6,12 @@ what can the agent do, what can reach it, and what should a reviewer look at fir
 plenger reads source code only. It never runs, imports or installs the project it
 scans, and scanning needs no network access.
 
-**Status:** milestone M2 of a rebuild. `plenger scan` parses every supported file
-and reports the project's agent inventory: models, LLM calls, agents, tools, MCP
-servers and clients, prompts, data stores and HTTP entry points. Tool capability
-analysis and risk rules come next. See
+**Status:** milestone M3 of a rebuild. `plenger scan` parses every supported file,
+links the project's modules, and reports its agent inventory (models, LLM calls,
+agents, tools, MCP servers and clients, prompts, data stores, HTTP entry points) and
+what each tool, agent and entry point can do (run commands, execute code, touch
+files, reach the network, databases, messages and payments), with the call chain to
+each effect. Risk rules come next. See
 [docs/ROADMAP.md](docs/ROADMAP.md). The earlier Python implementation (v0) is kept
 on the `feat/backup` branch.
 
@@ -45,7 +47,12 @@ It then summarises the agent inventory, for example:
     Not understood yet: google.genai (1 file)
 ```
 
-`scan --json` includes every item with its location. Supported frameworks are listed
+After the inventory, a capabilities section lists the tools that can run commands,
+execute code, write or delete files and so on, the agents that execute code
+themselves, and the HTTP entry points that reach a model or agent.
+
+`scan --json` includes every item with its location, and every capability with its
+call chain and the non-constant inputs of the effect. Supported frameworks are listed
 in [docs/ROADMAP.md](docs/ROADMAP.md#m2-agent-inventory-done); the detection rules
 are data in [src/inventory/catalog/](src/inventory/catalog/).
 

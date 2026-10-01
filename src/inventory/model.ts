@@ -22,6 +22,48 @@ export interface DynamicPart {
   ref?: string;
 }
 
+/** What code can do outside the program. */
+export type CapabilityKind =
+  /** Runs operating system commands. */
+  | "process"
+  /** Evaluates code: `eval`, code-executing agents and interpreters. */
+  | "code"
+  | "file_read"
+  | "file_write"
+  | "file_delete"
+  /** Outbound HTTP, sockets and web search. */
+  | "network"
+  | "database"
+  /** Email, chat and SMS. */
+  | "message"
+  | "payment"
+  /** Reads environment variables or a secret store. */
+  | "secret"
+  /** Loads data that can execute code (pickle, unsafe YAML). */
+  | "deserialize"
+  | "browser"
+  /** Calls a model. */
+  | "llm"
+  /** Runs an agent. */
+  | "agent"
+  /** Uses the tools of an MCP server whose code plenger cannot see. */
+  | "mcp";
+
+export interface Capability {
+  kind: CapabilityKind;
+  /** The call with the effect, by canonical name; for `agent`, the agent id. */
+  target: string;
+  location: Location;
+  /** Call sites from the analysed function down to the effect; empty when the effect is in the function itself. */
+  via: Location[];
+  /** Non-constant parts of the effect's main argument (command, path, URL, query, code, recipient). */
+  inputs: DynamicPart[];
+  /** The effect runs at the model provider, not in this code (hosted web search, code interpreter). */
+  hosted?: true;
+  /** For an agent's capabilities: the tool that provides it; absent when it is the agent's own. */
+  tool?: string;
+}
+
 export interface Prompt {
   id: string;
   location: Location;
@@ -79,13 +121,15 @@ export interface Agent {
   unresolvedTools: number;
   prompts: string[];
   /** Graph nodes and their handlers (LangGraph `add_node`, llmfy `FlowEngine.add_node`). */
-  nodes: { name: string; handler: string | null }[];
+  nodes: { name: string; handler: string | null; handlerPath?: string }[];
   /** Ids of agents this one hands off to or coordinates (handoffs, crew and team members). */
   delegates: string[];
   /** Ids of the MCP clients whose tools the agent can call. */
   mcpClients: string[];
   /** Calls that run the agent, with the non-constant parts of their input. */
   invocations: Invocation[];
+  /** What the agent can do: its tools' capabilities, code execution and MCP servers. */
+  capabilities: Capability[];
 }
 
 export interface Invocation {
@@ -99,8 +143,10 @@ export interface Tool {
   location: Location;
   name: string;
   description: string | null;
-  /** Definition id of the function that runs the tool, in the same file. */
+  /** Definition id of the function that runs the tool. */
   handler: string | null;
+  /** The file the handler is in, when it is not the tool's own file. */
+  handlerPath?: string;
   params: string[];
   /**
    * How the tool is declared. `function`: a plain function passed as a tool;
@@ -111,6 +157,8 @@ export interface Tool {
   via: "decorator" | "class" | "factory" | "function" | "builtin" | "agent" | "mcp" | "schema";
   /** For `via: "agent"`: the agent the tool runs. */
   agent?: string;
+  /** What the tool can do, found by following its handler through the project. */
+  capabilities: Capability[];
   /** Id of the MCP server the tool belongs to. */
   server: string | null;
 }
@@ -123,8 +171,15 @@ export interface McpServer {
   /** `stdio`, `streamable-http`, `sse`, or null when plenger saw no transport. */
   transport: string | null;
   tools: string[];
-  resources: { name: string; handler: string | null; location: Location }[];
-  prompts: { name: string; handler: string | null; location: Location }[];
+  resources: McpMember[];
+  prompts: McpMember[];
+}
+
+export interface McpMember {
+  name: string;
+  handler: string | null;
+  handlerPath?: string;
+  location: Location;
 }
 
 export interface McpClient {
@@ -153,8 +208,12 @@ export interface EntryPoint {
   /** HTTP method in upper case, `*` for all methods. */
   method: string | null;
   path: string | null;
-  /** Definition id of the handler in the same file. */
+  /** Definition id of the handler. */
   handler: string | null;
+  /** The file the handler is in, when it is not the entry point's own file. */
+  handlerPath?: string;
+  /** What the handler reaches: models, agents and effects, through project functions. */
+  reaches: Capability[];
 }
 
 export interface FrameworkUse {
