@@ -1,0 +1,126 @@
+{
+  "frameworks": [
+    "langchain js/langgraph.ts,js/rag-graph.ts,python/langgraph_agent.py,python/rag_graph.py",
+    "langgraph js/langgraph.ts,js/rag-graph.ts,python/langgraph_agent.py,python/rag_graph.py",
+    "mcp js/mcp-server.ts,js/rag-graph.ts,python/fastmcp_server.py,python/rag_graph.py",
+    "anthropic js/anthropic.ts,js/express-server.cjs,python/anthropic_agent.py",
+    "openai js/express-server.cjs,js/openai.ts,python/openai_chat.py",
+    "vercel-ai js/app/api/chat/route.ts,js/vercel-ai.ts",
+    "express js/express-server.cjs",
+    "fastapi python/fastapi_app.py",
+    "flask python/rag_graph.py",
+    "hono js/rag-graph.ts",
+    "llmfy python/llmfy_agent.py",
+    "nextjs js/app/api/chat/route.ts"
+  ],
+  "unrecognised": [
+    "@openai/agents js/rag-graph.ts",
+    "crewai python/rag_graph.py"
+  ],
+  "models": [
+    "js/anthropic.ts:5 @anthropic-ai/sdk#default model=- baseUrl=- credential=default",
+    "js/anthropic.ts:10 @anthropic-ai/sdk#default model=- baseUrl=- credential=environment",
+    "js/app/api/chat/route.ts:8 @ai-sdk/openai#openai model=gpt-4.1 baseUrl=- credential=default",
+    "js/express-server.cjs:6 @anthropic-ai/sdk model=- baseUrl=- credential=default",
+    "js/express-server.cjs:7 openai#OpenAI model=- baseUrl=- credential=default",
+    "js/langgraph.ts:15 @langchain/openai#ChatOpenAI model=gpt-4o baseUrl=- credential=default",
+    "js/openai.ts:5 openai#default model=- baseUrl=- credential=environment",
+    "js/openai.ts:17 openai#OpenAI model=- baseUrl=- credential=default",
+    "js/rag-graph.ts:23 @langchain/anthropic#ChatAnthropic model=claude-sonnet-4-5 baseUrl=- credential=literal",
+    "js/vercel-ai.ts:16 @ai-sdk/openai#openai model=gpt-4.1 baseUrl=- credential=default",
+    "python/anthropic_agent.py:18 anthropic.Anthropic model=- baseUrl=- credential=parameter",
+    "python/langgraph_agent.py:31 langchain_openai.ChatOpenAI model=gpt-4o baseUrl=- credential=default",
+    "python/langgraph_agent.py:39 langchain_openai.ChatOpenAI model=gpt-4o baseUrl=- credential=default",
+    "python/llmfy_agent.py:33 llmfy.OpenAIChatModel model=gpt-4o-mini baseUrl=- credential=default",
+    "python/llmfy_agent.py:40 llmfy.OpenAIChatModel model=gpt-4o-mini baseUrl=- credential=default",
+    "python/openai_chat.py:7 openai.OpenAI model=- baseUrl=- credential=default",
+    "python/openai_chat.py:22 openai.AsyncOpenAI model=- baseUrl=- credential=default",
+    "python/openai_chat.py:27 openai.OpenAI model=- baseUrl=- credential=literal",
+    "python/rag_graph.py:34 langchain_openai.ChatOpenAI model=gpt-4o-mini baseUrl=- credential=default"
+  ],
+  "llmCalls": [
+    "js/anthropic.ts:16 @anthropic-ai/sdk#default().messages.create model=claude-sonnet-4-5 client=model@5 tools=[]+0 prompts=[prompt@16] inputs=[userInput:param]",
+    "js/anthropic.ts:22 @anthropic-ai/sdk#default().messages.create model=claude-sonnet-4-5 client=model@10 tools=[]+0 prompts=[] inputs=[]",
+    "js/app/api/chat/route.ts:8 ai#streamText model=gpt-4.1 client=model@8 tools=[]+0 prompts=[] inputs=[messages:name]",
+    "js/express-server.cjs:10 @anthropic-ai/sdk().messages.create model=claude-haiku-4-5 client=model@6 tools=[]+0 prompts=[] inputs=[req.body.message:param]",
+    "js/express-server.cjs:19 openai#OpenAI().chat.completions.create model=gpt-4.1 client=model@7 tools=[]+0 prompts=[] inputs=[text:param]",
+    "js/openai.ts:12 openai#default().chat.completions.create model=gpt-4.1 client=model@5 tools=[]+0 prompts=[prompt@12] inputs=[question:param]",
+    "js/openai.ts:18 openai#OpenAI().responses.create model=gpt-4.1 client=model@17 tools=[]+0 prompts=[] inputs=[input:param]",
+    "js/rag-graph.ts:27 @langchain/anthropic#ChatAnthropic().bindTools().invoke model=claude-sonnet-4-5 client=model@23 tools=[lookup]+0 prompts=[] inputs=[]",
+    "js/vercel-ai.ts:15 ai#generateText model=gpt-4.1 client=model@16 tools=[weather]+0 prompts=[prompt@15] inputs=[question:param]",
+    "python/anthropic_agent.py:25 anthropic.Anthropic().messages.create model=claude-sonnet-4-5 client=model@18 tools=[run_command]+0 prompts=[prompt@25] inputs=[user_input:param]",
+    "python/langgraph_agent.py:39 langchain_openai.ChatOpenAI().bind_tools().invoke model=gpt-4o client=model@39 tools=[search_docs]+0 prompts=[] inputs=[]",
+    "python/llmfy_agent.py:35 llmfy.LLMfy().invoke model=gpt-4o-mini client=agent@34 tools=[]+0 prompts=[prompt@18] inputs=[question:param,info:param]",
+    "python/llmfy_agent.py:53 llmfy.LLMfy().chat model=gpt-4o-mini client=agent@41 tools=[get_order,cancel_order]+0 prompts=[prompt@41] inputs=[state[\"messages\"]:param]",
+    "python/openai_chat.py:11 openai.OpenAI().chat.completions.create model=gpt-4.1 client=model@7 tools=[]+0 prompts=[prompt@11] inputs=[question:param]",
+    "python/openai_chat.py:23 openai.AsyncOpenAI().responses.create model=gpt-4.1 client=model@22 tools=[]+0 prompts=[] inputs=[question:param]",
+    "python/openai_chat.py:27 openai.OpenAI().completions.create model=gpt-3.5-turbo-instruct client=model@27 tools=[]+0 prompts=[] inputs=[prompt:param]",
+    "python/rag_graph.py:39 langchain_openai.ChatOpenAI().bind_tools().invoke model=gpt-4o-mini client=model@34 tools=[lookup]+0 prompts=[] inputs=[]"
+  ],
+  "agents": [
+    "js/langgraph.ts:15 @langchain/langgraph/prebuilt#createReactAgent name=- model=gpt-4o tools=[write_note]+0 prompts=[] nodes=[] runs=[18]",
+    "js/rag-graph.ts:25 @langchain/langgraph#StateGraph name=- model=- tools=[lookup]+0 prompts=[] nodes=[agent-><anonymous>@26:21,tools->-] runs=[38]",
+    "python/langgraph_agent.py:32 langgraph.prebuilt.create_react_agent name=- model=gpt-4o tools=[search_docs,delete_file,fetch]+0 prompts=[] nodes=[] runs=[36]",
+    "python/llmfy_agent.py:34 llmfy.LLMfy name=- model=gpt-4o-mini tools=[]+0 prompts=[prompt@18] nodes=[] runs=[35]",
+    "python/llmfy_agent.py:41 llmfy.LLMfy name=- model=gpt-4o-mini tools=[get_order,cancel_order]+0 prompts=[prompt@41] nodes=[] runs=[53]",
+    "python/llmfy_agent.py:59 llmfy.FlowEngine name=- model=- tools=[]+0 prompts=[] nodes=[main->build_agent.main_orchestrator,tools->build_agent.tools_executor] runs=[]",
+    "python/rag_graph.py:42 langgraph.graph.StateGraph name=- model=- tools=[lookup]+0 prompts=[] nodes=[agent->call_model,tools->-] runs=[54]"
+  ],
+  "tools": [
+    "js/langgraph.ts:7 write_note via=factory handler=<anonymous>@8:3 params=[path,text] server=- description=\"Write a note to disk\"",
+    "js/mcp-server.ts:8 run via=mcp handler=<anonymous>@8:45 params=[command] server=mcp@6 description=-",
+    "js/mcp-server.ts:13 read via=mcp handler=<anonymous>@16:3 params=[url] server=mcp@6 description=\"Read a URL\"",
+    "js/rag-graph.ts:17 lookup via=factory handler=<anonymous>@17:21 params=[query] server=- description=\"Look up documents\"",
+    "js/vercel-ai.ts:5 weather via=factory handler=execute params=[city] server=- description=\"Get the weather for a city\"",
+    "python/anthropic_agent.py:25 run_command via=schema handler=SupportAgent.run_command params=[command] server=- description=\"Run a shell command on the server\"",
+    "python/fastmcp_server.py:9 read_file via=mcp handler=read_file params=[path] server=mcp@5 description=\"Read a file from the workspace.\"",
+    "python/fastmcp_server.py:16 exec via=mcp handler=run params=[command] server=mcp@5 description=\"Run a command.\"",
+    "python/langgraph_agent.py:7 search_docs via=decorator handler=search_docs params=[query] server=- description=\"Search the internal documentation.\"",
+    "python/langgraph_agent.py:13 delete_file via=decorator handler=delete_file params=[path] server=- description=\"Delete a file from disk.\"",
+    "python/langgraph_agent.py:21 fetch via=class handler=FetchTool._run params=[url] server=- description=\"Fetch a URL\"",
+    "python/llmfy_agent.py:27 get_order via=decorator handler=get_order params=[order_id] server=- description=\"Look up an order.\"",
+    "python/llmfy_agent.py:44 cancel_order via=decorator handler=build_agent.cancel_order params=[order_id] server=- description=\"Cancel an order.\"",
+    "python/rag_graph.py:29 lookup via=decorator handler=lookup params=[query] server=- description=\"Look up documents.\""
+  ],
+  "mcpServers": [
+    "js/mcp-server.ts:6 shell transport=stdio tools=[run,read] resources=[] prompts=[]",
+    "python/fastmcp_server.py:5 files transport=stdio tools=[read_file,exec] resources=[config://app] prompts=[]"
+  ],
+  "mcpClients": [
+    "js/rag-graph.ts:32 @modelcontextprotocol/sdk/client/stdio.js#StdioClientTransport command=uvx mcp-server-fetch url=-",
+    "js/rag-graph.ts:33 @langchain/mcp-adapters#MultiServerMCPClient command=- url=http://localhost:3000/mcp",
+    "python/rag_graph.py:20 langchain_mcp_adapters.client.MultiServerMCPClient command=npx -y @modelcontextprotocol/server-filesystem url=-",
+    "python/rag_graph.py:20 langchain_mcp_adapters.client.MultiServerMCPClient command=- url=http://localhost:8000/mcp"
+  ],
+  "prompts": [
+    "js/anthropic.ts:16 system \"You can run shell commands.\" dynamic=[] variables=[] usedBy=[llm@16]",
+    "js/openai.ts:12 system \"You are a support assistant. Notes: ${no\" dynamic=[notes:param] variables=[] usedBy=[llm@12]",
+    "js/rag-graph.ts:27 system \"You are a research assistant.\" dynamic=[] variables=[] usedBy=[]",
+    "js/vercel-ai.ts:15 system \"You are a weather assistant.\" dynamic=[] variables=[] usedBy=[llm@15]",
+    "python/anthropic_agent.py:25 system \"You can run shell commands.\" dynamic=[] variables=[] usedBy=[llm@25]",
+    "python/llmfy_agent.py:18 system \"Answer using only this context:\\n{{info}}\" dynamic=[] variables=[info] usedBy=[agent@34,llm@35]",
+    "python/llmfy_agent.py:41 system \"You are a helpful assistant.\" dynamic=[] variables=[] usedBy=[agent@41,llm@53]",
+    "python/openai_chat.py:11 system \"You are a support assistant for ACME.\\nNe\" dynamic=[notes:param] variables=[] usedBy=[llm@11]",
+    "python/rag_graph.py:16 system \"Answer from the context below.\\\\n{context\" dynamic=[] variables=[context] usedBy=[]",
+    "python/rag_graph.py:38 system \"You are a research assistant.\" dynamic=[] variables=[] usedBy=[]"
+  ],
+  "dataStores": [
+    "js/rag-graph.ts:14 vector_store langchain/vectorstores/memory#MemoryVectorStore.fromTexts",
+    "js/rag-graph.ts:14 embeddings @langchain/openai#OpenAIEmbeddings",
+    "js/rag-graph.ts:15 retriever langchain/vectorstores/memory#MemoryVectorStore.fromTexts().asRetriever",
+    "js/rag-graph.ts:30 checkpointer @langchain/langgraph#MemorySaver",
+    "python/llmfy_agent.py:59 checkpointer llmfy.InMemoryCheckpointer",
+    "python/rag_graph.py:13 vector_store langchain_chroma.Chroma",
+    "python/rag_graph.py:13 embeddings langchain_openai.OpenAIEmbeddings",
+    "python/rag_graph.py:14 retriever langchain_chroma.Chroma().as_retriever",
+    "python/rag_graph.py:47 checkpointer langgraph.checkpoint.memory.MemorySaver"
+  ],
+  "entryPoints": [
+    "js/app/api/chat/route.ts:6 nextjs POST /api/chat handler=POST",
+    "js/express-server.cjs:9 express POST /chat handler=<anonymous>@9:19",
+    "js/rag-graph.ts:38 hono POST /ask handler=<anonymous>@38:18",
+    "python/fastapi_app.py:10 fastapi POST /ask handler=ask_route",
+    "python/fastapi_app.py:16 fastapi GET /answer/{question} handler=answer_route",
+    "python/rag_graph.py:52 flask POST /ask handler=ask"
+  ]
+}

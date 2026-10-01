@@ -670,8 +670,13 @@ class JavaScriptExtractor implements LanguageHooks {
         const left = node.childForFieldName("left");
         const right = node.childForFieldName("right");
         if (node.childForFieldName("operator")?.text === "+" && left !== null && right !== null) {
+          // `+` joins text unless a side is a number, array or object: names may hold strings.
           const parts = [this.value(left, scope, depth + 1), this.value(right, scope, depth + 1)];
-          if (parts.some((part) => part.kind === "string" || part.kind === "concat")) {
+          const notText = (part: Value) =>
+            part.kind === "list" ||
+            part.kind === "object" ||
+            (part.kind === "literal" && /^[\d.]/.test(part.text));
+          if (!parts.some(notText)) {
             return {
               kind: "concat",
               parts: parts.flatMap((part) => (part.kind === "concat" ? part.parts : [part])),
@@ -773,7 +778,7 @@ class JavaScriptExtractor implements LanguageHooks {
   call(node: Node, scope: Scope): CallFact {
     const isNew = node.type === "new_expression";
     const callee = node.childForFieldName(isNew ? "constructor" : "function");
-    return {
+    const fact: CallFact = {
       callee: callee === null ? "" : textOf(callee),
       ref: callee === null ? null : this.calleeRef(node, callee, scope),
       new: isNew,
@@ -781,6 +786,35 @@ class JavaScriptExtractor implements LanguageHooks {
       arguments: this.arguments(node.childForFieldName("arguments"), scope),
       span: spanOf(node),
     };
+    const receiver = callee === null ? undefined : this.receiver(callee, scope);
+    if (receiver !== undefined) fact.receiver = receiver;
+    return fact;
+  }
+
+  /** The assignment of the innermost variable or `this` member a member chain starts from. */
+  receiver(callee: Node, scope: Scope): number | undefined {
+    const chain: Node[] = [];
+    let node: Node | null | undefined = WRAPPERS.has(callee.type)
+      ? callee.namedChildren[0]
+      : callee;
+    node = node?.type === "member_expression" ? node.childForFieldName("object") : null;
+    while (node != null) {
+      if (WRAPPERS.has(node.type)) {
+        node = node.namedChildren[0];
+        continue;
+      }
+      chain.push(node);
+      node = node.type === "member_expression" ? node.childForFieldName("object") : null;
+    }
+    for (const part of chain.reverse()) {
+      const binding =
+        part.type === "identifier"
+          ? this.cx.lookup(part.text, scope, part.startIndex)
+          : this.memberOf(part, scope);
+      const assignment = this.cx.assignmentOf(binding);
+      if (assignment !== undefined) return assignment;
+    }
+    return undefined;
   }
 
   calleeRef(node: Node, callee: Node, scope: Scope): Ref | null {
@@ -792,12 +826,16 @@ class JavaScriptExtractor implements LanguageHooks {
 
   decorator(node: Node, scope: Scope): Decorator {
     const called = node.type === "call_expression";
-    return {
+    const fact: Decorator = {
       text: textOf(node),
       ref: this.resolve(node, scope, 0),
       arguments: called ? this.arguments(node.childForFieldName("arguments"), scope) : null,
       span: spanOf(node),
     };
+    const callee = called ? node.childForFieldName("function") : node;
+    const receiver = callee === null ? undefined : this.receiver(callee, scope);
+    if (receiver !== undefined) fact.receiver = receiver;
+    return fact;
   }
 }
 

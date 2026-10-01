@@ -333,13 +333,7 @@ class PythonExtractor implements LanguageHooks {
     if (alias == null || alias.type !== "identifier") return;
     // `with OpenAI() as client` binds roughly the value; `except E as e` binds an instance we do not follow.
     if (node.parent?.type === "with_item" && value != null) {
-      scope.bind(alias.text, {
-        kind: "value",
-        node: value,
-        scope,
-        path: "",
-        offset: node.endIndex,
-      });
+      scope.bind(alias.text, this.cx.assign(alias, value, scope, node.endIndex));
     } else {
       scope.bind(alias.text, { kind: "unknown", offset: node.endIndex });
     }
@@ -373,6 +367,14 @@ class PythonExtractor implements LanguageHooks {
         const base = callee === null ? null : this.resolve(callee, scope, depth + 1);
         return base === null ? null : this.cx.extend(base, "()");
       }
+      case "subscript": {
+        // `os.environ["KEY"]` reads a member named by a string.
+        const object = node.childForFieldName("value");
+        const key = stringKey(node.childForFieldName("subscript"));
+        if (object === null || key === null) return null;
+        const base = this.resolve(object, scope, depth + 1);
+        return base === null ? null : this.cx.extend(base, key);
+      }
       case "await":
       case "parenthesized_expression": {
         const inner = node.namedChildren[0];
@@ -402,6 +404,10 @@ class PythonExtractor implements LanguageHooks {
       case "identifier":
       case "attribute":
         return this.name(node, scope);
+      case "subscript":
+        return stringKey(node.childForFieldName("subscript")) === null
+          ? otherValue(node)
+          : this.name(node, scope);
       case "call": {
         const index = this.cx.callIndex(node);
         return index === undefined ? otherValue(node) : { kind: "call", call: index };
@@ -421,8 +427,10 @@ class PythonExtractor implements LanguageHooks {
         const left = node.childForFieldName("left");
         const right = node.childForFieldName("right");
         if (node.childForFieldName("operator")?.text === "+" && left !== null && right !== null) {
+          // `+` joins text unless a side is a number, list or dict: names may hold strings (`BASE + name`).
           const parts = [this.value(left, scope, depth + 1), this.value(right, scope, depth + 1)];
-          if (parts.some(isText)) return { kind: "concat", parts: parts.flatMap(flattenConcat) };
+          if (!parts.some(isNotText))
+            return { kind: "concat", parts: parts.flatMap(flattenConcat) };
         }
         return otherValue(node);
       }
@@ -444,8 +452,8 @@ class PythonExtractor implements LanguageHooks {
 
   name(node: Node, scope: Scope): Value {
     let root = node;
-    while (root.type === "attribute") {
-      const object = root.childForFieldName("object");
+    while (root.type === "attribute" || root.type === "subscript") {
+      const object = root.childForFieldName(root.type === "attribute" ? "object" : "value");
       if (object === null) break;
       root = object;
     }
@@ -541,7 +549,7 @@ class PythonExtractor implements LanguageHooks {
   call(node: Node, scope: Scope): CallFact {
     const callee = node.childForFieldName("function");
     const args = node.childForFieldName("arguments");
-    return {
+    const fact: CallFact = {
       callee: callee === null ? "" : textOf(callee),
       ref: callee === null ? null : this.resolve(callee, scope, 0),
       new: false,
@@ -549,16 +557,41 @@ class PythonExtractor implements LanguageHooks {
       arguments: args?.type === "argument_list" ? this.arguments(args, scope) : [],
       span: spanOf(node),
     };
+    const receiver = callee === null ? undefined : this.receiver(callee, scope);
+    if (receiver !== undefined) fact.receiver = receiver;
+    return fact;
   }
 
   decorator(node: Node, scope: Scope): Decorator {
     const called = node.type === "call";
-    return {
+    const fact: Decorator = {
       text: textOf(node),
       ref: this.resolve(node, scope, 0),
       arguments: called ? this.arguments(node.childForFieldName("arguments"), scope) : null,
       span: spanOf(node),
     };
+    const callee = called ? node.childForFieldName("function") : node;
+    const receiver = callee === null ? undefined : this.receiver(callee, scope);
+    if (receiver !== undefined) fact.receiver = receiver;
+    return fact;
+  }
+
+  /** The assignment of the innermost variable or `self` attribute a member chain starts from. */
+  receiver(callee: Node, scope: Scope): number | undefined {
+    const chain: Node[] = [];
+    for (let node = callee.childForFieldName("object"); node !== null; ) {
+      chain.push(node);
+      node = node.type === "attribute" ? node.childForFieldName("object") : null;
+    }
+    for (const part of chain.reverse()) {
+      const binding =
+        part.type === "identifier"
+          ? this.cx.lookup(part.text, scope, part.startIndex)
+          : this.memberOf(part, scope);
+      const assignment = this.cx.assignmentOf(binding);
+      if (assignment !== undefined) return assignment;
+    }
+    return undefined;
   }
 }
 
@@ -580,6 +613,16 @@ function paramName(parameter: Node): string | undefined {
   }
 }
 
+/** The content of a plain string subscript (`["KEY"]`), or null. */
+function stringKey(node: Node | null): string | null {
+  if (node?.type !== "string") return null;
+  if (node.namedChildren.some((part) => part?.type === "interpolation")) return null;
+  return node.namedChildren
+    .filter((part) => part?.type === "string_content")
+    .map((part) => part?.text ?? "")
+    .join("");
+}
+
 function docstring(body: Node | null): string | null {
   const first = body?.namedChildren[0];
   if (first?.type !== "expression_statement") return null;
@@ -593,8 +636,12 @@ function docstring(body: Node | null): string | null {
   return clip(text, LIMITS.doc);
 }
 
-function isText(value: Value): boolean {
-  return value.kind === "string" || value.kind === "concat";
+function isNotText(value: Value): boolean {
+  return (
+    value.kind === "list" ||
+    value.kind === "object" ||
+    (value.kind === "literal" && /^[\d.]/.test(value.text))
+  );
 }
 
 function flattenConcat(value: Value): Value[] {

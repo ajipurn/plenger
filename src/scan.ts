@@ -7,6 +7,7 @@ import {
   type ExcludedDir,
   type SkipReason,
 } from "./files.ts";
+import { type Inventory, InventoryBuilder } from "./inventory/index.ts";
 import { LANGUAGE_OF, type Language } from "./languages.ts";
 import { SourceParser } from "./parser.ts";
 
@@ -34,6 +35,7 @@ export interface ScanResult {
   skipped: { path: string; reason: ScanSkipReason }[];
   excludedDirs: ExcludedDir[];
   truncated: boolean;
+  inventory: Inventory;
   durationMs: number;
 }
 
@@ -47,6 +49,7 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   const files: ScannedFile[] = [];
   const skipped: ScanResult["skipped"] = [...collected.skipped];
   const parser = await SourceParser.create();
+  const inventory = new InventoryBuilder();
 
   try {
     for (const file of collected.files) {
@@ -68,7 +71,9 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
           lines: countLines(source),
           syntaxErrors: tree.rootNode.hasError,
         };
-        if (options.facts) scanned.facts = extractFacts(tree, file.grammar);
+        const facts = extractFacts(tree, file.grammar);
+        inventory.addFile(file.path, scanned.language, facts);
+        if (options.facts) scanned.facts = facts;
         files.push(scanned);
       } finally {
         tree.delete();
@@ -85,6 +90,7 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
     skipped,
     excludedDirs: collected.excludedDirs,
     truncated: collected.truncated,
+    inventory: inventory.build(),
     durationMs: Math.round(performance.now() - started),
   };
 }

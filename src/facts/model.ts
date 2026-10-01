@@ -84,6 +84,8 @@ export interface ImportFact {
 export interface Decorator {
   text: string;
   ref: Ref | null;
+  /** See `CallFact.receiver`. */
+  receiver?: number;
   /** Arguments when the decorator is called (`@app.post("/chat")`); null for `@tool`. */
   arguments: Argument[] | null;
   span: Span;
@@ -124,6 +126,12 @@ export interface CallFact {
   ref: Ref | null;
   /** `new X()` in JS/TS. */
   new: boolean;
+  /**
+   * Index into `FileFacts.assignments` of the variable or `self`/`this` attribute the
+   * callee is reached through (`llm` in `llm.invoke()`, `self.client` in
+   * `self.client.messages.create()`), so calls on the same instance can be grouped.
+   */
+  receiver?: number;
   /** Id of the innermost enclosing definition; null at module level. */
   scope: string | null;
   arguments: Argument[];

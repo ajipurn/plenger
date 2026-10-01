@@ -1,11 +1,9 @@
-import { readFileSync } from "node:fs";
-import { parseArgs, styleText } from "node:util";
-import { LANGUAGE_LABEL, type Language } from "./languages.ts";
-import { type ScanResult, type ScanSkipReason, scan } from "./scan.ts";
+import { parseArgs } from "node:util";
+import { formatSummary } from "./report/summary.ts";
+import { type ScanResult, scan } from "./scan.ts";
+import { VERSION } from "./version.ts";
 
-export const VERSION: string = JSON.parse(
-  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-).version;
+export { VERSION };
 
 export interface Io {
   stdout: (text: string) => void;
@@ -80,78 +78,6 @@ function parseCommandLine(argv: string[]) {
       version: { type: "boolean", short: "v" },
     },
   });
-}
-
-const SKIP_LABEL: Record<ScanSkipReason, string> = {
-  declaration: "type declarations",
-  minified: "minified",
-  symlink: "symlinks",
-  too_large: "too large",
-  unreadable: "unreadable",
-  binary: "binary",
-  not_utf8: "not UTF-8",
-  gitignored: "gitignored",
-};
-
-const LIST_LIMIT = 10;
-
-export function formatSummary(result: ScanResult, color: boolean): string {
-  const bold = (text: string) => (color ? styleText("bold", text) : text);
-  const dim = (text: string) => (color ? styleText("dim", text) : text);
-  const warn = (text: string) => (color ? styleText("yellow", text) : text);
-  const lines = [`${bold(`plenger ${VERSION}`)} ${dim("·")} ${result.root}`, ""];
-
-  const perLanguage = new Map<Language, { files: number; lines: number }>();
-  for (const file of result.files) {
-    const entry = perLanguage.get(file.language) ?? { files: 0, lines: 0 };
-    entry.files++;
-    entry.lines += file.lines;
-    perLanguage.set(file.language, entry);
-  }
-  for (const [language, entry] of [...perLanguage].sort((a, b) => b[1].files - a[1].files)) {
-    lines.push(
-      `  ${LANGUAGE_LABEL[language].padEnd(12)}${plural(entry.files, "file").padStart(12)}  ${dim(plural(entry.lines, "line"))}`,
-    );
-  }
-  if (perLanguage.size === 0) lines.push("  No Python, JavaScript or TypeScript files found.");
-  lines.push(
-    "",
-    `  ${plural(result.files.length, "file")} parsed in ${(result.durationMs / 1000).toFixed(1)}s`,
-  );
-
-  if (result.truncated) {
-    lines.push(warn("  Stopped at the file limit; the rest of the project was not scanned."));
-  }
-  const broken = result.files.filter((file) => file.syntaxErrors);
-  if (broken.length > 0) {
-    lines.push(
-      warn(`  ${plural(broken.length, "file")} with syntax errors; results may be partial:`),
-    );
-    lines.push(...listed(broken.map((file) => file.path)).map((path) => `    ${dim(path)}`));
-  }
-  if (result.skipped.length > 0) {
-    const counts = new Map<ScanSkipReason, number>();
-    for (const { reason } of result.skipped) counts.set(reason, (counts.get(reason) ?? 0) + 1);
-    const breakdown = [...counts].map(([reason, count]) => `${SKIP_LABEL[reason]} ${count}`);
-    lines.push(`  ${plural(result.skipped.length, "file")} skipped: ${breakdown.join(", ")}`);
-  }
-  if (result.excludedDirs.length > 0) {
-    const dirs = result.excludedDirs.map(({ path, reason }) =>
-      reason === "default" ? path : `${path} (${reason})`,
-    );
-    lines.push(`  Excluded directories: ${dim(listed(dirs).join(", "))}`);
-  }
-  return `${lines.join("\n")}\n`;
-}
-
-function listed(items: string[]): string[] {
-  return items.length <= LIST_LIMIT
-    ? items
-    : [...items.slice(0, LIST_LIMIT), `… ${items.length - LIST_LIMIT} more`];
-}
-
-function plural(count: number, noun: string): string {
-  return `${count.toLocaleString("en-US")} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function describe(error: unknown): string {

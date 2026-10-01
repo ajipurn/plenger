@@ -80,27 +80,47 @@ module names until M3 links files); a variable takes its nearest earlier assignm
 its own scope and the last one from an outer scope; parameters, loop variables and
 tuple unpacking are not followed.
 
-### M2 Agent inventory
+### M2 Agent inventory (first batch done)
 
-Detectors, data-driven where possible. First, the frameworks with fixtures from M1:
-the OpenAI and Anthropic SDKs, LangChain and LangGraph (Python and JS), MCP (Python
-SDK, FastMCP, TypeScript SDK), the Vercel AI SDK and
-[llmfy](https://llmfy.readthedocs.io/) (`LLMfy`, `@Tool()`, `ToolRegistry`,
-`FlowEngine`, its model classes and checkpointers). Then:
+`plenger scan` now reports, per project: frameworks, models and clients (model name,
+base URL, where the API key comes from, never its value), LLM calls (model, client,
+system prompts, tools, and the non-constant parts of their input), agents (model,
+tools, prompts, graph nodes, the calls that run them), tools (name, description,
+handler, parameters, how they are declared), MCP servers (tools, resources, prompts,
+transport) and clients (command or URL), prompts (fixed text, dynamic parts, template
+variables, users), data stores (vector stores, embeddings, retrievers, checkpointers)
+and HTTP entry points. `--json` has the full inventory
+([src/inventory/model.ts](../src/inventory/model.ts)).
 
-- **LLM clients:** Google GenAI, AWS Bedrock, Azure OpenAI, LiteLLM, Ollama
-- **Agent frameworks:** OpenAI Agents SDK (Python and JS), CrewAI, AutoGen/AG2,
-  LlamaIndex, Pydantic AI, smolagents, Mastra
-- **Tools:** decorators (`@tool`, `@function_tool`, `@mcp.tool`), `tool()` factories,
-  hand-written tool schemas
-- **MCP:** servers (Python SDK, FastMCP, TypeScript SDK) with their tools, resources
-  and prompts; clients and the servers they connect to
-- **Prompts, retrievers, vector stores and agent memory**
-- **Entry points:** FastAPI, Flask, Django, Express, Hono and Next.js route handlers
+Detection is data: patterns over canonical call, decorator and base-class names in
+[src/inventory/catalog/](../src/inventory/catalog/), with argument paths such as
+`messages[role=system].content`. Components built from a constructor are tracked as
+instances, so `llm.register_tool(...)`, `@mcp.tool()`, `builder.add_node(...)` and
+`agent.invoke(...)` attach to the right model, server or agent.
 
-Done when each framework has fixtures with expected inventory and measured
-precision and recall. Framework usage that is imported but not understood is
-reported as unrecognised, not dropped.
+First batch, with fixtures and expected results: the OpenAI and Anthropic SDKs,
+LangChain and LangGraph (Python and JS, including LangChain v1 `create_agent`),
+MCP (Python SDK, FastMCP, TypeScript SDK, fastmcp, LangChain MCP adapters), the
+Vercel AI SDK, [llmfy](https://llmfy.readthedocs.io/), FastAPI, Flask, Django,
+Express, Hono, Fastify and Next.js. Libraries without detectors yet (CrewAI,
+AutoGen, LlamaIndex, Pydantic AI, smolagents, LiteLLM, Google GenAI, the OpenAI
+Agents SDK, Mastra and others) are reported as "not understood yet", not dropped.
+
+Measured on 2 October 2026: precision and recall 1.0 in every section on the fixture
+corpus (`node scripts/benchmark-inventory.ts`; 15 files, 102 expected items). Spot
+checks on real code, read by hand: all 26 llmfy examples (37 models, 47 agents, 39
+LLM calls all linked to their `LLMfy` instance, 12 tools, 14 data stores), the MCP
+TypeScript SDK (458 servers, 423 tools) and langgraphjs (220 agents, 190 tools); the
+samples checked were correct, and the misses seen are the cross-file limits below.
+
+Second batch: CrewAI, AutoGen/AG2, LlamaIndex, Pydantic AI, smolagents, the OpenAI
+Agents SDK (Python and JS), Mastra, Google GenAI, AWS Bedrock, LiteLLM and Ollama.
+
+Known limits until M3: everything is per file. A server, app or agent created in
+one file and used in another (`from app.server import mcp`), or returned from a
+builder function (`agent = build_agent()`), is not linked, so its tools, transport
+or runs can be missing. Values derived from a parameter through a call (`(await
+req.json()).messages`) are not yet marked as coming from outside.
 
 ### M3 Tool capabilities
 
