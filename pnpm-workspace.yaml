@@ -1,0 +1,4 @@
+# Supply-chain guards: only install versions published at least three days ago,
+# and never run dependency install scripts unless listed here.
+minimumReleaseAge: 4320
+onlyBuiltDependencies: []

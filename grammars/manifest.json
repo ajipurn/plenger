@@ -1,0 +1,26 @@
+{
+  "python": {
+    "package": "tree-sitter-python",
+    "version": "0.25.0",
+    "file": "tree-sitter-python.wasm",
+    "sha256": "16108b50df4ee9a30168794252ab55e7c93bfc5765d7fa0aa3e335752c515f47"
+  },
+  "javascript": {
+    "package": "tree-sitter-javascript",
+    "version": "0.25.0",
+    "file": "tree-sitter-javascript.wasm",
+    "sha256": "5fb488d0cabb4775a594bab85682de5ad6ce83c0d6ac997a9f82dd084d571240"
+  },
+  "typescript": {
+    "package": "tree-sitter-typescript",
+    "version": "0.23.2",
+    "file": "tree-sitter-typescript.wasm",
+    "sha256": "778025db5a8be0e70f8ccc3671e486dfeddd048c25d9e8a70c26de2e1bf6f97d"
+  },
+  "tsx": {
+    "package": "tree-sitter-typescript",
+    "version": "0.23.2",
+    "file": "tree-sitter-tsx.wasm",
+    "sha256": "79e5da75ea62855a0cd67177685f0164eac87d5f630b3cbe1e0a099751ad30f8"
+  }
+}
