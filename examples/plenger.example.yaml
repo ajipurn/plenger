@@ -1,8 +1,0 @@
-# Safe M0/M1 contract reconstructed from SPEC; implemented fields only.
-# No target, active/hosted consent, command, provider script, or secret is accepted here.
-# Features without adapters remain unavailable. Baseline reports incomplete until M2.
-schema_version: 1
-profile: deterministic
-max_files: 50000
-max_file_bytes: 2097152
-max_total_bytes: 524288000

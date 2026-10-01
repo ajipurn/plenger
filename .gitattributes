@@ -1,7 +1,0 @@
-* text=auto eol=lf
-
-# Generated files: collapsed in review diffs.
-uv.lock linguist-generated=true
-web/package-lock.json linguist-generated=true
-src/plenger/ui/** linguist-generated=true
-docs/*-results.json linguist-generated=true
