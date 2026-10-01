@@ -46,8 +46,8 @@ It then summarises the agent inventory, for example:
 ```
 
 `scan --json` includes every item with its location. Supported frameworks are listed
-in [docs/ROADMAP.md](docs/ROADMAP.md#m2-agent-inventory-first-batch-done); the
-detection rules are data in [src/inventory/catalog/](src/inventory/catalog/).
+in [docs/ROADMAP.md](docs/ROADMAP.md#m2-agent-inventory-done); the detection rules
+are data in [src/inventory/catalog/](src/inventory/catalog/).
 
 `facts` prints, per file, the imports, definitions (with decorators, base classes
 and docstrings), assignments and calls. Call targets are resolved through imports,

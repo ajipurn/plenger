@@ -30,7 +30,15 @@ describe("agent inventory details", () => {
 
   it("reports AI libraries it cannot analyse yet", async () => {
     const result = await scan(fixturePath("frameworks/python/rag_graph.py"));
-    expect(result.inventory.unrecognised).toEqual([{ module: "crewai", files: ["rag_graph.py"] }]);
+    expect(result.inventory.unrecognised).toEqual([{ module: "dspy", files: ["rag_graph.py"] }]);
+  });
+
+  it("does not mistake the project's own `agents` package for the OpenAI Agents SDK", async () => {
+    const result = await scan(fixturePath("local-agents"));
+    expect(result.inventory.agents).toEqual([]);
+    expect(result.inventory.frameworks.map((framework) => framework.id)).not.toContain(
+      "openai-agents",
+    );
   });
 
   it("finds nothing in a project without AI code", async () => {

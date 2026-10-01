@@ -1,4 +1,4 @@
-import { Agent } from "@openai/agents";
+import { InferenceClient } from "@huggingface/inference";
 import { SystemMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { MemorySaver, MessagesAnnotation, StateGraph } from "@langchain/langgraph";
@@ -32,7 +32,7 @@ const graph = new StateGraph(MessagesAnnotation)
 const transport = new StdioClientTransport({ command: "uvx", args: ["mcp-server-fetch"] });
 const client = new MultiServerMCPClient({ mcpServers: { math: { url: "http://localhost:3000/mcp" } } });
 
-export const legacy = new Agent({ name: "legacy" });
+export const hf = new InferenceClient(process.env.HF_TOKEN);
 
 const app = new Hono();
 app.post("/ask", async (c) => c.json(await graph.invoke({ messages: [{ role: "user", content: (await c.req.json()).question }] })));

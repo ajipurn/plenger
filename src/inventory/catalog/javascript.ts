@@ -111,6 +111,7 @@ export const JAVASCRIPT_RULES: Rule[] = [
     system: ["system", "instructions"],
     tools: "tools",
     invokeMethods: ["generate", "stream"],
+    input: ["prompt", "messages[role=user].content", "messages"],
   },
 
   // LangChain.js
@@ -211,6 +212,7 @@ export const JAVASCRIPT_RULES: Rule[] = [
     tools: "tools",
     invoke: [`@langchain/langgraph/prebuilt#createReactAgent()**.${RUNS}`],
     invokeMethods: ["invoke", "stream", "batch", "streamEvents"],
+    input: ["#0.messages[role=user].content", "#0.messages[0=user].1", "#0.messages", "#0"],
   },
   {
     kind: "agent",
@@ -222,6 +224,7 @@ export const JAVASCRIPT_RULES: Rule[] = [
     tools: "tools",
     invoke: [`langchain#createAgent()**.${RUNS}`],
     invokeMethods: ["invoke", "stream", "batch", "streamEvents"],
+    input: ["#0.messages[role=user].content", "#0.messages[0=user].1", "#0.messages", "#0"],
   },
   {
     kind: "agent",
@@ -229,6 +232,7 @@ export const JAVASCRIPT_RULES: Rule[] = [
     calls: ["@langchain/langgraph#StateGraph"],
     invoke: [`@langchain/langgraph#StateGraph()**.compile()**.${RUNS}`],
     invokeMethods: ["invoke", "stream", "batch", "streamEvents"],
+    input: ["#0.messages[role=user].content", "#0.messages[0=user].1", "#0.messages", "#0"],
   },
   {
     kind: "graph_node",
@@ -338,6 +342,121 @@ export const JAVASCRIPT_RULES: Rule[] = [
     framework: "mcp",
     calls: ["@langchain/mcp-adapters#MultiServerMCPClient"],
     servers: "mcpServers|#0",
+  },
+
+  // OpenAI Agents SDK
+  {
+    kind: "agent",
+    framework: "openai-agents",
+    calls: ["@openai/agents{,-core}#Agent"],
+    name: "name",
+    model: "model",
+    system: ["instructions"],
+    tools: "tools",
+    delegates: "handoffs",
+    mcp: "mcpServers",
+  },
+  {
+    kind: "agent_run",
+    framework: "openai-agents",
+    calls: ["@openai/agents{,-core}#run", "@openai/agents{,-core}#Runner().run"],
+    agent: "#0",
+    input: ["#1"],
+  },
+  {
+    kind: "tool_factory",
+    framework: "openai-agents",
+    calls: ["@openai/agents{,-core}#tool"],
+    handler: "execute",
+    name: "name",
+    description: "description",
+  },
+  {
+    kind: "tool_builtin",
+    framework: "openai-agents",
+    calls: [
+      "@openai/agents{,-core,-openai}#{webSearchTool,fileSearchTool,codeInterpreterTool,computerTool,shellTool,applyPatchTool,hostedMcpTool,imageGenerationTool}",
+    ],
+  },
+  {
+    kind: "mcp_client",
+    framework: "openai-agents",
+    calls: ["@openai/agents{,-core}#MCPServerStdio"],
+    command: "fullCommand|command",
+    args: "args",
+  },
+  {
+    kind: "mcp_client",
+    framework: "openai-agents",
+    calls: ["@openai/agents{,-core}#{MCPServerStreamableHttp,MCPServerSSE}"],
+    url: "url",
+  },
+
+  // Mastra
+  {
+    kind: "agent",
+    framework: "mastra",
+    calls: ["@mastra/core{/agent,}#Agent"],
+    name: "name",
+    model: "model",
+    system: ["instructions"],
+    tools: "tools",
+    invokeMethods: ["generate", "stream", "generateVNext", "streamVNext"],
+    input: ["#0"],
+  },
+  {
+    kind: "tool_factory",
+    framework: "mastra",
+    calls: ["@mastra/core{/tools,}#createTool"],
+    handler: "execute",
+    name: "id",
+    description: "description",
+  },
+  { kind: "mcp_client", framework: "mastra", calls: ["@mastra/mcp#MCPClient"], servers: "servers" },
+  { kind: "mcp_server", framework: "mastra", calls: ["@mastra/mcp#MCPServer"], name: "name" },
+
+  // Google GenAI
+  {
+    kind: "model",
+    framework: "google-genai",
+    calls: ["@google/genai#GoogleGenAI"],
+    apiKey: "apiKey",
+  },
+  {
+    kind: "llm_call",
+    framework: "google-genai",
+    calls: ["@google/genai#GoogleGenAI()**.models.{generateContent,generateContentStream}"],
+    model: "model",
+    system: ["config.systemInstruction"],
+    user: ["contents"],
+    tools: "config.tools",
+  },
+
+  // AWS Bedrock
+  {
+    kind: "model",
+    framework: "bedrock",
+    calls: ["@aws-sdk/client-bedrock-runtime#BedrockRuntimeClient"],
+  },
+  {
+    kind: "llm_call",
+    framework: "bedrock",
+    calls: ["@aws-sdk/client-bedrock-runtime#BedrockRuntimeClient().send"],
+    model: "#0.modelId",
+    system: ["#0.system[*].text"],
+    user: ["#0.messages[role=user].content[*].text", "#0.messages"],
+  },
+
+  // Ollama
+  { kind: "model", framework: "ollama", calls: ["ollama#Ollama"], baseUrl: "host" },
+  {
+    kind: "llm_call",
+    framework: "ollama",
+    calls: ["ollama#default.{chat,generate}", "ollama#Ollama().{chat,generate}"],
+    model: "model",
+    system: ["messages[role=system].content", "system"],
+    user: ["messages[role=user].content", "prompt", "messages"],
+    tools: "tools",
   },
 
   // Vector databases used directly

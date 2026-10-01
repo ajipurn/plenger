@@ -80,41 +80,55 @@ module names until M3 links files); a variable takes its nearest earlier assignm
 its own scope and the last one from an outer scope; parameters, loop variables and
 tuple unpacking are not followed.
 
-### M2 Agent inventory (first batch done)
+### M2 Agent inventory (done)
 
-`plenger scan` now reports, per project: frameworks, models and clients (model name,
+`plenger scan` reports, per project: frameworks, models and clients (model name,
 base URL, where the API key comes from, never its value), LLM calls (model, client,
 system prompts, tools, and the non-constant parts of their input), agents (model,
-tools, prompts, graph nodes, the calls that run them), tools (name, description,
-handler, parameters, how they are declared), MCP servers (tools, resources, prompts,
-transport) and clients (command or URL), prompts (fixed text, dynamic parts, template
-variables, users), data stores (vector stores, embeddings, retrievers, checkpointers)
-and HTTP entry points. `--json` has the full inventory
+tools, prompts, graph nodes, delegates such as handoffs and crew or team members,
+MCP clients, and the calls that run them with their inputs), tools (name,
+description, handler, parameters, how they are declared: decorator, class, factory,
+plain function, built-in, agent-as-tool, MCP or JSON schema), MCP servers (tools,
+resources, prompts, transport) and clients (command or URL), prompts (fixed text,
+dynamic parts, template variables, users), data stores (vector stores, embeddings,
+retrievers, checkpointers) and HTTP entry points. `--json` has the full inventory
 ([src/inventory/model.ts](../src/inventory/model.ts)).
 
 Detection is data: patterns over canonical call, decorator and base-class names in
 [src/inventory/catalog/](../src/inventory/catalog/), with argument paths such as
-`messages[role=system].content`. Components built from a constructor are tracked as
-instances, so `llm.register_tool(...)`, `@mcp.tool()`, `builder.add_node(...)` and
-`agent.invoke(...)` attach to the right model, server or agent.
+`messages[role=system].content` that see through variables and constructor calls,
+and optional conditions (`boto3.client("bedrock-runtime")`). Components built from a
+constructor are tracked as instances, so `llm.register_tool(...)`, `@mcp.tool()`,
+`@agent.tool`, `builder.add_node(...)`, `agent.invoke(...)` and `Runner.run(agent,
+...)` attach to the right model, server or agent. Imports of the project's own Python
+modules are never taken for a framework: a local `agents/` package is not the OpenAI
+Agents SDK.
 
-First batch, with fixtures and expected results: the OpenAI and Anthropic SDKs,
-LangChain and LangGraph (Python and JS, including LangChain v1 `create_agent`),
-MCP (Python SDK, FastMCP, TypeScript SDK, fastmcp, LangChain MCP adapters), the
-Vercel AI SDK, [llmfy](https://llmfy.readthedocs.io/), FastAPI, Flask, Django,
-Express, Hono, Fastify and Next.js. Libraries without detectors yet (CrewAI,
-AutoGen, LlamaIndex, Pydantic AI, smolagents, LiteLLM, Google GenAI, the OpenAI
-Agents SDK, Mastra and others) are reported as "not understood yet", not dropped.
+Supported, with fixtures and expected results:
+
+- **Model SDKs:** OpenAI, Anthropic (including Bedrock and Vertex clients), Google
+  GenAI (and `google.generativeai`), AWS Bedrock (boto3 and the JS SDK), LiteLLM,
+  Ollama, Vercel AI SDK providers
+- **Agent frameworks:** LangChain and LangGraph (Python and JS, including LangChain v1
+  `create_agent`), OpenAI Agents SDK (Python and JS), CrewAI, Pydantic AI, smolagents,
+  AutoGen (AgentChat and AG2), LlamaIndex, Mastra, Vercel AI SDK agents,
+  [llmfy](https://llmfy.readthedocs.io/)
+- **MCP:** Python SDK, FastMCP, TypeScript SDK, fastmcp (JS), LangChain MCP adapters,
+  and the MCP clients of the agent frameworks above
+- **Web entry points:** FastAPI, Flask, Django, Express, Hono, Fastify, Next.js
+
+Other AI libraries (DSPy, Haystack, Semantic Kernel, Instructor, Cohere, Mistral,
+Groq, Hugging Face, Agno, Strands, VoltAgent, LlamaIndex.TS and others) are reported
+as "not understood yet", not dropped.
 
 Measured on 2 October 2026: precision and recall 1.0 in every section on the fixture
-corpus (`node scripts/benchmark-inventory.ts`; 15 files, 102 expected items). Spot
-checks on real code, read by hand: all 26 llmfy examples (37 models, 47 agents, 39
-LLM calls all linked to their `LLMfy` instance, 12 tools, 14 data stores), the MCP
-TypeScript SDK (458 servers, 423 tools) and langgraphjs (220 agents, 190 tools); the
-samples checked were correct, and the misses seen are the cross-file limits below.
-
-Second batch: CrewAI, AutoGen/AG2, LlamaIndex, Pydantic AI, smolagents, the OpenAI
-Agents SDK (Python and JS), Mastra, Google GenAI, AWS Bedrock, LiteLLM and Ollama.
+corpus (`node scripts/benchmark-inventory.ts`; 25 files, 197 expected items, each
+reviewed against its source). Spot checks on real code, read by hand: all 26 llmfy
+examples (37 models, 47 agents, 39 LLM calls all linked to their `LLMfy` instance, 12
+tools, 14 data stores), the openai-agents-python examples (149 agents, 79 tools, 13
+MCP clients), the MCP TypeScript SDK (458 servers, 423 tools) and langgraphjs (220
+agents, 190 tools); the samples checked were correct, and the misses seen are the
+cross-file limits below.
 
 Known limits until M3: everything is per file. A server, app or agent created in
 one file and used in another (`from app.server import mcp`), or returned from a

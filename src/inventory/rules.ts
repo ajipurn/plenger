@@ -6,6 +6,9 @@ import type { DataStore, Prompt } from "./model.ts";
  * Rules are data so that supporting a framework means adding entries, not code.
  */
 export type Rule =
+  | AgentRunRule
+  | ToolBuiltinRule
+  | PromptDecoratorRule
   | ModelRule
   | LlmCallRule
   | AgentRule
@@ -25,6 +28,8 @@ export type Rule =
 interface RuleBase {
   /** Framework id from frameworks.ts. */
   framework: string;
+  /** Match only when the argument at `path` is one of these strings (`boto3.client("bedrock-runtime")`). */
+  where?: { path: string; equals: string[] };
 }
 
 /** Constructs a model client or model object. */
@@ -58,9 +63,38 @@ export interface AgentRule extends RuleBase {
   tools?: string;
   /** Template variables declared up front (llmfy `input_variables`). */
   variables?: string;
+  /** `{name}` placeholders in the system prompt are template variables (CrewAI `goal`). */
+  braces?: boolean;
   /** Calls that run the agent; matched by name, and by method on the same instance. */
   invoke?: string[];
   invokeMethods?: string[];
+  /** Input of a run call (paths into the run call's arguments). */
+  input?: string[];
+  /** Agents this agent hands off to or coordinates. */
+  delegates?: string;
+  /** MCP clients (or toolsets) the agent uses. */
+  mcp?: string;
+}
+
+/** A call that runs an agent passed as an argument (`Runner.run(agent, input)`). */
+export interface AgentRunRule extends RuleBase {
+  kind: "agent_run";
+  calls: string[];
+  agent: string;
+  input?: string[];
+}
+
+/** A tool the framework provides, constructed by a call (`WebSearchTool()`). */
+export interface ToolBuiltinRule extends RuleBase {
+  kind: "tool_builtin";
+  calls: string[];
+  name?: string;
+}
+
+/** A function whose return value becomes an agent's system prompt (`@agent.system_prompt`). */
+export interface PromptDecoratorRule extends RuleBase {
+  kind: "prompt_decorator";
+  decorators: string[];
 }
 
 export interface ToolDecoratorRule extends RuleBase {

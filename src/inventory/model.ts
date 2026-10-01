@@ -80,8 +80,17 @@ export interface Agent {
   prompts: string[];
   /** Graph nodes and their handlers (LangGraph `add_node`, llmfy `FlowEngine.add_node`). */
   nodes: { name: string; handler: string | null }[];
-  /** Calls that run the agent. */
-  invocations: Location[];
+  /** Ids of agents this one hands off to or coordinates (handoffs, crew and team members). */
+  delegates: string[];
+  /** Ids of the MCP clients whose tools the agent can call. */
+  mcpClients: string[];
+  /** Calls that run the agent, with the non-constant parts of their input. */
+  invocations: Invocation[];
+}
+
+export interface Invocation {
+  location: Location;
+  inputs: DynamicPart[];
 }
 
 export interface Tool {
@@ -93,8 +102,15 @@ export interface Tool {
   /** Definition id of the function that runs the tool, in the same file. */
   handler: string | null;
   params: string[];
-  /** How the tool is declared. `schema`: a JSON tool schema with no handler attached. */
-  via: "decorator" | "class" | "factory" | "mcp" | "schema";
+  /**
+   * How the tool is declared. `function`: a plain function passed as a tool;
+   * `builtin`: a tool the framework provides (web search, code interpreter);
+   * `agent`: another agent exposed as a tool (`agent.as_tool()`);
+   * `schema`: a JSON tool schema with no handler attached.
+   */
+  via: "decorator" | "class" | "factory" | "function" | "builtin" | "agent" | "mcp" | "schema";
+  /** For `via: "agent"`: the agent the tool runs. */
+  agent?: string;
   /** Id of the MCP server the tool belongs to. */
   server: string | null;
 }

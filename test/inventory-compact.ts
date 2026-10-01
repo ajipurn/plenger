@@ -32,7 +32,7 @@ export function compact(inventory: Inventory): CompactInventory {
     ),
     agents: inventory.agents.map(
       (agent) =>
-        `${at(agent.location)} ${agent.target} name=${agent.name ?? "-"} model=${agent.model ?? "-"} tools=${tools(agent.tools)}+${agent.unresolvedTools} prompts=[${agent.prompts.map(ref)}] nodes=[${agent.nodes.map((node) => `${node.name}->${node.handler ?? "-"}`)}] runs=[${agent.invocations.map((run) => run.line)}]`,
+        `${at(agent.location)} ${agent.target} name=${agent.name ?? "-"} model=${agent.model ?? "-"} tools=${tools(agent.tools)}+${agent.unresolvedTools} prompts=[${agent.prompts.map(ref)}] nodes=[${agent.nodes.map((node) => `${node.name}->${node.handler ?? "-"}`)}] delegates=[${agent.delegates.map(ref)}] mcp=[${agent.mcpClients.map(ref)}] runs=[${agent.invocations.map((run) => `${run.location.line}(${run.inputs.map((input) => `${input.text}:${input.source}`)})`)}]`,
     ),
     tools: inventory.tools.map(
       (tool) =>

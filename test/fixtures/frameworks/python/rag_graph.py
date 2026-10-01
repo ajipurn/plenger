@@ -1,4 +1,4 @@
-from crewai import Agent as CrewAgent
+import dspy
 from flask import Flask, request
 from langchain_chroma import Chroma
 from langchain_core.messages import SystemMessage
@@ -52,3 +52,6 @@ app = Flask(__name__)
 @app.route("/ask", methods=["POST"])
 def ask():
     return graph.invoke({"messages": [("user", request.json["question"])]})
+
+
+summarize = dspy.ChainOfThought("document -> summary")

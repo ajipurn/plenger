@@ -18,6 +18,7 @@ import {
   type Inventory,
   type LlmCall,
   type Location,
+  type McpClient,
   type McpServer,
   type Model,
   type Prompt,
@@ -26,6 +27,7 @@ import {
 import { compilePatterns } from "./pattern.ts";
 import type {
   AgentRule,
+  AgentRunRule,
   GraphNodeRule,
   LlmCallRule,
   McpMemberRule,
@@ -34,6 +36,7 @@ import type {
   RouteRule,
   Rule,
   ToolBindingRule,
+  ToolBuiltinRule,
   ToolClassRule,
   ToolDecoratorRule,
   ToolFactoryRule,
@@ -88,6 +91,7 @@ const CONSTRUCTORS = new Set([
   "prompt",
   "data_store",
   "mcp_client",
+  "tool_builtin",
 ]);
 
 /** Methods whose result is the same model, agent or graph, so assigning it keeps the instance. */
@@ -97,11 +101,20 @@ const SAME_INSTANCE =
 type Instance =
   | { kind: "model"; component: Model; rule: ModelRule }
   | { kind: "agent"; component: Agent; rule: AgentRule }
-  | { kind: "mcp_server"; component: McpServer };
+  | { kind: "mcp_server"; component: McpServer }
+  | { kind: "mcp_client"; component: McpClient };
 
-/** Detects the agent components in one file. */
-export function detectFile(path: string, language: Language, facts: FileFacts): Inventory {
-  return new FileDetector(path, language, facts).run();
+/**
+ * Detects the agent components in one file. `localModules` are the project's own
+ * top-level Python modules: a local `agents` package is not the OpenAI Agents SDK.
+ */
+export function detectFile(
+  path: string,
+  language: Language,
+  facts: FileFacts,
+  localModules: ReadonlySet<string> = new Set(),
+): Inventory {
+  return new FileDetector(path, language, facts, localModules).run();
 }
 
 class FileDetector {
@@ -123,11 +136,22 @@ class FileDetector {
   readonly #assignmentOfCall = new Map<number, number>();
   readonly #invocations = new Map<Agent, Set<number>>();
   readonly #nodeOrder = new WeakMap<object, number>();
+  readonly #localModules: ReadonlySet<string>;
+  /** Agents whose delegates and MCP clients resolve once every agent and client exists. */
+  readonly #agentLinks: { agent: Agent; rule: AgentRule; call: CallFact }[] = [];
+  /** Decorated tools and prompts to attach to the agent instance they were declared on. */
+  readonly #receiverLinks: { receiver: number | undefined; tool?: Tool; prompt?: Prompt }[] = [];
 
-  constructor(path: string, language: Language, facts: FileFacts) {
+  constructor(
+    path: string,
+    language: Language,
+    facts: FileFacts,
+    localModules: ReadonlySet<string>,
+  ) {
     this.#path = path;
     this.#language = language;
     this.#facts = facts;
+    this.#localModules = localModules;
     this.#rules = rulesFor(language);
     facts.assignments.forEach((assignment, index) => {
       if (assignment.value.kind === "call" && assignment.member === undefined) {
@@ -140,9 +164,27 @@ class FileDetector {
     this.frameworks();
     this.forEachMatch(true);
     this.linkInstances();
+    this.linkAgents();
     this.forEachMatch(false);
     this.routeFiles();
+    this.componentFrameworks();
     return this.inventory;
+  }
+
+  /** Imports of the project's own modules are not framework calls, whatever their name. */
+  isLocal(ref: CallFact["ref"]): boolean {
+    return ref?.kind === "import" && this.isLocalModule(ref.module);
+  }
+
+  isLocalModule(module: string): boolean {
+    if (this.#language !== "python") return false;
+    return module.startsWith(".") || this.#localModules.has(module.split(".")[0] ?? "");
+  }
+
+  whereHolds(rule: Rule, args: CallFact["arguments"] | null): boolean {
+    if (rule.where === undefined) return true;
+    const value = this.literal(select(args, this.#facts, rule.where.path));
+    return value !== null && rule.where.equals.includes(value);
   }
 
   // Matching
@@ -170,11 +212,15 @@ class FileDetector {
     for (const definition of this.#facts.definitions) {
       for (const decorator of definition.decorators) {
         const name = decorator.ref?.name;
-        if (name === undefined) continue;
+        if (name === undefined || this.isLocal(decorator.ref)) continue;
         for (const { rule, decorators } of this.#rules) {
           if (decorators === null || !decorators.test(name)) continue;
           if (constructors && rule.kind === "tool_decorator")
             this.toolDecorator(rule, definition, decorator);
+          if (constructors && rule.kind === "prompt_decorator") {
+            const prompt = this.functionPrompt(definition);
+            this.#receiverLinks.push({ receiver: decorator.receiver, prompt });
+          }
           if (!constructors && rule.kind === "mcp_member")
             this.mcpMemberDecorator(rule, definition, decorator);
           if (!constructors && rule.kind === "route")
@@ -184,7 +230,7 @@ class FileDetector {
       if (!constructors) continue;
       for (const base of definition.bases) {
         const name = base.kind === "name" ? base.ref?.name : undefined;
-        if (name === undefined) continue;
+        if (name === undefined || (base.kind === "name" && this.isLocal(base.ref))) continue;
         for (const { rule, bases } of this.#rules) {
           if (bases?.test(name) && rule.kind === "tool_class") this.toolClass(rule, definition);
         }
@@ -194,7 +240,7 @@ class FileDetector {
 
   matchCall(call: CallFact, index: number, wanted: (kind: string) => boolean): void {
     const name = call.ref?.name;
-    if (name === undefined) return;
+    if (name === undefined || this.isLocal(call.ref)) return;
     for (const { rule, calls, invoke } of this.#rules) {
       if (
         rule.kind === "agent" &&
@@ -205,7 +251,14 @@ class FileDetector {
         this.invocation(rule, call, index);
       }
       if (calls === null || !wanted(rule.kind) || !calls.test(name)) continue;
+      if (!this.whereHolds(rule, call.arguments)) continue;
       switch (rule.kind) {
+        case "agent_run":
+          this.agentRun(rule, call, index);
+          break;
+        case "tool_builtin":
+          this.toolBuiltin(rule, call, index);
+          break;
         case "model":
           this.model(rule, call, index);
           break;
@@ -234,7 +287,7 @@ class FileDetector {
           this.mcpTransport(rule, call);
           break;
         case "mcp_client":
-          this.mcpClient(rule, call);
+          this.mcpClient(rule, call, index);
           break;
         case "route":
           this.routeCall(rule, call);
@@ -266,7 +319,7 @@ class FileDetector {
         method !== undefined &&
         instance.rule.invokeMethods?.includes(method)
       ) {
-        this.addInvocation(instance.component, call, index);
+        this.addInvocation(instance.component, call, index, instance.rule.input);
       }
     }
   }
@@ -312,6 +365,8 @@ class FileDetector {
       unresolvedTools: 0,
       prompts: [],
       nodes: [],
+      delegates: [],
+      mcpClients: [],
       invocations: [],
     };
     const variables =
@@ -320,20 +375,33 @@ class FileDetector {
         : this.strings(select(call.arguments, facts, rule.variables));
     for (const path of rule.system ?? []) {
       for (const value of select(call.arguments, facts, path)) {
-        const prompt = this.prompt(value, "system", call.span, agent.id, variables);
+        const prompt = this.prompt(
+          value,
+          "system",
+          call.span,
+          agent.id,
+          variables,
+          rule.braces === true,
+        );
         if (prompt !== null) agent.prompts.push(prompt.id);
       }
     }
     if (rule.tools !== undefined) {
-      const tools = this.toolsFrom(select(call.arguments, facts, rule.tools), call.span);
+      const tools = this.toolsFrom(
+        select(call.arguments, facts, rule.tools),
+        call.span,
+        rule.framework,
+      );
       agent.tools.push(...tools.ids);
       agent.unresolvedTools += tools.unresolved;
     }
+    this.#agentLinks.push({ agent, rule, call });
     this.inventory.agents.push(agent);
     this.#instanceByCall.set(index, { kind: "agent", component: agent, rule });
   }
 
   toolDecorator(rule: ToolDecoratorRule, definition: DefinitionFact, decorator: Decorator): void {
+    if (this.#toolByHandler.has(definition.id)) return;
     const facts = this.#facts;
     const explicitName =
       rule.name === undefined ? null : this.literal(select(decorator.arguments, facts, rule.name));
@@ -352,6 +420,8 @@ class FileDetector {
       via: "decorator",
       server: null,
     });
+    const tool = this.#toolByHandler.get(definition.id);
+    if (tool !== undefined) this.#receiverLinks.push({ receiver: decorator.receiver, tool });
   }
 
   toolClass(rule: ToolClassRule, definition: DefinitionFact): void {
@@ -401,6 +471,28 @@ class FileDetector {
     this.#toolByCall.set(index, tool);
   }
 
+  toolBuiltin(rule: ToolBuiltinRule, call: CallFact, index: number): void {
+    const target = call.ref?.name ?? call.callee;
+    const name =
+      (rule.name === undefined
+        ? null
+        : this.literal(select(call.arguments, this.#facts, rule.name))) ??
+      /([\w$]+)(?:\(\))?$/.exec(target)?.[1] ??
+      target;
+    const tool = this.addTool({
+      id: this.id("tool", call.span),
+      framework: rule.framework,
+      location: this.location(call.span),
+      name,
+      description: null,
+      handler: null,
+      params: [],
+      via: "builtin",
+      server: null,
+    });
+    this.#toolByCall.set(index, tool);
+  }
+
   mcpServer(framework: string, call: CallFact, index: number, namePath: string | undefined): void {
     const server: McpServer = {
       id: this.id("mcp", call.span),
@@ -417,7 +509,7 @@ class FileDetector {
     this.#instanceByCall.set(index, { kind: "mcp_server", component: server });
   }
 
-  mcpClient(rule: Extract<Rule, { kind: "mcp_client" }>, call: CallFact): void {
+  mcpClient(rule: Extract<Rule, { kind: "mcp_client" }>, call: CallFact, index: number): void {
     const facts = this.#facts;
     const configs: { command: Value[]; args: Value[]; url: Value[] }[] = [];
     if (rule.servers !== undefined) {
@@ -442,14 +534,23 @@ class FileDetector {
     }
     for (const config of configs) {
       const command = this.literal(config.command);
-      this.inventory.mcpClients.push({
+      const client: McpClient = {
         id: this.id("mcp-client", call.span),
         framework: rule.framework,
         location: this.location(call.span),
         target: call.ref?.name ?? call.callee,
         command: command === null ? null : [command, ...this.strings(config.args)].join(" "),
         url: this.firstOf(config.url, (value) => urlString(value, facts)),
-      });
+      };
+      // `MCPToolset("http://...")` and similar take a URL or a command in one argument.
+      if (client.url === null && client.command !== null && /^https?:\/\//.test(client.command)) {
+        client.url = client.command;
+        client.command = null;
+      }
+      this.inventory.mcpClients.push(client);
+      if (!this.#instanceByCall.has(index)) {
+        this.#instanceByCall.set(index, { kind: "mcp_client", component: client });
+      }
     }
   }
 
@@ -473,8 +574,67 @@ class FileDetector {
     });
   }
 
+  /** Resolves agent delegates and MCP clients, and attaches decorated tools and prompts. */
+  linkAgents(): void {
+    const facts = this.#facts;
+    for (const { agent, rule, call } of this.#agentLinks) {
+      if (rule.delegates !== undefined) {
+        const delegates = this.instancesIn(select(call.arguments, facts, rule.delegates), "agent");
+        agent.delegates = delegates
+          .map((instance) => instance.component.id)
+          .filter((id) => id !== agent.id);
+      }
+      if (rule.mcp !== undefined) {
+        agent.mcpClients = this.instancesIn(
+          select(call.arguments, facts, rule.mcp),
+          "mcp_client",
+        ).map((instance) => instance.component.id);
+      }
+    }
+    for (const link of this.#receiverLinks) {
+      const instance = this.instanceOf(link.receiver);
+      if (instance?.kind !== "agent") continue;
+      if (link.tool !== undefined) instance.component.tools.push(link.tool.id);
+      if (link.prompt !== undefined) {
+        instance.component.prompts.push(link.prompt.id);
+        link.prompt.usedBy.push(instance.component.id);
+      }
+    }
+  }
+
+  /** Instances of a kind held by values, looking inside lists and object values. */
+  instancesIn<K extends Instance["kind"]>(
+    values: Value[],
+    kind: K,
+  ): Extract<Instance, { kind: K }>[] {
+    const found: Extract<Instance, { kind: K }>[] = [];
+    const visit = (value: Value, depth: number) => {
+      const target = deref(value, this.#facts);
+      if (target.kind === "list" && depth < 3)
+        for (const item of target.items) visit(item, depth + 1);
+      else if (target.kind === "object" && depth < 3) {
+        for (const entry of target.entries) visit(entry.value, depth + 1);
+      } else if (target.kind === "call") {
+        const instance = this.#instanceByCall.get(target.call);
+        if (instance?.kind === kind) found.push(instance as Extract<Instance, { kind: K }>);
+        else if (instance === undefined && depth < 3) {
+          // Wrappers such as `handoff(agent)` hold the instance in an argument.
+          for (const arg of this.#facts.calls[target.call]?.arguments ?? [])
+            visit(arg.value, depth + 1);
+        }
+      }
+    };
+    for (const value of values) visit(value, 0);
+    return [...new Set(found)];
+  }
+
   instanceOf(receiver: number | undefined): Instance | undefined {
-    return receiver === undefined ? undefined : this.#instanceByAssignment.get(receiver);
+    if (receiver === undefined) return undefined;
+    const linked = this.#instanceByAssignment.get(receiver);
+    if (linked !== undefined) return linked;
+    // Before linkInstances() runs: the variable holds a constructor call plenger matched.
+    const value = this.#facts.assignments[receiver]?.value;
+    return value?.kind === "call" ? this.#instanceByCall.get(value.call) : undefined;
   }
 
   /** The model or agent an argument holds, directly or through a variable. */
@@ -531,18 +691,21 @@ class FileDetector {
       scope: call.scope,
       model:
         rule.model === undefined ? null : this.modelName(select(call.arguments, facts, rule.model)),
-      client: instance?.component.id ?? null,
+      client:
+        instance?.kind === "model" || instance?.kind === "agent" ? instance.component.id : null,
       prompts: [],
       tools: [],
       unresolvedTools: 0,
       inputs: [],
     };
-    if (llm.model === null && instance !== undefined && instance.kind !== "mcp_server") {
+    if (llm.model === null && (instance?.kind === "model" || instance?.kind === "agent")) {
       llm.model = instance.component.model;
     }
     if (llm.client === null && rule.model !== undefined) {
       // `generateText({ model: openai("gpt-4.1") })`: the model object is an argument.
-      llm.client = this.instanceIn(select(call.arguments, facts, rule.model))?.component.id ?? null;
+      const holder = this.instanceIn(select(call.arguments, facts, rule.model));
+      llm.client =
+        holder?.kind === "model" || holder?.kind === "agent" ? holder.component.id : null;
     }
     for (const path of rule.system ?? []) {
       for (const value of select(call.arguments, facts, path)) {
@@ -558,7 +721,11 @@ class FileDetector {
       llm.tools.push(...instance.component.tools);
     }
     if (rule.tools !== undefined) {
-      const tools = this.toolsFrom(select(call.arguments, facts, rule.tools), call.span);
+      const tools = this.toolsFrom(
+        select(call.arguments, facts, rule.tools),
+        call.span,
+        rule.framework,
+      );
       llm.tools.push(...tools.ids);
       llm.unresolvedTools += tools.unresolved;
     }
@@ -594,7 +761,11 @@ class FileDetector {
   }
 
   toolBinding(rule: ToolBindingRule, call: CallFact, index: number): void {
-    const tools = this.toolsFrom(select(call.arguments, this.#facts, rule.tools), call.span);
+    const tools = this.toolsFrom(
+      select(call.arguments, this.#facts, rule.tools),
+      call.span,
+      rule.framework,
+    );
     this.#bindings.set(index, tools.ids);
     const instance = this.instanceOf(call.receiver);
     if (instance?.kind === "agent") {
@@ -609,7 +780,7 @@ class FileDetector {
 
   graphNode(rule: GraphNodeRule, call: CallFact): void {
     const facts = this.#facts;
-    const agent = (this.instanceOf(call.receiver) ?? this.soleInstance("agent"))?.component;
+    const agent = (this.instanceOfCall(call) ?? this.soleInstance("agent"))?.component;
     if (agent === undefined || !("nodes" in agent)) return;
     let name = this.literal(select(call.arguments, facts, rule.name));
     let handlerValue = select(call.arguments, facts, rule.handler)[0];
@@ -638,10 +809,17 @@ class FileDetector {
         : [...this.#instanceByCall.values()]
             .filter((candidate) => candidate.kind === "agent" && candidate.rule === rule)
             .at(-1)?.component;
-    if (agent !== undefined && "invocations" in agent) this.addInvocation(agent, call, index);
+    if (agent !== undefined && "invocations" in agent)
+      this.addInvocation(agent, call, index, rule.input);
   }
 
-  addInvocation(agent: Agent, call: CallFact, index: number): void {
+  /** `Runner.run(agent, input)`: the agent is an argument, not the receiver. */
+  agentRun(rule: AgentRunRule, call: CallFact, index: number): void {
+    const [instance] = this.instancesIn(select(call.arguments, this.#facts, rule.agent), "agent");
+    if (instance !== undefined) this.addInvocation(instance.component, call, index, rule.input);
+  }
+
+  addInvocation(agent: Agent, call: CallFact, index: number, inputPaths: string[] = []): void {
     let seen = this.#invocations.get(agent);
     if (seen === undefined) {
       seen = new Set();
@@ -649,7 +827,12 @@ class FileDetector {
     }
     if (seen.has(index)) return;
     seen.add(index);
-    agent.invocations.push(this.location(call.span));
+    const inputs: DynamicPart[] = [];
+    for (const path of inputPaths) {
+      for (const value of select(call.arguments, this.#facts, path))
+        inputs.push(...this.inputs(value));
+    }
+    agent.invocations.push({ location: this.location(call.span), inputs: uniqueParts(inputs) });
   }
 
   mcpMemberDecorator(rule: McpMemberRule, definition: DefinitionFact, decorator: Decorator): void {
@@ -864,7 +1047,7 @@ class FileDetector {
   }
 
   /** Tools named in a tools argument: a list, a `{ name: tool }` object, or tool schemas. */
-  toolsFrom(values: Value[], span: Span): { ids: string[]; unresolved: number } {
+  toolsFrom(values: Value[], span: Span, framework: string): { ids: string[]; unresolved: number } {
     const ids: string[] = [];
     let unresolved = 0;
     const visit = (value: Value, key: string | null, depth: number) => {
@@ -877,7 +1060,7 @@ class FileDetector {
         for (const entry of target.entries) visit(entry.value, entry.key, depth + 1);
         return;
       }
-      const tool = this.toolOf(target, key, span);
+      const tool = this.toolOf(target, key, span, framework);
       if (tool === undefined) unresolved++;
       else ids.push(tool.id);
     };
@@ -885,16 +1068,17 @@ class FileDetector {
     return { ids: [...new Set(ids)], unresolved };
   }
 
-  toolOf(value: Value, key: string | null, span: Span): Tool | undefined {
+  toolOf(value: Value, key: string | null, span: Span, framework: string): Tool | undefined {
     let tool: Tool | undefined;
     if (value.kind === "name" && value.ref?.kind === "local" && value.ref.path === "") {
       tool =
         this.#toolByHandler.get(value.ref.definition) ??
-        this.#toolByClass.get(value.ref.definition);
+        this.#toolByClass.get(value.ref.definition) ??
+        this.functionTool(value.ref.definition, framework);
     } else if (value.kind === "function") {
       tool = this.#toolByHandler.get(value.definition);
     } else if (value.kind === "call") {
-      tool = this.#toolByCall.get(value.call);
+      tool = this.#toolByCall.get(value.call) ?? this.agentTool(value.call, framework);
       const ref = this.#facts.calls[value.call]?.ref;
       if (tool === undefined && ref?.kind === "local" && ref.path === "")
         tool = this.#toolByClass.get(ref.definition);
@@ -906,6 +1090,50 @@ class FileDetector {
       this.#defaultNamed.delete(tool);
     }
     return tool;
+  }
+
+  /** `agent.as_tool(...)` / `agent.asTool(...)`: another agent exposed as a tool. */
+  agentTool(callIndex: number, framework: string): Tool | undefined {
+    const call = this.#facts.calls[callIndex];
+    if (call === undefined || !/\.(?:as_tool|asTool)$/.test(call.ref?.name ?? "")) return undefined;
+    const instance = this.instanceOfCall(call);
+    if (instance?.kind !== "agent") return undefined;
+    const facts = this.#facts;
+    const tool = this.addTool({
+      id: this.id("tool", call.span),
+      framework,
+      location: this.location(call.span),
+      name:
+        this.literal(select(call.arguments, facts, "tool_name|toolName")) ??
+        instance.component.name ??
+        "<agent>",
+      description: this.literal(select(call.arguments, facts, "tool_description|toolDescription")),
+      handler: null,
+      params: [],
+      via: "agent",
+      server: null,
+      agent: instance.component.id,
+    });
+    this.#toolByCall.set(callIndex, tool);
+    return tool;
+  }
+
+  /** A plain function passed in a tool list: the framework builds the tool from its signature and docstring. */
+  functionTool(definitionId: string, framework: string): Tool | undefined {
+    const definition = this.#facts.definitions.find((candidate) => candidate.id === definitionId);
+    if (definition === undefined || definition.kind === "class" || definition.name === null)
+      return undefined;
+    return this.addTool({
+      id: this.id("tool", definition.span),
+      framework,
+      location: this.location(definition.span),
+      name: definition.name,
+      description: definition.doc,
+      handler: definition.id,
+      params: withoutReceiver(definition),
+      via: "function",
+      server: null,
+    });
   }
 
   /** A JSON tool schema (`{"name": ..., "input_schema": ...}` or `{"type": "function", ...}`). */
@@ -991,6 +1219,22 @@ class FileDetector {
     return prompt;
   }
 
+  /** A system prompt produced by a function (`@agent.system_prompt`): its text is only known at run time. */
+  functionPrompt(definition: DefinitionFact): Prompt {
+    const name = definition.name ?? "<anonymous>";
+    const prompt: Prompt = {
+      id: this.id("prompt", definition.span),
+      location: this.location(definition.span),
+      role: "system",
+      text: `{${name}()}`,
+      dynamic: [{ text: `${name}()`, source: "call", ref: definition.id }],
+      variables: [],
+      usedBy: [],
+    };
+    this.inventory.prompts.push(prompt);
+    return prompt;
+  }
+
   inputs(value: Value): DynamicPart[] {
     const summary = summarizeText(value, this.#facts);
     if (summary !== null) return summary.dynamic;
@@ -1004,6 +1248,7 @@ class FileDetector {
   frameworks(): void {
     const unrecognised = new Set<string>();
     for (const fact of this.#facts.imports) {
+      if (this.isLocalModule(fact.module)) continue;
       const framework = frameworkOfModule(fact.module, this.#language);
       if (framework !== undefined) this.addFramework(framework.id);
       const unsupported = unsupportedModule(fact.module, this.#language);
@@ -1011,6 +1256,22 @@ class FileDetector {
     }
     for (const module of unrecognised)
       this.inventory.unrecognised.push({ module, files: [this.#path] });
+  }
+
+  /** Frameworks seen only through components (`boto3` calls to Bedrock). */
+  componentFrameworks(): void {
+    const inventory = this.inventory;
+    const used = [
+      ...inventory.models,
+      ...inventory.llmCalls,
+      ...inventory.agents,
+      ...inventory.tools,
+      ...inventory.mcpServers,
+      ...inventory.mcpClients,
+      ...inventory.dataStores,
+      ...inventory.entryPoints,
+    ].map((component) => component.framework);
+    for (const id of new Set(used)) this.addFramework(id);
   }
 
   addFramework(id: string): void {

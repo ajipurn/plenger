@@ -8,9 +8,15 @@ export type * from "./model.ts";
 /** Collects per-file inventories into one, merging framework and unrecognised-import lists. */
 export class InventoryBuilder {
   readonly #inventory = emptyInventory();
+  readonly #localModules: ReadonlySet<string>;
+
+  /** `localModules`: the project's own top-level Python modules (see modules.ts). */
+  constructor(localModules: ReadonlySet<string> = new Set()) {
+    this.#localModules = localModules;
+  }
 
   addFile(path: string, language: Language, facts: FileFacts): void {
-    const file = detectFile(path, language, facts);
+    const file = detectFile(path, language, facts, this.#localModules);
     const target = this.#inventory;
     target.models.push(...file.models);
     target.llmCalls.push(...file.llmCalls);

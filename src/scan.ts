@@ -8,6 +8,7 @@ import {
   type SkipReason,
 } from "./files.ts";
 import { type Inventory, InventoryBuilder } from "./inventory/index.ts";
+import { localPythonModules } from "./inventory/modules.ts";
 import { LANGUAGE_OF, type Language } from "./languages.ts";
 import { SourceParser } from "./parser.ts";
 
@@ -49,7 +50,9 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   const files: ScannedFile[] = [];
   const skipped: ScanResult["skipped"] = [...collected.skipped];
   const parser = await SourceParser.create();
-  const inventory = new InventoryBuilder();
+  const inventory = new InventoryBuilder(
+    localPythonModules(collected.files.map((file) => file.path)),
+  );
 
   try {
     for (const file of collected.files) {

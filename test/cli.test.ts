@@ -75,7 +75,7 @@ describe("agent inventory output", () => {
     expect(stdout).toContain("Agent inventory");
     expect(stdout).toMatch(/MCP servers\s+2\s+shell \(stdio\): 2 tools, files \(stdio\): 2 tools/);
     expect(stdout).toMatch(/Entry points\s+6/);
-    expect(stdout).toContain("Not understood yet: @openai/agents (1 file), crewai (1 file)");
+    expect(stdout).toContain("Not understood yet: @huggingface (1 file), dspy (1 file)");
   });
 
   it("says so when a project has no AI code", async () => {
@@ -85,7 +85,7 @@ describe("agent inventory output", () => {
 
   it("includes the full inventory in JSON", async () => {
     const result = JSON.parse((await run("scan", corpus, "--json")).stdout);
-    expect(result.inventory.tools).toHaveLength(14);
+    expect(result.inventory.tools).toHaveLength(34);
     expect(result.files[0].facts).toBeUndefined();
   });
 });

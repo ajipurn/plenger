@@ -31,9 +31,10 @@ export function originOf(value: Value, facts: FileFacts): number | null {
  *   object (the options object most JS APIs take)
  * - `#N`: positional argument N, `#-1` for the last one
  *
- * and continues with any of `.key` (object property or list index), `[*]` (every list
- * item or object value) and `[key=value]` (list items whose property or index `key`
- * is the string `value`). Names are followed to their assigned values at every step.
+ * and continues with any of `.key` (object property, list index, or keyword or option
+ * of a constructor call), `[*]` (every list item or object value) and `[key=value]`
+ * (list items whose property or index `key` is the string `value`). Names are followed
+ * to their assigned values at every step.
  */
 export function select(args: Argument[] | null, facts: FileFacts, path: string): Value[] {
   if (args === null) return [];
@@ -60,7 +61,7 @@ function selectOne(args: Argument[], facts: FileFacts, path: string): Value[] {
     const keyword = args.find((arg) => arg.keyword === head);
     if (keyword !== undefined) current = [keyword.value];
     else if (positional[0] !== undefined)
-      current = property(deref(positional[0].value, facts), head);
+      current = property(deref(positional[0].value, facts), head, facts);
   }
 
   for (const step of rest.matchAll(/\.([\w$#]+)|\[([^\]]*)\]/g)) {
@@ -68,14 +69,14 @@ function selectOne(args: Argument[], facts: FileFacts, path: string): Value[] {
     const filter = step[2];
     current = current.flatMap((value) => {
       const target = deref(value, facts);
-      if (key !== undefined) return property(target, key);
+      if (key !== undefined) return property(target, key, facts);
       if (filter === "*" && target.kind === "object")
         return target.entries.map((entry) => entry.value);
       if (target.kind !== "list") return [];
       if (filter === "*") return target.items;
       const [field, expected] = (filter ?? "").split("=");
       return target.items.filter((item) => {
-        const [found] = property(deref(item, facts), field ?? "");
+        const [found] = property(deref(item, facts), field ?? "", facts);
         const resolved = found === undefined ? undefined : deref(found, facts);
         return resolved?.kind === "string" && resolved.value === expected;
       });
@@ -84,7 +85,16 @@ function selectOne(args: Argument[], facts: FileFacts, path: string): Value[] {
   return current;
 }
 
-function property(value: Value, key: string): Value[] {
+/** A property of an object, an item of a list, or a keyword or option of a constructor call. */
+function property(value: Value, key: string, facts: FileFacts): Value[] {
+  if (value.kind === "call") {
+    // `Message(content=x)`, `GenerateContentConfig(system_instruction=...)`, `new Command({ ... })`
+    const args = facts.calls[value.call]?.arguments ?? [];
+    const keyword = args.find((arg) => arg.keyword === key);
+    if (keyword !== undefined) return [keyword.value];
+    const first = args.find((arg) => arg.keyword === null && !arg.spread);
+    return first === undefined ? [] : property(deref(first.value, facts), key, facts);
+  }
   if (value.kind === "object") {
     return value.entries.filter((entry) => entry.key === key).map((entry) => entry.value);
   }
