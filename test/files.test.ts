@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -76,7 +76,11 @@ describe("collectSourceFiles", () => {
       { path: "src/big.js", reason: "too_large" },
       { path: "src/types.d.ts", reason: "declaration" },
     ]);
-    expect(result.excludedDirs).toEqual(["env", "node_modules", "packages/web/node_modules"]);
+    expect(result.excludedDirs).toEqual([
+      { path: "env", reason: "virtualenv" },
+      { path: "node_modules", reason: "default" },
+      { path: "packages/web/node_modules", reason: "default" },
+    ]);
     expect(result.truncated).toBe(false);
   });
 
@@ -86,7 +90,60 @@ describe("collectSourceFiles", () => {
     expect(result.truncated).toBe(true);
   });
 
-  it("rejects a root that is not a directory", async () => {
-    await expect(collectSourceFiles(join(root, "agent.py"))).rejects.toThrow("not a directory");
+  it("accepts a single source file as the root", async () => {
+    const result = await collectSourceFiles(join(root, "src/a.ts"));
+    expect(result.root).toBe(join(await realpath(root), "src"));
+    expect(result.files.map((file) => file.path)).toEqual(["a.ts"]);
+  });
+
+  it("rejects a single file it cannot analyse", async () => {
+    await expect(collectSourceFiles(join(root, "notes.txt"))).rejects.toThrow("not a Python");
+  });
+});
+
+describe("collectSourceFiles with .gitignore", () => {
+  let root: string;
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), "plenger-gitignore-"));
+    const files: Record<string, string> = {
+      ".gitignore": "generated/\n*.gen.ts\n!keep.gen.ts\n",
+      "generated/client.py": "x = 1\n",
+      "src/api.gen.ts": "export {};\n",
+      "src/keep.gen.ts": "export {};\n",
+      "src/main.ts": "export {};\n",
+      "packages/app/.gitignore": "local_settings.py\n",
+      "packages/app/local_settings.py": "KEY = 1\n",
+      "packages/app/main.py": "print(1)\n",
+    };
+    for (const [path, content] of Object.entries(files)) {
+      await mkdir(join(root, path, ".."), { recursive: true });
+      await writeFile(join(root, path), content);
+    }
+  });
+
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("leaves out what root and nested .gitignore files ignore", async () => {
+    const result = await collectSourceFiles(root);
+
+    expect(result.files.map((file) => file.path)).toEqual([
+      "packages/app/main.py",
+      "src/keep.gen.ts",
+      "src/main.ts",
+    ]);
+    expect(result.skipped).toEqual([
+      { path: "packages/app/local_settings.py", reason: "gitignored" },
+      { path: "src/api.gen.ts", reason: "gitignored" },
+    ]);
+    expect(result.excludedDirs).toEqual([{ path: "generated", reason: "gitignore" }]);
+  });
+
+  it("scans everything when asked to ignore .gitignore", async () => {
+    const result = await collectSourceFiles(root, { gitignore: false });
+    expect(result.files).toHaveLength(6);
+    expect(result.excludedDirs).toEqual([]);
   });
 });

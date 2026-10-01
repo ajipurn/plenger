@@ -49,28 +49,48 @@ it can later ship as a single binary.
   and minified bundles skipped with a reason.
 - `plenger scan [path] [--json]`.
 
-### M1 Code facts
+### M1 Code facts (done)
 
-One fact model for Python and JS/TS, extracted per file:
+One fact model for Python and JS/TS ([src/facts/model.ts](../src/facts/model.ts)),
+extracted per file and shown by `plenger facts`:
 
-- imports (module, imported names, aliases, `require`)
-- definitions (functions, classes, methods) with decorators and exports
-- calls with the callee resolved through imports where possible, and their arguments
-- string and template literals (prompt candidates)
-- `.gitignore` support in the walker
+- imports: Python `import`/`from` (relative and wildcard included), ESM default,
+  named, namespace, type-only and re-exports, `require` and dynamic `import()`
+- definitions: functions, methods, classes, lambdas and arrow functions, named after
+  the variable or object property that holds them, with decorators (TS included),
+  base classes, parameters, exports and Python docstrings
+- assignments, including destructuring, linked from every name that refers to them
+- calls with their arguments summarised as values (strings, f-strings and template
+  literals with their interpolations, `+` concatenation, lists, dicts, nested calls,
+  inline functions) and parameters marked
+- call targets resolved through imports, scope-aware variables, `with ... as`,
+  `self`/`this` attributes (private fields included), destructuring and call chains,
+  so `self.client.messages.create` becomes `anthropic.Anthropic().messages.create`
+- `.gitignore` support in the walker (`--no-gitignore` to turn it off)
 
-Done when a facts corpus passes and scans of v0 plus three public agent repositories
-finish without errors.
+Measured on 1 October 2026: 89 tests, including framework fixtures for the OpenAI
+and Anthropic SDKs, LangChain/LangGraph (Python and JS), MCP (FastMCP and the
+TypeScript SDK), the Vercel AI SDK, llmfy, FastAPI, Express and Next.js. Scans
+without errors: v0 (40k lines), llmfy 0.11.0 (19k), the CPython 3.12 standard library
+(312k), openai-agents-python (478k), the MCP TypeScript SDK (194k) and langgraphjs
+(283k), at roughly 55k–95k lines per second with 80–90% of calls resolved.
+
+Known limits: resolution is per file (imports of the project's own modules stay as
+module names until M3 links files); a variable takes its nearest earlier assignment in
+its own scope and the last one from an outer scope; parameters, loop variables and
+tuple unpacking are not followed.
 
 ### M2 Agent inventory
 
-Detectors, data-driven where possible, for:
+Detectors, data-driven where possible. First, the frameworks with fixtures from M1:
+the OpenAI and Anthropic SDKs, LangChain and LangGraph (Python and JS), MCP (Python
+SDK, FastMCP, TypeScript SDK), the Vercel AI SDK and
+[llmfy](https://llmfy.readthedocs.io/) (`LLMfy`, `@Tool()`, `ToolRegistry`,
+`FlowEngine`, its model classes and checkpointers). Then:
 
-- **LLM clients:** OpenAI, Anthropic, Google GenAI, AWS Bedrock, Azure OpenAI,
-  LiteLLM, Ollama
-- **Agent frameworks:** LangChain and LangGraph (Python and JS), OpenAI Agents SDK
-  (Python and JS), CrewAI, AutoGen/AG2, LlamaIndex, Pydantic AI, smolagents, Vercel
-  AI SDK, Mastra
+- **LLM clients:** Google GenAI, AWS Bedrock, Azure OpenAI, LiteLLM, Ollama
+- **Agent frameworks:** OpenAI Agents SDK (Python and JS), CrewAI, AutoGen/AG2,
+  LlamaIndex, Pydantic AI, smolagents, Mastra
 - **Tools:** decorators (`@tool`, `@function_tool`, `@mcp.tool`), `tool()` factories,
   hand-written tool schemas
 - **MCP:** servers (Python SDK, FastMCP, TypeScript SDK) with their tools, resources
@@ -97,7 +117,8 @@ Rules over the inventory and capabilities, for example:
 - an agent can call a tool that runs commands, evaluates code or writes files, and
   no human approval step was detected
 - untrusted input (route parameters, retrieved documents, tool output) reaches a
-  prompt or a dangerous tool argument
+  prompt or a dangerous tool argument, including the system prompt through template
+  variables (llmfy's `{{var}}` placeholders filled by `invoke(..., var=...)`)
 - a tool takes a URL or path chosen by the model with no allow-list
 - an MCP server exposes a dangerous capability
 - credentials in prompts or source
@@ -115,6 +136,15 @@ suppression file; `--fail-on` for CI; a GitHub Action.
 ### M6 Distribution
 
 npm package, single binaries for macOS, Linux and Windows, user documentation.
+
+## Risks
+
+- **TypeScript grammar.** `tree-sitter-typescript` has had no release since 0.23.2
+  (November 2024). It does not parse some TypeScript 5 type syntax (`export type *
+  from`, `import("x").T[]` in type positions, `in`/`out` variance annotations).
+  tree-sitter recovers around these, so runtime facts are unaffected in the files
+  seen so far, but the gap will grow. Options when it matters: oxc-parser for JS/TS,
+  or building the grammar from a maintained fork.
 
 ## After triage
 

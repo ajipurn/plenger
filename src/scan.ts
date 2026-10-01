@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
+import { extractFacts, type FileFacts } from "./facts/index.ts";
 import {
   type CollectOptions,
   collectSourceFiles,
   DEFAULT_MAX_FILE_BYTES,
+  type ExcludedDir,
   type SkipReason,
 } from "./files.ts";
 import { LANGUAGE_OF, type Language } from "./languages.ts";
@@ -15,6 +17,13 @@ export interface ScannedFile {
   lines: number;
   /** The file did not parse cleanly; anything derived from it may be incomplete. */
   syntaxErrors: boolean;
+  /** Present when the scan was asked for code facts. */
+  facts?: FileFacts;
+}
+
+export interface ScanOptions extends CollectOptions {
+  /** Extract imports, definitions, assignments and calls from every file. */
+  facts?: boolean;
 }
 
 export type ScanSkipReason = SkipReason | "binary" | "not_utf8";
@@ -23,7 +32,7 @@ export interface ScanResult {
   root: string;
   files: ScannedFile[];
   skipped: { path: string; reason: ScanSkipReason }[];
-  excludedDirs: string[];
+  excludedDirs: ExcludedDir[];
   truncated: boolean;
   durationMs: number;
 }
@@ -31,7 +40,7 @@ export interface ScanResult {
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 
 /** Reads and parses every supported source file under `root`. Never executes project code. */
-export async function scan(root: string, options: CollectOptions = {}): Promise<ScanResult> {
+export async function scan(root: string, options: ScanOptions = {}): Promise<ScanResult> {
   const started = performance.now();
   const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
   const collected = await collectSourceFiles(root, options);
@@ -52,13 +61,15 @@ export async function scan(root: string, options: CollectOptions = {}): Promise<
       }
       const tree = await parser.parse(file.grammar, source);
       try {
-        files.push({
+        const scanned: ScannedFile = {
           path: file.path,
           language: LANGUAGE_OF[file.grammar],
           bytes: file.bytes,
           lines: countLines(source),
           syntaxErrors: tree.rootNode.hasError,
-        });
+        };
+        if (options.facts) scanned.facts = extractFacts(tree, file.grammar);
+        files.push(scanned);
       } finally {
         tree.delete();
       }

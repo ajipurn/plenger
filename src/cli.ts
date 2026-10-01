@@ -15,8 +15,12 @@ export interface Io {
 
 const USAGE = `Usage:
   plenger scan [path] [--json]   Parse the Python, JavaScript and TypeScript files under path (default: .)
+  plenger facts [path]           Print the imports, definitions, assignments and calls in path as JSON
   plenger --version
   plenger --help
+
+Options:
+  --no-gitignore                 Also scan files the project's .gitignore files ignore
 `;
 
 export async function main(argv: string[], io: Io = processIo()): Promise<number> {
@@ -37,28 +41,30 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
     io.stdout(USAGE);
     return 0;
   }
-  if (command !== "scan" || operands.length > 1) {
+  const known = command === "scan" || command === "facts";
+  if (!known || operands.length > 1) {
     io.stderr(
-      command === undefined || command === "scan"
-        ? USAGE
-        : `plenger: unknown command '${command}'\n\n${USAGE}`,
+      command === undefined || known ? USAGE : `plenger: unknown command '${command}'\n\n${USAGE}`,
     );
     return 2;
   }
 
+  const facts = command === "facts";
   let result: ScanResult;
   try {
-    result = await scan(operands[0] ?? ".");
+    result = await scan(operands[0] ?? ".", { facts, gitignore: values.gitignore });
   } catch (error) {
     io.stderr(`plenger: ${describe(error)}\n`);
     return 1;
   }
-  io.stdout(
-    values.json
-      ? `${JSON.stringify({ schemaVersion: 0, tool: { name: "plenger", version: VERSION }, ...result }, null, 2)}\n`
-      : formatSummary(result, io.color),
-  );
+  io.stdout(values.json || facts ? toJson(result) : formatSummary(result, io.color));
   return 0;
+}
+
+/** The JSON shape is unstable until milestone M5; `schemaVersion` 0 says so. */
+function toJson(result: ScanResult): string {
+  const document = { schemaVersion: 0, tool: { name: "plenger", version: VERSION }, ...result };
+  return `${JSON.stringify(document, null, 2)}\n`;
 }
 
 function parseCommandLine(argv: string[]) {
@@ -66,8 +72,10 @@ function parseCommandLine(argv: string[]) {
     args: argv,
     allowPositionals: true,
     strict: true,
+    allowNegative: true,
     options: {
       json: { type: "boolean" },
+      gitignore: { type: "boolean", default: true },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },
@@ -82,6 +90,7 @@ const SKIP_LABEL: Record<ScanSkipReason, string> = {
   unreadable: "unreadable",
   binary: "binary",
   not_utf8: "not UTF-8",
+  gitignored: "gitignored",
 };
 
 const LIST_LIMIT = 10;
@@ -127,7 +136,10 @@ export function formatSummary(result: ScanResult, color: boolean): string {
     lines.push(`  ${plural(result.skipped.length, "file")} skipped: ${breakdown.join(", ")}`);
   }
   if (result.excludedDirs.length > 0) {
-    lines.push(`  Excluded directories: ${dim(listed(result.excludedDirs).join(", "))}`);
+    const dirs = result.excludedDirs.map(({ path, reason }) =>
+      reason === "default" ? path : `${path} (${reason})`,
+    );
+    lines.push(`  Excluded directories: ${dim(listed(dirs).join(", "))}`);
   }
   return `${lines.join("\n")}\n`;
 }

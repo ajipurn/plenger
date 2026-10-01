@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { type Io, main, VERSION } from "../src/cli.ts";
@@ -60,6 +63,37 @@ describe("plenger scan", () => {
     const { code, stderr } = await run("scan", "does/not/exist");
     expect(code).toBe(1);
     expect(stderr).toContain("no such file or directory");
+  });
+});
+
+describe("plenger facts", () => {
+  it("prints the facts of a single file as JSON", async () => {
+    const { code, stdout } = await run("facts", join(fixture, "app/main.py"));
+    const result = JSON.parse(stdout);
+
+    expect(code).toBe(0);
+    expect(result.files).toHaveLength(1);
+    const [file] = result.files;
+    expect(file.path).toBe("main.py");
+    expect(
+      file.facts.calls.map((call: { ref: { name: string } | null }) => call.ref?.name),
+    ).toContain("openai.OpenAI().chat.completions.create");
+  });
+});
+
+describe("--no-gitignore", () => {
+  it("includes files that .gitignore leaves out", async () => {
+    const root = await mkdtemp(join(tmpdir(), "plenger-cli-"));
+    try {
+      await writeFile(join(root, ".gitignore"), "generated.py\n");
+      await writeFile(join(root, "generated.py"), "x = 1\n");
+      await writeFile(join(root, "main.py"), "y = 2\n");
+
+      expect((await run("scan", root)).stdout).toContain("1 file skipped: gitignored 1");
+      expect((await run("scan", root, "--no-gitignore")).stdout).toMatch(/Python\s+2 files/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 
