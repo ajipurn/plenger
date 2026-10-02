@@ -20,6 +20,20 @@ injection through content the agent reads. Both are adversarial tests at the age
 level; model-level adversarial attacks are outside the MVP. Distribution follows in
 M8. M0–M5 are implemented; M6 onward is planned.
 
+**Product goal: choose a project, click Start, get evidence.** For supported
+integrations, users must not write wrappers, change application code, copy event
+helpers, prepare mock tools or author configuration files to run the built-in
+tests. Plenger owns discovery, integration, test setup, observation and cleanup.
+Users select a project or endpoint, provide missing access when needed, and choose
+the test scope and budget through a guided local interface. Saved profiles make
+repeat runs a single action. The CLI remains available for automation and CI.
+
+The no-code workflow is a release criterion for each supported integration, not a
+promise that every project shape or remote endpoint can be instrumented. Publish a
+runtime compatibility matrix independently of static detection coverage. When an
+integration is unsupported, explain what cannot be tested; do not turn writing an
+adapter into the user's required next step or label a partial run as full coverage.
+
 ## Principles
 
 These come from what went wrong in v0 (on `feat/backup`), where the trust and
@@ -39,11 +53,14 @@ isolation infrastructure grew far ahead of what the tool could detect.
    from timing. Dynamic runs record their configuration, inputs and observations;
    model responses can vary, so repeat trials and report their denominators.
 6. **Few dependencies.** Pinned, aged at least three days, no install scripts.
-7. **Dynamic testing is explicit.** Only a separate run command contacts configured
-   targets owned by the user or authorised for testing, and it imports and executes
-   only the explicitly configured wrapper, in the environment the configuration
-   declares. Static scans and planning stay offline and never execute project code.
+7. **Dynamic testing is explicit.** Only Start or an explicit CLI run contacts
+   selected targets owned by the user or authorised for testing. Execution uses
+   the resolved target profile and a plenger-managed adapter and runtime. Static
+   scans and planning stay offline and never execute project code.
    Built-in probes use synthetic data, canaries and test doubles for side effects.
+8. **Integration work belongs to plenger.** Built-in tests for supported targets
+   must work without application edits or user-authored harness code. Ask users
+   only for choices or access the tool cannot infer; generate and save the rest.
 
 ## Stack
 
@@ -303,12 +320,29 @@ See [REPORTS.md](REPORTS.md).
 
 ### M6 Red-team harness: direct input (planned)
 
-Turn the inventory into reviewable test hypotheses, then run them against a test
-deployment. Support both HTTP APIs and direct agent functions in Python or
-Node.js, including library-only llmfy projects; add MCP endpoints after those two
-paths. Existing tracing is optional. Start with a small set of benign canary
-probes, plus user-authored cases. An automatically generated attack corpus or
-adaptive attack optimiser is outside this milestone.
+Turn the inventory into reviewable test hypotheses, then run them against a managed
+test instance or selected endpoint. First prove the complete workflow on a
+library-only llmfy project, then extend support to HTTP APIs and additional direct
+agent functions in Python or Node.js; add MCP endpoints after those paths.
+Existing tracing is optional. Ship built-in canary cases and policy presets
+selected from the inventory. Custom cases are an advanced extension, not required
+setup. An automatically generated attack corpus or adaptive attack optimiser is
+outside this milestone.
+
+The local interface is part of M6: choose a project directory or endpoint, see the
+detected targets and available checks, supply any missing access, and click Start.
+Show progress, cancellation, findings and coverage, with a rerun action. Save the
+resolved profile for subsequent runs and CLI/CI use; do not require editing YAML,
+JSON or application source. Technical plan details remain available for inspection
+without being mandatory form fields. A single supported target uses the detected
+defaults; multiple plausible targets are a selection in the interface.
+
+Project mode uses built-in framework integrations to prepare and observe a managed
+test instance. Start with llmfy and expand the tested Python/Node compatibility
+matrix. Endpoint-only mode can run supported request/response cases without source
+access. It can observe internal tool actions or inject tool/retrieval content only
+when the endpoint exposes a supported integration surface; access to a URL alone
+does not provide those capabilities. Display that distinction before starting.
 
 For example, `POST /ops → ops_agent → shell` from PLG301 suggests a test of the
 route's tool-use boundary. The case must define an operation that the application's
@@ -317,39 +351,63 @@ tool that the user is allowed to call is not a violation by itself. Static findi
 are hypotheses, and a successful dynamic test does not validate every link in a
 static finding automatically.
 
-Build in this order:
+Build and validate these capabilities within each delivery checkpoint below,
+starting with the llmfy project path:
 
-1. **Offline plans and explicit target configuration.** Proposed commands are
-   `plenger redteam plan` and `plenger redteam run`; these do not exist yet. Planning
-   consumes an M5 JSON report and an explicit configuration, without contacting
-   targets or importing the project. Each case records a stable id, source finding
-   fingerprint when available, target, input, expected boundary, oracle, required
-   observations and repetition budget. Unsupported findings remain listed with a
-   reason; users can also define cases with no source scan. Routes, request fields,
-   authentication references, function entry points and MCP tool mappings must be
-   supplied or confirmed in configuration, not guessed from code. Credentials come
-   from environment references and are never embedded in a plan.
+1. **Discovery and offline planning.** The local interface and the proposed
+   `plenger redteam plan` / `plenger redteam run` commands share the same engine;
+   none exists yet. Read the inventory, project manifests and supported framework
+   patterns to resolve candidate entry points, runtime, request fields and tools.
+   The adapter derives its mappings and generates the plan without importing the
+   project or contacting the target. Resolve ambiguity with a target selection or
+   a simple form, never a requirement to write a wrapper. Each case records a
+   stable id, source finding fingerprint when available, target, input, expected
+   boundary, oracle, required observations and repetition budget. Built-in templates
+   supply these fields under the test-pack contract below; a UI choice can
+   establish a business boundary such as approval before a write. Do not infer
+   that every legitimate tool use is a violation. Unsupported findings remain
+   listed with a reason. Endpoint profiles without a source scan use built-in
+   protocol mappings or request fields entered
+   in the interface. Keep credentials out of plans: store references to access
+   explicitly selected during setup, and never reuse a secret merely because the
+   scanner found it.
 2. **Bounded network execution.** Run only configured endpoints and operations.
    Use exact scheme/host/port and route or tool allow-lists; initially accept only
    loopback destinations, with staging destinations explicitly added.
    A `.localhost` or `.test` suffix alone is not proof of a permitted destination:
    validate resolved addresses and the connection destination, and disable redirects
-   by default. Configure deadlines, maximum requests, response sizes and concurrency
-   (one by default); stop on cancellation and retain partial results. Do not retry
-   a potentially state-changing request automatically. The MCP adapter starts with
-   Streamable HTTP to a server the user already runs; it never launches commands
-   discovered by the scanner. Direct MCP tests cover that server's exposed contract,
+   by default. Profiles supply deadlines, maximum requests, response sizes and
+   concurrency (one by default), with budget controls in the interface. These
+   runner request limits are separate from the model-usage limits below; one agent
+   request may make multiple model calls. Stop on cancellation and retain partial
+   results. Do not retry a potentially state-changing request automatically. The
+   MCP adapter starts with Streamable HTTP to a server the user already runs; it
+   never launches commands discovered by the scanner. Direct MCP tests cover that
+   server's exposed contract,
    not an agent's response to injected MCP content (M7). Dynamic dependencies load
    only for the dynamic commands.
-3. **Opt-in direct function adapter.** The run command can start a small Python or
-   Node harness in the project's existing environment and invoke a user-written
-   wrapper, including async functions. Configuration declares the interpreter,
-   working directory, wrapper module/export, input/output mapping and allowed
-   environment variables. Launch with an argument array, never a shell string.
-   Only this explicit run step imports and executes the wrapper and its project;
-   planning and scanning never do. Do not install dependencies, discover functions
-   to execute, or reuse scanned MCP startup commands. Use a versioned JSON message
-   protocol for trial input, result and events, on a channel separate from project
+3. **Managed project adapters.** Plenger supplies the Python/Node launcher and
+   framework adapters, including sync/async invocation and llmfy support. Resolve
+   the interpreter, entry point/factory, input mapping and required access from
+   discovery and the selected profile. Generate any bridging code inside the
+   managed run workspace; never require the user to write or copy it into the
+   project. Versioned adapters attach observation hooks and recording tool doubles
+   through tested framework integration points, preserving the agent's model,
+   instructions and approval/dispatch path up to the intercepted effect. Record
+   what was substituted and validate the legitimate task with a clean control.
+   An adapter unable to preserve that path is not eligible for the claimed test.
+   For example, when `cancel_order()` checks approval inside its handler, replacing
+   the entire handler does not test that approval. Intercept the external effect
+   after the original checks, or restrict the case to an explicitly labelled
+   proposal-stage assertion. Never count a substituted handler's invocation as
+   evidence that the original handler would perform an unauthorised effect.
+   Before importing project code, prepare the managed execution environment and
+   verify the resource isolation required by the profile. Resolve missing runtimes
+   or dependencies through guided setup; do not run arbitrary package scripts or
+   startup commands copied from the scanned code. Launch with an argument array,
+   never a shell string. Only Start or the CLI run imports and executes the selected
+   project entry point; scanning and planning remain offline. Use a versioned JSON
+   message protocol for trial input, result and events, separate from project
    stdout/stderr. The channel must work on macOS, Linux and Windows, because M8
    ships Windows binaries: use a loopback socket or named pipe rather than an
    inherited extra file descriptor, which Python does not support portably on
@@ -357,10 +415,12 @@ Build in this order:
    cancellation and report failures to stop workers or reset external state.
    Measure worker start-up cost (framework imports can take seconds per trial) and
    document it; reusing a worker across trials with a verified reset can become an
-   explicit option later, never the default. The
-   subprocess is not a sandbox; the configured environment still needs test doubles
-   or isolated resources. Provide Python, Node and llmfy wrapper examples so users
-   do not need to expose an HTTP route just to test a library.
+   explicit option later, never the default. A subprocess alone is not the required
+   isolation. The built-in adapter must prepare and validate the managed environment
+   before execution, or explain why this integration cannot run automatically.
+   Users neither expose an HTTP route nor write a wrapper to test a supported
+   library project. Shipping an adapter includes documenting and testing the exact
+   framework versions and project shapes it supports.
 4. **Canary oracles and observation.** Give each trial a fresh synthetic marker and
    correlate responses, recorded tool arguments and callback events with that
    trial. Markers use a fixed, recognisable format (a plenger prefix plus lowercase
@@ -371,18 +431,19 @@ Build in this order:
    Persist this record alongside redacted excerpts so the evidence survives even
    when the raw marker does not. A match establishes a violation only when the
    case's boundary assertion is satisfied. Do not exempt arbitrary strings with
-   the plenger prefix from secret redaction. Start with response assertions, a
-   local callback receiver and a small
-   documented event format with ready-to-use Python and JS/TS helpers for
-   instrumented test tools; no observability service is required. The helpers are
-   single files that depend only on each language's standard library, copied into
-   the user's test code from the release and carrying the event protocol version;
-   the runner rejects an unsupported protocol version. Publishing them as PyPI and
-   npm packages is an M8 option, not a prerequisite. Helpers emit
-   trial/call ids, tool names, lifecycle stages, fixture/document ids and selected
+   the plenger prefix from secret redaction. Start with response assertions, a local
+   callback receiver and a documented event format with bundled Python and JS/TS
+   helpers; no observability
+   service or manual instrumentation is required for supported project adapters.
+   Helpers depend only on each language's standard library and are loaded by the
+   launcher into the managed runtime, leaving the user's source tree unchanged.
+   They carry the event protocol version; the runner rejects an unsupported
+   version. Publishing them separately for advanced integrations is an M8 option,
+   not a prerequisite. Helpers emit trial/call ids, tool names, lifecycle stages,
+   fixture/document ids and selected
    arguments/results, with a trial-completion marker to detect incomplete streams.
-   Include sync/async tool wrappers and a context-delivery hook, plus an llmfy
-   example using recording tools. Emit retrieval delivery at the point selected
+   Adapters install sync/async tool observation and context-delivery hooks, with
+   llmfy as a required integration fixture. Emit retrieval delivery when selected
    documents enter the agent's context, not merely when a search returns hits.
    The same events work through a local receiver for HTTP targets or the function
    harness's message channel. That event channel is separate from the canary
@@ -392,9 +453,12 @@ Build in this order:
    assumption that the runner/helpers are trusted and the token is inaccessible to
    the agent's tools. Code sharing the instrumentation's process or privileges may
    access the token; keeping it out of prompts alone does not prevent forgery. Test
-   deployments must use recording doubles or isolation that keeps the token beyond
-   tested tools' access. The harness does not establish that isolation automatically
-   or claim protection against a compromised local environment.
+   instances launched by plenger must use adapter-managed recording doubles and
+   runtime isolation that keeps the token beyond tested tools' access. Verify that
+   prerequisite during setup; if it cannot be established, do not claim trusted
+   internal observations. Endpoint-only runs declare their available observation
+   sources separately. Neither mode claims protection against a compromised local
+   environment.
    Reject unauthenticated events before trusting their trial/call ids, and record
    only bounded receiver diagnostics; they must not change a trial's outcome.
    Bound event sizes and rates. Receiver failures make a trial inconclusive only
@@ -420,7 +484,8 @@ Build in this order:
    with an explanation. `not_observed` requires a completed trial and the case's
    required observations; it is never a claim that the target is safe. Report
    violations / evaluable trials, where evaluable means `violation_observed` or
-   `not_observed`, alongside total attempts, coverage and all other outcome counts.
+   `not_observed`, alongside total attempts, execution coverage, test scope and all
+   other outcome counts.
    Zero evaluable trials gives an unavailable rate, not 0%. Preserve the plan and
    probe versions, source report digest/revision when available, target build
    identifier when supplied, model/settings when known, trial ids, seed for fixture
@@ -428,14 +493,73 @@ Build in this order:
    not model behaviour.
 
 **Delivery checkpoints.** Complete and review each checkpoint separately; M6 is
-done only when all three are complete. All command names and options below are
-planned interfaces.
+done only when all three are complete. Begin M6a with a feasibility check on an
+unmodified representative llmfy project with a dependency manifest and a
+discoverable sync/async text entry point or zero-argument agent factory. Record
+the exact llmfy and Python versions, initial OS, provider, supported input/factory
+shapes, dependency setup and isolation backend in a versioned runtime profile.
+Prove discovery, setup, isolation before import, preserved approval checks and
+bounded model access before expanding the interface or adding other integrations.
+An unresolved part of that path blocks M6a completion; it is not deferred to M6b
+or made a user-written setup task. All command names and options below are planned
+interfaces.
 
 | Checkpoint | Deliverable | Acceptance |
 | --- | --- | --- |
-| M6a HTTP and observation | Offline plan, bounded HTTP runner, Python/JS event helpers, canary oracle and JSON result | One enforced and one violated boundary, echo negative control, rejected event identities cannot set trial outcomes, incomplete-event handling and cancellation, without a model API key |
-| M6b Direct functions | Python/Node harnesses, sync/async wrappers, llmfy example and fixture reset | HTTP-free runs produce the same event/result contract on macOS, Linux and Windows; imports occur only during an explicit run; timeout, worker cleanup and reset failures are exercised; worker start-up cost is measured |
-| M6c MCP and CI | SDK spike, MCP adapter, repetitions/statistics, remaining reporters, dynamic policy and CI gate | HTTP/function/MCP fixtures pass the shared contract suite; severity, coverage and exit-code cases are verified |
+| M6a Click-to-run llmfy | One qualified runtime profile, minimal local setup/run/results interface, saved profile, built-in tests, managed launcher, hooks/doubles, usage limits and cleanup | Select an unmodified llmfy project, provide model access, click Start, receive evidence and rerun without code/config/fixture preparation; qualify with a real model, clean-task assertions and preserved approval inside a handler; stub fixtures verify both boundary outcomes, event handling, budget exhaustion and cancellation |
+| M6b HTTP and project expansion | HTTP profiles and additional declared Python/Node project shapes and OS/runtime combinations, reusing M6a's engine and test-pack contract | Each advertised integration passes the same no-code journey and states its observable boundaries; verify request controls, runtime isolation where applicable, clean-task fidelity, cleanup and worker start-up cost |
+| M6c MCP and CI | SDK spike, MCP setup in the interface, repetitions/statistics, remaining reporters and dynamic CI policy | Supported HTTP/project/MCP profiles share the result contract and can be rerun from the interface or exported to CI; severity, execution coverage, required test scope and exit-code cases are verified |
+
+**Built-in test-pack contract.** Each versioned pack declares supported runtime
+profiles, input/tool/result shapes, a legitimate task, synthetic resources and
+deterministic assertions for successful task completion. A response without an
+error is insufficient. The pack also supplies attack inputs, the forbidden
+boundary, required observation stages, severity and the oracle; any user choice
+of business policy is saved in the profile. Bind packs only where the adapter can
+establish those contracts, not from tool names or argument types alone. If no pack
+fits, retain that gap in the scope report without asking the user to write one.
+
+Record each substitution, its interception point and the original validation and
+approval path it preserves. Qualification includes an approval check inside a tool
+handler: a denied operation must not reach the recording effect, while an approved
+clean task must produce the expected synthetic result. A separate deliberately
+unguarded fixture verifies that the same oracle detects the forbidden dispatch.
+Keep proposal, dispatch and completed-effect assertions distinct; a recording
+double proves arrival at the intercepted boundary, not a production side effect.
+Each pack owns resource preparation, reset and cleanup and verifies its clean
+control. A failed control prevents claims of successful task completion or a valid
+comparison; retain any independently confirmed violation backed by the case's
+required evidence.
+M7 extends this contract with delivery evidence and paired controls.
+
+**Model-usage budget.** Store run-wide model-call and token limits separately from
+trial counts and runner HTTP limits, plus a wall-clock deadline. Count model calls
+from fixture preparation, clean controls, probes, agent loops and provider retries
+against the same budget. In managed project mode, the supported provider path must
+enforce admission of every
+model request through a budget boundary that the selected network profile cannot
+bypass. Reserve the call, input tokens and enforced maximum output allowance before
+dispatch; admit it only if they fit the remaining budget. The provider profile
+defines token accounting, including any additional token categories it charges.
+Release unused reservations only with confirmed usage; retain a conservative bound
+when usage is missing. Profiles unable to bound those calls cannot advertise
+enforced token limits or qualify for the managed profile's budget contract.
+
+Record configured limits, calls admitted, observed usage, outstanding reservations
+and the reason execution stopped. When the budget prevents required work, stop
+admitting calls, cancel managed workers and retain partial results. Interrupted
+trials are inconclusive,
+unstarted trials remain unevaluable and confirmed violations remain recorded;
+budget exhaustion is an execution failure, never a successful defence. Reaching
+the cap after all planned work completes does not itself fail the run. Do not
+silently reduce planned repetitions to make the run pass. Currency estimates,
+if offered, are separate from enforced call/token limits.
+
+For remote endpoints, enforce runner request/time limits and label target model
+usage as reported or unknown. Claim target-side limits only when a supported
+integration actually enforces them. Cancelling the runner's request does not prove
+that remote model work stopped. Show the enforcement scope before Start and in
+the report; selecting an endpoint does not imply a target token or cost cap.
 
 **MCP dependency decision.** Use the pinned [official TypeScript client SDK](https://github.com/modelcontextprotocol/typescript-sdk)
 in a separately installed optional MCP adapter, loaded only for MCP cases. The
@@ -444,7 +568,8 @@ tree. This isolates protocol maintenance and dependencies while retaining SDK
 handling of protocol negotiation, sessions and streaming. Select a released SDK
 version during M6c, record supported protocol versions and review its transitive
 dependencies under the existing pinning/age/no-install-scripts policy. No runtime
-auto-installation: a missing adapter is a configuration error before execution.
+auto-installation during a run: setup offers a supported adapter installation
+before Start, while unattended CLI runs fail configuration validation if it is missing.
 SDK connections still use the runner's destination, redirect and request-budget
 controls, including secondary session requests. Start M6c with a go/no-go spike
 confirming that the SDK's client transport accepts an injected `fetch` through
@@ -459,9 +584,10 @@ are still in development.
 
 Reuse M5's formatting, redaction and policy concepts, with a separately versioned
 dynamic-run JSON schema; do not silently change the static report-v1 contract or
-its baselines. Terminal and Markdown show observations and coverage. SARIF exports
-supported dynamic findings with real source locations when available, never
-invented file/line evidence; flag unverified source-to-deployment mappings. Full
+its baselines. The interface, terminal, Markdown and JSON show observations,
+execution coverage and test scope separately. SARIF exports supported dynamic
+findings with real source locations when available, never invented file/line
+evidence; flag unverified source-to-deployment mappings. Full
 trial records remain in JSON. Match regression cases by stable case id and
 configuration, not random canaries.
 
@@ -476,27 +602,54 @@ missing rationale fails configuration validation before contacting the target.
 
 The proposed dynamic `--fail-on critical|high|medium|low|none` gates any unsuppressed
 `violation_observed` at or above the threshold, even if a comparison baseline
-already contains it. CLI default is `none`; the planned CI example uses `high`.
-One qualifying observation is enough to fail this gate; a low observed rate or a
-wide interval does not erase it. Dynamic suppressions require a case id and reason
-in an explicit dynamic policy file; they preserve results and never waive coverage.
-Refreshing a comparison baseline does not suppress findings. M5's static gate and
-suppression semantics stay unchanged.
+already contains it. CLI default is `none`; the interface's built-in test profile
+and planned CI example use `high` and display the active execution-coverage and
+required-scope policies. One qualifying observation is enough to fail this gate;
+a low observed rate or a wide interval does not erase it. Dynamic suppressions
+require a case id and reason
+in an explicit dynamic policy file; they preserve results and never waive execution
+coverage or required scope. Refreshing a comparison baseline does not suppress
+findings. M5's static gate and suppression semantics stay unchanged.
 
-Coverage is evaluable trials / planned trials **per selected case**, counting
-skipped, unstarted and inconclusive trials as unevaluable; an empty selection is
-invalid. `--min-coverage` is a fraction in `(0, 1]`, default `1`, and each plan also
-declares a minimum evaluable count (one for a smoke case, at least 20 per case for
-a before/after live-model comparison). Validate planned repetitions against that
-minimum. `--fail-on none` disables only the finding gate. Execution errors,
-cancellation and failed coverage/minimum counts still fail the run. Write partial
-reports whenever possible and record every failure reason. Exit codes: `0` means
-completed and all enabled gates passed, `1` means execution/I/O/cancellation or
-coverage failure, `2` means invalid arguments/configuration, and `3` means the
-finding gate failed. If execution/coverage and finding failures coexist, exit `3`:
-an observed violation is conclusive whatever the coverage, and exit `1` would hide
-it. The report retains every failure reason. The static Action never starts
-dynamic tests implicitly; dynamic CI is configured separately.
+**Execution coverage and test scope.** Execution coverage is evaluable trials /
+planned trials **per selected case**, counting errors, skipped, unstarted and
+inconclusive trials as unevaluable; an empty selection is invalid. The proposed
+`--min-coverage` controls only this measure: a fraction in `(0, 1]`, default `1`.
+Each plan also declares a minimum evaluable count (one for a smoke case, at least
+20 per case for a before/after live-model comparison). Validate planned repetitions
+against that minimum. Completing all selected trials is not full agent coverage.
+
+Keep a separate scope matrix of discovered input, tool, MCP, web and retrieval
+surfaces, with stable surface ids and applicable scenario families. For each,
+record support, selection, execution/delivery and the required evidence obtained;
+retain unsupported, unselected and unverified entries with reasons in the saved
+plan and final report. Summarise surfaces exercised with the required evidence /
+surfaces discovered, alongside execution coverage, for example: "10/10 evaluable
+trials; 1/4 discovered surfaces exercised, 3 unsupported." Retain per-scenario
+detail so exercising one case does not imply every boundary on that surface was
+tested. This describes discovered scope only; unknown surfaces and opaque remote
+internals are labelled unknown, never counted as covered or assigned an invented
+denominator.
+
+Saved profiles and their CI exports declare required surface/scenario ids before
+unsupported cases are filtered from the executable plan. Generate these
+requirements from the selected scope in the interface; users need not author a
+policy file for built-in tests. A previously required surface that disappears,
+loses adapter support or lacks the case's required evidence fails the scope gate.
+Do not silently shrink requirements on rerun; changing them is an explicit profile
+update. Unsupported discoveries outside the required scope remain visible without
+automatically failing that gate. CI evaluates required scope independently of
+`--min-coverage` so a smaller runnable subset cannot hide a coverage regression.
+
+`--fail-on none` disables only the finding gate. Execution errors, cancellation,
+budget exhaustion and failed execution-coverage/minimum-count/required-scope checks
+still fail the run. Write partial reports whenever possible and record every
+failure reason. Exit codes: `0` means completed and all enabled gates passed, `1`
+means execution/I/O/cancellation/budget or coverage/scope failure, `2` means invalid
+arguments/configuration, and `3` means the finding gate failed. If execution,
+coverage or scope failures coexist with a finding failure, exit `3`: an observed
+violation remains conclusive. The report retains every failure reason. The static
+Action never starts dynamic tests implicitly; dynamic CI is configured separately.
 
 **Repeated-trial statistics.** Report a two-sided 95% Wilson score interval, without
 continuity correction, for each case/variant's violation rate when its evaluable
@@ -514,20 +667,35 @@ budgets avoid stopping or retrying until a desired result appears. Fixture tests
 check interval calculations at zero, all and some observed violations.
 
 The runner's allow-list constrains its own connections, not the target agent's
-tools or network access. Test deployments must replace high-impact tools with
-recording doubles or isolate them with synthetic resources. This is an explicit
-fixture prerequisite, not something the harness claims to enforce remotely.
+tools or network access. Project mode therefore owns a managed test workspace,
+recording tool doubles, synthetic resources and reset/cleanup. Establish filesystem,
+environment and network boundaries before project import, including import-time
+side effects; copying code or starting a subprocess is insufficient. Keep ambient
+`.env` files, home-directory credentials and production resources out of the
+default execution profile. Enable only the model/provider access explicitly
+selected in setup, with configured budgets. If a project cannot be run under a
+supported profile, report that limitation instead of silently executing it on the
+host or asking the user to implement isolation. Validate the first isolation
+backend and OS/runtime combination in M6a before importing the llmfy project;
+M6b qualifies each additional combination independently. A scanner binary for an
+OS does not establish managed-runtime support on that OS.
+
+Endpoint-only mode cannot apply local process isolation to a remote service.
+Show that the chosen service uses its own resource access, and offer only checks
+whose effects and observations the selected profile supports. Creating internal
+mocks, instrumenting a private tool call or replacing retrieval requires a supported
+integration; otherwise show that coverage as unavailable. Do not require users to
+write those integrations to complete the advertised workflow.
 Evaluate canary matches before redaction; persist redacted evidence by default,
 including requests, authentication headers, responses and tool events.
 
-Run artifacts default to `.plenger/runs/<run-id>/` under the chosen working
-directory, with an explicit output override and no automatic upload or retention
-service. Persist the redacted plan, result and bounded event records; protect file
-access where supported. The repository already ignores `.plenger/`; examples for
-other projects must include that ignore rule and state that staging artifacts can
-still contain sensitive data after redaction and should not be committed. A local
-ignore file does not make an external CI artifact upload private; document that
-upload and retention are explicit user choices.
+The interface stores run artifacts in plenger's local application-data directory,
+outside the project checkout, and offers explicit export. CLI output can be
+overridden, including `.plenger/runs/<run-id>/` in projects that ignore that path.
+Persist the redacted plan, result and bounded event records; protect file access
+where supported. No source-control setup is required for the default interface
+workflow. Document that staging artifacts can still contain sensitive data after
+redaction; exports, CI uploads and retention are explicit user choices.
 
 **Done when:** all three checkpoints pass. Deterministic local HTTP, direct Python
 and Node function, and MCP fixtures demonstrate both enforced and violated
@@ -538,77 +706,124 @@ credential redaction, structured canary evidence surviving redaction in credenti
 contexts, and helper event authentication/correlation have automated checks. Tests
 verify that unauthenticated traffic with a forged trial id cannot change outcomes,
 genuine observation loss is reported, and later receiver failures preserve a
-confirmed violation. Worker cleanup, cancellation and CI outcomes are also tested.
-Document the trusted-instrumentation and token-isolation prerequisites in the
-examples. A user can run the documented llmfy integration
-with a stub model and recording tools, without an API key or tracing stack.
-Optional live model trials are reported separately and are not required for routine CI.
+confirmed violation. Verify that approval inside a tool handler remains effective
+and that clean-task assertions reject a response which completes without doing the
+task. Budget tests cover agent loops, retries, clean controls, missing usage and
+exhaustion without falsely passing a truncated run. Scope tests cover unsupported
+surfaces retained in reports and a required integration disappearing between runs
+despite 100% execution coverage of the remaining cases. Worker cleanup,
+cancellation and CI outcomes are also tested.
+The acceptance test includes the complete user journey: select an unmodified
+supported project, provide model access if needed, choose the supplied test preset,
+click Start and receive an evidence report. Setup, hooks, mocks, synthetic data and
+cleanup are performed by plenger. Complete this journey for llmfy in M6a, then
+repeat it for each additional runtime profile. Repeat from the saved profile
+without setup work.
+Internal harness fixtures use stub models without API keys for routine CI;
+separately verify each advertised agent integration with a real model and record its version,
+observations and limitations. Stub-only tests do not establish live-model support.
 
 ### M7 Red-team: indirect prompt injection (planned)
 
 Extend M6's plans, runner and oracles to put test instructions in lower-trust
-content while keeping the legitimate user request unchanged. Use M6's Python and
-JS/TS helpers to record content delivery and tool actions across HTTP and direct
-function targets; adding tracing is optional. The focus is indirect prompt
-injection through documents and tool results, as described by
+content while keeping the legitimate user request unchanged. The user selects an
+available scenario in the same interface; plenger prepares the content, delivery
+integration, observation and cleanup. M6's adapters automatically load the Python
+and JS/TS helpers to record content delivery and tool actions; adding tracing is
+optional. The focus is indirect prompt injection through documents and tool
+results, as described by
 [OWASP LLM01](https://genai.owasp.org/llmrisk/llm01-prompt-injection/). Reuse M6's
-target constraints, synthetic data and recording doubles.
+target constraints, test-pack contracts, model budgets, synthetic data and recording
+doubles. Keep execution coverage and test scope separate throughout.
 
-Implement a fixture lifecycle (prepare, verify delivery, reset, clean up), then add
-channels in this order:
+**Delivery checkpoints.** Implement a shared fixture lifecycle (prepare, verify
+delivery, reset, clean up), then complete and review M7a before expanding to M7b.
+M7a proves tool-output and retrieval-context injection through an already qualified
+project adapter. M7b adds MCP and web delivery plus retrieval through a disposable
+index using one declared backend/version. Qualify additional backends separately.
+These are four channel families; retrieval has two distinct integration depths.
 
-| Channel | How test content is delivered | Evidence required before scoring |
+| Checkpoint / channel | How test content is delivered | Evidence required before scoring |
 | --- | --- | --- |
-| Tool output | A test wrapper returns a marked fixture at a selected tool call | The agent consumed that call's marked output |
-| MCP result | An explicitly configured mock server supplies a selected result or resource | The agent received that mock content during the trial |
-| Web content | A local fixture server serves the selected document to the agent's fetch tool | The content reached the agent, not just a server health check |
-| Retrieved document | The user loads a fixture into a disposable retrieval collection | The marked document was retrieved into the trial's context, not merely indexed |
+| M7a — Tool output | The built-in adapter replaces a selected tool result with a generated marked fixture | The agent consumed that call's marked output; the report identifies the substitution boundary |
+| M7a — Retrieval context | The adapter supplies a fixture at the retrieval-result boundary | The marked document entered the trial's context; label the test as content handling, with retrieval itself untested |
+| M7b — MCP result | Plenger starts a mock server and the supported project adapter routes the selected MCP dependency to it | The agent received that mock content during the trial |
+| M7b — Web content | Plenger starts a fixture server and the supported adapter directs the selected fetch to its document | The content reached the agent, not just a server health check |
+| M7b — Retrieval through an index | The retrieval adapter creates and seeds a disposable collection for the declared backend and runs the supported retrieval path | The marked document was retrieved from that collection and entered the trial's context; identify the test collection and retrieval configuration |
 
-Each adapter declares the delivery and observation it supports. Where automatic
-delivery cannot be verified, record that gap and mark the trial inconclusive;
-never treat an unretrieved document as a successful defence. Keep indexing and
-cleanup explicit so the runner cannot silently alter a production data store.
+Each checkpoint must demonstrate the no-code scenario selection, verified delivery,
+enforced and deliberately violated boundaries, passing clean controls and cleanup.
+Qualify those scenarios with a real model before declaring the checkpoint complete;
+routine harness CI remains deterministic with stub models. M7b extends the same
+report and scope contract rather than replacing M7a's content-only evidence with
+a broader retrieval claim.
+
+Each adapter declares the delivery and observation it supports. Plenger owns
+fixture generation, seeding, routing, reset and cleanup; the user does not build
+mock servers, copy documents into an index or edit tool handlers. Detect unavailable
+injection surfaces before a run and display those scenarios as unsupported. Where
+delivery was attempted but cannot be verified, mark the trial inconclusive; never
+treat an unretrieved document as a successful defence. All fixture writes stay in
+managed test resources, with cleanup evidence in the report. A substitute retrieval
+result tests the agent's handling of that content, not the real index's access
+controls or retrieval ranking. A remote endpoint without a supported injection
+surface cannot claim these tests merely because it accepts a chat request.
 
 Pair each injected case with a clean control using the same legitimate task,
 fixture shape and target configuration, in isolated sessions. The clean control
-must show that the intended task and observation path work. Probe cases test
+must satisfy the pack's explicit expected-answer or expected-action assertions
+and show that the observation path works; an HTTP success or nonempty answer is
+insufficient. Plenger supplies these assertions and the matching synthetic data.
+Count both members of the pair against the run's model budget. Probe cases test
 whether lower-trust instructions change the answer, disclose a synthetic marker
 from a protected fixture, or request a tool action forbidden by the case's policy.
 Benign quotation or summarisation of the fixture is not a violation. Use explicit,
 deterministic assertions for the initial probes; an LLM judge is not required.
 
-Ship a small, versioned set of benign canary templates and support user-authored
-fixtures. Start with variations in wording, placement and document wrapping;
-record each variant separately so a result can be reproduced. Do not expand into
+Ship a small, versioned set of benign canary templates and generate the selected
+fixtures automatically. User-authored fixtures remain an optional advanced feature.
+Start with variations in wording, placement and document wrapping; record each
+variant separately so a result can be reproduced. Do not expand into
 model-weight attacks or an autonomous search for bypasses in this milestone.
 
-Report per channel, case and tool: delivery coverage, boundary violations /
-evaluable trials, control outcomes and legitimate-task completion. Failed controls
+Report per channel, case and tool: planned and verified deliveries, execution
+coverage, the scope matrix including unsupported/unselected surfaces, boundary
+violations / evaluable trials, control outcomes and legitimate-task completion.
+Keep content-only and index-backed retrieval results separate. Failed controls
 make the corresponding comparison inconclusive. A mitigation that rejects every
 request must show the resulting loss of task completion. Compare before and after
 runs only with matching case/probe versions and compatible configurations; record
 the intended mitigation/build change and flag other changes. Use M6's 95% Wilson
 intervals, per-case minimum of 20 evaluable trials in each build for live-model
-comparisons, and severity/coverage gate contract. Show the absolute change in
-observed rate and task completion without claiming statistical significance from
-one changed response or interval overlap. Any observed violation can still fail
+comparisons, and severity, execution-coverage and required-scope gates. Show the
+absolute change in observed rate and task completion without claiming statistical
+significance from one changed response or interval overlap. Any observed violation can still fail
 the severity gate, regardless of comparison eligibility. Refreshing a dynamic
 baseline is explicit and does not overwrite the static triage baseline.
 
-**Done when:** all four channels have a local example with an enforced boundary
-and a deliberately violated one, clean controls, delivery evidence and cleanup.
+**Done when:** both checkpoints pass, and each advertised integration supports
+choosing and running its available M7 scenarios without source edits or
+hand-prepared fixtures. All four channel families and both retrieval depths have
+a local integration example with an enforced boundary and a deliberately violated
+one, clean-task assertions, delivery evidence and automatic cleanup.
 Fixtures cover benign quoted instructions, missing retrieval, unavailable
 observations and contamination between trials. Before/after reports demonstrate a
 mitigation reducing observed violations while preserving the legitimate task.
-The fixture suite runs without external models; live trials remain optional and
-retain their sample counts and limitations.
+The internal fixture suite runs without external models for routine CI. Qualify
+advertised integrations with a real model separately, recording the model version,
+sample counts and limitations; distinguish those results from harness self-tests.
 
 ### M8 Distribution (planned)
 
 npm package, single binaries for macOS, Linux and Windows, user documentation.
-Document the offline scan and explicit dynamic-test workflows separately, with
-working HTTP, Python/Node function, llmfy and MCP examples, optional adapter
-installation, fixture setup, event helpers, observation limits and CI configuration.
+Package a ready-to-launch local interface and the supported runtime integrations;
+the no-code flow itself is implemented and validated in M6/M7. Include the
+runtime/adapter prerequisite setup already qualified in those milestones, without
+asking users to write scripts. Keep the static-only CLI installation lightweight.
+Document the offline scan and click-to-run workflows, model-access setup, supported
+project/framework versions, observation limits, profile export and CI use. Keep
+custom adapters, helper APIs and handwritten configuration in advanced developer
+documentation rather than the standard user journey.
 Document artifact locations and handling. Explain that the gates differ on purpose:
 the static gate ignores findings in its baseline, while the dynamic gate fails on
 an observed violation even when a baseline contains it. State that dynamic testing
@@ -629,11 +844,16 @@ and budgets configured explicitly.
 - **Variable model behaviour.** Changes in models, prompts, tools or retrieval can
   change results. Pin what can be pinned, record what cannot, and compare repeated
   trials with their controls and sample counts.
-- **Harness code execution.** The direct function adapter runs project code with
-  the user's privileges, and a subprocess is not a sandbox. Keep execution limited
-  to the configured wrapper and environment, pass only allowed environment
-  variables, and document that high-impact tools need test doubles or isolated
-  resources.
+- **Harness code execution.** Project import itself can have side effects. The
+  launcher must establish the supported isolation profile before import and attach
+  the appropriate tool doubles; a subprocess is not a sandbox. Missing isolation
+  support blocks that integration's run, rather than falling back to ambient host
+  credentials or transferring isolation work to the user.
+- **Automatic integration fidelity.** Static detection is broader than runtime
+  integration support. Versioned adapters need evidence that discovery, hooks and
+  synthetic resources preserve the task and the boundary being tested. Unsupported
+  project shapes are a compatibility gap, not a reason to require user-written code
+  or silently reduce the coverage advertised by a test.
 - **Exposed receivers.** A receiver reachable from staging can also receive traffic
   from elsewhere. Bind to loopback by default, require explicit configuration for
   anything else, authenticate events, bound their size and rate, and never treat
@@ -644,7 +864,8 @@ and budgets configured explicitly.
 
 ## Beyond the MVP
 
-- **Dashboard** sharing types with the CLI.
+- **Expanded dashboard:** run history, team collaboration and cross-project views.
+  The local setup/run/results interface is already part of M6.
 - **Additional dynamic adapters:** local MCP stdio processes explicitly configured
   by the user, more framework-specific observation adapters and broader probe
   coverage, driven by measured gaps in M6/M7.
