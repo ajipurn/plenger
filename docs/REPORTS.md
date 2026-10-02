@@ -163,7 +163,7 @@ replaced by counts, with full details retained in SARIF.
 
 This workflow uses the action from this repository's checkout. For another
 repository, check out the scanner at a pinned revision in a separate directory
-and use that directory as the local action path. Publication is part of M6.
+and use that directory as the local action path. Publication is part of M8.
 
 ```yaml
 name: Agent security
