@@ -4,9 +4,11 @@ import {
   type Binding,
   type ClassInfo,
   Context,
+  compositeValue,
   hasChild,
   type LanguageHooks,
   LIMITS,
+  LOOP_ITEM,
   listValue,
   otherValue,
   Scope,
@@ -123,7 +125,13 @@ class JavaScriptExtractor implements LanguageHooks {
         return;
       case "for_in_statement": {
         const left = node.childForFieldName("left");
-        if (left !== null) this.bindPattern(left, scope, node.startIndex);
+        const right = node.childForFieldName("right");
+        if (left?.type === "identifier" && right !== null) {
+          // `for (const item of items)`: the name holds an item (or key) of `right`.
+          scope.bind(left.text, this.cx.assign(left, right, scope, node.startIndex, LOOP_ITEM));
+        } else if (left !== null) {
+          this.bindPattern(left, scope, node.startIndex);
+        }
         break;
       }
       case "catch_clause": {
@@ -699,11 +707,15 @@ class JavaScriptExtractor implements LanguageHooks {
             };
           }
         }
-        return otherValue(node);
+        return this.composite(node, scope, depth);
       }
       default:
-        return otherValue(node);
+        return this.composite(node, scope, depth);
     }
+  }
+
+  composite(node: Node, scope: Scope, depth: number): Value {
+    return compositeValue(node, (operand) => this.value(operand, scope, depth + 1));
   }
 
   name(node: Node, scope: Scope): Value {
@@ -715,12 +727,20 @@ class JavaScriptExtractor implements LanguageHooks {
     }
     const value: Value = { kind: "name", text: textOf(node), ref: this.resolve(node, scope, 0) };
     let assignment: number | undefined;
+    if (root.type === "call_expression" || root.type === "new_expression") {
+      const call = this.cx.callIndex(root);
+      if (call !== undefined) value.of = call;
+    }
     if (root.type === "this") {
       assignment = this.cx.assignmentOf(this.memberOf(node, scope));
     } else if (root.type === "identifier" || root.type === "shorthand_property_identifier") {
       const binding = this.cx.lookup(root.text, scope, root.startIndex);
       if (binding?.kind === "param") value.param = true;
       if (root === node) assignment = this.cx.assignmentOf(binding);
+      else {
+        const base = this.cx.assignmentOf(binding);
+        if (base !== undefined) value.base = base;
+      }
     }
     if (assignment !== undefined) value.assignment = assignment;
     return value;
@@ -780,6 +800,9 @@ class JavaScriptExtractor implements LanguageHooks {
   }
 
   arguments(node: Node | null, scope: Scope): Argument[] {
+    // A tagged template (`` $`git show ${sha}` ``) passes the template itself.
+    if (node?.type === "template_string")
+      return [{ keyword: null, value: this.template(node, scope, 0) }];
     const args: Argument[] = [];
     for (const arg of node?.namedChildren ?? []) {
       if (arg === null || arg.type === "comment") continue;

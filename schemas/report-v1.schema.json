@@ -1,0 +1,1841 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "plenger report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "plenger"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "version"]
+    },
+    "root": {
+      "type": "string"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "enum": ["python", "javascript", "typescript"]
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "syntaxErrors": {
+            "type": "boolean"
+          },
+          "facts": {
+            "$ref": "#/definitions/facts"
+          }
+        },
+        "required": ["path", "language", "bytes", "lines", "syntaxErrors"]
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "declaration",
+              "minified",
+              "gitignored",
+              "symlink",
+              "too_large",
+              "unreadable",
+              "binary",
+              "not_utf8"
+            ]
+          }
+        },
+        "required": ["path", "reason"]
+      }
+    },
+    "excludedDirs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": ["default", "virtualenv", "gitignore"]
+          }
+        },
+        "required": ["path", "reason"]
+      }
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "inventory": {
+      "$ref": "#/definitions/inventory"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/finding"
+      }
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/rule"
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "suppressed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unchanged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "new": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["active", "suppressed", "unchanged", "new"]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tool",
+    "root",
+    "files",
+    "skipped",
+    "excludedDirs",
+    "truncated",
+    "inventory",
+    "findings",
+    "durationMs",
+    "rules",
+    "review"
+  ],
+  "definitions": {
+    "span": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endColumn": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["line", "column", "endLine", "endColumn"]
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "endColumn": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["path", "line", "column", "endLine", "endColumn"]
+    },
+    "dynamicPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["param", "name", "call", "other"]
+        },
+        "ref": {
+          "type": "string"
+        },
+        "from": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "callSites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["text", "source"]
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "process",
+            "code",
+            "file_read",
+            "file_write",
+            "file_delete",
+            "network",
+            "database",
+            "message",
+            "payment",
+            "secret",
+            "deserialize",
+            "browser",
+            "llm",
+            "agent",
+            "mcp"
+          ]
+        },
+        "target": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "via": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/location"
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dynamicPart"
+          }
+        },
+        "hosted": {
+          "const": true
+        },
+        "tool": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string",
+          "enum": ["shell", "program", "arguments"]
+        },
+        "query": {
+          "const": true
+        },
+        "host": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dynamicPart"
+          }
+        },
+        "sandbox": {
+          "type": "string",
+          "enum": ["none", "container", "remote"]
+        },
+        "systemInputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dynamicPart"
+          }
+        },
+        "guards": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["kind", "target", "location", "via", "inputs"]
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["system", "user", "template"]
+        },
+        "text": {
+          "type": "string"
+        },
+        "dynamic": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dynamicPart"
+          }
+        },
+        "variables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "usedBy": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "secret": {
+          "type": "string"
+        },
+        "truncated": {
+          "const": true
+        }
+      },
+      "required": ["id", "location", "role", "text", "dynamic", "variables", "usedBy"]
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "target": {
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "baseUrl": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "credential": {
+          "type": "string",
+          "enum": ["literal", "placeholder", "environment", "parameter", "default", "other"]
+        }
+      },
+      "required": ["id", "framework", "location", "target", "model", "baseUrl", "credential"]
+    },
+    "llmCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "target": {
+          "type": "string"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "client": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prompts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unresolvedTools": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dynamicPart"
+          }
+        },
+        "systemInputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dynamicPart"
+          }
+        },
+        "outputEffects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/capability"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "framework",
+        "location",
+        "target",
+        "scope",
+        "model",
+        "client",
+        "prompts",
+        "tools",
+        "unresolvedTools",
+        "inputs",
+        "systemInputs",
+        "outputEffects"
+      ]
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "target": {
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unresolvedTools": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "prompts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "handler": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "handlerPath": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "handler"]
+          }
+        },
+        "delegates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mcpClients": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "invocations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "location": {
+                "$ref": "#/definitions/location"
+              },
+              "inputs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/dynamicPart"
+                }
+              }
+            },
+            "required": ["location", "inputs"]
+          }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/capability"
+          }
+        },
+        "outputEffects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/capability"
+          }
+        },
+        "approval": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "framework",
+        "location",
+        "target",
+        "name",
+        "model",
+        "tools",
+        "unresolvedTools",
+        "prompts",
+        "nodes",
+        "delegates",
+        "mcpClients",
+        "invocations",
+        "capabilities",
+        "outputEffects"
+      ]
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "handler": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "params": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "via": {
+          "type": "string",
+          "enum": ["decorator", "class", "factory", "function", "builtin", "agent", "mcp", "schema"]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/capability"
+          }
+        },
+        "server": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "handlerPath": {
+          "type": "string"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "approval": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "framework",
+        "location",
+        "name",
+        "description",
+        "handler",
+        "params",
+        "via",
+        "capabilities",
+        "server"
+      ]
+    },
+    "mcpMember": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "handler": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "handlerPath": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "handler", "location"]
+    },
+    "mcpServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transport": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/mcpMember"
+          }
+        },
+        "prompts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/mcpMember"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "framework",
+        "location",
+        "name",
+        "transport",
+        "tools",
+        "resources",
+        "prompts"
+      ]
+    },
+    "mcpClient": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "target": {
+          "type": "string"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["id", "framework", "location", "target", "command", "url"]
+    },
+    "dataStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["vector_store", "embeddings", "retriever", "checkpointer", "memory"]
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "framework", "location", "kind", "target"]
+    },
+    "entryPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["http", "mcp"]
+        },
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "handler": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reaches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/capability"
+          }
+        },
+        "handlerPath": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "framework", "location", "kind", "method", "path", "handler", "reaches"]
+    },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "frameworks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["id", "name", "files"]
+          }
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/model"
+          }
+        },
+        "llmCalls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/llmCall"
+          }
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/agent"
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/tool"
+          }
+        },
+        "mcpServers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/mcpServer"
+          }
+        },
+        "mcpClients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/mcpClient"
+          }
+        },
+        "prompts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/prompt"
+          }
+        },
+        "dataStores": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dataStore"
+          }
+        },
+        "entryPoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/entryPoint"
+          }
+        },
+        "unrecognised": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "module": {
+                "type": "string"
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["module", "files"]
+          }
+        }
+      },
+      "required": [
+        "frameworks",
+        "models",
+        "llmCalls",
+        "agents",
+        "tools",
+        "mcpServers",
+        "mcpClients",
+        "prompts",
+        "dataStores",
+        "entryPoints",
+        "unrecognised"
+      ]
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^PLG[0-9]{3}$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"]
+        },
+        "owasp": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwe": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "remediation": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "name", "title", "description", "severity", "owasp", "cwe", "remediation"]
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rule": {
+          "type": "string",
+          "pattern": "^PLG[0-9]{3}$"
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "location": {
+          "$ref": "#/definitions/location"
+        },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "tool",
+                "agent",
+                "llm_call",
+                "entry_point",
+                "mcp_server",
+                "mcp_client",
+                "model",
+                "prompt",
+                "code"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": ["kind", "name"]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "location": {
+                "$ref": "#/definitions/location"
+              },
+              "message": {
+                "type": "string"
+              },
+              "snippet": {
+                "type": "string"
+              }
+            },
+            "required": ["location", "message"]
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exposed": {
+          "type": "boolean"
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "baselineState": {
+          "type": "string",
+          "enum": ["new", "unchanged"]
+        },
+        "suppression": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": ["reason"]
+        }
+      },
+      "required": [
+        "rule",
+        "fingerprint",
+        "title",
+        "severity",
+        "confidence",
+        "score",
+        "location",
+        "subject",
+        "evidence",
+        "notes",
+        "exposed"
+      ]
+    },
+    "ref": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "import"
+            },
+            "module": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            },
+            "origin": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "assignment": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": ["path", "assignment"]
+            },
+            "constant": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "required": ["kind", "module", "path", "name"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "local"
+            },
+            "definition": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            },
+            "origin": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "assignment": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": ["path", "assignment"]
+            },
+            "constant": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "required": ["kind", "definition", "path", "name"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "global"
+            },
+            "path": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            },
+            "origin": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "assignment": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": ["path", "assignment"]
+            },
+            "constant": {
+              "$ref": "#/definitions/value"
+            }
+          },
+          "required": ["kind", "path", "name"]
+        }
+      ]
+    },
+    "value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "string"
+            },
+            "value": {
+              "type": "string"
+            },
+            "template": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/value"
+              }
+            },
+            "truncated": {
+              "const": true
+            }
+          },
+          "required": ["kind", "value"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "concat"
+            },
+            "parts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/value"
+              }
+            }
+          },
+          "required": ["kind", "parts"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "literal"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": ["kind", "text"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "name"
+            },
+            "text": {
+              "type": "string"
+            },
+            "ref": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ref"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "param": {
+              "const": true
+            },
+            "assignment": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "of": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": ["kind", "text", "ref"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "call"
+            },
+            "call": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": ["kind", "call"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "function"
+            },
+            "definition": {
+              "type": "string"
+            }
+          },
+          "required": ["kind", "definition"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "list"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/value"
+              }
+            },
+            "truncated": {
+              "const": true
+            }
+          },
+          "required": ["kind", "items"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "object"
+            },
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "key": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "value": {
+                    "$ref": "#/definitions/value"
+                  }
+                },
+                "required": ["key", "value"]
+              }
+            },
+            "truncated": {
+              "const": true
+            }
+          },
+          "required": ["kind", "entries"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "other"
+            },
+            "text": {
+              "type": "string"
+            },
+            "parts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/value"
+              }
+            }
+          },
+          "required": ["kind", "text"]
+        }
+      ]
+    },
+    "argument": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "keyword": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value": {
+          "$ref": "#/definitions/value"
+        },
+        "spread": {
+          "const": true
+        }
+      },
+      "required": ["keyword", "value"]
+    },
+    "decorator": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "ref": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ref"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "arguments": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/argument"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "span": {
+          "$ref": "#/definitions/span"
+        },
+        "receiver": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["text", "ref", "arguments", "span"]
+    },
+    "facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "imports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "module": {
+                "type": "string"
+              },
+              "imported": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "local": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "module",
+                  "member",
+                  "default",
+                  "namespace",
+                  "wildcard",
+                  "side_effect",
+                  "require",
+                  "dynamic",
+                  "reexport"
+                ]
+              },
+              "typeOnly": {
+                "type": "boolean"
+              },
+              "scope": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "span": {
+                "$ref": "#/definitions/span"
+              }
+            },
+            "required": ["module", "imported", "local", "kind", "typeOnly", "scope", "span"]
+          }
+        },
+        "definitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["function", "method", "class"]
+              },
+              "parent": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "async": {
+                "type": "boolean"
+              },
+              "exported": {
+                "type": "boolean"
+              },
+              "params": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "decorators": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/decorator"
+                }
+              },
+              "bases": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/value"
+                }
+              },
+              "doc": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "span": {
+                "$ref": "#/definitions/span"
+              },
+              "returns": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/value"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "kind",
+              "parent",
+              "async",
+              "exported",
+              "params",
+              "decorators",
+              "bases",
+              "doc",
+              "span"
+            ]
+          }
+        },
+        "assignments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "target": {
+                "type": "string"
+              },
+              "value": {
+                "$ref": "#/definitions/value"
+              },
+              "scope": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "span": {
+                "$ref": "#/definitions/span"
+              },
+              "member": {
+                "type": "string"
+              }
+            },
+            "required": ["target", "value", "scope", "span"]
+          }
+        },
+        "calls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "callee": {
+                "type": "string"
+              },
+              "ref": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/ref"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "new": {
+                "type": "boolean"
+              },
+              "arguments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/argument"
+                }
+              },
+              "scope": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "span": {
+                "$ref": "#/definitions/span"
+              },
+              "receiver": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": ["callee", "ref", "new", "arguments", "scope", "span"]
+          }
+        },
+        "defaultExport": {
+          "type": "string"
+        }
+      },
+      "required": ["imports", "definitions", "assignments", "calls"]
+    }
+  }
+}

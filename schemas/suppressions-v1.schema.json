@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "plenger suppressions v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "suppressions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "pattern": "\\S"
+          },
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "rule": {
+            "type": "string",
+            "pattern": "^PLG[0-9]{3}$"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": ["reason"],
+        "anyOf": [
+          {
+            "required": ["fingerprint"]
+          },
+          {
+            "required": ["rule"]
+          }
+        ]
+      }
+    }
+  },
+  "required": ["schemaVersion", "suppressions"]
+}

@@ -14,6 +14,18 @@ export interface Sink {
   chainInput?: boolean;
   /** Python `open()`-style mode argument: a mode with w, a, x or + writes; otherwise it reads. */
   mode?: string;
+  /**
+   * For `process`: the command runs through a shell (`true`), or does when the option
+   * at this argument path is true (`shell=True`, `{ shell: true }`). Otherwise the
+   * input names the program and `args` holds its arguments.
+   */
+  shell?: true | string;
+  /** For `process`: argument path of the program's arguments; `*` for every positional argument after the first. */
+  args?: string;
+  /** For `process`: interpolations are quoted one argument each (`zx`'s and Bun's `$` templates). */
+  quoted?: true;
+  /** For `database`: the input is a query in a query language (SQL), not data. */
+  query?: true;
 }
 
 const each = (base: string, members: string) => `${base}.{${members}}`;
@@ -25,26 +37,47 @@ const FS = "{node:fs,fs,node:fs/promises,fs/promises,fs-extra}";
 export const PYTHON_SINKS: Sink[] = [
   {
     kind: "process",
+    calls: [each("subprocess", "run,call,check_call,check_output,Popen")],
+    input: "args|cmd|command|#0",
+    shell: "shell",
+  },
+  {
+    kind: "process",
     calls: [
-      each("subprocess", "run,call,check_call,check_output,Popen,getoutput,getstatusoutput"),
+      each("subprocess", "getoutput,getstatusoutput"),
       each("os", "system,popen"),
-      each("asyncio", "create_subprocess_shell,create_subprocess_exec"),
-      "pty.spawn",
-      each("pexpect", "spawn,run"),
+      "asyncio.create_subprocess_shell",
       "paramiko.SSHClient()**.exec_command",
       "fabric.Connection()**.{run,sudo,local}",
     ],
     input: "args|cmd|command|#0",
+    shell: true,
+  },
+  {
+    kind: "process",
+    calls: [
+      "asyncio.create_subprocess_exec",
+      each("os", "execl,execle,execlp,execlpe,spawnl,spawnle,spawnlp,spawnlpe"),
+    ],
+    input: "program|#0",
+    args: "*",
   },
   {
     kind: "process",
     calls: [
       each(
         "os",
-        "execv,execve,execvp,execvpe,execl,execle,execlp,execlpe,spawnv,spawnve,spawnl,spawnlp,posix_spawn,posix_spawnp",
+        "execv,execve,execvp,execvpe,spawnv,spawnve,spawnvp,spawnvpe,posix_spawn,posix_spawnp",
       ),
     ],
-    input: "#0",
+    input: "path|file|#0",
+    args: "argv|args|#1",
+  },
+  {
+    kind: "process",
+    calls: ["pty.spawn", each("pexpect", "spawn,run")],
+    input: "argv|command|#0",
+    args: "args|#1",
   },
   {
     kind: "code",
@@ -139,7 +172,15 @@ export const PYTHON_SINKS: Sink[] = [
       "{psycopg2,psycopg,pymysql,MySQLdb,mysql.connector,pyodbc,oracledb,duckdb}.connect()**.{execute,executemany}",
       "asyncpg.{connect,create_pool}()**.{execute,executemany,fetch,fetchrow,fetchval}",
       "sqlalchemy.create_engine()**.{execute,exec_driver_sql}",
-      "sqlalchemy.orm.{Session,sessionmaker}()**.{execute,add,add_all,delete,merge,commit}",
+      "sqlalchemy.orm.{Session,sessionmaker}()**.execute",
+    ],
+    input: "#0",
+    query: true,
+  },
+  {
+    kind: "database",
+    calls: [
+      "sqlalchemy.orm.{Session,sessionmaker}()**.{add,add_all,delete,merge,commit}",
       "pymongo.MongoClient()**.{insert_one,insert_many,update_one,update_many,replace_one,delete_one,delete_many,find,find_one,aggregate,drop}",
       "motor.motor_asyncio.AsyncIOMotorClient()**.{insert_one,insert_many,update_one,update_many,delete_one,delete_many,find,find_one}",
       "supabase.create_client()**.{insert,update,upsert,delete,select,rpc}",
@@ -188,18 +229,36 @@ export const PYTHON_SINKS: Sink[] = [
 export const JAVASCRIPT_SINKS: Sink[] = [
   {
     kind: "process",
+    calls: ["{node:child_process,child_process}#{exec,execSync}", "shelljs{#default,}.exec"],
+    input: "#0",
+    shell: true,
+  },
+  {
+    kind: "process",
     calls: [
-      "{node:child_process,child_process}#{exec,execSync,spawn,spawnSync,execFile,execFileSync,fork}",
-      "execa#{execa,execaSync,execaCommand,execaCommandSync,$}",
-      "zx#$",
-      "shelljs{#default,}.exec",
-      "Bun.spawn",
-      "Bun.spawnSync",
-      "Bun.$",
-      "Deno.Command",
-      "Deno.run",
+      "{node:child_process,child_process}#{spawn,spawnSync,execFile,execFileSync,fork}",
+      "execa#{execa,execaSync}",
     ],
     input: "#0",
+    args: "#1",
+    shell: "#1.shell|#2.shell",
+  },
+  {
+    kind: "process",
+    calls: ["execa#{execaCommand,execaCommandSync}", "Bun.spawn", "Bun.spawnSync", "Deno.run"],
+    input: "#0.cmd|cmd|#0",
+  },
+  {
+    kind: "process",
+    calls: ["Deno.Command"],
+    input: "#0",
+    args: "#1.args",
+  },
+  {
+    kind: "process",
+    calls: ["execa#$", "zx#$", "Bun.$"],
+    input: "#0",
+    quoted: true,
   },
   {
     kind: "code",
@@ -267,11 +326,20 @@ export const JAVASCRIPT_SINKS: Sink[] = [
       "{pg,postgres}{#default,}()**.{unsafe,query}",
       "mysql2{,/promise}#{createConnection,createPool}()**.{query,execute}",
       "better-sqlite3{#default,}()**.{exec,prepare}",
-      "@prisma/client#PrismaClient()**.{create,createMany,update,updateMany,upsert,delete,deleteMany,findMany,findUnique,findFirst,$executeRaw,$executeRawUnsafe,$queryRaw,$queryRawUnsafe}",
+      "@prisma/client#PrismaClient()**.{$executeRawUnsafe,$queryRawUnsafe}",
+      "knex{#default,}()**.raw",
+    ],
+    input: "#0",
+    query: true,
+  },
+  {
+    kind: "database",
+    calls: [
+      "@prisma/client#PrismaClient()**.{create,createMany,update,updateMany,upsert,delete,deleteMany,findMany,findUnique,findFirst,$executeRaw,$queryRaw}",
       "mongodb#MongoClient()**.{insertOne,insertMany,updateOne,updateMany,replaceOne,deleteOne,deleteMany,find,findOne,aggregate,drop}",
       "@supabase/supabase-js#createClient()**.{insert,update,upsert,delete,select,rpc}",
       "drizzle-orm/**#drizzle()**.{insert,update,delete,select,execute}",
-      "knex{#default,}()**.{insert,update,del,delete,select,raw}",
+      "knex{#default,}()**.{insert,update,del,delete,select}",
       "redis#createClient()**.{set,del,hSet,lPush,rPush,sendCommand}",
       "ioredis{#default,}()**.{set,del,hset,lpush,rpush,call}",
     ],
@@ -311,13 +379,22 @@ export const JAVASCRIPT_SINKS: Sink[] = [
 export const BUILTIN_TOOL_CAPABILITIES: { name: RegExp; kind: CapabilityKind; hosted?: boolean }[] =
   [
     { name: /^(?:ShellTool|LocalShellTool|shellTool)$/, kind: "process" },
-    { name: /^(?:ApplyPatchTool|applyPatchTool|FileWriterTool)$/, kind: "file_write" },
+    {
+      name: /^(?:ApplyPatchTool|applyPatchTool|FileWriterTool|WriteFileTool|CopyFileTool|MoveFileTool)$/,
+      kind: "file_write",
+    },
+    { name: /^DeleteFileTool$/, kind: "file_delete" },
+    { name: /^(?:ReadFileTool|ListDirectoryTool)$/, kind: "file_read" },
+    { name: /^Requests(?:Get|Post|Patch|Put|Delete)Tool$/, kind: "network" },
     {
       name: /^(?:CodeInterpreterTool|codeInterpreterTool|CodeExecutionTool)$/,
       kind: "code",
       hosted: true,
     },
-    { name: /^(?:PythonInterpreterTool|CodeInterpreterTool)$/, kind: "code" },
+    {
+      name: /^(?:PythonInterpreterTool|CodeInterpreterTool|PythonREPLTool|PythonAstREPLTool)$/,
+      kind: "code",
+    },
     { name: /^(?:ComputerTool|computerTool|BrowserbaseLoadTool)$/, kind: "browser" },
     {
       name: /^(?:WebSearchTool|webSearchTool|WebFetchTool|XSearchTool)$/,
@@ -336,3 +413,64 @@ export const BUILTIN_TOOL_CAPABILITIES: { name: RegExp; kind: CapabilityKind; ho
     },
     { name: /SQL|Database|PG|MySQL|Postgres|Snowflake/, kind: "database" },
   ];
+
+/**
+ * Calls that check or narrow an input before an effect uses it. Seeing one lowers
+ * confidence in a finding; it does not prove the check is right.
+ */
+export const GUARDS: { kinds: CapabilityKind[]; calls: string[] }[] = [
+  {
+    kinds: ["file_read", "file_write", "file_delete"],
+    calls: [
+      "os.path.{realpath,abspath,normpath,commonpath,commonprefix,basename}",
+      "pathlib.{Path,PurePath,PosixPath,WindowsPath}()**.{resolve,is_relative_to,relative_to}",
+      "werkzeug.utils.secure_filename",
+      "{node:path,path}#{resolve,normalize,basename,relative}",
+      "{node:path,path}#default.{resolve,normalize,basename,relative}",
+      "{node:fs,fs,node:fs/promises,fs/promises}#{realpath,realpathSync}",
+      "sanitize-filename{#default,}",
+    ],
+  },
+  {
+    kinds: ["network", "browser"],
+    calls: [
+      "urllib.parse.{urlparse,urlsplit}",
+      "ipaddress.{ip_address,ip_network}",
+      "validators.url",
+      "URL",
+      "ipaddr.js{#default,}.{parse,process}",
+      "ssrf-req-filter{#default,}",
+      "request-filtering-agent#*",
+    ],
+  },
+  {
+    kinds: ["process"],
+    calls: ["shlex.{quote,join}", "shell-quote#quote", "shell-escape{#default,}"],
+  },
+];
+
+/** Calls that stop and ask a person before going on. */
+export const APPROVAL_CALLS: string[] = [
+  "input",
+  "builtins.input",
+  "click.{confirm,prompt}",
+  "typer.{confirm,prompt}",
+  "rich.prompt.{Confirm,Prompt}.ask",
+  "questionary.confirm",
+  "langgraph.types.interrupt",
+  "@langchain/langgraph#interrupt",
+  "{node:readline,readline,node:readline/promises,readline/promises}#createInterface()**.question",
+  "@inquirer/prompts#confirm",
+  "@inquirer/confirm{#default,}",
+  "confirm",
+];
+
+/** Tool and agent options that make a person approve calls (`needs_approval=True`, `needsApproval: true`). */
+export const APPROVAL_OPTIONS = [
+  "needs_approval",
+  "requires_approval",
+  "require_approval",
+  "needsApproval",
+  "requireApproval",
+  "requiresApproval",
+];

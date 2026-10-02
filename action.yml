@@ -1,0 +1,56 @@
+name: plenger
+description: Static triage for Python, JavaScript and TypeScript agentic AI projects
+inputs:
+  path:
+    description: File or directory to scan, relative to the workspace
+    default: .
+  fail-on:
+    description: Fail for new unsuppressed findings at or above critical, high, medium or low; none disables the gate
+    default: high
+  baseline:
+    description: Optional version 1 baseline file, relative to the workspace
+    default: ''
+  suppressions:
+    description: Optional version 1 suppressions file, relative to the workspace
+    default: ''
+  sarif-file:
+    description: SARIF output file inside the workspace
+    default: plenger.sarif
+  gitignore:
+    description: Respect the scanned project's .gitignore files
+    default: 'true'
+outputs:
+  sarif-file:
+    description: Workspace-relative SARIF output path, also produced when the finding gate fails
+    value: ${{ steps.scan.outputs.sarif-file }}
+  exit-code:
+    description: Scanner exit code (0 success, 1 scan or I/O error, 2 invalid input, 3 finding gate failure)
+    value: ${{ steps.scan.outputs.exit-code }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: '22.18.0'
+        package-manager-cache: false
+    - uses: pnpm/action-setup@v6
+      with:
+        version: 10.19.0
+        run_install: false
+    - name: Install scanner dependencies
+      shell: bash
+      run: pnpm --dir "$GITHUB_ACTION_PATH" install --prod --frozen-lockfile --ignore-scripts
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        PLENGER_PATH: ${{ inputs.path }}
+        PLENGER_FAIL_ON: ${{ inputs.fail-on }}
+        PLENGER_BASELINE: ${{ inputs.baseline }}
+        PLENGER_SUPPRESSIONS: ${{ inputs.suppressions }}
+        PLENGER_SARIF_FILE: ${{ inputs.sarif-file }}
+        PLENGER_GITIGNORE: ${{ inputs.gitignore }}
+      run: node "$GITHUB_ACTION_PATH/scripts/github-action.ts"
+branding:
+  icon: shield
+  color: purple

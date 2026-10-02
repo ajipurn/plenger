@@ -5,9 +5,11 @@ import {
   type ClassInfo,
   Context,
   clip,
+  compositeValue,
   hasChild,
   type LanguageHooks,
   LIMITS,
+  LOOP_ITEM,
   listValue,
   otherValue,
   Scope,
@@ -89,7 +91,8 @@ class PythonExtractor implements LanguageHooks {
         return;
       case "for_statement": {
         const left = node.childForFieldName("left");
-        if (left !== null) this.bindUnknown(left, scope, node.startIndex);
+        const right = node.childForFieldName("right");
+        if (left !== null && right !== null) this.bindLoop(left, right, scope, node.startIndex);
         break;
       }
       case "call":
@@ -321,6 +324,17 @@ class PythonExtractor implements LanguageHooks {
     }
   }
 
+  /** `for item in items` and `for key, value in pairs`: each name holds part of an item of `right`. */
+  bindLoop(target: Node, right: Node, scope: Scope, offset: number): void {
+    if (target.type === "identifier") {
+      scope.bind(target.text, this.cx.assign(target, right, scope, offset, LOOP_ITEM));
+      return;
+    }
+    if (!PATTERN_TARGETS.has(target.type)) return;
+    for (const child of target.namedChildren)
+      if (child !== null) this.bindLoop(child, right, scope, offset);
+  }
+
   bindUnknown(target: Node, scope: Scope, offset: number): void {
     if (target.type === "identifier") {
       scope.bind(target.text, { kind: "unknown", offset });
@@ -411,7 +425,7 @@ class PythonExtractor implements LanguageHooks {
         return this.name(node, scope);
       case "subscript":
         return stringKey(node.childForFieldName("subscript")) === null
-          ? otherValue(node)
+          ? this.composite(node, scope, depth)
           : this.name(node, scope);
       case "call": {
         const index = this.cx.callIndex(node);
@@ -437,7 +451,7 @@ class PythonExtractor implements LanguageHooks {
           if (!parts.some(isNotText))
             return { kind: "concat", parts: parts.flatMap(flattenConcat) };
         }
-        return otherValue(node);
+        return this.composite(node, scope, depth);
       }
       case "await":
       case "parenthesized_expression": {
@@ -445,8 +459,12 @@ class PythonExtractor implements LanguageHooks {
         return inner == null ? otherValue(node) : this.value(inner, scope, depth);
       }
       default:
-        return otherValue(node);
+        return this.composite(node, scope, depth);
     }
+  }
+
+  composite(node: Node, scope: Scope, depth: number): Value {
+    return compositeValue(node, (operand) => this.value(operand, scope, depth + 1));
   }
 
   elements(node: Node): Node[] {
@@ -463,11 +481,17 @@ class PythonExtractor implements LanguageHooks {
       root = object;
     }
     const value: Value = { kind: "name", text: textOf(node), ref: this.resolve(node, scope, 0) };
+    if (root.type === "call") {
+      const call = this.cx.callIndex(root);
+      if (call !== undefined) value.of = call;
+    }
     if (root.type !== "identifier") return value;
     const binding = this.cx.lookup(root.text, scope, root.startIndex);
     if (binding?.kind === "param") value.param = true;
     const assignment = this.cx.assignmentOf(root === node ? binding : this.memberOf(node, scope));
     if (assignment !== undefined) value.assignment = assignment;
+    const base = root === node ? undefined : this.cx.assignmentOf(binding);
+    if (assignment === undefined && base !== undefined) value.base = base;
     return value;
   }
 
@@ -559,7 +583,12 @@ class PythonExtractor implements LanguageHooks {
       ref: callee === null ? null : this.resolve(callee, scope, 0),
       new: false,
       scope: scope.definition,
-      arguments: args?.type === "argument_list" ? this.arguments(args, scope) : [],
+      arguments:
+        args?.type === "argument_list"
+          ? this.arguments(args, scope)
+          : args?.type === "generator_expression"
+            ? [{ keyword: null, value: this.value(args, scope, 0) }]
+            : [],
       span: spanOf(node),
     };
     const receiver = callee === null ? undefined : this.receiver(callee, scope);

@@ -52,7 +52,17 @@ export type Value =
    * enclosing function; `assignment` indexes `FileFacts.assignments` when the name is
    * a variable or `self`/`this` member whose value plenger recorded.
    */
-  | { kind: "name"; text: string; ref: Ref | null; param?: true; assignment?: number }
+  | {
+      kind: "name";
+      text: string;
+      ref: Ref | null;
+      param?: true;
+      assignment?: number;
+      /** For a member of a variable (`body.question`, `body["q"]`): the variable's assignment. */
+      base?: number;
+      /** For a member of a call's result (`requests.get(url).text`): index into `FileFacts.calls`. */
+      of?: number;
+    }
   /** Index into `FileFacts.calls`. */
   | { kind: "call"; call: number }
   /** Id of a function or class defined inline (lambda, arrow function, function expression). */
@@ -60,7 +70,11 @@ export type Value =
   | { kind: "list"; items: Value[]; truncated?: true }
   /** Dict or object literal; `key` is null for spreads and computed keys. */
   | { kind: "object"; entries: { key: string | null; value: Value }[]; truncated?: true }
-  | { kind: "other"; text: string };
+  /**
+   * Any other expression. `parts` are the values it is computed from, for operators,
+   * conditionals, subscripts and comprehensions (`a or b`, `data[i]`, `[d.text for d in docs]`).
+   */
+  | { kind: "other"; text: string; parts?: Value[] };
 
 export interface Argument {
   /** Python keyword argument name; null for positional arguments. */

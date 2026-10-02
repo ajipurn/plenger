@@ -122,7 +122,7 @@ Groq, Hugging Face, Agno, Strands, VoltAgent, LlamaIndex.TS and others) are repo
 as "not understood yet", not dropped.
 
 Measured on 2 October 2026: precision and recall 1.0 in every section on the fixture
-corpus (`node scripts/benchmark-inventory.ts`; 25 files, 197 expected items, each
+corpus (`node scripts/benchmark.ts`; 25 files, 197 expected items, each
 reviewed against its source). Spot checks on real code, read by hand: all 26 llmfy
 examples (37 models, 47 agents, 39 LLM calls all linked to their `LLMfy` instance, 12
 tools, 14 data stores), the openai-agents-python examples (149 agents, 79 tools, 13
@@ -178,28 +178,104 @@ seen only in arguments, assignments and return values; dynamic dispatch, callbac
 passed in from other files and framework-internal effects (a vector store writing to
 disk) are not followed.
 
-### M4 Risk rules and triage
+### M4 Risk rules and triage (done)
 
-Rules over the inventory and capabilities, for example:
+**Findings** ([src/rules/](../src/rules/)). 26 rules over the inventory and its
+capabilities, each with an id, a highest severity, a remediation and its mapping to
+the OWASP Top 10 for LLM Applications 2025, the OWASP Top 10 for Agentic
+Applications 2026 and CWE ([docs/RULES.md](RULES.md), `plenger rules`):
 
-- an agent can call a tool that runs commands, evaluates code or writes files, and
-  no human approval step was detected
-- untrusted input (route parameters, retrieved documents, tool output) reaches a
-  prompt or a dangerous tool argument, including the system prompt through template
-  variables (llmfy's `{{var}}` placeholders filled by `invoke(..., var=...)`)
-- a tool takes a URL or path chosen by the model with no allow-list
-- an MCP server exposes a dangerous capability
-- credentials in prompts or source
-- agent loops with no iteration or cost limit
+- tools whose effect takes model-chosen arguments: shell commands and program names
+  (separately from arguments of a fixed program), code evaluation, file paths, URLs
+  whose host the model picks, SQL built from model input, unsafe deserialization,
+  message recipients and payment amounts; built-in shell, REPL and SQL tools
+- agents and tool-using model calls that can run commands, execute code or change
+  files, data or money with no human approval seen (`needs_approval`,
+  `interrupt_before`, `HumanInTheLoopMiddleware`, `needsApproval`, a prompt to a
+  person anywhere in the handler or the objects passed to a built-in tool); agents
+  that run model-written code on the host (smolagents, CrewAI, AutoGen, AG2); agents
+  and teams with no iteration limit
+- HTTP routes that pass request input to an agent with high-impact tools, request
+  input or function arguments placed in a system prompt (including llmfy's
+  `{{var}}` placeholders filled at `invoke`), and retrieved documents or fetched pages
+  placed there
+- model output used as a command, code, query, path or URL, including the arguments
+  of tool calls dispatched by hand (`for call in response.tool_calls: ...`)
+- API keys and tokens in code and prompts, recognised by format and checked for
+  randomness so that placeholders are skipped
+- MCP servers that serve high-impact tools over HTTP with no authentication seen,
+  stdio servers started from unpinned packages or images, remote servers over
+  plain HTTP
+- framework options that switch off a safety default (`allow_dangerous_code`,
+  `allow_dangerous_deserialization`, `trust_remote_code`, `dangerouslyAllowBrowser`,
+  `allow_dangerous_requests`, smolagents imports of `*` or `os`)
 
-Each rule has an ID, severity, confidence, remediation, a mapping to the OWASP Top
-10 for LLM Applications (2025) and the OWASP agentic AI guidance, and CWE IDs where
-they fit. A triage score orders the findings.
+Each finding has a title that names the subject, a severity and a confidence, a
+0–100 triage score (severity scaled by confidence, plus 10 when the code is
+reachable from an HTTP route or a network MCP server), the evidence chain from
+where input enters to where it is used with the source line of each step, notes on
+what lowered the rating (input checks such as `os.path.realpath` or `shlex.quote`,
+an approval step, test code), and a fingerprint built from the rule, file and
+subject rather than line numbers, for baselines in M5.
 
-### M5 Reports and CI
+**Data flow** behind the rules: values are traced within a file through variables,
+loop variables, members (`body["question"]` from `await request.json()`), calls on
+them and their arguments, call chains, comprehensions and operators, to the
+parameters, calls and framework request objects (`flask.request`) they come from;
+across files, callers' arguments are bound to callees' parameters as in M3.
+Recognised secrets are redacted throughout the report after analysis, including
+inventory names, prompts, MCP commands and URLs, snippets and optional code facts.
+Private key blocks are redacted with their contents, not just their headers.
+
+Measured on 2 October 2026: 215 tests; the three fixture corpora (`frameworks`,
+`crossfile` and the new `risks`, with positive and negative cases for every rule)
+score precision and recall 1.0 for the inventory and for 100 reviewed findings
+(`node scripts/benchmark.ts`). On real code, every finding read by hand:
+langgraphjs, 10 findings (the four example calculators that evaluate the model's
+expression with `Function`, and the six agents that can call them without approval);
+the openai-agents-python examples, 12 (four local `ShellTool`s, rated lower because
+they require approval; hosted container shells and the approval-gated apply-patch
+editor are not reported; four MCP servers started with an unpinned `npx` or `uvx`;
+four low-rated system prompts built from function arguments); the MCP TypeScript
+SDK, 1 (a private key in a test file, rated lower as test code); the llmfy examples,
+none (their `{{info}}` placeholders are filled with constants). Scans take the same
+time as in M3: 5.6 s and 230 MB peak memory for langgraphjs (1,200 files).
+
+Known limits: taint is traced within a file and through arguments into called
+functions, not back from a function to its callers, so a model call's output that
+is returned and used by the caller is not followed, and a system prompt built where
+an agent is constructed (rather than at the model call) is not tied to the routes
+that reach the agent; an approval or input check done by a proxy,
+middleware or framework configuration outside the code is not seen and leaves a
+finding at medium confidence; checks are recognised by name, not verified.
+
+### M5 Reports and CI (done)
 
 Terminal report, versioned JSON schema, SARIF 2.1.0 and Markdown; a baseline and
 suppression file; `--fail-on` for CI; a GitHub Action.
+
+`--format terminal|json|sarif|markdown` selects the report (`--json` remains an
+alias), and `--output` writes it without terminal colours. The version 1 JSON
+Schema describes the entire scan, inventory, capabilities, optional linked facts,
+findings and review metadata. SARIF 2.1.0 retains rule mappings, source regions,
+evidence, stable partial fingerprints, coverage warnings, baseline states and
+external suppressions. Markdown includes findings, remediation and coverage.
+
+Version 1 baseline files record root-relative fingerprints, rule ids and paths;
+`--write-baseline` regenerates them explicitly. Suppression files match a
+fingerprint or rule, optionally constrained by a path glob, and require a reason.
+Malformed or unknown policy fields fail with exit 2. Policy matching does not
+remove findings from structured reports. `--fail-on` gates only new unsuppressed
+findings at or above a severity threshold; exit 3 follows report generation.
+
+The composite GitHub Action installs only the scanner's pinned runtime
+dependencies, scans once and writes SARIF, outputs and a Markdown job summary even
+if the gate fails. The CI workflow validates the source, compiled CLI and local
+Action. Local tests validate reports against the checked-in JSON contracts and
+OASIS's unmodified SARIF schema, plus CLI gates, policy validation, relocated
+baselines, adversarial Markdown escaping and Action outputs. A hosted GitHub run
+and code-scanning upload remain unverified until this checkout has a remote.
+See [REPORTS.md](REPORTS.md).
 
 ### M6 Distribution
 

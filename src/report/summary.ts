@@ -1,6 +1,7 @@
 import { styleText } from "node:util";
 import type { CapabilityKind, Inventory } from "../inventory/model.ts";
 import { LANGUAGE_LABEL, type Language } from "../languages.ts";
+import { type Finding, SEVERITIES, type Severity } from "../rules/model.ts";
 import type { ScanResult, ScanSkipReason } from "../scan.ts";
 import { VERSION } from "../version.ts";
 
@@ -18,23 +19,79 @@ const SKIP_LABEL: Record<ScanSkipReason, string> = {
 const LIST_LIMIT = 10;
 const DETAIL_WIDTH = 100;
 
+/** Findings shown in the terminal unless `--all` is given. */
+const FINDING_LIMIT = 20;
+
 interface Styles {
   bold: (text: string) => string;
   dim: (text: string) => string;
   warn: (text: string) => string;
+  severity: Record<Severity, (text: string) => string>;
 }
 
-/** The terminal summary of a scan: files, then the agent inventory. */
-export function formatSummary(result: ScanResult, color: boolean): string {
+export interface SummaryOptions {
+  color: boolean;
+  /** Show every finding instead of the most urgent ones. */
+  all?: boolean;
+}
+
+/** The terminal summary of a scan: files, the agent inventory, its capabilities and the findings. */
+export function formatSummary(result: ScanResult, options: SummaryOptions): string {
   const style = (format: Parameters<typeof styleText>[0]) => (text: string) =>
-    color ? styleText(format, text) : text;
-  const s: Styles = { bold: style("bold"), dim: style("dim"), warn: style("yellow") };
+    options.color ? styleText(format, text) : text;
+  const s: Styles = {
+    bold: style("bold"),
+    dim: style("dim"),
+    warn: style("yellow"),
+    severity: {
+      critical: style(["bold", "red"]),
+      high: style("red"),
+      medium: style("yellow"),
+      low: style("dim"),
+    },
+  };
   const lines = [
     ...fileLines(result, s),
     ...inventoryLines(result.inventory, s),
     ...capabilityLines(result.inventory, s),
+    ...findingLines(result.findings, s, options.all === true),
   ];
   return `${lines.join("\n")}\n`;
+}
+
+function findingLines(findings: Finding[], s: Styles, all: boolean): string[] {
+  const counts = SEVERITIES.map((severity) => ({
+    severity,
+    count: findings.filter((finding) => finding.severity === severity).length,
+  })).filter((entry) => entry.count > 0);
+  const tally = counts.map(({ severity, count }) => s.severity[severity](`${count} ${severity}`));
+  const lines = [
+    "",
+    `  ${s.bold("Findings")}${tally.length > 0 ? `  ${tally.join(s.dim(" · "))}` : ""}`,
+  ];
+  if (findings.length === 0) {
+    lines.push("    No risks detected by plenger's rules. This is not proof that there are none.");
+    return lines;
+  }
+  const shown = all ? findings : findings.slice(0, FINDING_LIMIT);
+  for (const finding of shown) {
+    const label = s.severity[finding.severity](finding.severity.toUpperCase().padEnd(8));
+    lines.push("", `    ${label} ${String(finding.score).padStart(3)}  ${finding.title}`);
+    const where = `${finding.location.path}:${finding.location.line}`;
+    const rating = `${finding.rule} · ${finding.confidence} confidence${finding.exposed ? " · exposed" : ""}`;
+    lines.push(`                  ${where}  ${s.dim(rating)}`);
+    if (finding.snippet !== undefined)
+      lines.push(`                  ${s.dim(`│ ${finding.snippet}`)}`);
+  }
+  if (shown.length < findings.length) {
+    lines.push(
+      "",
+      s.dim(
+        `    … ${plural(findings.length - shown.length, "more finding")}; use --all to list them, or --json for the evidence of each`,
+      ),
+    );
+  }
+  return lines;
 }
 
 function fileLines(result: ScanResult, s: Styles): string[] {

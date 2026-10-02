@@ -1,6 +1,13 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { formatSummary } from "./report/summary.ts";
-import { type ScanResult, scan } from "./scan.ts";
+import { FORMATS, formatReport, json, type ReportFormat } from "./report/format.ts";
+import { createReport, type FailOn, failsGate } from "./report/model.ts";
+import { createBaseline, PolicyError, readBaseline, readSuppressions } from "./report/policy.ts";
+import { formatRules } from "./report/rules.ts";
+import { RULES } from "./rules/index.ts";
+import { SEVERITIES } from "./rules/model.ts";
+import { scan } from "./scan.ts";
 import { VERSION } from "./version.ts";
 
 export { VERSION };
@@ -12,13 +19,25 @@ export interface Io {
 }
 
 const USAGE = `Usage:
-  plenger scan [path] [--json]   Parse the Python, JavaScript and TypeScript files under path (default: .)
+  plenger scan [path]            Triage the agentic AI code under path (default: .): inventory, capabilities, findings
+  plenger rules                  List the risk rules
   plenger facts [path]           Print the imports, definitions, assignments and calls in path as JSON
   plenger --version
   plenger --help
 
 Options:
+  --json                         Print the full result (or the rule list) as JSON
+  --format <format>              terminal, json, sarif or markdown (default: terminal)
+  --output <file>                Write the report to a file instead of stdout
+  --baseline <file>              Compare findings with a version 1 baseline
+  --write-baseline <file>        Write a baseline of every detected finding
+  --suppressions <file>          Apply a version 1 suppression file
+  --fail-on <severity>           Fail on new, unsuppressed findings at or above critical,
+                                high, medium or low (default: none)
+  --all                          List every finding, not only the most urgent
   --no-gitignore                 Also scan files the project's .gitignore files ignore
+
+Exit codes: 0 success; 1 scan or I/O error; 2 invalid arguments or policy; 3 finding gate failed.
 `;
 
 export async function main(argv: string[], io: Io = processIo()): Promise<number> {
@@ -39,30 +58,113 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
     io.stdout(USAGE);
     return 0;
   }
-  const known = command === "scan" || command === "facts";
-  if (!known || operands.length > 1) {
+  const known = command === "scan" || command === "facts" || command === "rules";
+  if (!known || operands.length > (command === "rules" ? 0 : 1)) {
     io.stderr(
       command === undefined || known ? USAGE : `plenger: unknown command '${command}'\n\n${USAGE}`,
     );
     return 2;
   }
-
   const facts = command === "facts";
-  let result: ScanResult;
+  let format: ReportFormat;
+  let threshold: FailOn;
   try {
-    result = await scan(operands[0] ?? ".", { facts, gitignore: values.gitignore });
+    format = reportFormat(values.format, values.json === true, facts);
+    threshold = failOn(values["fail-on"]);
+    for (const key of ["output", "baseline", "write-baseline", "suppressions"] as const) {
+      if (values[key] === "") throw new PolicyError(`--${key} needs a nonempty path`);
+    }
+    if (
+      command !== "scan" &&
+      ["baseline", "write-baseline", "suppressions", "fail-on", "all"].some(
+        (key) => values[key as keyof typeof values] !== undefined,
+      )
+    ) {
+      throw new PolicyError(
+        "baseline, suppression, gate and --all options require the scan command",
+      );
+    }
+    if (command === "rules" && format !== "terminal" && format !== "json") {
+      throw new PolicyError("rules supports terminal or JSON output");
+    }
+    if (
+      values.output &&
+      values["write-baseline"] &&
+      resolve(values.output) === resolve(values["write-baseline"])
+    ) {
+      throw new PolicyError("report output and baseline output must be different files");
+    }
   } catch (error) {
     io.stderr(`plenger: ${describe(error)}\n`);
-    return 1;
+    return 2;
   }
-  io.stdout(values.json || facts ? toJson(result) : formatSummary(result, io.color));
-  return 0;
+
+  try {
+    if (command === "rules") {
+      await emit(
+        format === "json" ? json({ rules: RULES }) : formatRules(RULES),
+        values.output,
+        io,
+      );
+      return 0;
+    }
+    const baseline = values.baseline ? await readBaseline(values.baseline) : undefined;
+    const suppressions = values.suppressions
+      ? await readSuppressions(values.suppressions)
+      : undefined;
+    const result = await scan(operands[0] ?? ".", { facts, gitignore: values.gitignore });
+    const report = createReport(result, {
+      ...(baseline ? { baseline } : {}),
+      ...(suppressions ? { suppressions } : {}),
+    });
+    if (values["write-baseline"]) {
+      await writeOutput(values["write-baseline"], json(createBaseline(result.findings)));
+    }
+    await emit(
+      formatReport(report, format, { color: !values.output && io.color, all: values.all === true }),
+      values.output,
+      io,
+    );
+    if (failsGate(report, threshold)) {
+      io.stderr(`plenger: new unsuppressed findings meet --fail-on ${threshold}\n`);
+      return 3;
+    }
+    return 0;
+  } catch (error) {
+    io.stderr(`plenger: ${describe(error)}\n`);
+    return error instanceof PolicyError ? 2 : 1;
+  }
 }
 
-/** The JSON shape is unstable until milestone M5; `schemaVersion` 0 says so. */
-function toJson(result: ScanResult): string {
-  const document = { schemaVersion: 0, tool: { name: "plenger", version: VERSION }, ...result };
-  return `${JSON.stringify(document, null, 2)}\n`;
+function reportFormat(value: string | undefined, jsonFlag: boolean, facts: boolean): ReportFormat {
+  if (value !== undefined && !(FORMATS as readonly string[]).includes(value)) {
+    throw new PolicyError(
+      `unknown report format '${value}'; choose terminal, json, sarif or markdown`,
+    );
+  }
+  if ((jsonFlag || facts) && value !== undefined && value !== "json") {
+    throw new PolicyError("--json and facts require JSON output");
+  }
+  return (value as ReportFormat | undefined) ?? (jsonFlag || facts ? "json" : "terminal");
+}
+
+function failOn(value: string | undefined): FailOn {
+  if (value !== undefined && value !== "none" && !(SEVERITIES as string[]).includes(value)) {
+    throw new PolicyError(
+      `unknown --fail-on severity '${value}'; choose critical, high, medium, low or none`,
+    );
+  }
+  return (value as FailOn | undefined) ?? "none";
+}
+
+export async function writeOutput(path: string, text: string): Promise<void> {
+  await mkdir(dirname(resolve(path)), { recursive: true });
+  await writeFile(path, text, "utf8");
+}
+
+async function emit(text: string, path: string | undefined, io: Io): Promise<void> {
+  if (path) await writeOutput(path, text);
+  else io.stdout(text);
 }
 
 function parseCommandLine(argv: string[]) {
@@ -73,6 +175,13 @@ function parseCommandLine(argv: string[]) {
     allowNegative: true,
     options: {
       json: { type: "boolean" },
+      format: { type: "string" },
+      output: { type: "string" },
+      baseline: { type: "string" },
+      "write-baseline": { type: "string" },
+      suppressions: { type: "string" },
+      "fail-on": { type: "string" },
+      all: { type: "boolean" },
       gitignore: { type: "boolean", default: true },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },

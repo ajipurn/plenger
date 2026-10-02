@@ -20,6 +20,17 @@ export interface DynamicPart {
   source: "param" | "name" | "call" | "other";
   /** Resolved target, when there is one (`ai#generateText().text`, `os.getenv`). */
   ref?: string;
+  /**
+   * Where the value comes from, as far as plenger can trace it through variables, calls
+   * and string building: parameters of the enclosing function (`body` from
+   * `await req.json()` comes from `req`), and request objects of web frameworks
+   * (`flask.request`).
+   */
+  from?: string[];
+  /** Canonical names of the calls the value is computed from (`openai.OpenAI().chat.completions.create`). */
+  calls?: string[];
+  /** Where each of `calls` is, as `line:column` in the file the part was found in. */
+  callSites?: string[];
 }
 
 /** What code can do outside the program. */
@@ -62,14 +73,35 @@ export interface Capability {
   hosted?: true;
   /** For an agent's capabilities: the tool that provides it; absent when it is the agent's own. */
   tool?: string;
+  /**
+   * For `process`: how the input reaches the command. `shell`: a shell runs it, so
+   * input can add commands; `program`: input can name the program; `arguments`: input
+   * reaches only the arguments of a fixed program.
+   */
+  command?: "shell" | "program" | "arguments";
+  /** For `database`: the input is a query (SQL), not data. */
+  query?: true;
+  /**
+   * For `network` and `browser`: the inputs that decide the URL's scheme and host (all
+   * of them when the whole URL is one value); absent when the host is fixed.
+   */
+  host?: DynamicPart[];
+  /** For `code`: where model-written code runs, when plenger can tell. */
+  sandbox?: "none" | "container" | "remote";
+  /** For `llm`: non-constant parts of the system prompt, template variables filled by the call included. */
+  systemInputs?: DynamicPart[];
+  /** Checks of the input seen on the way to the effect (`os.path.realpath`, `shlex.quote`). */
+  guards?: string[];
 }
 
 export interface Prompt {
   id: string;
   location: Location;
   role: "system" | "user" | "template";
-  /** Fixed text with dynamic parts shown as `{expression}`. */
+  /** Fixed text with dynamic parts shown as `{expression}`, and secrets as `<redacted>`. */
   text: string;
+  /** The kind of secret the prompt contains (`OpenAI API key`, `credential`), which the text hides. */
+  secret?: string;
   truncated?: true;
   dynamic: DynamicPart[];
   /** Template variables filled later (`{{info}}` in llmfy, `{question}` in LangChain templates). */
@@ -78,7 +110,17 @@ export interface Prompt {
   usedBy: string[];
 }
 
-export type Credential = "literal" | "environment" | "parameter" | "default" | "other";
+/**
+ * Where an API key comes from. `literal`: written in the code; `placeholder`: a literal
+ * that is not a real key (`"ollama"`, `"sk-test"`, `"EMPTY"`), as local model servers take.
+ */
+export type Credential =
+  | "literal"
+  | "placeholder"
+  | "environment"
+  | "parameter"
+  | "default"
+  | "other";
 
 export interface Model {
   id: string;
@@ -108,6 +150,10 @@ export interface LlmCall {
   unresolvedTools: number;
   /** Non-constant parts of the user message, prompt or input. */
   inputs: DynamicPart[];
+  /** Non-constant parts of the system prompt, template variables filled by the call included. */
+  systemInputs: DynamicPart[];
+  /** Effects whose input is the call's output: model output used as a command, code, query, path or URL. */
+  outputEffects: Capability[];
 }
 
 export interface Agent {
@@ -130,6 +176,10 @@ export interface Agent {
   invocations: Invocation[];
   /** What the agent can do: its tools' capabilities, code execution and MCP servers. */
   capabilities: Capability[];
+  /** Effects whose input is the output of a run of the agent. */
+  outputEffects: Capability[];
+  /** A human approval step plenger saw for the whole agent (`interrupt_before`, `HumanInTheLoopMiddleware`). */
+  approval?: string;
 }
 
 export interface Invocation {
@@ -159,6 +209,8 @@ export interface Tool {
   agent?: string;
   /** What the tool can do, found by following its handler through the project. */
   capabilities: Capability[];
+  /** A human approval step plenger saw for the tool: the option that requires it (`needs_approval`) or the call that asks (`input`). */
+  approval?: string;
   /** Id of the MCP server the tool belongs to. */
   server: string | null;
 }

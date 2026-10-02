@@ -123,6 +123,14 @@ export const PYTHON_RULES: Rule[] = [
     methods: ["_run", "_arun"],
   },
   {
+    kind: "tool_builtin",
+    framework: "langchain",
+    calls: [
+      "langchain_community.tools{,.**}.{ShellTool,ReadFileTool,WriteFileTool,CopyFileTool,MoveFileTool,DeleteFileTool,ListDirectoryTool,FileSearchTool,RequestsGetTool,RequestsPostTool,RequestsPatchTool,RequestsPutTool,RequestsDeleteTool,QuerySQLDatabaseTool,QuerySQLDataBaseTool}",
+      "langchain_experimental.tools{,.**}.{PythonREPLTool,PythonAstREPLTool}",
+    ],
+  },
+  {
     kind: "tool_factory",
     framework: "langchain",
     calls: [

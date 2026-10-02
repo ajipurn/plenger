@@ -9,9 +9,13 @@ import {
   type SkipReason,
 } from "./files.ts";
 import { buildInventory, type Inventory } from "./inventory/index.ts";
+import { literalString, select } from "./inventory/values.ts";
 import { LANGUAGE_OF, type Language } from "./languages.ts";
 import { SourceParser } from "./parser.ts";
 import { Project, type ProjectFile } from "./project/project.ts";
+import { evaluateRules, type Finding } from "./rules/index.ts";
+import { attachSnippets } from "./rules/snippets.ts";
+import { looksLikeSecret, redactReport } from "./secrets.ts";
 
 export interface ScannedFile {
   path: string;
@@ -38,6 +42,8 @@ export interface ScanResult {
   excludedDirs: ExcludedDir[];
   truncated: boolean;
   inventory: Inventory;
+  /** Risk findings, most urgent first. */
+  findings: Finding[];
   durationMs: number;
 }
 
@@ -90,17 +96,41 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   project.link();
   const inventory = buildInventory(project);
   analyzeCapabilities(project, inventory);
+  const findings = evaluateRules(project, inventory);
+  await attachSnippets(collected.root, findings);
 
   skipped.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  return {
+  const result: ScanResult = {
     root: collected.root,
     files,
     skipped,
     excludedDirs: collected.excludedDirs,
     truncated: collected.truncated,
     inventory,
-    durationMs: Math.round(performance.now() - started),
+    findings,
+    durationMs: 0,
   };
+  redactReport(result, options.facts ? literalCredentials(parsed) : []);
+  result.durationMs = Math.round(performance.now() - started);
+  return result;
+}
+
+/** SDK keys with no known prefix still need redaction when the report includes their literal facts. */
+function literalCredentials(files: ProjectFile[]): string[] {
+  const keys = new Set<string>();
+  for (const { facts } of files) {
+    for (const call of facts.calls) {
+      for (const value of select(
+        call.arguments,
+        facts,
+        "api_key|apiKey|openai_api_key|openAIApiKey|anthropic_api_key|anthropicApiKey|google_api_key",
+      )) {
+        const text = literalString(value, facts);
+        if (text !== null && looksLikeSecret(text)) keys.add(text);
+      }
+    }
+  }
+  return [...keys];
 }
 
 async function readSource(

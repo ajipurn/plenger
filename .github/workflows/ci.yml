@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.18.0'
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.19.0
+          run_install: false
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm check
+      - run: pnpm build
+      - run: node dist/bin.js scan src --format sarif --output plenger.sarif --fail-on high
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
+        id: plenger
+        with:
+          path: src
+      - name: Check action output
+        env:
+          PLENGER_SARIF_FILE: ${{ steps.plenger.outputs.sarif-file }}
+        run: test -s "$PLENGER_SARIF_FILE"

@@ -20,7 +20,7 @@ const lookup = tool(async ({ query }) => (await retriever.invoke(query)).map((do
   schema: z.object({ query: z.string() }),
 });
 
-const model = new ChatAnthropic({ model: "claude-sonnet-4-5", apiKey: "sk-ant-test" }).bindTools([lookup]);
+const model = new ChatAnthropic({ model: "claude-sonnet-4-5", apiKey: "sk-ant-k7Qm2xR9vL4pT8wN3bZ6yH1c" }).bindTools([lookup]);
 
 const graph = new StateGraph(MessagesAnnotation)
   .addNode("agent", async (state) => ({

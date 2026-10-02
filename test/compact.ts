@@ -1,4 +1,5 @@
 import type { Capability, Inventory, Location } from "../src/inventory/model.ts";
+import type { Finding } from "../src/rules/index.ts";
 
 /**
  * A line-per-item form of an inventory, used as the expected-results format for the
@@ -88,4 +89,40 @@ export function score(expected: CompactInventory, actual: CompactInventory): Sco
       recall: want.size === 0 ? 1 : matched / want.size,
     };
   });
+}
+
+/** One line per finding: rule, place, rating and title. */
+export function compactFindings(findings: Finding[]): string[] {
+  return findings.map(
+    (finding) =>
+      `${finding.rule} ${at(finding.location)} ${finding.severity}/${finding.confidence}${finding.exposed ? " exposed" : ""} ${finding.title}`,
+  );
+}
+
+/** Precision and recall of findings per rule, matching lines exactly, plus an `all` row. */
+export function scoreFindings(expected: string[], actual: string[]): Score[] {
+  const ruleOf = (line: string) => line.split(" ", 1)[0] as string;
+  const rules = [...new Set([...expected, ...actual].map(ruleOf))].sort();
+  const row = (kind: string, want: string[], got: string[]): Score => {
+    const wanted = new Set(want);
+    const matched = got.filter((item) => wanted.has(item)).length;
+    return {
+      kind,
+      expected: wanted.size,
+      found: got.length,
+      matched,
+      precision: got.length === 0 ? 1 : matched / got.length,
+      recall: wanted.size === 0 ? 1 : matched / wanted.size,
+    };
+  };
+  return [
+    ...rules.map((rule) =>
+      row(
+        rule,
+        expected.filter((line) => ruleOf(line) === rule),
+        actual.filter((line) => ruleOf(line) === rule),
+      ),
+    ),
+    row("all", expected, actual),
+  ];
 }

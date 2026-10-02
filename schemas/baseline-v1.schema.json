@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "plenger baseline v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "rule": {
+            "type": "string",
+            "pattern": "^PLG[0-9]{3}$"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": ["fingerprint", "rule", "path"]
+      }
+    }
+  },
+  "required": ["schemaVersion", "findings"]
+}

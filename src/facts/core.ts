@@ -26,6 +26,9 @@ export const LIMITS = {
   doc: 1000,
 };
 
+/** The `member` of an assignment that binds a loop variable to the items of what it iterates. */
+export const LOOP_ITEM = "[*]";
+
 export type Binding =
   | { kind: "import"; ref: Ref; offset: number }
   | { kind: "definition"; definition: string; offset: number }
@@ -219,6 +222,8 @@ export class Context {
       case "receiver":
         return this.localRef(binding.owner.definition, "()");
       case "value": {
+        // Loop items are recorded for data flow; what they are is not followed.
+        if (binding.path === LOOP_ITEM) return null;
         if (this.#resolved.has(binding)) return this.#resolved.get(binding) ?? null;
         if (this.#resolving.has(binding) || depth > LIMITS.resolveDepth) return null;
         this.#resolving.add(binding);
@@ -355,4 +360,49 @@ export function stringValue(value: string, template: Value[] | null): Value {
 
 export function otherValue(node: Node): Value {
   return { kind: "other", text: textOf(node) };
+}
+
+/** Expressions whose value comes from their operands. */
+const COMPOSITE = new Set([
+  // Python
+  "boolean_operator",
+  "binary_operator",
+  "conditional_expression",
+  "not_operator",
+  "unary_operator",
+  "subscript",
+  "named_expression",
+  "list_comprehension",
+  "generator_expression",
+  "set_comprehension",
+  "dictionary_comprehension",
+  // JavaScript and TypeScript
+  "binary_expression",
+  "ternary_expression",
+  "unary_expression",
+  "subscript_expression",
+  "sequence_expression",
+]);
+const MAX_PARTS = 4;
+
+/**
+ * An expression plenger does not model, with the operands it is computed from. For a
+ * comprehension, those are its element and what it iterates (`for d in docs`).
+ */
+export function compositeValue(node: Node, value: (operand: Node) => Value): Value {
+  const other = otherValue(node);
+  if (!COMPOSITE.has(node.type) || other.kind !== "other") return other;
+  const operands: Node[] = [];
+  for (const child of node.namedChildren) {
+    if (child === null || child.type === "comment" || child.type === "if_clause") continue;
+    if (child.type === "for_in_clause") {
+      const right = child.childForFieldName("right");
+      if (right !== null) operands.push(right);
+    } else {
+      operands.push(child);
+    }
+  }
+  const parts = operands.slice(0, MAX_PARTS).map(value);
+  if (parts.length > 0) other.parts = parts;
+  return other;
 }

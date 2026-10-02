@@ -8,6 +8,7 @@ import type {
 } from "../facts/model.ts";
 import type { Language } from "../languages.ts";
 import type { Project } from "../project/project.ts";
+import { redact, secretIn } from "../secrets.ts";
 import { JAVASCRIPT_RULES } from "./catalog/javascript.ts";
 import { PYTHON_RULES } from "./catalog/python.ts";
 import { FRAMEWORKS, frameworkOfModule, unsupportedModule } from "./frameworks.ts";
@@ -363,7 +364,7 @@ class FileDetector {
           break;
         case "prompt":
           for (const value of select(call.arguments, this.#facts, rule.text)) {
-            this.prompt(value, rule.role, call.span, null, [], rule.braces === true);
+            this.prompt(value, rule.role, call, null, [], rule.braces === true);
           }
           break;
         default:
@@ -429,6 +430,7 @@ class FileDetector {
       mcpClients: [],
       invocations: [],
       capabilities: [],
+      outputEffects: [],
     };
     const variables =
       rule.variables === undefined
@@ -439,7 +441,7 @@ class FileDetector {
         const prompt = this.prompt(
           value,
           "system",
-          call.span,
+          call,
           agent.id,
           variables,
           rule.braces === true,
@@ -807,6 +809,8 @@ class FileDetector {
       tools: [],
       unresolvedTools: 0,
       inputs: [],
+      systemInputs: [],
+      outputEffects: [],
     };
     if (llm.model === null && (instance?.kind === "model" || instance?.kind === "agent")) {
       llm.model = instance.component.model;
@@ -819,7 +823,7 @@ class FileDetector {
     }
     for (const path of rule.system ?? []) {
       for (const value of select(call.arguments, facts, path)) {
-        const prompt = this.prompt(value, "system", call.span, llm.id);
+        const prompt = this.prompt(value, "system", call, llm.id);
         if (prompt !== null) llm.prompts.push(prompt.id);
       }
     }
@@ -846,11 +850,12 @@ class FileDetector {
 
     const inputs: DynamicPart[] = [];
     for (const path of rule.user ?? []) {
-      for (const value of select(call.arguments, facts, path)) inputs.push(...this.inputs(value));
+      for (const value of select(call.arguments, facts, path))
+        inputs.push(...this.inputs(value, call.scope));
     }
     if (rule.keywordInputs) {
       for (const arg of call.arguments)
-        if (arg.keyword !== null) inputs.push(...this.inputs(arg.value));
+        if (arg.keyword !== null) inputs.push(...this.inputs(arg.value, call.scope));
     }
     llm.inputs = uniqueParts(inputs);
     this.inventory.llmCalls.push(llm);
@@ -941,7 +946,7 @@ class FileDetector {
     const inputs: DynamicPart[] = [];
     for (const path of inputPaths) {
       for (const value of select(call.arguments, this.#facts, path))
-        inputs.push(...this.inputs(value));
+        inputs.push(...this.inputs(value, call.scope));
     }
     agent.invocations.push({ location: this.location(call.span), inputs: uniqueParts(inputs) });
   }
@@ -1323,19 +1328,20 @@ class FileDetector {
 
   // Prompts and inputs
 
+  /** A prompt from a value passed at `site`, a call evaluated in its `scope`. */
   prompt(
     value: Value,
     role: Prompt["role"],
-    span: Span,
+    site: { span: Span; scope: string | null },
     usedBy: string | null,
     declared: string[] = [],
     braces = role === "template",
   ): Prompt | null {
     const facts = this.#facts;
-    const summary = summarizeText(value, facts);
+    const summary = summarizeText(value, facts, site.scope);
     if (summary === null || summary.text.trim() === "") return null;
     const origin = summary.origin === null ? undefined : facts.assignments[summary.origin];
-    const at = origin?.span ?? span;
+    const at = origin?.span ?? site.span;
     const key = `${at.line}:${at.column}:${role}:${summary.text}`;
     let prompt = this.#prompts.get(key);
     if (prompt === undefined) {
@@ -1352,11 +1358,13 @@ class FileDetector {
         id: this.id("prompt", at),
         location: this.location(at),
         role,
-        text: summary.text,
+        text: redact(summary.text),
         dynamic: uniqueParts(summary.dynamic),
         variables: [...variables],
         usedBy: [],
       };
+      const secret = secretIn(summary.text);
+      if (secret !== null) prompt.secret = secret;
       if (summary.truncated) prompt.truncated = true;
       this.#prompts.set(key, prompt);
       this.inventory.prompts.push(prompt);
@@ -1384,11 +1392,13 @@ class FileDetector {
     return prompt;
   }
 
-  inputs(value: Value): DynamicPart[] {
-    const summary = summarizeText(value, this.#facts);
+  /** Non-constant parts of an input passed in a call made in `scope`. */
+  inputs(value: Value, scope: string | null): DynamicPart[] {
+    const summary = summarizeText(value, this.#facts, scope);
     if (summary !== null) return summary.dynamic;
     const target = deref(value, this.#facts);
-    if (target.kind === "name" || target.kind === "call") return [dynamicPart(target, this.#facts)];
+    if (target.kind === "name" || target.kind === "call")
+      return [dynamicPart(target, this.#facts, scope)];
     return [];
   }
 

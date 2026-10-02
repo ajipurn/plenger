@@ -111,7 +111,7 @@ def configured() -> str:
   it("follows recursive project functions without looping", () => {
     const [capability] = tool("check")?.capabilities ?? [];
     expect(capability).toMatchObject({ kind: "process", target: "subprocess.run" });
-    expect(capability?.inputs).toEqual([{ text: "host", source: "param" }]);
+    expect(capability?.inputs).toEqual([{ text: "host", source: "param", from: ["host"] }]);
     expect(capability?.via.map((site) => site.line)).toEqual([42]);
   });
 

@@ -1,4 +1,5 @@
-import type { Argument, FileFacts, Value } from "../facts/model.ts";
+import type { Argument, DefinitionFact, FileFacts, Value } from "../facts/model.ts";
+import { looksLikeSecret } from "../secrets.ts";
 import type { Credential, DynamicPart } from "./model.ts";
 
 const DEREF_DEPTH = 6;
@@ -20,6 +21,18 @@ export function deref(value: Value, facts: FileFacts): Value {
     current = assignment.value;
   }
   return current;
+}
+
+/** Whether an option is present and is not explicitly disabled or empty. */
+export function isEnabled(value: Value | undefined, facts: FileFacts): boolean {
+  if (value === undefined) return false;
+  const target = deref(value, facts);
+  if (target.kind === "literal")
+    return !/^(?:False|false|None|null|undefined|0)$/.test(target.text);
+  if (target.kind === "string") return target.value !== "" && target.value !== "never";
+  if (target.kind === "list") return target.items.length > 0 || target.truncated === true;
+  if (target.kind === "object") return target.entries.length > 0 || target.truncated === true;
+  return true;
 }
 
 /** The assignment a value was read from, when it is a name plenger can follow. */
@@ -92,14 +105,16 @@ function selectOne(args: Argument[], facts: FileFacts, path: string): Value[] {
 }
 
 /** A property of an object, an item of a list, or a keyword or option of a constructor call. */
-function property(value: Value, key: string, facts: FileFacts): Value[] {
+function property(value: Value, key: string, facts: FileFacts, depth = 0): Value[] {
   if (value.kind === "call") {
     // `Message(content=x)`, `GenerateContentConfig(system_instruction=...)`, `new Command({ ... })`
     const args = facts.calls[value.call]?.arguments ?? [];
     const keyword = args.find((arg) => arg.keyword === key);
     if (keyword !== undefined) return [keyword.value];
     const first = args.find((arg) => arg.keyword === null && !arg.spread);
-    return first === undefined ? [] : property(deref(first.value, facts), key, facts);
+    // `app = wrap(app)` refers to itself; give up after a few calls.
+    if (first === undefined || depth >= DEREF_DEPTH) return [];
+    return property(deref(first.value, facts), key, facts, depth + 1);
   }
   if (value.kind === "object") {
     return value.entries.filter((entry) => entry.key === key).map((entry) => entry.value);
@@ -109,6 +124,147 @@ function property(value: Value, key: string, facts: FileFacts): Value[] {
     return item === undefined ? [] : [item];
   }
   return [];
+}
+
+/** Where a value comes from, traced within one file. */
+export interface Provenance {
+  /** Parameters of the function the value is evaluated in (never `self` or `cls`). */
+  params: Set<string>;
+  /** Calls (indices into `FileFacts.calls`) whose results the value is computed from. */
+  calls: Set<number>;
+  /** Request objects of web frameworks that are module globals (`flask.request`). */
+  requests: Set<string>;
+}
+
+const PROVENANCE_DEPTH = 8;
+const REQUEST_GLOBAL = /^((?:flask|quart|bottle)\.request)(?:\.|\(|$)/;
+const RECEIVER = /^(?:self|cls)$/;
+const IDENTIFIER = /(?<![\w$.])[A-Za-z_$][\w$]*/g;
+
+const definitionIndex = new WeakMap<FileFacts, Map<string, DefinitionFact>>();
+
+/** A definition of the file by id. */
+export function definitionOf(facts: FileFacts, id: string | null): DefinitionFact | undefined {
+  if (id === null) return undefined;
+  let index = definitionIndex.get(facts);
+  if (index === undefined) {
+    index = new Map(facts.definitions.map((definition) => [definition.id, definition]));
+    definitionIndex.set(facts, index);
+  }
+  return index.get(id);
+}
+
+/** Parameters of a function that callers fill in: all but a method's `self` or `cls`. */
+export function paramsOf(facts: FileFacts, scope: string | null): Set<string> {
+  const params = definitionOf(facts, scope)?.params ?? [];
+  return new Set(params.filter((param) => !RECEIVER.test(param)));
+}
+
+/**
+ * Traces a value back through variables (loop variables included), calls (their
+ * receivers and arguments) and string building to the parameters, calls and request
+ * objects it is computed from. Over-approximates: a call's result is taken to depend
+ * on everything passed to it.
+ */
+export function provenanceOf(value: Value, facts: FileFacts, scope: string | null): Provenance {
+  const params = paramsOf(facts, scope);
+  const result: Provenance = { params: new Set(), calls: new Set(), requests: new Set() };
+  const seen = new Set<string>();
+  const request = (name: string | undefined) => {
+    const match = name === undefined ? null : REQUEST_GLOBAL.exec(name);
+    if (match !== null) result.requests.add(match[1] as string);
+  };
+  const assignment = (index: number, depth: number) => {
+    if (seen.has(`a${index}`)) return;
+    seen.add(`a${index}`);
+    const fact = facts.assignments[index];
+    if (fact !== undefined) visit(fact.value, fact.scope, depth + 1);
+  };
+  // Parameters count only in the function the value is evaluated in, not in a closure's outer function.
+  const visit = (current: Value, here: string | null, depth: number): void => {
+    if (depth > PROVENANCE_DEPTH) return;
+    const local = here === scope;
+    switch (current.kind) {
+      case "name": {
+        request(current.ref?.name);
+        const root = /^[\w$]+/.exec(current.text)?.[0] ?? "";
+        if (current.param) {
+          if (local && params.has(root)) result.params.add(root);
+        } else if (current.assignment !== undefined) {
+          assignment(current.assignment, depth);
+        } else if (current.base !== undefined) {
+          assignment(current.base, depth);
+        }
+        if (current.of !== undefined) visit({ kind: "call", call: current.of }, here, depth + 1);
+        return;
+      }
+      case "call": {
+        if (seen.has(`c${current.call}`)) return;
+        seen.add(`c${current.call}`);
+        result.calls.add(current.call);
+        const call = facts.calls[current.call];
+        if (call === undefined) return;
+        request(call.ref?.name);
+        const root = /^[\w$]+/.exec(call.callee)?.[0] ?? "";
+        if (call.scope === scope && params.has(root)) result.params.add(root);
+        if (call.receiver !== undefined) assignment(call.receiver, depth);
+        for (const arg of call.arguments) visit(arg.value, call.scope, depth + 1);
+        // A chained call (`docs.map(...).join()`) is computed from the calls before it.
+        for (const index of chainOf(facts, current.call))
+          visit({ kind: "call", call: index }, call.scope, depth + 1);
+        return;
+      }
+      case "string":
+        for (const part of current.template ?? []) visit(part, here, depth + 1);
+        return;
+      case "concat":
+        for (const part of current.parts) visit(part, here, depth + 1);
+        return;
+      case "list":
+        for (const item of current.items) visit(item, here, depth + 1);
+        return;
+      case "object":
+        for (const entry of current.entries) visit(entry.value, here, depth + 1);
+        return;
+      case "other":
+        if (current.parts !== undefined) {
+          for (const part of current.parts) visit(part, here, depth + 1);
+        } else if (local) {
+          // Expressions plenger keeps only as text: any parameter named in them.
+          for (const match of current.text.matchAll(IDENTIFIER))
+            if (params.has(match[0])) result.params.add(match[0]);
+        }
+        return;
+      default:
+        return;
+    }
+  };
+  visit(value, scope, 0);
+  return result;
+}
+
+const chains = new WeakMap<FileFacts, Map<string, number[]>>();
+
+/** Calls that start where a call starts and end before it: the earlier links of its chain. */
+function chainOf(facts: FileFacts, index: number): number[] {
+  let byStart = chains.get(facts);
+  if (byStart === undefined) {
+    byStart = new Map();
+    facts.calls.forEach((call, position) => {
+      const key = `${call.span.line}:${call.span.column}`;
+      const list = byStart?.get(key) ?? [];
+      list.push(position);
+      byStart?.set(key, list);
+    });
+    chains.set(facts, byStart);
+  }
+  const call = facts.calls[index];
+  if (call === undefined) return [];
+  const end = call.span.endLine * 1e6 + call.span.endColumn;
+  return (byStart.get(`${call.span.line}:${call.span.column}`) ?? []).filter((other) => {
+    const span = facts.calls[other]?.span;
+    return span !== undefined && span.endLine * 1e6 + span.endColumn < end;
+  });
 }
 
 export interface TextSummary {
@@ -121,27 +277,46 @@ export interface TextSummary {
   origin: number | null;
 }
 
-/** Summarises a string-like value: fixed text, with dynamic parts as `{expression}`. */
-export function summarizeText(value: Value, facts: FileFacts): TextSummary | null {
+/**
+ * Summarises a string-like value: fixed text, with dynamic parts as `{expression}`.
+ * `scope` is the function the value is evaluated in, for tracing dynamic parts.
+ */
+export function summarizeText(
+  value: Value,
+  facts: FileFacts,
+  scope: string | null = null,
+): TextSummary | null {
   const origin = originOf(value, facts);
   const summary: TextSummary = { text: "", dynamic: [], truncated: false, fixed: [], origin };
-  return appendText(summary, value, facts, 0) ? summary : null;
+  return appendText(summary, value, facts, scope, 0) ? summary : null;
 }
 
-function appendText(summary: TextSummary, value: Value, facts: FileFacts, depth: number): boolean {
+function appendText(
+  summary: TextSummary,
+  value: Value,
+  facts: FileFacts,
+  scope: string | null,
+  depth: number,
+): boolean {
   const target = depth < DEREF_DEPTH ? deref(value, facts) : value;
+  // A constant from another variable is evaluated where that variable was assigned.
+  const here =
+    target === value || value.kind !== "name" || value.assignment === undefined
+      ? scope
+      : (facts.assignments[value.assignment]?.scope ?? scope);
   switch (target.kind) {
     case "string": {
       summary.text += target.value;
       summary.fixed.push(target.value);
       if (target.truncated) summary.truncated = true;
-      for (const part of target.template ?? []) summary.dynamic.push(dynamicPart(part, facts));
+      for (const part of target.template ?? [])
+        summary.dynamic.push(dynamicPart(part, facts, here));
       return true;
     }
     case "concat":
       for (const part of target.parts) {
-        if (!appendText(summary, part, facts, depth + 1)) {
-          const dynamic = dynamicPart(part, facts);
+        if (!appendText(summary, part, facts, here, depth + 1)) {
+          const dynamic = dynamicPart(part, facts, here);
           summary.text += `{${dynamic.text}}`;
           summary.dynamic.push(dynamic);
         }
@@ -150,7 +325,7 @@ function appendText(summary: TextSummary, value: Value, facts: FileFacts, depth:
     case "name":
     case "call": {
       if (depth > 0) return false;
-      const dynamic = dynamicPart(value, facts);
+      const dynamic = dynamicPart(value, facts, scope);
       summary.text += `{${dynamic.text}}`;
       summary.dynamic.push(dynamic);
       return true;
@@ -160,28 +335,54 @@ function appendText(summary: TextSummary, value: Value, facts: FileFacts, depth:
   }
 }
 
-export function dynamicPart(value: Value, facts: FileFacts): DynamicPart {
+/** A dynamic part, traced back to the parameters of `scope` and request objects it comes from. */
+export function dynamicPart(
+  value: Value,
+  facts: FileFacts,
+  scope: string | null = null,
+): DynamicPart {
+  let part: DynamicPart;
   switch (value.kind) {
-    case "name": {
-      const part: DynamicPart = { text: value.text, source: value.param ? "param" : "name" };
+    case "name":
+      part = { text: value.text, source: value.param ? "param" : "name" };
       if (value.ref !== null) part.ref = value.ref.name;
-      return part;
-    }
+      break;
     case "call": {
       const call = facts.calls[value.call];
-      const part: DynamicPart = { text: `${call?.callee ?? ""}()`, source: "call" };
+      part = { text: `${call?.callee ?? ""}()`, source: "call" };
       if (call?.ref) part.ref = call.ref.name;
-      return part;
+      break;
     }
     case "string":
-      return { text: value.value, source: "other" };
+      part = { text: value.value, source: "other" };
+      break;
     case "other":
     case "literal":
-      return { text: value.text, source: "other" };
+      part = { text: value.text, source: "other" };
+      break;
     default:
-      return { text: value.kind, source: "other" };
+      part = { text: value.kind, source: "other" };
   }
+  const provenance = provenanceOf(value, facts, scope);
+  const from = [...provenance.params, ...provenance.requests];
+  if (from.length > 0) part.from = from;
+  const calls: string[] = [];
+  const sites: string[] = [];
+  for (const index of provenance.calls) {
+    const call = facts.calls[index];
+    const name = call?.ref?.name;
+    if (call === undefined || name === undefined || calls.length >= MAX_TRACED_CALLS) continue;
+    calls.push(name);
+    sites.push(`${call.span.line}:${call.span.column}`);
+  }
+  if (calls.length > 0) {
+    part.calls = calls;
+    part.callSites = sites;
+  }
+  return part;
 }
+
+const MAX_TRACED_CALLS = 8;
 
 /** A fixed string, following names to their assigned values. */
 export function literalString(value: Value | undefined, facts: FileFacts): string | null {
@@ -239,7 +440,8 @@ export function credentialOf(values: Value[], facts: FileFacts): Credential {
   const target = deref(value, facts);
   switch (target.kind) {
     case "string":
-      return target.template === undefined && target.value !== "" ? "literal" : "other";
+      if (target.template !== undefined || target.value === "") return "other";
+      return looksLikeSecret(target.value) ? "literal" : "placeholder";
     case "name":
       if (target.param) return "parameter";
       return target.ref !== null && ENVIRONMENT.test(target.ref.name) ? "environment" : "other";

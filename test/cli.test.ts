@@ -40,7 +40,7 @@ describe("plenger scan", () => {
     const result = JSON.parse(stdout);
 
     expect(code).toBe(0);
-    expect(result.schemaVersion).toBe(0);
+    expect(result.schemaVersion).toBe(1);
     expect(result.tool).toEqual({ name: "plenger", version: VERSION });
     expect(result.files.map((file: { path: string }) => file.path)).toEqual([
       "app/broken.py",
@@ -87,6 +87,54 @@ describe("agent inventory output", () => {
     const result = JSON.parse((await run("scan", corpus, "--json")).stdout);
     expect(result.inventory.tools).toHaveLength(34);
     expect(result.files[0].facts).toBeUndefined();
+  });
+});
+
+describe("findings output", () => {
+  const risks = fileURLToPath(new URL("fixtures/risks", import.meta.url));
+
+  it("lists the most urgent findings with their place and source line", async () => {
+    const { code, stdout } = await run("scan", risks);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/Findings {2}\d+ critical · \d+ high · \d+ medium · \d+ low/);
+    expect(stdout).toContain(
+      "CRITICAL 100  `POST /ops` passes request input to agent `ops_agent`, which can run commands",
+    );
+    expect(stdout).toContain("python/web_agents.py:16  PLG301 · high confidence · exposed");
+    expect(stdout).toMatch(/… 45 more findings; use --all/);
+    expect((await run("scan", risks, "--all")).stdout).not.toContain("more findings");
+  });
+
+  it("says that nothing found is not proof of absence", async () => {
+    const { stdout } = await run("scan", join(fixture, "web/Chat.tsx"));
+    expect(stdout).toContain(
+      "No risks detected by plenger's rules. This is not proof that there are none.",
+    );
+  });
+
+  it("includes findings and the rules they come from in JSON", async () => {
+    const result = JSON.parse((await run("scan", risks, "--json")).stdout);
+    expect(result.findings.length).toBeGreaterThan(50);
+    const [first] = result.findings;
+    expect(first).toMatchObject({ rule: expect.stringMatching(/^PLG\d{3}$/), score: 100 });
+    expect(first.fingerprint).toMatch(/^[0-9a-f]{16}$/);
+    const fired = new Set(result.findings.map((finding: { rule: string }) => finding.rule));
+    expect(result.rules.map((rule: { id: string }) => rule.id).sort()).toEqual([...fired].sort());
+  });
+});
+
+describe("plenger rules", () => {
+  it("lists every rule with its OWASP and CWE mapping", async () => {
+    const { code, stdout } = await run("rules");
+    expect(code).toBe(0);
+    expect(stdout).toContain("PLG101  critical  tool-command-injection");
+    expect(stdout).toContain("LLM06:2025, LLM05:2025, ASI02, ASI05, CWE-78, CWE-77");
+    const json = JSON.parse((await run("rules", "--json")).stdout);
+    expect(json.rules.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it("takes no path", async () => {
+    expect(await run("rules", ".")).toMatchObject({ code: 2 });
   });
 });
 

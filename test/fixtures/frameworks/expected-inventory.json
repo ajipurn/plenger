@@ -52,7 +52,7 @@
     "python/llmfy_agent.py:40 llmfy.OpenAIChatModel model=gpt-4o-mini baseUrl=- credential=default",
     "python/openai_chat.py:7 openai.OpenAI model=- baseUrl=- credential=default",
     "python/openai_chat.py:22 openai.AsyncOpenAI model=- baseUrl=- credential=default",
-    "python/openai_chat.py:27 openai.OpenAI model=- baseUrl=- credential=literal",
+    "python/openai_chat.py:27 openai.OpenAI model=- baseUrl=- credential=placeholder",
     "python/providers.py:16 google.genai.Client model=- baseUrl=- credential=default",
     "python/providers.py:24 boto3.client model=- baseUrl=- credential=default",
     "python/rag_graph.py:34 langchain_openai.ChatOpenAI model=gpt-4o-mini baseUrl=- credential=default",

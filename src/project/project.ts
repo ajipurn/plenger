@@ -40,12 +40,18 @@ export class Project {
     this.root = root;
     for (const file of files) this.files.set(file.path, file);
     this.localModules = localPythonModules(files.map((file) => file.path));
+    // A scanned directory that is itself a package (`examples/__init__.py`) is imported by its name.
+    const rootPackage = posix.basename(root.replace(/\\/g, "/"));
+    const packaged = this.files.has("__init__.py") && /^[A-Za-z_]\w*$/.test(rootPackage);
+    if (packaged) this.localModules.add(rootPackage);
     for (const file of files) {
       if (file.language !== "python") continue;
       const segments = file.path
         .replace(/\.py$/, "")
         .replace(/\/__init__$/, "")
         .split("/");
+      if (packaged) segments.unshift(rootPackage);
+      if (segments.at(-1) === "__init__") segments.pop();
       for (let start = 0; start < segments.length; start++) {
         const name = segments.slice(start).join(".");
         const paths = this.#pythonModules.get(name) ?? [];

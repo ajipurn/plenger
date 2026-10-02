@@ -1,0 +1,391 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
+import { rulesMarkdown } from "../src/report/rules.ts";
+import { packageSpec } from "../src/rules/checks/mcp.ts";
+import { RULES, triageScore } from "../src/rules/index.ts";
+import { scan } from "../src/scan.ts";
+import { findSecret, redact, secretIn } from "../src/secrets.ts";
+import { compactFindings } from "./compact.ts";
+import { fixturePath } from "./helpers.ts";
+
+describe.each(["frameworks", "crossfile", "risks"])("findings on the %s corpus", (corpus) => {
+  it("are exactly the reviewed ones", async () => {
+    const expected: string[] = JSON.parse(
+      await readFile(fixturePath(`${corpus}/expected-findings.json`), "utf8"),
+    );
+    const actual = compactFindings((await scan(fixturePath(corpus))).findings);
+    expect([...actual].sort()).toEqual([...expected].sort());
+  });
+});
+
+describe("rule catalog", () => {
+  it("has a positive fixture for every rule", async () => {
+    const findings: string[] = JSON.parse(
+      await readFile(fixturePath("risks/expected-findings.json"), "utf8"),
+    );
+    const covered = new Set(findings.map((finding) => finding.split(" ")[0]));
+    expect(RULES.filter((rule) => !covered.has(rule.id)).map((rule) => rule.id)).toEqual([]);
+  });
+
+  it("has unique ids, OWASP references and a remediation for every rule", () => {
+    expect(new Set(RULES.map((rule) => rule.id)).size).toBe(RULES.length);
+    expect(new Set(RULES.map((rule) => rule.name)).size).toBe(RULES.length);
+    for (const rule of RULES) {
+      expect(rule.id).toMatch(/^PLG\d{3}$/);
+      expect(rule.name).toMatch(/^[a-z]+(?:-[a-z]+)*$/);
+      expect(rule.owasp.length, rule.id).toBeGreaterThan(0);
+      for (const id of rule.owasp)
+        expect(id).toMatch(/^(?:LLM(?:0[1-9]|10):2025|ASI(?:0[1-9]|10))$/);
+      expect(rule.remediation.length).toBeGreaterThan(20);
+    }
+  });
+});
+
+describe("findings", () => {
+  const roots: string[] = [];
+  const project = async (files: Record<string, string>) => {
+    const root = await mkdtemp(join(tmpdir(), "plenger-rules-"));
+    roots.push(root);
+    for (const [path, content] of Object.entries(files)) {
+      await mkdir(join(root, path, ".."), { recursive: true });
+      await writeFile(join(root, path), content);
+    }
+    return root;
+  };
+  afterAll(async () => {
+    for (const root of roots) await rm(root, { recursive: true, force: true });
+  });
+
+  const tools = `import subprocess
+from langchain_core.tools import tool
+
+
+@tool
+def shell(command: str) -> str:
+    """Run a command."""
+    return subprocess.run(command, shell=True, capture_output=True, text=True).stdout
+`;
+
+  it("keep their fingerprints when code above them moves", async () => {
+    const before = (await scan(await project({ "tools.py": tools }))).findings;
+    const after = (await scan(await project({ "tools.py": `import os\n\n\n${tools}` }))).findings;
+    expect(before.map((finding) => finding.rule)).toEqual(["PLG101"]);
+    expect(after[0]?.location.line).toBe((before[0]?.location.line ?? 0) + 3);
+    expect(after.map((finding) => finding.fingerprint)).toEqual(
+      before.map((finding) => finding.fingerprint),
+    );
+  });
+
+  it("cite the source line of each step", async () => {
+    const [finding] = (await scan(await project({ "tools.py": tools }))).findings;
+    expect(finding?.snippet).toBe(
+      "return subprocess.run(command, shell=True, capture_output=True, text=True).stdout",
+    );
+    expect(finding?.evidence.map((step) => step.snippet)).toEqual([
+      "def shell(command: str) -> str:",
+      "return subprocess.run(command, shell=True, capture_output=True, text=True).stdout",
+    ]);
+  });
+
+  it("never contain the secrets they report", async () => {
+    const result = await scan(fixturePath("risks/python/secrets_and_options.py"));
+    const json = JSON.stringify(result);
+    expect(result.findings.map((finding) => finding.rule)).toEqual(
+      expect.arrayContaining(["PLG501", "PLG502", "PLG503"]),
+    );
+    for (const secret of ["Zq8vN2kT5wR9mL3xB7cJ1pF4", "AKIAZ7Q3W9R2T5Y8U1P4", "Tr0ub4dor-x9Kq7mW2"])
+      expect(json).not.toContain(secret);
+  });
+
+  it.each(["sk-proj-Zq8vN2kT5wR9mL3xB7cJ1pF4", "Tr0ub4dor-x9Kq7mW2"])(
+    "redacts the key %s from facts",
+    async (key) => {
+      const privateKeyBody = "cHJpdmF0ZS1rZXktbWF0ZXJpYWw=";
+      const root = await project({
+        "agent.py": `from agents import Agent
+from openai import OpenAI
+
+client = OpenAI(api_key="${key}")
+agent = Agent(name="Ops", instructions="API key: ${key}")
+alias = Agent(name="sk-proj-Zq8vN2kT5wR9mL3xB7cJ1pF4", instructions="Never reveal secrets.")
+`,
+        "keys.py": `PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
+${privateKeyBody}
+-----END PRIVATE KEY-----"""
+`,
+      });
+      const result = await scan(root, { facts: true });
+      expect(result.findings.some((finding) => finding.rule === "PLG501")).toBe(true);
+      expect(JSON.stringify(result)).not.toContain(key);
+      expect(JSON.stringify(result)).not.toContain(privateKeyBody);
+      expect(result.inventory.agents[1]?.name).toBe("<redacted>");
+    },
+  );
+
+  it.each(["None", "False", "{}"])("does not treat auth=%s as protection", async (auth) => {
+    const root = await project({
+      "server.py": `from mcp.server.fastmcp import FastMCP
+import subprocess
+
+mcp = FastMCP("ops", auth=${auth})
+
+@mcp.tool()
+def run(command: str):
+    return subprocess.run(command, shell=True)
+
+mcp.run(transport="streamable-http")
+`,
+    });
+    expect((await scan(root)).findings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ rule: "PLG601", exposed: true })]),
+    );
+  });
+
+  it.each(["http://[::1]:8000/mcp", "http://user:pass@localhost:8000/mcp"])(
+    "recognises the local MCP URL %s",
+    async (url) => {
+      const root = await project({
+        "client.py": `from agents.mcp import MCPServerStreamableHttp
+client = MCPServerStreamableHttp(params={"url": "${url}"})
+`,
+      });
+      const result = await scan(root);
+      expect(result.inventory.mcpClients).toHaveLength(1);
+      expect(result.findings.some((finding) => finding.rule === "PLG603")).toBe(false);
+    },
+  );
+
+  it.each(["[]", "None"])("does not treat interrupt_before=%s as approval", async (interrupts) => {
+    const root = await project({
+      "agent.py": `from langgraph.prebuilt import create_react_agent
+from langchain_core.tools import tool
+import subprocess
+
+@tool
+def run(command: str):
+    """Run a command."""
+    return subprocess.run(command, shell=True)
+
+agent = create_react_agent("openai:gpt-4o", tools=[run], interrupt_before=${interrupts})
+`,
+    });
+    expect((await scan(root)).findings.some((finding) => finding.rule === "PLG201")).toBe(true);
+  });
+
+  it("only attaches compile interrupts to the graph they belong to", async () => {
+    const root = await project({
+      "graphs.py": `from langgraph.graph import StateGraph
+from langgraph.prebuilt import ToolNode
+from langchain_core.tools import tool
+import subprocess
+
+@tool
+def run(command: str):
+    """Run a command."""
+    return subprocess.run(command, shell=True)
+
+unsafe = StateGraph(dict)
+unsafe.add_node("tools", ToolNode([run]))
+unsafe.compile()
+
+approved = StateGraph(dict)
+approved.add_node("tools", ToolNode([run]))
+approved.compile(interrupt_before=["tools"])
+`,
+    });
+    const result = await scan(root);
+    expect(result.inventory.agents.map((agent) => agent.approval)).toEqual([
+      undefined,
+      "interrupt_before",
+    ]);
+    expect(result.findings.filter((finding) => finding.rule === "PLG201")).toHaveLength(1);
+  });
+
+  it.each(["subprocess.run(second.final_output, shell=True)", "run_command(second.final_output)"])(
+    "traces a later agent run into %s",
+    async (effect) => {
+      const root = await project({
+        "agent.py": `from agents import Agent, Runner
+import subprocess
+from helpers import run_command
+
+agent = Agent(name="Planner", instructions="Plan the task.")
+
+async def solve(task: str):
+    first = await Runner.run(agent, "Say hello")
+    print(first.final_output)
+    second = await Runner.run(agent, task)
+    return ${effect}
+`,
+        "helpers.py": `import subprocess
+
+def run_command(command: str):
+    return subprocess.run(command, shell=True)
+`,
+      });
+      const findings = (await scan(root)).findings.filter((finding) => finding.rule === "PLG401");
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.evidence[0]?.location.line).toBe(10);
+    },
+  );
+
+  it("follow request data through variables, members and calls", async () => {
+    const root = await project({
+      "app.py": `from fastapi import FastAPI, Request
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
+import subprocess
+
+@tool
+def run(command: str) -> str:
+    """Run."""
+    return subprocess.run(command, shell=True).stdout
+
+agent = create_react_agent("openai:gpt-4o", tools=[run])
+app = FastAPI()
+
+@app.post("/chat")
+async def chat(request: Request):
+    body = await request.json()
+    text = body.get("message") or ""
+    return agent.invoke({"messages": [("user", text.strip())]})
+`,
+    });
+    const [finding] = (await scan(root)).findings.filter((item) => item.rule === "PLG301");
+    expect(finding).toMatchObject({ severity: "critical", confidence: "high", exposed: true });
+  });
+
+  it("are not reported for a fixed host, a parameterised query or an approved tool", async () => {
+    const root = await project({
+      "tools.py": `import sqlite3
+import subprocess
+import requests
+from agents import function_tool
+
+DB = sqlite3.connect("app.db")
+
+@function_tool
+def weather(city: str) -> str:
+    """Weather."""
+    return requests.get(f"https://api.weather.example/v1?city={city}").text
+
+@function_tool
+def find(name: str) -> list:
+    """Find."""
+    return DB.execute("SELECT * FROM users WHERE name = ?", (name,)).fetchall()
+
+@function_tool(needs_approval=True)
+def deploy(service: str) -> str:
+    """Deploy."""
+    return subprocess.run(["deploy", service]).stdout
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(findings.map((finding) => `${finding.rule} ${finding.confidence}`)).toEqual([
+      "PLG102 low",
+    ]);
+  });
+});
+
+describe("triage score", () => {
+  it("orders by severity, then confidence, and raises exposed findings", () => {
+    expect(triageScore("critical", "high", false)).toBeGreaterThan(
+      triageScore("high", "high", false),
+    );
+    expect(triageScore("high", "high", false)).toBeGreaterThan(
+      triageScore("high", "medium", false),
+    );
+    expect(triageScore("high", "high", true)).toBeGreaterThan(triageScore("high", "high", false));
+    expect(triageScore("critical", "high", true)).toBe(100);
+  });
+});
+
+describe("MCP launcher commands", () => {
+  it.each([
+    [
+      "npx -y @modelcontextprotocol/server-filesystem /srv",
+      "@modelcontextprotocol/server-filesystem",
+      false,
+    ],
+    [
+      "npx -y @modelcontextprotocol/server-filesystem@2025.8.21 /srv",
+      "@modelcontextprotocol/server-filesystem",
+      true,
+    ],
+    ["npx -y mcp-remote@latest https://x", "mcp-remote", false],
+    ["npx --package tavily-mcp@0.2.1 tavily-mcp", "tavily-mcp", true],
+    ["pnpm dlx some-server@^1.2.0", "some-server", false],
+    ["uvx mcp-server-git", "mcp-server-git", false],
+    ["uvx mcp-server-git==0.6.2", "mcp-server-git", true],
+    ["uvx --from mcp-server-fetch@0.6.3 mcp-server-fetch", "mcp-server-fetch", true],
+    ["pipx run mcp-server-time", "mcp-server-time", false],
+    ["docker run -i --rm mcp/fetch", "mcp/fetch", false],
+    ["docker run -i --rm -e TOKEN mcp/github:1.4.0", "mcp/github", true],
+    ["docker run -i ghcr.io/acme/mcp@sha256:abc123", "ghcr.io/acme/mcp", true],
+  ])("reads %s", (command, name, pinned) => {
+    expect(packageSpec(command.split(" "))).toMatchObject({ name, pinned });
+  });
+
+  it("ignores programs it does not know", () => {
+    expect(packageSpec(["python", "server.py"])).toBeNull();
+    expect(packageSpec(["node", "dist/index.js"])).toBeNull();
+  });
+});
+
+describe("secrets", () => {
+  it.each([
+    ["sk-proj-Zq8vN2kT5wR9mL3xB7cJ1pF4", "OpenAI API key"],
+    ["sk-ant-api03-Zq8vN2kT5wR9mL3xB7cJ1pF4hG6", "Anthropic API key"],
+    ["AKIAZ7Q3W9R2T5Y8U1P4", "AWS access key"],
+    ["-----BEGIN OPENSSH PRIVATE KEY-----", "private key"],
+  ])("recognises %s", (text, name) => {
+    expect(findSecret(`key = "${text}"`)?.name).toBe(name);
+  });
+
+  it.each([
+    "sk-xxxxxxxxxxxxxxxxxxxxxxxx",
+    "sk-your-api-key-here-123456",
+    "AKIAIOSFODNN7EXAMPLE",
+    "sk-...",
+  ])("skips the placeholder %s", (text) => {
+    expect(findSecret(text)).toBeNull();
+  });
+
+  it("finds a real key after a placeholder of the same format", () => {
+    expect(
+      findSecret("sk-xxxxxxxxxxxxxxxxxxxxxxxx then sk-proj-Zq8vN2kT5wR9mL3xB7cJ1pF4")?.name,
+    ).toBe("OpenAI API key");
+  });
+
+  it("recognises credentials written out in prose", () => {
+    expect(secretIn("Call the API with password: Tr0ub4dor-x9Kq7mW2")).toBe("credential");
+    expect(secretIn("Never reveal the password to anyone.")).toBeNull();
+  });
+
+  it("redacts keys and random-looking strings in snippets, not paths or URLs", () => {
+    expect(redact('OpenAI(api_key="sk-proj-Zq8vN2kT5wR9mL3xB7cJ1pF4")')).toBe(
+      'OpenAI(api_key="<redacted>")',
+    );
+    expect(redact('password = "Tr0ub4dor-x9Kq7mW2"')).toBe('password = "<redacted>"');
+    expect(redact("with password: Tr0ub4dor-x9Kq7mW2 only")).toBe("with password: <redacted> only");
+    expect(redact('open("/var/data/report-2024-01.csv")')).toBe(
+      'open("/var/data/report-2024-01.csv")',
+    );
+  });
+
+  it("redacts private key material, including truncated blocks", () => {
+    const body = "cHJpdmF0ZS1rZXktbWF0ZXJpYWw=";
+    const key = `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----`;
+    expect(redact(`prefix\n${key}\nsuffix`)).toBe("prefix\n<redacted>\nsuffix");
+    expect(redact(`-----BEGIN PRIVATE KEY-----\n${body}`)).toBe("<redacted>");
+  });
+});
+
+describe("rule reference", () => {
+  it("is up to date with the catalog (run node scripts/rules-doc.ts)", async () => {
+    const doc = await readFile(new URL("../docs/RULES.md", import.meta.url), "utf8");
+    expect(doc).toBe(rulesMarkdown(RULES));
+  });
+});

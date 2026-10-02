@@ -1,0 +1,8 @@
+[
+  "PLG101 app/helpers.py:7 critical/high exposed Tool `restart` runs a shell command built from model input",
+  "PLG301 app/main.py:16 critical/high exposed `POST /ops` passes request input to agent `build_agent()`, which can run commands",
+  "PLG101 app/helpers.py:7 critical/high Tool `deploy` runs a shell command built from model input",
+  "PLG201 app/agent.py:10 high/medium exposed Agent `build_agent()` can run commands with no human approval",
+  "PLG105 web/src/lookup.ts:4 medium/high Tool `lookup` requests a URL chosen by the model",
+  "PLG104 web/src/tools.ts:6 medium/high Tool `read` reads a file at a path chosen by the model"
+]
