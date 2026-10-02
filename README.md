@@ -99,6 +99,9 @@ variables, `self`/`this` attributes and destructuring into canonical names such 
 `--format json`. `--output` writes it to a file and creates parent directories.
 JSON, SARIF and Markdown include every finding, its evidence and the rules that
 fired. Terminal output shows the first 20 active findings (`--all` shows all).
+When the scanned path is a subdirectory, `--source-root <repository root>` makes
+SARIF and Markdown paths relative to the repository, as GitHub code scanning
+expects.
 
 Create a reviewed baseline, then gate new findings:
 
@@ -111,10 +114,13 @@ pnpm dev scan path/to/project --baseline plenger-baseline.json --fail-on high
 is `none`; thresholds are `critical`, `high`, `medium`, `low` or `none`. Reports are
 written before a failed gate exits with code 3. Scan/I/O errors exit 1; invalid
 arguments or policy files exit 2. Baseline findings remain visible and do not fail
-the gate. A `--suppressions` file requires a review reason for each exclusion.
+the gate. A `--suppressions` file requires a review reason for each exclusion;
+`--omit-suppressed` leaves suppressed findings out of the report but keeps their count.
 
 The composite [GitHub Action](action.yml) produces SARIF and a Markdown job summary
-from one scan, and defaults to `fail-on: high`. The repository's
+from one scan, and defaults to `fail-on: high`. Its SARIF paths are relative to the
+repository root, and it leaves suppressed findings out of the SARIF because GitHub
+does not honour SARIF suppressions. The repository's
 [CI workflow](.github/workflows/ci.yml) tests it with `uses: ./`.
 See [docs/REPORTS.md](docs/REPORTS.md) for report contracts, policy formats and
 the workflow for uploading results to GitHub code scanning.

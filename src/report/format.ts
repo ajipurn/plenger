@@ -1,9 +1,8 @@
-import { sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { isAbsolute, relative, sep } from "node:path";
 import type { Location } from "../inventory/model.ts";
-import type { Severity } from "../rules/index.ts";
+import type { Rule, Severity } from "../rules/index.ts";
 import { SEVERITIES } from "../rules/model.ts";
-import { activeFindings, type Report } from "./model.ts";
+import { activeFindings, type Report, type ReportFinding } from "./model.ts";
 import { formatSummary, type SummaryOptions } from "./summary.ts";
 
 export const FORMATS = ["terminal", "json", "sarif", "markdown"] as const;
@@ -13,14 +12,37 @@ export function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+export interface SourceOptions {
+  /**
+   * Real path of the directory that SARIF and Markdown paths are relative to, such as
+   * the repository root; the scan root when absent. It must contain the scan root.
+   */
+  sourceRoot?: string;
+}
+
+export class SourceRootError extends Error {}
+
+/**
+ * Where the scan root is inside the source root, with forward slashes (`src`); empty
+ * when they are the same directory or no source root is given.
+ */
+export function sourcePrefix(report: Pick<Report, "root">, sourceRoot?: string): string {
+  if (sourceRoot === undefined) return "";
+  const path = relative(sourceRoot, report.root);
+  if (isAbsolute(path) || path === ".." || path.startsWith(`..${sep}`)) {
+    throw new SourceRootError(`the scanned path is not inside the source root ${sourceRoot}`);
+  }
+  return path.split(sep).join("/");
+}
+
 export function formatReport(
   report: Report,
   format: ReportFormat,
-  options: SummaryOptions,
+  options: SummaryOptions & SourceOptions,
 ): string {
   if (format === "json") return json(report);
-  if (format === "sarif") return json(toSarif(report));
-  if (format === "markdown") return toMarkdown(report);
+  if (format === "sarif") return json(toSarif(report, options));
+  if (format === "markdown") return toMarkdown(report, options);
   let text = formatSummary({ ...report, findings: activeFindings(report) }, options);
   if (report.review.suppressed > 0 && report.review.active === 0) {
     text = text.replace(
@@ -61,9 +83,17 @@ export function artifactUri(path: string): string {
     .join("/");
 }
 
-function physicalLocation(location: Location, snippet?: string) {
+/** A scan-root-relative path made relative to the source root. */
+function sourcePath(path: string, prefix: string): string {
+  return prefix === "" ? path : `${prefix}/${path}`;
+}
+
+function physicalLocation(location: Location, prefix: string, snippet?: string) {
   return {
-    artifactLocation: { uri: artifactUri(location.path), uriBaseId: "%SRCROOT%" },
+    artifactLocation: {
+      uri: artifactUri(sourcePath(location.path, prefix)),
+      uriBaseId: "%SRCROOT%",
+    },
     region: {
       startLine: location.line,
       startColumn: location.column,
@@ -74,7 +104,35 @@ function physicalLocation(location: Location, snippet?: string) {
   };
 }
 
-export function toSarif(report: Report) {
+/**
+ * SARIF tools such as GitHub code scanning read severity from the rule, not the
+ * result. A rule's findings rated below its highest severity are reported under a
+ * descriptor per severity, `PLG302/low`, so that each alert shows its own severity.
+ */
+function ruleDescriptors(rules: Rule[], findings: ReportFinding[]) {
+  const descriptors: { id: string; rule: Rule; severity: Severity }[] = [];
+  for (const rule of rules) {
+    const used = new Set(
+      findings.filter((finding) => finding.rule === rule.id).map((finding) => finding.severity),
+    );
+    descriptors.push({ id: rule.id, rule, severity: rule.severity });
+    for (const severity of SEVERITIES) {
+      if (severity !== rule.severity && used.has(severity))
+        descriptors.push({ id: `${rule.id}/${severity}`, rule, severity });
+    }
+  }
+  return descriptors;
+}
+
+export function toSarif(report: Report, options: SourceOptions = {}) {
+  const prefix = sourcePrefix(report, options.sourceRoot);
+  const descriptors = ruleDescriptors(report.rules, report.findings);
+  const descriptorOf = (finding: ReportFinding) => {
+    const index = descriptors.findIndex(
+      (item) => item.rule.id === finding.rule && item.severity === finding.severity,
+    );
+    return index === -1 ? descriptors.findIndex((item) => item.id === finding.rule) : index;
+  };
   const warnings: string[] = [];
   const syntaxErrors = report.files.filter((file) => file.syntaxErrors).length;
   const skipped = report.skipped.filter((file) =>
@@ -98,16 +156,17 @@ export function toSarif(report: Report) {
           driver: {
             name: report.tool.name,
             version: report.tool.version,
-            rules: report.rules.map((rule) => ({
-              id: rule.id,
+            rules: descriptors.map(({ id, rule, severity }) => ({
+              id,
               name: rule.name,
               shortDescription: { text: rule.title },
               fullDescription: { text: rule.description },
               help: { text: rule.remediation },
-              defaultConfiguration: { level: LEVELS[rule.severity] },
+              defaultConfiguration: { level: LEVELS[severity] },
               properties: {
-                tags: ["security", ...rule.owasp, ...rule.cwe.map((id) => `CWE-${id}`)],
-                "security-severity": SECURITY_SEVERITY[rule.severity],
+                tags: ["security", ...rule.owasp, ...rule.cwe.map((cwe) => `CWE-${cwe}`)],
+                "security-severity": SECURITY_SEVERITY[severity],
+                rule: rule.id,
               },
             })),
           },
@@ -122,53 +181,81 @@ export function toSarif(report: Report) {
             })),
           },
         ],
-        originalUriBaseIds: {
-          "%SRCROOT%": {
-            uri: pathToFileURL(report.root.endsWith(sep) ? report.root : `${report.root}${sep}`)
-              .href,
-          },
-        },
-        results: report.findings.map((finding) => ({
-          ruleId: finding.rule,
-          ruleIndex: report.rules.findIndex((rule) => rule.id === finding.rule),
-          level: LEVELS[finding.severity],
-          message: { text: [finding.title, ...finding.notes].join("\n") },
-          locations: [{ physicalLocation: physicalLocation(finding.location, finding.snippet) }],
-          relatedLocations: finding.evidence.map((evidence, index) => ({
-            id: index + 1,
-            physicalLocation: physicalLocation(evidence.location, evidence.snippet),
-            message: { text: evidence.message },
-          })),
-          partialFingerprints: { "plenger/v1": finding.fingerprint },
-          ...(finding.baselineState ? { baselineState: finding.baselineState } : {}),
-          ...(finding.suppression
-            ? {
-                suppressions: [
-                  {
-                    kind: "external",
-                    status: "accepted",
-                    justification: finding.suppression.reason,
-                  },
-                ],
-              }
-            : {}),
-          properties: {
-            severity: finding.severity,
-            confidence: finding.confidence,
-            score: finding.score,
-            exposed: finding.exposed,
-            subject: finding.subject,
-            "security-severity": SECURITY_SEVERITY[finding.severity],
-          },
-        })),
+        // %SRCROOT% is the source root; its local absolute path is not written, so
+        // reports can be shared and uploaded without revealing the machine they came from.
+        results: report.findings.map((finding) => {
+          const ruleIndex = descriptorOf(finding);
+          return {
+            ruleId: descriptors[ruleIndex]?.id ?? finding.rule,
+            ruleIndex,
+            level: LEVELS[finding.severity],
+            message: { text: [finding.title, ...finding.notes].join("\n") },
+            locations: [
+              { physicalLocation: physicalLocation(finding.location, prefix, finding.snippet) },
+            ],
+            relatedLocations: finding.evidence.map((evidence, index) => ({
+              id: index + 1,
+              physicalLocation: physicalLocation(evidence.location, prefix, evidence.snippet),
+              message: { text: evidence.message },
+            })),
+            // The evidence chain as a path that code scanning UIs can step through.
+            ...(finding.evidence.length > 1
+              ? {
+                  codeFlows: [
+                    {
+                      threadFlows: [
+                        {
+                          locations: finding.evidence.map((evidence) => ({
+                            location: {
+                              physicalLocation: physicalLocation(
+                                evidence.location,
+                                prefix,
+                                evidence.snippet,
+                              ),
+                              message: { text: evidence.message },
+                            },
+                          })),
+                        },
+                      ],
+                    },
+                  ],
+                }
+              : {}),
+            partialFingerprints: { "plenger/v1": finding.fingerprint },
+            ...(finding.baselineState ? { baselineState: finding.baselineState } : {}),
+            ...(finding.suppression
+              ? {
+                  suppressions: [
+                    {
+                      kind: "external",
+                      status: "accepted",
+                      justification: finding.suppression.reason,
+                    },
+                  ],
+                }
+              : {}),
+            properties: {
+              rule: finding.rule,
+              severity: finding.severity,
+              confidence: finding.confidence,
+              score: finding.score,
+              exposed: finding.exposed,
+              subject: finding.subject,
+              "security-severity": SECURITY_SEVERITY[finding.severity],
+            },
+          };
+        }),
         properties: {
           review: report.review,
           truncated: report.truncated,
           syntaxErrorFiles: report.files
             .filter((file) => file.syntaxErrors)
-            .map((file) => file.path),
-          skipped: report.skipped,
-          excludedDirs: report.excludedDirs,
+            .map((file) => sourcePath(file.path, prefix)),
+          skipped: report.skipped.map((file) => ({ ...file, path: sourcePath(file.path, prefix) })),
+          excludedDirs: report.excludedDirs.map((dir) => ({
+            ...dir,
+            path: sourcePath(dir.path, prefix),
+          })),
         },
       },
     ],
@@ -189,11 +276,16 @@ function codeBlock(text: string): string {
   return `${fence}text\n${text}\n${fence}`;
 }
 
-function sourceLink(location: Location, sourceBaseUrl = ""): string {
-  return `[${markdownText(`${location.path}:${location.line}`)}](${sourceBaseUrl}${artifactUri(location.path)}#L${location.line})`;
+function sourceLink(location: Location, prefix: string, sourceBaseUrl = ""): string {
+  const path = sourcePath(location.path, prefix);
+  return `[${markdownText(`${path}:${location.line}`)}](${sourceBaseUrl}${artifactUri(path)}#L${location.line})`;
 }
 
-export function toMarkdown(report: Report, options: { sourceBaseUrl?: string } = {}): string {
+export function toMarkdown(
+  report: Report,
+  options: SourceOptions & { sourceBaseUrl?: string } = {},
+): string {
+  const prefix = sourcePrefix(report, options.sourceRoot);
   const { active, suppressed, unchanged } = report.review;
   const syntaxErrors = report.files.filter((file) => file.syntaxErrors).length;
   const lines = [
@@ -239,7 +331,7 @@ export function toMarkdown(report: Report, options: { sourceBaseUrl?: string } =
       "",
       `${finding.severity} · ${finding.confidence} confidence · score ${finding.score}${finding.exposed ? " · exposed" : ""}`,
       "",
-      `${sourceLink(finding.location, options.sourceBaseUrl)} · fingerprint \`${finding.fingerprint}\`${finding.baselineState ? ` · baseline: ${finding.baselineState}` : ""}`,
+      `${sourceLink(finding.location, prefix, options.sourceBaseUrl)} · fingerprint \`${finding.fingerprint}\`${finding.baselineState ? ` · baseline: ${finding.baselineState}` : ""}`,
       "",
     );
     if (finding.suppression)
@@ -247,7 +339,7 @@ export function toMarkdown(report: Report, options: { sourceBaseUrl?: string } =
     if (finding.snippet) lines.push(codeBlock(finding.snippet), "");
     for (const evidence of finding.evidence) {
       lines.push(
-        `- ${sourceLink(evidence.location, options.sourceBaseUrl)}: ${markdownText(evidence.message)}`,
+        `- ${sourceLink(evidence.location, prefix, options.sourceBaseUrl)}: ${markdownText(evidence.message)}`,
       );
     }
     if (finding.evidence.length) lines.push("");

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -146,6 +146,43 @@ describe("CLI reports and CI", () => {
     });
   });
 
+  it("makes SARIF paths relative to --source-root and can omit suppressed findings", async () => {
+    await withProject(async (root) => {
+      await mkdir(join(root, "src"));
+      await rename(join(root, "tool.py"), join(root, "src", "tool.py"));
+      const scanned = join(root, "src");
+      const sarif = await run("scan", scanned, "--format", "sarif", "--source-root", root);
+      expect(sarif.code).toBe(0);
+      expect(
+        JSON.parse(sarif.stdout).runs[0].results[0].locations[0].physicalLocation.artifactLocation
+          .uri,
+      ).toBe("src/tool.py");
+      expect((await run("scan", root, "--format", "sarif", "--source-root", scanned)).code).toBe(2);
+      expect((await run("scan", scanned, "--source-root", join(root, "missing"))).code).toBe(2);
+      expect((await run("rules", "--source-root", root)).code).toBe(2);
+
+      const suppressions = join(root, "suppressions.json");
+      await writeFile(
+        suppressions,
+        JSON.stringify({
+          schemaVersion: 1,
+          suppressions: [{ rule: "PLG101", reason: "Reviewed" }],
+        }),
+      );
+      const omitted = await run(
+        "scan",
+        scanned,
+        "--json",
+        "--suppressions",
+        suppressions,
+        "--omit-suppressed",
+      );
+      const report = JSON.parse(omitted.stdout);
+      expect(report.findings).toEqual([]);
+      expect(report.review).toMatchObject({ active: 0, suppressed: 1 });
+    });
+  });
+
   it("distinguishes usage/policy errors from scan and output failures", async () => {
     for (const args of [
       ["scan", "--format", "html"],
@@ -223,13 +260,53 @@ describe("GitHub Action", () => {
         PLENGER_SUPPRESSIONS: "suppression.json",
       };
       const io = { stdout: () => {}, stderr: () => {}, color: false };
+      const sarif = async () =>
+        JSON.parse(await readFile(join(root, "plenger.sarif"), "utf8")).runs[0];
+      // GitHub ignores SARIF suppressions, so suppressed findings stay out of the upload by default.
       expect(await runGitHubAction(env, io)).toBe(0);
-      expect(
-        JSON.parse(await readFile(join(root, "plenger.sarif"), "utf8")).runs[0].results[0],
-      ).toMatchObject({ baselineState: "unchanged", suppressions: [{ status: "accepted" }] });
+      expect((await sarif()).results).toEqual([]);
+      expect((await sarif()).properties.review).toMatchObject({ suppressed: 1 });
+      expect(await runGitHubAction({ ...env, PLENGER_INCLUDE_SUPPRESSED: "true" }, io)).toBe(0);
+      expect((await sarif()).results[0]).toMatchObject({
+        baselineState: "unchanged",
+        suppressions: [{ status: "accepted" }],
+      });
       expect(await runGitHubAction({ GITHUB_WORKSPACE: root, PLENGER_FAIL_ON: "none" }, io)).toBe(
         0,
       );
+    });
+  });
+
+  it("writes SARIF paths and summary links from the repository root when scanning a subdirectory", async () => {
+    await withProject(async (root) => {
+      await mkdir(join(root, "src", "agents"), { recursive: true });
+      await rename(join(root, "tool.py"), join(root, "src", "agents", "tool.py"));
+      const summary = join(root, "summary.md");
+      const io = { stdout: () => {}, stderr: () => {}, color: false };
+      const env = {
+        GITHUB_WORKSPACE: root,
+        GITHUB_STEP_SUMMARY: summary,
+        GITHUB_REPOSITORY: "example/agent-project",
+        GITHUB_SHA: "abcdef",
+        PLENGER_PATH: "src",
+        PLENGER_FAIL_ON: "none",
+      };
+      expect(await runGitHubAction(env, io)).toBe(0);
+      const run = JSON.parse(await readFile(join(root, "plenger.sarif"), "utf8")).runs[0];
+      expect(run.results[0].locations[0].physicalLocation.artifactLocation.uri).toBe(
+        "src/agents/tool.py",
+      );
+      expect(await readFile(summary, "utf8")).toContain(
+        "https://github.com/example/agent-project/blob/abcdef/src/agents/tool.py#L",
+      );
+      // A repository checked out into a subdirectory of the workspace.
+      expect(await runGitHubAction({ ...env, PLENGER_SOURCE_ROOT: "src" }, io)).toBe(0);
+      expect(
+        JSON.parse(await readFile(join(root, "plenger.sarif"), "utf8")).runs[0].results[0]
+          .locations[0].physicalLocation.artifactLocation.uri,
+      ).toBe("agents/tool.py");
+      expect(await runGitHubAction({ ...env, PLENGER_SOURCE_ROOT: "src/agents" }, io)).toBe(2);
+      expect(await runGitHubAction({ ...env, PLENGER_SOURCE_ROOT: "missing" }, io)).toBe(2);
     });
   });
 
@@ -255,6 +332,9 @@ describe("GitHub Action", () => {
       expect(await runGitHubAction({ GITHUB_WORKSPACE: root, PLENGER_GITIGNORE: "typo" }, io)).toBe(
         2,
       );
+      expect(
+        await runGitHubAction({ GITHUB_WORKSPACE: root, PLENGER_INCLUDE_SUPPRESSED: "yes" }, io),
+      ).toBe(2);
     });
   });
 
@@ -300,5 +380,20 @@ describe("GitHub Action", () => {
       true,
     );
     expect(workflow.permissions).toEqual({ contents: "read" });
+    // Third-party actions run with the job's token; pin them to commits, not movable tags.
+    const steps = [
+      ...action.runs.steps,
+      ...Object.values(workflow.jobs as Record<string, { steps: { uses?: string }[] }>).flatMap(
+        (job) => job.steps,
+      ),
+    ];
+    const remote = steps
+      .map((item: { uses?: string }) => item.uses)
+      .filter((uses): uses is string => uses !== undefined && !uses.startsWith("./"));
+    expect(remote.length).toBeGreaterThan(0);
+    for (const uses of remote) expect(uses).toMatch(/^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/);
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal GitHub Actions expression
+    expect(step.env.PLENGER_SOURCE_ROOT).toBe("${{ inputs.source-root }}");
+    expect(action.inputs["include-suppressed"].default).toBe("false");
   });
 });

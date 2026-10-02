@@ -68,3 +68,14 @@ export function failsGate(report: Report, threshold: FailOn): boolean {
 export function activeFindings(report: Report): ReportFinding[] {
   return report.findings.filter((finding) => !finding.suppression);
 }
+
+/**
+ * The report without its suppressed findings, for tools that do not honour SARIF
+ * suppressions (GitHub code scanning shows them as open alerts). `review` still counts
+ * them, and `rules` keeps only the rules that have findings left.
+ */
+export function withoutSuppressed(report: Report): Report {
+  const findings = activeFindings(report);
+  const fired = new Set(findings.map((finding) => finding.rule));
+  return { ...report, findings, rules: report.rules.filter((rule) => fired.has(rule.id)) };
+}

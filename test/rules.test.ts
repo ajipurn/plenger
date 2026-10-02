@@ -6,7 +6,7 @@ import { rulesMarkdown } from "../src/report/rules.ts";
 import { packageSpec } from "../src/rules/checks/mcp.ts";
 import { RULES, triageScore } from "../src/rules/index.ts";
 import { scan } from "../src/scan.ts";
-import { findSecret, redact, secretIn } from "../src/secrets.ts";
+import { findSecret, redact, redactKnown, secretIn } from "../src/secrets.ts";
 import { compactFindings } from "./compact.ts";
 import { fixturePath } from "./helpers.ts";
 
@@ -123,6 +123,57 @@ ${privateKeyBody}
       expect(result.inventory.agents[1]?.name).toBe("<redacted>");
     },
   );
+
+  it("keep identifiers readable in titles, evidence and snippets", async () => {
+    const root = await project({
+      "agent.py": `import os
+from langchain_anthropic import ChatAnthropic
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
+
+model = ChatAnthropic(model="claude-sonnet-4-5-20250929")
+
+
+@tool
+def export_report_2024_q3(path: str) -> str:
+    """Export the report."""
+    os.remove(path)
+    return "ok"
+
+
+agent = create_react_agent(model, tools=[export_report_2024_q3])
+
+
+def run(task: str):
+    return agent.invoke({"messages": [("user", task)]}, config={"recursion_limit": 10_000})
+`,
+    });
+    const result = await scan(root);
+    const json = JSON.stringify(result);
+    expect(json).not.toContain("<redacted>");
+    const titles = result.findings.map((finding) => finding.title);
+    expect(titles).toContain(
+      "Tool `export_report_2024_q3` deletes a file at a path chosen by the model",
+    );
+    const loop = result.findings.find((finding) => finding.rule === "PLG203");
+    expect(loop?.evidence[0]?.message).toBe("`recursion_limit=10_000` removes the limit");
+    expect(result.inventory.models[0]?.model).toBe("claude-sonnet-4-5-20250929");
+    expect(loop?.snippet).toContain('config={"recursion_limit": 10_000}');
+  });
+
+  it("redact a literal API key of unknown format everywhere, without --facts too", async () => {
+    const key = "3f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c";
+    const root = await project({
+      "client.py": `from openai import OpenAI
+
+client = OpenAI(api_key="${key}")
+`,
+    });
+    const result = await scan(root);
+    expect(result.findings.map((finding) => finding.rule)).toContain("PLG501");
+    expect(JSON.stringify(result)).not.toContain(key);
+    expect(result.findings[0]?.snippet).toBe('client = OpenAI(api_key="<redacted>")');
+  });
 
   it.each(["None", "False", "{}"])("does not treat auth=%s as protection", async (auth) => {
     const root = await project({
@@ -373,6 +424,28 @@ describe("secrets", () => {
     expect(redact('open("/var/data/report-2024-01.csv")')).toBe(
       'open("/var/data/report-2024-01.csv")',
     );
+  });
+
+  it.each([
+    'ChatAnthropic(model="claude-sonnet-4-5-20250929")',
+    'OpenAI().chat.completions.create(model="gpt-4o-2024-08-06")',
+    'os.environ["LANGCHAIN_TRACING_V2"]',
+    'assertSafeKeyComponent("thread_id", "checkpoint_2024_10_02_v3")',
+  ])("leaves identifiers, model names and variable names in source text alone: %s", (text) => {
+    expect(redact(text)).toBe(text);
+  });
+
+  it("redacts a quoted generated key of unknown format in source text", () => {
+    expect(redact('client = Mistral(api_key="Zq8vN2kT5wR9mL3xB7cJ1pF4")')).toBe(
+      'client = Mistral(api_key="<redacted>")',
+    );
+  });
+
+  it("only replaces known secrets in plenger's own text", () => {
+    const title = "Tool `export_report_2024_q3` reads `Zq8vN2kT5wR9mL3xB7cJ1pF4Aa`";
+    expect(redactKnown(title)).toBe(title);
+    expect(redactKnown("Reviewed sk-proj-Zq8vN2kT5wR9mL3xB7cJ1pF4")).toBe("Reviewed <redacted>");
+    expect(redactKnown("id 3f9a8b7c6d5e4f3a", ["3f9a8b7c6d5e4f3a"])).toBe("id <redacted>");
   });
 
   it("redacts private key material, including truncated blocks", () => {

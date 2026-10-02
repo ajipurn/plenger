@@ -225,9 +225,12 @@ parameters, calls and framework request objects (`flask.request`) they come from
 across files, callers' arguments are bound to callees' parameters as in M3.
 Recognised secrets are redacted throughout the report after analysis, including
 inventory names, prompts, MCP commands and URLs, snippets and optional code facts.
-Private key blocks are redacted with their contents, not just their headers.
+Private key blocks are redacted with their contents, not just their headers, and a
+literal API key passed to a model client is redacted wherever it appears, whatever
+its format. Quoted random-looking strings are hidden only in text copied from
+source; identifiers, model names and environment variable names stay readable.
 
-Measured on 2 October 2026: 215 tests; the three fixture corpora (`frameworks`,
+Measured on 2 October 2026: 250 tests (with M5); the three fixture corpora (`frameworks`,
 `crossfile` and the new `risks`, with positive and negative cases for every rule)
 score precision and recall 1.0 for the inventory and for 100 reviewed findings
 (`node scripts/benchmark.ts`). On real code, every finding read by hand:
@@ -267,9 +270,17 @@ fingerprint or rule, optionally constrained by a path glob, and require a reason
 Malformed or unknown policy fields fail with exit 2. Policy matching does not
 remove findings from structured reports. `--fail-on` gates only new unsuppressed
 findings at or above a severity threshold; exit 3 follows report generation.
+`--source-root` makes SARIF and Markdown paths relative to the repository root when a
+subdirectory is scanned, and `--omit-suppressed` leaves suppressed findings out.
 
-The composite GitHub Action installs only the scanner's pinned runtime
-dependencies, scans once and writes SARIF, outputs and a Markdown job summary even
+For GitHub code scanning, which reads severity only from SARIF rules and ignores
+SARIF suppressions: findings rated below their rule's highest severity get a rule
+descriptor per severity (`PLG302/low`), the evidence chain is also a code flow, the
+Action writes paths relative to the repository root and leaves suppressed findings
+out of its SARIF by default, and no local absolute path is written to SARIF.
+
+The composite GitHub Action, with third-party actions pinned to commit SHAs,
+installs only the scanner's pinned runtime dependencies, scans once and writes SARIF, outputs and a Markdown job summary even
 if the gate fails. The CI workflow validates the source, compiled CLI and local
 Action. Local tests validate reports against the checked-in JSON contracts and
 OASIS's unmodified SARIF schema, plus CLI gates, policy validation, relocated

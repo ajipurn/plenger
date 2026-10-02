@@ -110,12 +110,12 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
     findings,
     durationMs: 0,
   };
-  redactReport(result, options.facts ? literalCredentials(parsed) : []);
+  redactReport(result, literalCredentials(parsed));
   result.durationMs = Math.round(performance.now() - started);
   return result;
 }
 
-/** SDK keys with no known prefix still need redaction when the report includes their literal facts. */
+/** API keys written in the code, whatever their format, so that no part of the report repeats them. */
 function literalCredentials(files: ProjectFile[]): string[] {
   const keys = new Set<string>();
   for (const { facts } of files) {

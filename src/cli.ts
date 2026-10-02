@@ -1,8 +1,15 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { FORMATS, formatReport, json, type ReportFormat } from "./report/format.ts";
-import { createReport, type FailOn, failsGate } from "./report/model.ts";
+import {
+  FORMATS,
+  formatReport,
+  json,
+  type ReportFormat,
+  SourceRootError,
+  sourcePrefix,
+} from "./report/format.ts";
+import { createReport, type FailOn, failsGate, withoutSuppressed } from "./report/model.ts";
 import { createBaseline, PolicyError, readBaseline, readSuppressions } from "./report/policy.ts";
 import { formatRules } from "./report/rules.ts";
 import { RULES } from "./rules/index.ts";
@@ -32,6 +39,9 @@ Options:
   --baseline <file>              Compare findings with a version 1 baseline
   --write-baseline <file>        Write a baseline of every detected finding
   --suppressions <file>          Apply a version 1 suppression file
+  --omit-suppressed              Leave suppressed findings out of the report (they are still counted)
+  --source-root <dir>            Make SARIF and Markdown paths relative to dir, such as the
+                                repository root, instead of the scanned path
   --fail-on <severity>           Fail on new, unsuppressed findings at or above critical,
                                 high, medium or low (default: none)
   --all                          List every finding, not only the most urgent
@@ -71,17 +81,29 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
   try {
     format = reportFormat(values.format, values.json === true, facts);
     threshold = failOn(values["fail-on"]);
-    for (const key of ["output", "baseline", "write-baseline", "suppressions"] as const) {
+    for (const key of [
+      "output",
+      "baseline",
+      "write-baseline",
+      "suppressions",
+      "source-root",
+    ] as const) {
       if (values[key] === "") throw new PolicyError(`--${key} needs a nonempty path`);
     }
     if (
       command !== "scan" &&
-      ["baseline", "write-baseline", "suppressions", "fail-on", "all"].some(
-        (key) => values[key as keyof typeof values] !== undefined,
-      )
+      [
+        "baseline",
+        "write-baseline",
+        "suppressions",
+        "fail-on",
+        "all",
+        "omit-suppressed",
+        "source-root",
+      ].some((key) => values[key as keyof typeof values] !== undefined)
     ) {
       throw new PolicyError(
-        "baseline, suppression, gate and --all options require the scan command",
+        "baseline, suppression, gate, source root and --all options require the scan command",
       );
     }
     if (command === "rules" && format !== "terminal" && format !== "json") {
@@ -108,20 +130,33 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
       );
       return 0;
     }
+    const sourceRoot = values["source-root"]
+      ? await realpath(values["source-root"]).catch(() => {
+          throw new PolicyError(
+            `--source-root is not an existing directory: ${values["source-root"]}`,
+          );
+        })
+      : undefined;
     const baseline = values.baseline ? await readBaseline(values.baseline) : undefined;
     const suppressions = values.suppressions
       ? await readSuppressions(values.suppressions)
       : undefined;
     const result = await scan(operands[0] ?? ".", { facts, gitignore: values.gitignore });
-    const report = createReport(result, {
+    const reviewed = createReport(result, {
       ...(baseline ? { baseline } : {}),
       ...(suppressions ? { suppressions } : {}),
     });
+    const report = values["omit-suppressed"] ? withoutSuppressed(reviewed) : reviewed;
+    if (sourceRoot !== undefined) sourcePrefix(report, sourceRoot);
     if (values["write-baseline"]) {
       await writeOutput(values["write-baseline"], json(createBaseline(result.findings)));
     }
     await emit(
-      formatReport(report, format, { color: !values.output && io.color, all: values.all === true }),
+      formatReport(report, format, {
+        color: !values.output && io.color,
+        all: values.all === true,
+        ...(sourceRoot !== undefined ? { sourceRoot } : {}),
+      }),
       values.output,
       io,
     );
@@ -132,7 +167,7 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
     return 0;
   } catch (error) {
     io.stderr(`plenger: ${describe(error)}\n`);
-    return error instanceof PolicyError ? 2 : 1;
+    return error instanceof PolicyError || error instanceof SourceRootError ? 2 : 1;
   }
 }
 
@@ -182,6 +217,8 @@ function parseCommandLine(argv: string[]) {
       suppressions: { type: "string" },
       "fail-on": { type: "string" },
       all: { type: "boolean" },
+      "omit-suppressed": { type: "boolean" },
+      "source-root": { type: "string" },
       gitignore: { type: "boolean", default: true },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },

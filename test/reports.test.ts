@@ -1,13 +1,19 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Ajv } from "ajv";
 import type { FormatsPlugin } from "ajv-formats";
 import { beforeAll, describe, expect, it } from "vitest";
-import { artifactUri, formatReport, toMarkdown, toSarif } from "../src/report/format.ts";
-import { createReport, failsGate, type Report } from "../src/report/model.ts";
+import {
+  artifactUri,
+  formatReport,
+  SourceRootError,
+  toMarkdown,
+  toSarif,
+} from "../src/report/format.ts";
+import { createReport, failsGate, type Report, withoutSuppressed } from "../src/report/model.ts";
 import {
   createBaseline,
   matchesSuppression,
@@ -86,16 +92,68 @@ describe("report contracts", () => {
   it("maps SARIF rule ids, evidence, severity, fingerprints and UTF-16 locations", () => {
     const run = toSarif(report).runs[0];
     expect(run?.columnKind).toBe("utf16CodeUnits");
-    expect(run?.originalUriBaseIds["%SRCROOT%"].uri).toMatch(/^file:.*\/$/);
+    // No local absolute path: %SRCROOT% is left to the consumer (code scanning, an editor).
+    expect(JSON.stringify(run)).not.toContain(report.root);
     for (const [index, result] of (run?.results ?? []).entries()) {
       const finding = report.findings[index];
-      expect(run?.tool.driver.rules[result.ruleIndex]?.id).toBe(result.ruleId);
+      const descriptor = run?.tool.driver.rules[result.ruleIndex];
+      expect(descriptor?.id).toBe(result.ruleId);
+      expect(descriptor?.properties.rule).toBe(finding?.rule);
+      expect(descriptor?.defaultConfiguration.level).toBe(result.level);
       expect(result.partialFingerprints["plenger/v1"]).toBe(finding?.fingerprint);
       expect(result.relatedLocations).toHaveLength(finding?.evidence.length ?? 0);
+      const steps = finding?.evidence.length ?? 0;
+      expect(result.codeFlows?.[0]?.threadFlows[0]?.locations.length ?? 0).toBe(
+        steps > 1 ? steps : 0,
+      );
       expect(result.locations[0]?.physicalLocation.region.startColumn).toBe(
         finding?.location.column,
       );
     }
+  });
+
+  it("gives findings rated below their rule a descriptor with their own security severity", () => {
+    const frameworks = reports[0] as Report;
+    const run = toSarif(frameworks).runs[0];
+    const lowered = frameworks.findings.find((finding) => finding.rule === "PLG302");
+    expect(lowered?.severity).toBe("low");
+    const result = run?.results.find((item) => item.properties.rule === "PLG302");
+    expect(result?.ruleId).toBe("PLG302/low");
+    expect(run?.tool.driver.rules[result?.ruleIndex ?? -1]).toMatchObject({
+      id: "PLG302/low",
+      defaultConfiguration: { level: "note" },
+      properties: { "security-severity": "2.0", rule: "PLG302" },
+    });
+    for (const value of reports) {
+      const descriptors = toSarif(value).runs[0]?.tool.driver.rules ?? [];
+      expect(new Set(descriptors.map((item) => item.id)).size).toBe(descriptors.length);
+    }
+  });
+
+  it("makes SARIF and Markdown paths relative to a source root that contains the scan", () => {
+    const sourceRoot = dirname(report.root);
+    const sarif = toSarif(report, { sourceRoot });
+    expect(validateSarif(sarif), JSON.stringify(validateSarif.errors)).toBe(true);
+    for (const result of sarif.runs[0]?.results ?? []) {
+      expect(result.locations[0]?.physicalLocation.artifactLocation.uri).toMatch(/^risks\//);
+    }
+    expect(toMarkdown(report, { sourceRoot })).toMatch(/\]\(risks\/python\/[^)]*#L\d+\)/);
+    expect(() => toSarif(report, { sourceRoot: join(report.root, "python") })).toThrow(
+      SourceRootError,
+    );
+  });
+
+  it("can leave suppressed findings out while still counting them", () => {
+    const first = report.findings[0];
+    if (!first) throw new Error("fixture needs findings");
+    const reviewed = createReport(report, {
+      suppressions: [{ fingerprint: first.fingerprint, reason: "Reviewed" }],
+    });
+    const trimmed = withoutSuppressed(reviewed);
+    expect(trimmed.findings).toHaveLength(report.findings.length - 1);
+    expect(trimmed.findings.some((finding) => finding.suppression)).toBe(false);
+    expect(trimmed.review).toEqual(reviewed.review);
+    expect(validateReport(trimmed), JSON.stringify(validateReport.errors)).toBe(true);
   });
 
   it("retains coverage warnings, including syntax errors, unreadable files and truncation", () => {

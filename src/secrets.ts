@@ -55,12 +55,22 @@ export const SECRET_FORMATS: { name: string; pattern: RegExp; entropy?: true }[]
   },
 ];
 
+/** The formats with global patterns, compiled once for scanning whole texts. */
+const GLOBAL_FORMATS = SECRET_FORMATS.map((format) => ({
+  ...format,
+  global: new RegExp(format.pattern.source, "g"),
+}));
+
+/** A match of a format that is a real secret rather than a documentation placeholder. */
+function isSecretMatch(format: (typeof SECRET_FORMATS)[number], match: string): boolean {
+  return !PLACEHOLDER.test(match) && !(format.entropy && !looksLikeSecret(match));
+}
+
 /** The first known secret format in a text, if any. */
 export function findSecret(text: string): { name: string; match: string } | null {
-  for (const format of SECRET_FORMATS) {
-    for (const [match] of text.matchAll(new RegExp(format.pattern.source, "g"))) {
-      if (PLACEHOLDER.test(match) || (format.entropy && !looksLikeSecret(match))) continue;
-      return { name: format.name, match };
+  for (const format of GLOBAL_FORMATS) {
+    for (const [match] of text.matchAll(format.global)) {
+      if (isSecretMatch(format, match)) return { name: format.name, match };
     }
   }
   return null;
@@ -69,7 +79,8 @@ export function findSecret(text: string): { name: string; match: string } | null
 /** `password: hunter2xyz`, `api key is ...`: a credential written out in prose. */
 const CREDENTIAL_PHRASE =
   /\b(?:password|passwd|passphrase|api[_ -]?key|secret|access[_ -]?token|token)\s*(?:is|=|:)\s*["'`]?([^\s"'`{}]{8,})/gi;
-const QUOTED = /(["'`])([^"'`\s]{16,})\1/g;
+/** A quoted string in source code. */
+const QUOTED = /(["'`])([^"'`\s]{20,})\1/g;
 const PRIVATE_KEY_BLOCK =
   /-----BEGIN ((?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY(?: BLOCK)?)-----[\s\S]*?(?:-----END \1-----|$)/g;
 
@@ -83,36 +94,66 @@ export function secretIn(text: string): string | null {
   return null;
 }
 
-/** Replaces known key formats, credentials written out and random-looking quoted strings with `<redacted>`. */
-export function redact(text: string): string {
-  let result = text.replace(PRIVATE_KEY_BLOCK, "<redacted>");
-  for (const format of SECRET_FORMATS) {
-    result = result.replace(new RegExp(format.pattern.source, "g"), (match) =>
-      PLACEHOLDER.test(match) ? match : "<redacted>",
+/**
+ * Whether a quoted string with no known format still looks like a generated key: long,
+ * random, and mixing upper case, lower case and digits. Identifiers, model names
+ * (`claude-sonnet-4-5-20250929`) and environment variable names do not.
+ */
+export function looksRandom(text: string): boolean {
+  if (text.length < 20 || /[\s/.:]/.test(text) || PLACEHOLDER.test(text)) return false;
+  if (!/[a-z]/.test(text) || !/[A-Z]/.test(text)) return false;
+  if ((text.match(/\d/g)?.length ?? 0) < 2) return false;
+  return entropy(text) >= 3.5;
+}
+
+/**
+ * Replaces what is known to be secret: private key blocks, known key formats,
+ * credentials written out, and the given literal credentials found in the code.
+ * Safe for any text, including plenger's own titles and messages.
+ */
+export function redactKnown(text: string, credentials: readonly string[] = []): string {
+  let result = text;
+  for (const credential of credentials) result = result.replaceAll(credential, "<redacted>");
+  result = result.replace(PRIVATE_KEY_BLOCK, "<redacted>");
+  for (const format of GLOBAL_FORMATS) {
+    result = result.replace(format.global, (match) =>
+      isSecretMatch(format, match) ? "<redacted>" : match,
     );
   }
-  result = result.replace(CREDENTIAL_PHRASE, (whole, value: string) =>
+  return result.replace(CREDENTIAL_PHRASE, (whole, value: string) =>
     looksLikeSecret(value) ? whole.replace(value, "<redacted>") : whole,
-  );
-  return result.replace(QUOTED, (whole, quote: string, inner: string) =>
-    looksLikeSecret(inner) && !/[/.:]/.test(inner) ? `${quote}<redacted>${quote}` : whole,
   );
 }
 
-/** Redacts all text in the finished report, after analysis has used the original values. */
-export function redactReport(report: object, credentials: string[] = []): void {
+/**
+ * Redacts text copied from source code (snippets, prompts, code facts): what
+ * `redactKnown` replaces, and quoted strings that look like generated keys.
+ */
+export function redact(text: string, credentials: readonly string[] = []): string {
+  return redactKnown(text, credentials).replace(QUOTED, (whole, quote: string, inner: string) =>
+    looksRandom(inner) ? `${quote}<redacted>${quote}` : whole,
+  );
+}
+
+/**
+ * Redacts every string of a finished report after analysis has used the original
+ * values. Code facts (`files[].facts`) are source text and get the full `redact`;
+ * everything else is either already redacted at its source or written by plenger, so
+ * only known secrets are replaced there and identifiers stay readable.
+ */
+export function redactReport(report: object, credentials: readonly string[] = []): void {
   const seen = new WeakSet<object>();
-  const visit = (value: object): void => {
+  const visit = (value: object, source: boolean): void => {
     if (seen.has(value)) return;
     seen.add(value);
     const fields = value as Record<string, unknown>;
     for (const [key, field] of Object.entries(fields)) {
       if (typeof field === "string") {
-        let text = field;
-        for (const credential of credentials) text = text.replaceAll(credential, "<redacted>");
-        fields[key] = redact(text);
-      } else if (field !== null && typeof field === "object") visit(field);
+        fields[key] = source ? redact(field, credentials) : redactKnown(field, credentials);
+      } else if (field !== null && typeof field === "object") {
+        visit(field, source || key === "facts");
+      }
     }
   };
-  visit(report);
+  visit(report, false);
 }

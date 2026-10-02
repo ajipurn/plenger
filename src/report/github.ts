@@ -1,8 +1,8 @@
 import { appendFile, readlink, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { type Io, main, writeOutput } from "../cli.ts";
-import { artifactUri, json, toMarkdown, toSarif } from "./format.ts";
-import type { Report } from "./model.ts";
+import { json, SourceRootError, sourcePrefix, toMarkdown, toSarif } from "./format.ts";
+import { type Report, withoutSuppressed } from "./model.ts";
 
 /** Scan once, then emit SARIF and a job summary even when the finding gate fails. */
 export async function runGitHubAction(
@@ -29,8 +29,22 @@ export async function runGitHubAction(
     io.stderr("plenger: SARIF output must be inside GITHUB_WORKSPACE and have no newlines\n");
     return 2;
   }
-  if (env.PLENGER_GITIGNORE !== undefined && !["true", "false"].includes(env.PLENGER_GITIGNORE)) {
-    io.stderr("plenger: gitignore input must be true or false\n");
+  for (const [input, value] of [
+    ["gitignore", env.PLENGER_GITIGNORE],
+    ["include-suppressed", env.PLENGER_INCLUDE_SUPPRESSED],
+  ] as const) {
+    if (value !== undefined && value !== "" && !["true", "false"].includes(value)) {
+      io.stderr(`plenger: ${input} input must be true or false\n`);
+      return 2;
+    }
+  }
+  // Code scanning resolves SARIF paths from the repository root, which is the
+  // workspace unless the repository was checked out into a subdirectory.
+  let sourceRoot: string;
+  try {
+    sourceRoot = await realpath(resolve(workspace, env.PLENGER_SOURCE_ROOT || "."));
+  } catch {
+    io.stderr("plenger: source-root must be an existing directory in GITHUB_WORKSPACE\n");
     return 2;
   }
   const args = [
@@ -60,16 +74,28 @@ export async function runGitHubAction(
     });
     if (outputText) {
       const report = JSON.parse(outputText) as Report;
-      await writeOutput(output, json(toSarif(report)));
+      try {
+        sourcePrefix(report, sourceRoot);
+      } catch (error) {
+        if (!(error instanceof SourceRootError)) throw error;
+        io.stderr("plenger: path must be inside source-root\n");
+        if (env.GITHUB_OUTPUT) await appendFile(env.GITHUB_OUTPUT, "exit-code=2\n", "utf8");
+        return 2;
+      }
+      // GitHub does not honour SARIF suppressions, so suppressed findings would show
+      // as open alerts; they stay in the job summary with their reasons.
+      const uploaded =
+        env.PLENGER_INCLUDE_SUPPRESSED === "true" ? report : withoutSuppressed(report);
+      await writeOutput(output, json(toSarif(uploaded, { sourceRoot })));
       if (env.GITHUB_STEP_SUMMARY) {
-        const rootPath = relative(await realpath(workspace), report.root).replaceAll("\\", "/");
-        const inRepository =
-          !isAbsolute(rootPath) && rootPath !== ".." && !rootPath.startsWith("../");
         const sourceBaseUrl =
-          inRepository && env.GITHUB_REPOSITORY && env.GITHUB_SHA
-            ? `${env.GITHUB_SERVER_URL || "https://github.com"}/${env.GITHUB_REPOSITORY}/blob/${env.GITHUB_SHA}/${rootPath ? `${artifactUri(rootPath)}/` : ""}`
+          env.GITHUB_REPOSITORY && env.GITHUB_SHA
+            ? `${env.GITHUB_SERVER_URL || "https://github.com"}/${env.GITHUB_REPOSITORY}/blob/${env.GITHUB_SHA}/`
             : undefined;
-        const summary = toMarkdown(report, sourceBaseUrl ? { sourceBaseUrl } : {});
+        const summary = toMarkdown(report, {
+          sourceRoot,
+          ...(sourceBaseUrl ? { sourceBaseUrl } : {}),
+        });
         // GitHub accepts at most 1 MiB per step summary. Full details stay in SARIF.
         const boundedSummary =
           Buffer.byteLength(summary) <= 1_000_000
