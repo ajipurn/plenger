@@ -12,10 +12,13 @@ security reviewer answer three questions quickly:
 3. **What should I look at first?** Findings ranked by severity and confidence,
    each pointing at the code that justifies it.
 
-The MVP combines static triage, red-teaming and adversarial testing. Triage comes
-first; [M6](#m6-red-team-harness-planned) tests explicit hypotheses against a running
-target, and [M7](#m7-adversarial-testing-planned) tests indirect prompt injection.
-Distribution follows in M8. M0–M5 are implemented; M6 onward is planned.
+The MVP combines static triage with red-teaming of the running agent. Triage comes
+first; [M6](#m6-red-team-harness-direct-input-planned) builds the red-team harness
+and tests direct input against a running target, and
+[M7](#m7-red-team-indirect-prompt-injection-planned) extends it to indirect prompt
+injection through content the agent reads. Both are adversarial tests at the agent
+level; model-level adversarial attacks are outside the MVP. Distribution follows in
+M8. M0–M5 are implemented; M6 onward is planned.
 
 ## Principles
 
@@ -298,7 +301,7 @@ baselines, adversarial Markdown escaping and Action outputs. A hosted GitHub run
 and code-scanning upload remain unverified until this checkout has a remote.
 See [REPORTS.md](REPORTS.md).
 
-### M6 Red-team harness (planned)
+### M6 Red-team harness: direct input (planned)
 
 Turn the inventory into reviewable test hypotheses, then run them against a test
 deployment. Support both HTTP APIs and direct agent functions in Python or
@@ -361,8 +364,14 @@ Build in this order:
 4. **Canary oracles and observation.** Give each trial a fresh synthetic marker and
    correlate responses, recorded tool arguments and callback events with that
    trial. Markers use a fixed, recognisable format (a plenger prefix plus lowercase
-   hex) that M5 redaction does not take for a secret, so persisted evidence still
-   shows them; redaction tests cover the format. Start with response assertions, a
+   hex) to avoid the random quoted-string heuristic, but credential contexts such
+   as `api_key=<marker>` can still be redacted. Before redaction, match against the
+   exact markers generated for that trial and record structured oracle evidence:
+   trial id, canary id, observation source/field, action stage and match result.
+   Persist this record alongside redacted excerpts so the evidence survives even
+   when the raw marker does not. A match establishes a violation only when the
+   case's boundary assertion is satisfied. Do not exempt arbitrary strings with
+   the plenger prefix from secret redaction. Start with response assertions, a
    local callback receiver and a small
    documented event format with ready-to-use Python and JS/TS helpers for
    instrumented test tools; no observability service is required. The helpers are
@@ -378,12 +387,24 @@ Build in this order:
    The same events work through a local receiver for HTTP targets or the function
    harness's message channel. That event channel is separate from the canary
    callback receiver. Helpers authenticate events with a per-run token passed only
-   to the harness and instrumented test tools, never placed in model-visible input,
-   so the agent under test or another local process cannot forge observations such
-   as a completion marker. Unauthenticated, oversized or excessive events are
-   rejected and recorded, and make the affected trial inconclusive rather than
-   `not_observed`. Correlate concurrent events and reject stale trial
-   ids; do not report a tool's completion when only its invocation was observed.
+   to the harness and trusted instrumentation, never placed in model-visible input
+   or persisted artifacts. This authenticates observations only under the explicit
+   assumption that the runner/helpers are trusted and the token is inaccessible to
+   the agent's tools. Code sharing the instrumentation's process or privileges may
+   access the token; keeping it out of prompts alone does not prevent forgery. Test
+   deployments must use recording doubles or isolation that keeps the token beyond
+   tested tools' access. The harness does not establish that isolation automatically
+   or claim protection against a compromised local environment.
+   Reject unauthenticated events before trusting their trial/call ids, and record
+   only bounded receiver diagnostics; they must not change a trial's outcome.
+   Bound event sizes and rates. Receiver failures make a trial inconclusive only
+   when trusted correlation or the runner's own completion checks establish that
+   required valid observations are missing. Do not assign a failure to a trial
+   based on ids in rejected traffic. Preserve an already confirmed
+   `violation_observed` backed by trusted evidence; later missing events or receiver
+   errors are separate completeness/error diagnostics and cannot downgrade it.
+   Correlate concurrent authenticated events and reject stale trial ids; do not
+   report a tool's completion when only its invocation was observed.
    An optional OTLP receiver can later map supported tool spans to the same format.
    Trace absence is not evidence of safety, and tool arguments
    may not be present in a trace. Distinguish a proposed tool call, an approved
@@ -412,7 +433,7 @@ planned interfaces.
 
 | Checkpoint | Deliverable | Acceptance |
 | --- | --- | --- |
-| M6a HTTP and observation | Offline plan, bounded HTTP runner, Python/JS event helpers, canary oracle and JSON result | One enforced and one violated boundary, echo negative control, rejected unauthenticated events, incomplete-event handling and cancellation, without a model API key |
+| M6a HTTP and observation | Offline plan, bounded HTTP runner, Python/JS event helpers, canary oracle and JSON result | One enforced and one violated boundary, echo negative control, rejected event identities cannot set trial outcomes, incomplete-event handling and cancellation, without a model API key |
 | M6b Direct functions | Python/Node harnesses, sync/async wrappers, llmfy example and fixture reset | HTTP-free runs produce the same event/result contract on macOS, Linux and Windows; imports occur only during an explicit run; timeout, worker cleanup and reset failures are exercised; worker start-up cost is measured |
 | M6c MCP and CI | SDK spike, MCP adapter, repetitions/statistics, remaining reporters, dynamic policy and CI gate | HTTP/function/MCP fixtures pass the shared contract suite; severity, coverage and exit-code cases are verified |
 
@@ -513,13 +534,17 @@ and Node function, and MCP fixtures demonstrate both enforced and violated
 boundaries. Benign echoes do not count as violations; missing events, unreachable
 callbacks, failed resets and timeouts are reported accurately.
 Target validation tests cover redirects and changed DNS answers. Report schemas,
-credential redaction, canary visibility after redaction, helper event
-authentication and correlation, worker cleanup, cancellation and CI outcomes have
-automated checks. A user can run the documented llmfy integration
+credential redaction, structured canary evidence surviving redaction in credential
+contexts, and helper event authentication/correlation have automated checks. Tests
+verify that unauthenticated traffic with a forged trial id cannot change outcomes,
+genuine observation loss is reported, and later receiver failures preserve a
+confirmed violation. Worker cleanup, cancellation and CI outcomes are also tested.
+Document the trusted-instrumentation and token-isolation prerequisites in the
+examples. A user can run the documented llmfy integration
 with a stub model and recording tools, without an API key or tracing stack.
 Optional live model trials are reported separately and are not required for routine CI.
 
-### M7 Adversarial testing (planned)
+### M7 Red-team: indirect prompt injection (planned)
 
 Extend M6's plans, runner and oracles to put test instructions in lower-trust
 content while keeping the legitimate user request unchanged. Use M6's Python and
@@ -612,7 +637,10 @@ and budgets configured explicitly.
 - **Exposed receivers.** A receiver reachable from staging can also receive traffic
   from elsewhere. Bind to loopback by default, require explicit configuration for
   anything else, authenticate events, bound their size and rate, and never treat
-  unauthenticated input as an observation.
+  unauthenticated input or its claimed trial id as an observation or a reason to
+  change a trial's outcome. Event authenticity assumes trusted instrumentation and
+  a token inaccessible to the tested tools; it does not follow from subprocess
+  separation alone.
 
 ## Beyond the MVP
 

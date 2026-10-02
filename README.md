@@ -17,9 +17,10 @@ suppression files, a CI severity gate and a GitHub Action. See
 [docs/ROADMAP.md](docs/ROADMAP.md). The earlier Python implementation (v0) is kept
 on the `feat/backup` branch.
 
-The planned MVP also includes a red-team harness for HTTP APIs, direct Python/Node
-agent functions and MCP endpoints (M6), and indirect prompt-injection testing (M7),
-followed by distribution (M8). Those dynamic commands are not implemented yet;
+The planned MVP also includes red-teaming of the running agent: a harness that tests
+direct input to HTTP APIs, Python/Node agent functions and MCP endpoints (M6), then
+indirect prompt injection through content the agent reads (M7), followed by
+distribution (M8). Those dynamic commands are not implemented yet;
 the current CLI remains an offline static scanner.
 
 ## Requirements
