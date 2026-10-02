@@ -20,12 +20,17 @@ on the `feat/backup` branch.
 The planned MVP also includes red-teaming of the running agent: a harness that tests
 direct input to HTTP APIs, Python/Node agent functions and MCP endpoints (M6), then
 indirect prompt injection through content the agent reads (M7), followed by
-distribution (M8). For supported integrations, the planned local interface lets
-users choose a project or endpoint and start built-in tests without writing wrappers,
+distribution (M8). For supported integrations, the planned React + Vite dashboard
+lets users choose a project or endpoint and start built-in tests without writing wrappers,
 adding instrumentation or preparing fixtures; plenger manages that setup. Missing
 access or ambiguous targets are handled through the interface, and profiles can
-be reused from the CLI or CI. These dynamic workflows and the interface are not
-implemented yet; the current CLI remains an offline static scanner.
+be reused from the CLI or CI. The dashboard will also expose static scans, agent
+inventory, findings and local run history. These dynamic workflows and the
+dashboard are not implemented yet; the current CLI remains an offline static scanner.
+
+The product direction is core capability parity with promptfoo, developed in
+stages. Generated/adaptive attacks, multi-turn testing, hybrid grading and broader
+evaluation/regression workflows are planned beyond the initial M6/M7 foundation.
 
 ## Requirements
 

@@ -20,12 +20,29 @@ injection through content the agent reads. Both are adversarial tests at the age
 level; model-level adversarial attacks are outside the MVP. Distribution follows in
 M8. M0–M5 are implemented; M6 onward is planned.
 
+**Product direction: reach core capability parity with promptfoo.** The early
+priority is a useful, complete AI security testing workflow, with promptfoo as the
+primary capability and usability reference and tools such as garak and Strix as
+additional references. A unique moat is not a prerequisite for building these
+capabilities; differentiation can develop through use and iteration. Plenger is
+planned as a product with both a React + Vite dashboard and a CLI.
+
+The capability target includes connecting models and applications, a broader
+security test catalogue, LLM-generated and adaptive attacks, multi-turn sessions,
+deterministic checks plus LLM judges, saved regression suites, comparisons and CI.
+M6/M7 establish the initial harness and injection tests; completing them alone
+does not establish parity. The expansion priorities are recorded under
+[Beyond the MVP](#beyond-the-mvp); their detailed delivery checkpoints remain to be
+planned. Measure progress on common target applications using setup effort,
+validated findings, false positives, evidence quality and execution cost, rather
+than feature counts alone.
+
 **Product goal: choose a project, click Start, get evidence.** For supported
 integrations, users must not write wrappers, change application code, copy event
 helpers, prepare mock tools or author configuration files to run the built-in
 tests. Plenger owns discovery, integration, test setup, observation and cleanup.
 Users select a project or endpoint, provide missing access when needed, and choose
-the test scope and budget through a guided local interface. Saved profiles make
+the test scope and budget through the local dashboard. Saved profiles make
 repeat runs a single action. The CLI remains available for automation and CI.
 
 The no-code workflow is a release criterion for each supported integration, not a
@@ -68,6 +85,13 @@ Node.js 22.18+ and TypeScript (strict, erasable syntax only), web-tree-sitter wi
 vendored WASM grammars for Python, JavaScript, TypeScript and TSX, pnpm, Vitest and
 Biome. One parser for all three languages keeps the tool free of native add-ons, so
 it can later ship as a single binary.
+
+Planned dashboard: React and TypeScript, with Vite for development and production
+asset builds. A local Node.js service exposes the shared scan and red-team engine
+to the dashboard; the CLI uses the same engine, profiles and report contracts.
+Project execution and provider access belong to that service and its managed
+workers. M8 packages the built dashboard assets so normal use requires no frontend
+development server or manual build. These UI components are not implemented yet.
 
 ## Milestones
 
@@ -329,10 +353,12 @@ selected from the inventory. Custom cases are an advanced extension, not require
 setup. An automatically generated attack corpus or adaptive attack optimiser is
 outside this milestone.
 
-The local interface is part of M6: choose a project directory or endpoint, see the
-detected targets and available checks, supply any missing access, and click Start.
-Show progress, cancellation, findings and coverage, with a rerun action. Save the
-resolved profile for subsequent runs and CLI/CI use; do not require editing YAML,
+The React + Vite dashboard is part of M6. It exposes existing static scanning,
+agent/tool inventory and source-linked findings alongside the new dynamic workflow:
+choose a project directory or endpoint, see the detected targets and available
+checks, supply any missing access, and click Start. Show progress, cancellation,
+budget/usage, findings, evidence and coverage, with local run history and a rerun
+action. Save the resolved profile for subsequent runs and CLI/CI use; do not require editing YAML,
 JSON or application source. Technical plan details remain available for inspection
 without being mandatory form fields. A single supported target uses the detected
 defaults; multiple plausible targets are a selection in the interface.
@@ -506,7 +532,7 @@ interfaces.
 
 | Checkpoint | Deliverable | Acceptance |
 | --- | --- | --- |
-| M6a Click-to-run llmfy | One qualified runtime profile, minimal local setup/run/results interface, saved profile, built-in tests, managed launcher, hooks/doubles, usage limits and cleanup | Select an unmodified llmfy project, provide model access, click Start, receive evidence and rerun without code/config/fixture preparation; qualify with a real model, clean-task assertions and preserved approval inside a handler; stub fixtures verify both boundary outcomes, event handling, budget exhaustion and cancellation |
+| M6a Click-to-run llmfy | One qualified runtime profile, React + Vite dashboard for static scan/inventory/findings and dynamic setup/run/results, local run history, saved profile, built-in tests, managed launcher, hooks/doubles, usage limits and cleanup | Select an unmodified llmfy project, inspect its scan, provide model access, click Start, receive evidence and rerun without code/config/fixture preparation; qualify with a real model, clean-task assertions and preserved approval inside a handler; stub fixtures verify both boundary outcomes, event handling, budget exhaustion and cancellation |
 | M6b HTTP and project expansion | HTTP profiles and additional declared Python/Node project shapes and OS/runtime combinations, reusing M6a's engine and test-pack contract | Each advertised integration passes the same no-code journey and states its observable boundaries; verify request controls, runtime isolation where applicable, clean-task fidelity, cleanup and worker start-up cost |
 | M6c MCP and CI | SDK spike, MCP setup in the interface, repetitions/statistics, remaining reporters and dynamic CI policy | Supported HTTP/project/MCP profiles share the result contract and can be rerun from the interface or exported to CI; severity, execution coverage, required test scope and exit-code cases are verified |
 
@@ -727,8 +753,8 @@ observations and limitations. Stub-only tests do not establish live-model suppor
 
 Extend M6's plans, runner and oracles to put test instructions in lower-trust
 content while keeping the legitimate user request unchanged. The user selects an
-available scenario in the same interface; plenger prepares the content, delivery
-integration, observation and cleanup. M6's adapters automatically load the Python
+available scenario in the same React + Vite dashboard; plenger prepares the content,
+delivery integration, observation and cleanup. M6's adapters automatically load the Python
 and JS/TS helpers to record content delivery and tool actions; adding tracing is
 optional. The focus is indirect prompt injection through documents and tool
 results, as described by
@@ -800,6 +826,8 @@ absolute change in observed rate and task completion without claiming statistica
 significance from one changed response or interval overlap. Any observed violation can still fail
 the severity gate, regardless of comparison eligibility. Refreshing a dynamic
 baseline is explicit and does not overwrite the static triage baseline.
+Make scenario selection, delivery evidence, control outcomes and before/after
+comparison available in the dashboard as well as CLI reports.
 
 **Done when:** both checkpoints pass, and each advertised integration supports
 choosing and running its available M7 scenarios without source edits or
@@ -816,7 +844,8 @@ sample counts and limitations; distinguish those results from harness self-tests
 ### M8 Distribution (planned)
 
 npm package, single binaries for macOS, Linux and Windows, user documentation.
-Package a ready-to-launch local interface and the supported runtime integrations;
+Package the built React + Vite dashboard, its local service and the supported
+runtime integrations;
 the no-code flow itself is implemented and validated in M6/M7. Include the
 runtime/adapter prerequisite setup already qualified in those milestones, without
 asking users to write scripts. Keep the static-only CLI installation lightweight.
@@ -864,8 +893,27 @@ and budgets configured explicitly.
 
 ## Beyond the MVP
 
-- **Expanded dashboard:** run history, team collaboration and cross-project views.
-  The local setup/run/results interface is already part of M6.
+The next capability priorities pursue the product direction above. They are
+planned work, not current features or a claim of parity, and do not change M0–M8's
+completion status. Detailed sequencing will be defined after scoping these gaps:
+
+- **Broader test catalogue and target support:** direct model targets, additional
+  application integrations and versioned packs for data leakage, unauthorised tool
+  use, access controls and application policy, alongside prompt injection.
+- **Generated and adaptive attacks:** an attacker LLM creates context-specific
+  cases and refines attempts from target feedback within explicit budgets.
+- **Multi-turn campaigns:** session-aware conversations, reset and replay, with
+  bounded adaptive strategies and retained evidence across turns.
+- **Hybrid grading:** deterministic assertions and tool evidence complemented by
+  LLM judges for semantic outcomes; record judge configuration, uncertainty and
+  calibration against labelled examples. Keep model judgments distinct from
+  observed actions.
+- **Evaluation and regression suites:** save failures as reusable cases, import
+  datasets and compare prompts, models and builds through the dashboard and CI.
+  Track target, attacker and judge usage within the campaign budget.
+- **Expanded dashboard:** team collaboration and cross-project views. The React +
+  Vite dashboard, local run history and setup/run/results flow already belong to
+  M6; indirect-injection scenarios and before/after reports belong to M7.
 - **Additional dynamic adapters:** local MCP stdio processes explicitly configured
   by the user, more framework-specific observation adapters and broader probe
   coverage, driven by measured gaps in M6/M7.
