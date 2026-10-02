@@ -1,6 +1,8 @@
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { discoverProject, formatDiscovery } from "./redteam/discover.ts";
+import { formatProjectPlan, PreparationError, planProject } from "./redteam/plan.ts";
 import {
   FORMATS,
   formatReport,
@@ -29,6 +31,8 @@ const USAGE = `Usage:
   plenger scan [path]            Triage the agentic AI code under path (default: .): inventory, capabilities, findings
   plenger rules                  List the risk rules
   plenger facts [path]           Print the imports, definitions, assignments and calls in path as JSON
+  plenger redteam discover [path] Discover llmfy target candidates offline (no execution)
+  plenger redteam plan [path]     Review Python project preparation offline (no execution)
   plenger --version
   plenger --help
 
@@ -46,6 +50,7 @@ Options:
                                 high, medium or low (default: none)
   --all                          List every finding, not only the most urgent
   --no-gitignore                 Also scan files the project's .gitignore files ignore
+  --target <id>                  Select a candidate for redteam plan
 
 Exit codes: 0 success; 1 scan or I/O error; 2 invalid arguments or policy; 3 finding gate failed.
 `;
@@ -68,8 +73,14 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
     io.stdout(USAGE);
     return 0;
   }
-  const known = command === "scan" || command === "facts" || command === "rules";
-  if (!known || operands.length > (command === "rules" ? 0 : 1)) {
+  const discovery = command === "redteam";
+  const planning = discovery && operands[0] === "plan";
+  const known = command === "scan" || command === "facts" || command === "rules" || discovery;
+  if (
+    !known ||
+    operands.length > (command === "rules" ? 0 : discovery ? 2 : 1) ||
+    (discovery && operands[0] !== "discover" && !planning)
+  ) {
     io.stderr(
       command === undefined || known ? USAGE : `plenger: unknown command '${command}'\n\n${USAGE}`,
     );
@@ -81,6 +92,8 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
   try {
     format = reportFormat(values.format, values.json === true, facts);
     threshold = failOn(values["fail-on"]);
+    if (values.target !== undefined && (!planning || values.target === ""))
+      throw new PolicyError("--target requires redteam plan and a nonempty candidate id");
     for (const key of [
       "output",
       "baseline",
@@ -106,8 +119,10 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
         "baseline, suppression, gate, source root and --all options require the scan command",
       );
     }
-    if (command === "rules" && format !== "terminal" && format !== "json") {
-      throw new PolicyError("rules supports terminal or JSON output");
+    if ((command === "rules" || discovery) && format !== "terminal" && format !== "json") {
+      throw new PolicyError(
+        `${discovery ? `redteam ${operands[0]}` : "rules"} supports terminal or JSON output`,
+      );
     }
     if (
       values.output &&
@@ -122,6 +137,19 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
   }
 
   try {
+    if (discovery) {
+      if (planning) {
+        const plan = await planProject(operands[1] ?? ".", {
+          gitignore: values.gitignore,
+          ...(values.target !== undefined ? { target: values.target } : {}),
+        });
+        await emit(format === "json" ? json(plan) : formatProjectPlan(plan), values.output, io);
+        return 0;
+      }
+      const report = await discoverProject(operands[1] ?? ".", { gitignore: values.gitignore });
+      await emit(format === "json" ? json(report) : formatDiscovery(report), values.output, io);
+      return 0;
+    }
     if (command === "rules") {
       await emit(
         format === "json" ? json({ rules: RULES }) : formatRules(RULES),
@@ -167,7 +195,11 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
     return 0;
   } catch (error) {
     io.stderr(`plenger: ${describe(error)}\n`);
-    return error instanceof PolicyError || error instanceof SourceRootError ? 2 : 1;
+    return error instanceof PolicyError ||
+      error instanceof SourceRootError ||
+      error instanceof PreparationError
+      ? 2
+      : 1;
   }
 }
 
@@ -220,6 +252,7 @@ function parseCommandLine(argv: string[]) {
       "omit-suppressed": { type: "boolean" },
       "source-root": { type: "string" },
       gitignore: { type: "boolean", default: true },
+      target: { type: "string" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },

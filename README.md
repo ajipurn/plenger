@@ -6,7 +6,11 @@ what can the agent do, what can reach it, and what should a reviewer look at fir
 plenger reads source code only. It never runs, imports or installs the project it
 scans, and scanning needs no network access.
 
-**Status:** milestone M5 of a rebuild. `plenger scan` parses every supported file,
+**Status:** M0–M5 implemented; M6a has offline llmfy discovery and project
+preparation plans, synthetic runtime qualification and a shared model-budget
+controller tested with synthetic providers. Live model access and the dashboard
+remain pending.
+`plenger scan` parses every supported file,
 links the project's modules, and reports the agent inventory (models, LLM calls,
 agents, tools, MCP servers and clients, prompts, data stores, HTTP entry points),
 what each tool, agent and entry point can do (run commands, execute code, touch
@@ -47,6 +51,9 @@ pnpm dev scan path/to/project --format sarif --output plenger.sarif --fail-on hi
 pnpm dev scan path/to/project --format markdown --output report.md
 pnpm dev rules
 pnpm dev facts path/to/project/agent.py
+pnpm dev redteam discover path/to/llmfy-project
+pnpm dev redteam discover path/to/llmfy-project --json
+pnpm dev redteam plan path/to/llmfy-project --json
 ```
 
 `scan` reports the files it parsed per language, files with syntax errors (results
@@ -108,6 +115,25 @@ variables, `self`/`this` attributes and destructuring into canonical names such 
 [src/facts/model.ts](src/facts/model.ts). Both commands emit JSON report version 1;
 [schemas/report-v1.schema.json](schemas/report-v1.schema.json) defines the contract.
 
+`redteam discover` finds llmfy function/factory candidates using the static
+inventory and reports unsupported shapes with reasons. It reads source without
+importing the project, installing dependencies or calling a model. Its terminal
+and JSON outputs include scan gaps and root dependency-manifest presence. A
+candidate is not yet a runnable target: runtime qualification, input/output
+mapping, isolation, test packs and execution are still pending. The discovery JSON
+uses its own `kind: "redteam-discovery"` contract with `executionReady: false`;
+it is not a scan report or an attack result. See [docs/REDTEAM.md](docs/REDTEAM.md)
+for the current scope and the remaining M6a stages.
+
+`redteam plan` reviews dependency declarations and Python source preparation.
+It selects a sole candidate automatically; use `--target <id>` when a choice is
+needed. Plans report captured source hashes, exclusions and pending runtime work.
+Planning uses a temporary private source snapshot, removes it afterward, and
+never imports the project or installs its dependencies. `preparation.status:
+"ready"` means a source snapshot can be prepared, while `executionReady` remains
+`false`. See [docs/REDTEAM.md](docs/REDTEAM.md#available-offline-project-preparation)
+for the supported metadata and source policy.
+
 ## Reports and CI
 
 `--format terminal|json|sarif|markdown` selects a report; `--json` is an alias for
@@ -149,7 +175,14 @@ pnpm format     # apply Biome formatting and import order
 node scripts/benchmark.ts   # precision and recall of the inventory and findings on the fixture corpora
 node scripts/rules-doc.ts  # regenerate docs/RULES.md after changing the rule catalog
 node scripts/report-schemas.ts # regenerate the versioned JSON schemas
+pnpm qualify:llmfy # opt-in Podman integration checks; builds the pinned synthetic runtime
 ```
+
+The llmfy qualification command requires an active Podman Linux backend and
+downloads its pinned image dependencies during setup. It runs a bundled fixture
+with synthetic model responses and no worker network access; it does not execute
+user projects. See [docs/LLMFY_RUNTIME.md](docs/LLMFY_RUNTIME.md). Regular
+`pnpm check` does not require Podman.
 
 To support a new framework, add rules to the catalog and a fixture under
 `test/fixtures/frameworks/`; to add a risk rule, add it to
@@ -176,5 +209,6 @@ tarballs without installing them, so their native install scripts never run.
 
 `pnpm-workspace.yaml` only accepts package versions published at least three days
 ago and blocks dependency install scripts. Keep runtime dependencies to a minimum;
-there are two today: `web-tree-sitter` and `ignore` (for `.gitignore` rules), neither
-of which has dependencies of its own.
+there are three today: `web-tree-sitter`, `ignore` (for `.gitignore` rules) and
+`smol-toml` (for declarative project metadata). None has runtime dependencies of
+its own. Reading metadata never invokes a project's build backend or installer.

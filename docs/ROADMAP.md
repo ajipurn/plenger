@@ -13,12 +13,13 @@ security reviewer answer three questions quickly:
    each pointing at the code that justifies it.
 
 The MVP combines static triage with red-teaming of the running agent. Triage comes
-first; [M6](#m6-red-team-harness-direct-input-planned) builds the red-team harness
+first; [M6](#m6-red-team-harness-direct-input-in-progress) builds the red-team harness
 and tests direct input against a running target, and
 [M7](#m7-red-team-indirect-prompt-injection-planned) extends it to indirect prompt
 injection through content the agent reads. Both are adversarial tests at the agent
 level; model-level adversarial attacks are outside the MVP. Distribution follows in
-M8. M0–M5 are implemented; M6 onward is planned.
+M8. M0–M5 are implemented; M6a has started with offline llmfy discovery. Dynamic
+execution, the dashboard and M7 onward remain planned.
 
 **Product direction: reach core capability parity with promptfoo.** The early
 priority is a useful, complete AI security testing workflow, with promptfoo as the
@@ -342,7 +343,34 @@ baselines, adversarial Markdown escaping and Action outputs. A hosted GitHub run
 and code-scanning upload remain unverified until this checkout has a remote.
 See [REPORTS.md](REPORTS.md).
 
-### M6 Red-team harness: direct input (planned)
+### M6 Red-team harness: direct input (in progress)
+
+**Current slice:** `plenger redteam discover` detects llmfy invocation functions
+and directly returned agent factories offline, retains unsupported candidates and
+scan gaps, and reports root manifest presence. Its shared module can serve the
+future dashboard. This is discovery only, not an executable plan or a qualified
+runtime; M6a remains incomplete. See [REDTEAM.md](REDTEAM.md) for implementation
+status and the remaining stages.
+
+An executable synthetic llmfy qualification recipe now runs under
+Podman, covering isolation before fixture import, preserved handler approval,
+recording effects, sync/async entry points and bounded worker lifecycle. It does
+not yet launch user projects or contact real models. See
+[LLMFY_RUNTIME.md](LLMFY_RUNTIME.md) for its exact scope.
+
+`plenger redteam plan` now builds an offline Python source-preparation plan with
+target selection, reviewed dependency declarations, captured source digests and
+explicit gaps. The shared preparation module creates and cleans private source
+snapshots without importing application code. Plans remain non-executable: no
+live provider, test-pack binding or project runner is enabled yet.
+
+The shared `ModelBudget` engine component now reserves calls and tokens before
+dispatch across run phases/retries, reconciles confirmed usage, retains unknown
+reservations and interrupts callers on exhaustion, cancellation or deadline.
+Synthetic tests cover concurrent admission and late provider replies. Its scope is
+explicitly `submitted-dispatches`: provider-bound computation, output enforcement,
+network isolation against bypass and integration with workers/trial outcomes remain
+pending. This accounting component does not qualify live model access or complete M6a.
 
 Turn the inventory into reviewable test hypotheses, then run them against a managed
 test instance or selected endpoint. First prove the complete workflow on a
@@ -382,7 +410,10 @@ starting with the llmfy project path:
 
 1. **Discovery and offline planning.** The local interface and the proposed
    `plenger redteam plan` / `plenger redteam run` commands share the same engine;
-   none exists yet. Read the inventory, project manifests and supported framework
+   source-preparation planning exists, but executable test plans and execution do
+   not exist yet. Initial `redteam discover` support
+   reads the inventory and checks root manifest presence. Extend it to read
+   project manifests and supported framework
    patterns to resolve candidate entry points, runtime, request fields and tools.
    The adapter derives its mappings and generates the plan without importing the
    project or contacting the target. Resolve ambiguity with a target selection or
