@@ -8,8 +8,13 @@ scans, and scanning needs no network access.
 
 **Status:** M0–M5 implemented; M6a has offline llmfy discovery and project
 preparation plans, synthetic runtime qualification and a shared model-budget
-controller tested with synthetic providers. Live model access and the dashboard
-remain pending.
+controller tested with synthetic providers. The local dashboard is available for
+static scans and offline project preparation through `plenger serve`; live model
+access remains pending. A native binary build bundles the CLI, dashboard and WASM
+parsers, verified locally on macOS Apple Silicon. Native CI is configured; its
+remote runs, public releases and qualification for other platforms remain pending.
+See [docs/DASHBOARD.md](docs/DASHBOARD.md) and
+[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
 `plenger scan` parses every supported file,
 links the project's modules, and reports the agent inventory (models, LLM calls,
 agents, tools, MCP servers and clients, prompts, data stores, HTTP entry points),
@@ -24,26 +29,46 @@ on the `feat/backup` branch.
 The planned MVP also includes red-teaming of the running agent: a harness that tests
 direct input to HTTP APIs, Python/Node agent functions and MCP endpoints (M6), then
 indirect prompt injection through content the agent reads (M7), followed by
-distribution (M8). For supported integrations, the planned React + Vite dashboard
-lets users choose a project or endpoint and start built-in tests without writing wrappers,
-adding instrumentation or preparing fixtures; plenger manages that setup. Missing
-access or ambiguous targets are handled through the interface, and profiles can
-be reused from the CLI or CI. The dashboard will also expose static scans, agent
-inventory, findings and local run history. These dynamic workflows and the
-dashboard are not implemented yet; the current CLI remains an offline static scanner.
+distribution (M8). The initial React + Vite dashboard exposes static scans, agent
+inventory, findings, session scan history and offline llmfy target selection and
+preparation plans. The planned dynamic workflow lets users choose a project or
+endpoint and start built-in tests without writing wrappers, adding instrumentation
+or preparing fixtures; plenger manages that setup. Missing access or ambiguous
+targets are handled through the interface, and profiles can be reused from the CLI
+or CI. Dynamic execution and saved profiles remain pending; M6a is incomplete.
 
 The product direction is core capability parity with promptfoo, developed in
 stages. Generated/adaptive attacks, multi-turn testing, hybrid grading and broader
 evaluation/regression workflows are planned beyond the initial M6/M7 foundation.
 
-## Requirements
+## Install and run
 
-Node.js 22.18 or newer (see `.nvmrc`) and pnpm 10.
+The standalone executable needs no separate Node.js or pnpm installation. After
+extracting a binary archive, put `plenger` in a directory on your `PATH`:
 
-## Usage
+```sh
+mkdir -p ~/.local/bin ~/.local/share/plenger
+install -m 755 plenger ~/.local/bin/plenger
+install -m 644 THIRD_PARTY_NOTICES.txt ~/.local/share/plenger/THIRD_PARTY_NOTICES.txt
+export PATH="$HOME/.local/bin:$PATH"
+plenger scan path/to/project
+plenger serve path/to/project --port 4180
+```
+
+Open the address printed by `serve` to use the dashboard. Without `--port`, it
+chooses a free local port. There is no public release download yet; maintainers
+can create the native archive with `pnpm build:binary`. See
+[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for build, installation and platform
+status. Keep the archive's third-party notices with the installed executable.
+
+Source development requires Node.js 22.18 or newer (see `.nvmrc`) and pnpm 10.
+
+## Usage from source
 
 ```sh
 pnpm install
+pnpm dashboard
+pnpm dev serve path/to/project --port 4180
 pnpm dev scan path/to/project
 pnpm dev scan path/to/project --all
 pnpm dev scan path/to/project --json
@@ -55,6 +80,13 @@ pnpm dev redteam discover path/to/llmfy-project
 pnpm dev redteam discover path/to/llmfy-project --json
 pnpm dev redteam plan path/to/llmfy-project --json
 ```
+
+`pnpm dashboard` builds the frontend and starts the local service; after a frontend
+build, `pnpm dev serve` starts the same service. Open the printed
+`http://127.0.0.1:<port>` address, select a project folder and scan its source.
+The standalone binary already contains the frontend. Static scanning needs no
+project wrapper, configuration or credentials. See [docs/DASHBOARD.md](docs/DASHBOARD.md)
+for the available views and session limits.
 
 `scan` reports the files it parsed per language, files with syntax errors (results
 for those may be partial), files it skipped and why, and directories it excluded
@@ -171,6 +203,8 @@ the workflow for uploading results to GitHub code scanning.
 ```sh
 pnpm check      # type-check, lint and test
 pnpm build      # compile to dist/
+pnpm build:binary # bundle the dashboard and produce a native executable/archive
+pnpm test:binary # smoke-test the executable outside the checkout, without Node on PATH
 pnpm format     # apply Biome formatting and import order
 node scripts/benchmark.ts   # precision and recall of the inventory and findings on the fixture corpora
 node scripts/rules-doc.ts  # regenerate docs/RULES.md after changing the rule catalog

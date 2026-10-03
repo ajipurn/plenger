@@ -1,6 +1,7 @@
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { SERVE_USAGE, serveDashboard } from "./dashboard/command.ts";
 import { discoverProject, formatDiscovery } from "./redteam/discover.ts";
 import { formatProjectPlan, PreparationError, planProject } from "./redteam/plan.ts";
 import {
@@ -30,6 +31,7 @@ export interface Io {
 const USAGE = `Usage:
   plenger scan [path]            Triage the agentic AI code under path (default: .): inventory, capabilities, findings
   plenger rules                  List the risk rules
+  plenger serve [path]           Serve the local dashboard (default: .)
   plenger facts [path]           Print the imports, definitions, assignments and calls in path as JSON
   plenger redteam discover [path] Discover llmfy target candidates offline (no execution)
   plenger redteam plan [path]     Review Python project preparation offline (no execution)
@@ -51,6 +53,8 @@ Options:
   --all                          List every finding, not only the most urgent
   --no-gitignore                 Also scan files the project's .gitignore files ignore
   --target <id>                  Select a candidate for redteam plan
+  --port <0-65535>               Dashboard port; 0 chooses a free port (default: 0)
+  --workspace <dir>              Dashboard project folder instead of a positional path
 
 Exit codes: 0 success; 1 scan or I/O error; 2 invalid arguments or policy; 3 finding gate failed.
 `;
@@ -70,12 +74,17 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
   }
   const [command, ...operands] = positionals;
   if (values.help) {
-    io.stdout(USAGE);
+    io.stdout(command === "serve" ? SERVE_USAGE : USAGE);
     return 0;
   }
   const discovery = command === "redteam";
   const planning = discovery && operands[0] === "plan";
-  const known = command === "scan" || command === "facts" || command === "rules" || discovery;
+  const known =
+    command === "scan" ||
+    command === "facts" ||
+    command === "rules" ||
+    command === "serve" ||
+    discovery;
   if (
     !known ||
     operands.length > (command === "rules" ? 0 : discovery ? 2 : 1) ||
@@ -86,10 +95,36 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
     );
     return 2;
   }
+  if (command === "serve") {
+    try {
+      const unsupported = parsed.tokens.find(
+        (token) => token.kind === "option" && !["port", "workspace"].includes(token.name),
+      );
+      if (unsupported?.kind === "option")
+        throw new PolicyError(`--${unsupported.name} is not supported by serve`);
+      if (operands[0] !== undefined && values.workspace !== undefined)
+        throw new PolicyError("use a positional path or --workspace, not both");
+      const workspace = values.workspace ?? operands[0];
+      if (workspace === "") throw new PolicyError("serve needs a nonempty workspace path");
+      const port = values.port === undefined ? 0 : Number(values.port);
+      if (
+        (values.port !== undefined && !/^\d+$/.test(values.port)) ||
+        !Number.isInteger(port) ||
+        port > 65535
+      )
+        throw new PolicyError("--port must be an integer between 0 and 65535");
+      return await serveDashboard(workspace === undefined ? { port } : { port, workspace }, io);
+    } catch (error) {
+      io.stderr(`plenger: ${describe(error)}\n`);
+      return error instanceof PolicyError ? 2 : 1;
+    }
+  }
   const facts = command === "facts";
   let format: ReportFormat;
   let threshold: FailOn;
   try {
+    if (values.port !== undefined || values.workspace !== undefined)
+      throw new PolicyError("--port and --workspace require the serve command");
     format = reportFormat(values.format, values.json === true, facts);
     threshold = failOn(values["fail-on"]);
     if (values.target !== undefined && (!planning || values.target === ""))
@@ -240,6 +275,7 @@ function parseCommandLine(argv: string[]) {
     allowPositionals: true,
     strict: true,
     allowNegative: true,
+    tokens: true,
     options: {
       json: { type: "boolean" },
       format: { type: "string" },
@@ -253,6 +289,8 @@ function parseCommandLine(argv: string[]) {
       "source-root": { type: "string" },
       gitignore: { type: "boolean", default: true },
       target: { type: "string" },
+      port: { type: "string" },
+      workspace: { type: "string" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },

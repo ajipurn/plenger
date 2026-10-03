@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { qualifyLlmfy } from "../src/redteam/qualification.ts";
+import { qualifyLlmfy, qualifyLlmfyBudget } from "../src/redteam/qualification.ts";
 
 // Developer-only, opt-in integration check. The static CLI never calls this.
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -20,6 +20,10 @@ try {
   const image = (await readFile(iidfile, "utf8")).trim();
   const report = await qualifyLlmfy(image);
   console.log(JSON.stringify({ image, ...report }, null, 2));
+  const budgetReport = await qualifyLlmfyBudget(image, {
+    limits: { maxModelCalls: 9, maxTokens: 100_000, timeoutMs: 30_000 },
+  });
+  console.log(JSON.stringify({ image, ...budgetReport }, null, 2));
   await command("pnpm", ["exec", "vitest", "run", "test/redteam-runtime.test.ts"], {
     ...process.env,
     PLENGER_TEST_LLMFY_IMAGE: image,

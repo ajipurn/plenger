@@ -187,3 +187,40 @@ describe("command line", () => {
     expect(await run("scan", "--fast")).toMatchObject({ code: 2 });
   });
 });
+
+describe("plenger serve arguments", () => {
+  it("describes the local dashboard and its shutdown command", async () => {
+    const result = await run("serve", "--help");
+    expect(result).toMatchObject({ code: 0, stderr: "" });
+    expect(result.stdout).toContain("plenger serve [path]");
+    expect(result.stdout).toContain("127.0.0.1");
+    expect(result.stdout).toContain("Ctrl+C");
+    expect((await run("--help")).stdout).toContain("plenger serve");
+  });
+
+  it.each(["-1", "65536", "1.5", "NaN", ""])("rejects port %j", async (port) => {
+    const result = await run("serve", `--port=${port}`);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("--port must be an integer between 0 and 65535");
+  });
+
+  it("rejects an ambiguous or empty project folder", async () => {
+    expect(await run("serve", ".", "--workspace", ".")).toMatchObject({ code: 2 });
+    expect(await run("serve", "--workspace", "")).toMatchObject({ code: 2 });
+    expect(await run("serve", ".", "other")).toMatchObject({ code: 2 });
+  });
+
+  it.each(["--json", "--no-gitignore", "--all"])(
+    "rejects scan option %s instead of ignoring it",
+    async (option) => {
+      const result = await run("serve", option);
+      expect(result.code).toBe(2);
+      expect(result.stderr).toContain("is not supported by serve");
+    },
+  );
+
+  it("limits dashboard options to serve", async () => {
+    expect(await run("scan", fixture, "--port", "0")).toMatchObject({ code: 2 });
+    expect(await run("rules", "--workspace", ".")).toMatchObject({ code: 2 });
+  });
+});

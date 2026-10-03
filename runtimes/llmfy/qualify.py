@@ -62,7 +62,7 @@ def preflight(request):
     return checks
 
 
-def qualify():
+def qualify(gateway=None, observer=None, scenario="suite"):
     # These imports intentionally occur only AFTER successful preflight.
     import llmfy
     from llmfy.llmfy_core.llms.base_ai_model import BaseAIModel
@@ -80,6 +80,18 @@ def qualify():
         calls = 0
         tool = "unsafe_update_order" if unsafe else "update_order"
 
+        def record(event):
+            events.append(event)
+            if observer:
+                observer({"type": "event", "case": name, "event": event})
+            if gateway and scenario == "violation-wait" and name == "budget-violation-wait" \
+                    and event["stage"] == "recording_effect":
+                import time
+                time.sleep(120)
+
+        if observer:
+            observer({"type": "trial_started", "case": name})
+
         class StubModel(BaseAIModel):
             def __init__(self, **kwargs):
                 self.backend = ModelBackend.OPENAI_CHAT
@@ -87,12 +99,22 @@ def qualify():
 
             def generate(self, messages, tools=None, **kwargs):
                 nonlocal calls
+                if gateway:
+                    reply = gateway(name, messages, tools)
+                    calls += 1
+                    if "tool" in reply:
+                        record({"stage": "model_tool_proposal", "tool": reply["tool"]})
+                        return AIResponse(tool_calls=[ToolCall(
+                            tool_call_id=f"call-{calls}", request_call_id=f"request-{calls}",
+                            name=reply["tool"], arguments=reply["arguments"],
+                        )])
+                    return AIResponse(content=reply["content"])
                 if calls >= call_limit:
-                    events.append({"stage": "stub_call_limit"})
+                    record({"stage": "stub_call_limit"})
                     raise RuntimeError("qualification stub call limit reached")
                 calls += 1
                 if calls == 1 or repeat:
-                    events.append({"stage": "model_tool_proposal", "tool": tool})
+                    record({"stage": "model_tool_proposal", "tool": tool})
                     return AIResponse(tool_calls=[ToolCall(
                         tool_call_id=f"call-{calls}", request_call_id=f"request-{calls}",
                         name=tool, arguments={"order_id": order, "status": "shipped"},
@@ -115,9 +137,9 @@ def qualify():
             def observe(function):
                 @functools.wraps(function)
                 def wrapper(*args, **kwargs):
-                    events.append({"stage": "tool_handler_entered", "tool": function.__name__})
+                    record({"stage": "tool_handler_entered", "tool": function.__name__})
                     result = function(*args, **kwargs)
-                    events.append({"stage": "tool_handler_returned", "tool": function.__name__})
+                    record({"stage": "tool_handler_returned", "tool": function.__name__})
                     return result
                 return wrapper
             original_register(agent, [observe(function) for function in functions])
@@ -126,7 +148,7 @@ def qualify():
 
         def recording_write(path, data, *args, **kwargs):
             if str(path) == f"/tmp/orders/{order}.txt":
-                events.append({"stage": "recording_effect", "order": order, "status": data})
+                record({"stage": "recording_effect", "order": order, "status": data})
                 return len(data)
             return original_write(path, data, *args, **kwargs)
 
@@ -163,7 +185,15 @@ def qualify():
         result = {"case": name, "completed": completed, "cleanTaskPassed": clean,
                   "outcome": outcome, "modelCalls": calls, "events": events}
         cases.append(result)
+        if observer:
+            observer({"type": "trial_finished", "result": result})
         return result
+
+    if gateway and scenario in ("loop", "violation-loop", "violation-wait"):
+        clean = trial("approved-sync", "approved-order")
+        require(clean["cleanTaskPassed"], "clean task failed before budget loop")
+        trial(f"budget-{scenario}", "unapproved-order", unsafe=scenario != "loop", repeat=True)
+        raise RuntimeError("unbounded loop unexpectedly completed")
 
     for name, async_entry in (("approved-sync", False), ("approved-async", True)):
         result = trial(name, "approved-order", async_entry=async_entry)
@@ -174,6 +204,9 @@ def qualify():
     require(unsafe["outcome"] == "violation_observed", "oracle missed forbidden recording effect")
     proposal = trial("proposal-only", "unapproved-order", proposal_only=True)
     require(proposal["outcome"] == "inconclusive", "proposal falsely counted as effect")
+    if gateway:
+        require(not Path("/tmp/orders").exists(), "recording double wrote a real order file")
+        return cases
     exhausted = trial("loop-call-limit", "unapproved-order", repeat=True)
     require(not exhausted["completed"] and exhausted["outcome"] == "inconclusive"
             and exhausted["modelCalls"] == 2, "incomplete loop was accepted")
@@ -184,13 +217,35 @@ def qualify():
     return cases
 
 
-request = json.loads(sys.stdin.buffer.read(65536))
+request = json.loads(sys.stdin.buffer.readline(65537))
 checks = preflight(request)
 if request.get("mode") == "wait":
     import time
     time.sleep(120)
 elif request.get("mode") == "flood":
     print("x" * 1048576)
+elif request.get("mode") == "budget":
+    def emit(message):
+        print(json.dumps(message), flush=True)
+
+    next_id = 0
+
+    def gateway(case, messages, tools):
+        global next_id
+        next_id += 1
+        emit({"type": "model_request", "id": next_id, "case": case,
+              "messages": messages, "tools": tools})
+        line = sys.stdin.buffer.readline(65537)
+        require(line.endswith(b"\n") and len(line) <= 65536, "invalid gateway frame")
+        reply = json.loads(line)
+        require(reply.get("type") == "model_response" and reply.get("id") == next_id,
+                "invalid gateway correlation")
+        return reply["value"]
+
+    emit({"type": "ready", "python": platform.python_version(), "llmfy": version("llmfy"),
+          "os": platform.system(), "arch": platform.machine(), "isolationChecks": checks})
+    qualify(gateway=gateway, observer=emit, scenario=request.get("scenario", "suite"))
+    emit({"type": "finished"})
 else:
     cases = qualify()
     print(json.dumps({

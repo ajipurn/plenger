@@ -13,8 +13,9 @@ With an active Podman Linux backend and Node/pnpm installed:
 pnpm qualify:llmfy
 ```
 
-This developer command builds the pinned image, prints a qualification JSON report
-including its immutable image ID, and runs the container integration tests.
+This developer command builds the pinned image, prints both runtime and host-budget
+qualification JSON reports including the immutable image ID, and runs the container
+integration tests.
 Image setup downloads the fixed base image and six pinned Python packages. Only
 hashed wheels are accepted; no application manifests, install scripts or `.env`
 files are read. The build context is restricted by `runtimes/llmfy/.dockerignore`.
@@ -80,12 +81,11 @@ the host deadline also counts launch time. Cleanup
 errors are surfaced with the container name and preserve the original failure.
 Abrupt host-process death is not covered by the integration tests yet.
 
-Verified on 2026-10-02: 18 worker environment checks, seven synthetic llmfy cases,
-and all seven TypeScript qualification tests passed. The regular suite passed
-273 tests, with the six container-dependent tests skipped in that offline run;
-they were exercised separately by `pnpm qualify:llmfy`. Typecheck, lint and build
-also passed. The tested image ID was
-`sha256:7e673220288b280db8480c6a073d40495305e98a77a6139b737733cb6f1b2ba0`.
+Verified on 2026-10-02: 18 worker environment checks, the seven original synthetic
+llmfy cases, the additional host-budget scenarios below, and all 13 TypeScript
+qualification tests passed. Container-dependent tests are exercised separately
+by `pnpm qualify:llmfy`; the regular suite stays offline. The tested image ID was
+`sha256:ac57f68b02ce4fbd9a9f571633f653d96fa01e17580e795b964f243ae28c668c`.
 Rebuilding may produce a different image ID; every qualification report records
 the image actually tested.
 
@@ -115,8 +115,50 @@ fixture modules and private container temporary storage isolate test state.
 The model responses are deterministic test doubles, so these results measure the
 framework path and the observation/oracle design. They do not measure prompt
 injection resistance. The per-case stub call limit does not satisfy the roadmap's
-run-wide provider call/token budget contract. Recording an effect proves arrival
-at that intercepted boundary, not a completed production write.
+run-wide provider call/token budget contract by itself. The host-budget path below
+adds a separate integration check. Recording an effect proves arrival at that
+intercepted boundary, not a completed production write.
+
+## Host-budget qualification
+
+`qualifyLlmfyBudget()` uses the same image and isolation controls. The fixture's
+model adapter sends the complete outgoing messages and tool declarations to the
+host through stdio and waits for a correlated response. The worker emits readiness,
+trial lifecycle and tool-stage events on the same newline-delimited JSON channel.
+The host validates their sequence, admits requests using one `ModelBudget` and
+generates synthetic responses. Worker-provided usage fields do not affect accounting.
+
+Input and output units use the explicit test profile `synthetic-utf8-bytes-v1`:
+one UTF-8 byte of the serialized model payload/response is one synthetic token.
+The host reserves the full input size and 1,024 output units before generating
+each response, then confirms its measured usage. These units are deterministic
+for qualification and do not represent a live provider's tokenizer or billing.
+
+The worker still has `--network=none`, no credentials and no host mounts. Stdio
+frames are decoded as strict UTF-8/JSON, processed in order and bounded by the
+64 KiB combined output limit and 256 messages. Model payloads have a 48 KiB limit.
+Messages, tool declarations and raw model responses are excluded from the report;
+only the fixed fixture's accepted event fields and usage totals are retained.
+
+| Case | Required result |
+| --- | --- |
+| Sync/async controls and three probes | Five trials complete through one budget; all nine model calls admitted, with no failure merely for reaching that call cap |
+| Guarded repeating loop | Control consumes two calls; third call reaches the denied handler; fourth request exhausts the shared budget and leaves the loop inconclusive |
+| Unguarded repeating loop | Same exhaustion, with an independently observed violation retained |
+| Insufficient token reservation | Zero model calls admitted; active trial incomplete and later cases unstarted/unevaluable |
+| Deadline during blocked handler | Streamed violation retained, handler completion never claimed, worker removed |
+| Cancellation during blocked handler | Same partial-evidence and cleanup behavior |
+
+Budget stops abort the host connection and explicitly remove the named container
+before returning the partial report. Cleanup failures propagate, preserving the
+original failure. Protocol errors and unexpected worker exits also fail qualification.
+The report is `kind: "llmfy-budget-qualification"`, includes a budget snapshot with
+`enforcementScope: "submitted-dispatches"`, and keeps `liveModelQualified: false`.
+It is a developer qualification artifact, separate from the future dynamic-run schema.
+
+This verifies the trusted fixture's path through the broker, not evidence authenticity
+for hostile project code. An arbitrary worker could fabricate in-process observations;
+sequence validation alone cannot establish that a project actually crossed a boundary.
 
 ## Still required before project execution
 

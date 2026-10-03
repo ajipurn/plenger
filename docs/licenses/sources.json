@@ -1,0 +1,37 @@
+[
+  {
+    "name": "tree-sitter-python",
+    "version": "0.25.0",
+    "filename": "tree-sitter-python-0.25.0.txt",
+    "source": "https://registry.npmjs.org/tree-sitter-python/-/tree-sitter-python-0.25.0.tgz (package/LICENSE; npm integrity sha512-eCmJx6zQa35GxaCtQD+wXHOhYqBxEL+bp71W/s3fcDMu06MrtzkVXR437dRrCrbrDbyLuUDJpAgycs7ncngLXw==)",
+    "sha256": "d724405ce238a22c0d35769c5a36b386ad5958192efe8bbb304fb2896254575f"
+  },
+  {
+    "name": "tree-sitter-javascript",
+    "version": "0.25.0",
+    "filename": "tree-sitter-javascript-0.25.0.txt",
+    "source": "https://registry.npmjs.org/tree-sitter-javascript/-/tree-sitter-javascript-0.25.0.tgz (package/LICENSE; npm integrity sha512-1fCbmzAskZkxcZzN41sFZ2br2iqTYP3tKls1b/HKGNPQUVOpsUxpmGxdN/wMqAk3jYZnYBR1dd/y/0avMeU7dw==)",
+    "sha256": "2e0110e07abef7c2548b26ec9d6969775617ca539a0dc8dbeeb14d6452c711d1"
+  },
+  {
+    "name": "tree-sitter-typescript",
+    "version": "0.23.2",
+    "filename": "tree-sitter-typescript-0.23.2.txt",
+    "source": "https://registry.npmjs.org/tree-sitter-typescript/-/tree-sitter-typescript-0.23.2.tgz (package/LICENSE; npm integrity sha512-e04JUUKxTT53/x3Uq1zIL45DoYKVfHH4CZqwgZhPg5qYROl5nQjV+85ruFzFGZxu+QeFVbRTPDRnqL9UbU4VeA==)",
+    "sha256": "49bf33cf78ef5897e4e161ce1517df7de1ae5042a65b6bcfd44401e0fc606559"
+  },
+  {
+    "name": "overlayscrollbars",
+    "version": "2.16.0",
+    "filename": "overlayscrollbars-2.16.0.txt",
+    "source": "https://raw.githubusercontent.com/KingSora/OverlayScrollbars/dfa819688a529db0085c6416a94e816bfbaeaf29/LICENSE",
+    "sha256": "e15ad22c5d4a4e4d63ddfe8cf1993e9fecfcf87dd320a701daa939d55beeefbc"
+  },
+  {
+    "name": "overlayscrollbars-react",
+    "version": "0.5.6",
+    "filename": "overlayscrollbars-react-0.5.6.txt",
+    "source": "https://raw.githubusercontent.com/KingSora/OverlayScrollbars/e0ad5d026909b85d10e9ed0f7605cddd067408c9/LICENSE",
+    "sha256": "e15ad22c5d4a4e4d63ddfe8cf1993e9fecfcf87dd320a701daa939d55beeefbc"
+  }
+]

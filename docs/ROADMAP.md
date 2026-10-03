@@ -17,16 +17,18 @@ first; [M6](#m6-red-team-harness-direct-input-in-progress) builds the red-team h
 and tests direct input against a running target, and
 [M7](#m7-red-team-indirect-prompt-injection-planned) extends it to indirect prompt
 injection through content the agent reads. Both are adversarial tests at the agent
-level; model-level adversarial attacks are outside the MVP. Distribution follows in
-M8. M0–M5 are implemented; M6a has started with offline llmfy discovery. Dynamic
-execution, the dashboard and M7 onward remain planned.
+level; model-level adversarial attacks are outside the MVP. Distribution is tracked
+in M8, with native binary packaging started alongside dashboard development.
+M0–M5 are implemented; M6a has offline llmfy discovery/preparation, synthetic
+runtime qualification and a local dashboard. Dynamic project execution and M7
+remain planned; M6a and M8 are incomplete.
 
 **Product direction: reach core capability parity with promptfoo.** The early
 priority is a useful, complete AI security testing workflow, with promptfoo as the
 primary capability and usability reference and tools such as garak and Strix as
 additional references. A unique moat is not a prerequisite for building these
 capabilities; differentiation can develop through use and iteration. Plenger is
-planned as a product with both a React + Vite dashboard and a CLI.
+built as a product with both a React + Vite dashboard and a CLI.
 
 The capability target includes connecting models and applications, a broader
 security test catalogue, LLM-generated and adaptive attacks, multi-turn sessions,
@@ -84,15 +86,23 @@ isolation infrastructure grew far ahead of what the tool could detect.
 
 Node.js 22.18+ and TypeScript (strict, erasable syntax only), web-tree-sitter with
 vendored WASM grammars for Python, JavaScript, TypeScript and TSX, pnpm, Vitest and
-Biome. One parser for all three languages keeps the tool free of native add-ons, so
-it can later ship as a single binary.
+Biome. One parser for all three languages keeps the tool free of native add-ons.
+The native binary build embeds the engine, parser runtime, four WASM grammars and
+built dashboard assets with Node.js single executable applications (SEA).
 
-Planned dashboard: React and TypeScript, with Vite for development and production
-asset builds. A local Node.js service exposes the shared scan and red-team engine
-to the dashboard; the CLI uses the same engine, profiles and report contracts.
-Project execution and provider access belong to that service and its managed
-workers. M8 packages the built dashboard assets so normal use requires no frontend
-development server or manual build. These UI components are not implemented yet.
+The dashboard uses React and TypeScript, Vite for production asset builds, React
+Router 7, Tailwind CSS 4, Base UI, Gravity icons, OverlayScrollbars and Torph text
+animation. A loopback Node.js service exposes the shared static scan and offline
+preparation modules. It provides folder selection, scan overview, searchable
+findings with evidence/remediation, inventory, JSON export and session scan history.
+`plenger serve [path]` serves the bundled dashboard; `pnpm dashboard` builds and
+serves it during source development. Neither needs a separate frontend development
+server. See [DASHBOARD.md](DASHBOARD.md) and [DISTRIBUTION.md](DISTRIBUTION.md).
+
+Dynamic project execution and provider access will belong to that service and its
+managed workers. Saved profiles, persistent history and dynamic run controls remain
+pending. The binary needs no separate Node.js, pnpm or frontend build on an end
+user's computer. Public releases and platform qualification remain work for M8.
 
 ## Milestones
 
@@ -347,8 +357,8 @@ See [REPORTS.md](REPORTS.md).
 
 **Current slice:** `plenger redteam discover` detects llmfy invocation functions
 and directly returned agent factories offline, retains unsupported candidates and
-scan gaps, and reports root manifest presence. Its shared module can serve the
-future dashboard. This is discovery only, not an executable plan or a qualified
+scan gaps, and reports root manifest presence. Its shared module also serves the
+local dashboard. This is discovery only, not an executable plan or a qualified
 runtime; M6a remains incomplete. See [REDTEAM.md](REDTEAM.md) for implementation
 status and the remaining stages.
 
@@ -367,10 +377,21 @@ live provider, test-pack binding or project runner is enabled yet.
 The shared `ModelBudget` engine component now reserves calls and tokens before
 dispatch across run phases/retries, reconciles confirmed usage, retains unknown
 reservations and interrupts callers on exhaustion, cancellation or deadline.
-Synthetic tests cover concurrent admission and late provider replies. Its scope is
-explicitly `submitted-dispatches`: provider-bound computation, output enforcement,
-network isolation against bypass and integration with workers/trial outcomes remain
-pending. This accounting component does not qualify live model access or complete M6a.
+Synthetic tests cover concurrent admission and late provider replies. The bundled
+worker now also routes its synthetic model requests through a host broker over
+bounded stdio, with networking disabled. Container tests verify shared control/probe
+limits, worker removal on exhaustion/deadline/cancel and preservation of streamed
+partial evidence. Synthetic tokens are serialized UTF-8 bytes; the budget snapshot
+retains `submitted-dispatches` as its enforcement scope. Live provider bounds,
+output enforcement, user-project evidence and production runner integration remain
+pending. This fixture integration does not qualify live model access or complete M6a.
+
+The initial React + Vite dashboard is now available through `pnpm dashboard`.
+Users can select a folder, scan source, inspect inventory/findings, export JSON and
+review offline llmfy preparation with explicit target selection. History retains
+the last 20 scans in the browser session only. This dashboard stage precedes live
+provider work; dynamic Start, access/budget setup, cancellation, saved profiles and
+persistent run history remain to be implemented. See [DASHBOARD.md](DASHBOARD.md).
 
 Turn the inventory into reviewable test hypotheses, then run them against a managed
 test instance or selected endpoint. First prove the complete workflow on a
@@ -872,12 +893,24 @@ The internal fixture suite runs without external models for routine CI. Qualify
 advertised integrations with a real model separately, recording the model version,
 sample counts and limitations; distinguish those results from harness self-tests.
 
-### M8 Distribution (planned)
+### M8 Distribution (in progress)
 
-npm package, single binaries for macOS, Linux and Windows, user documentation.
-Package the built React + Vite dashboard, its local service and the supported
-runtime integrations;
-the no-code flow itself is implemented and validated in M6/M7. Include the
+**Available:** a native executable build containing the CLI, local service,
+built React + Vite dashboard and parser WASM assets. Users can run `plenger scan`
+and `plenger serve` without Node.js or pnpm. Build artifacts include an archive and
+SHA-256 checksums. The macOS Apple Silicon build was verified with Node.js 22.23.2
+outside the checkout and without Node on `PATH`, covering scans with all grammars,
+embedded dashboard assets, deep routes, authenticated API scans and service
+shutdown. Native build/smoke/artifact CI jobs are configured for Ubuntu, macOS and
+Windows but have not run remotely. See [DISTRIBUTION.md](DISTRIBUTION.md) for
+installation steps. This is local build availability, not a published release.
+
+**Remaining:** passing native CI evidence for the advertised macOS, Linux and
+Windows architectures, publisher-signed releases where applicable, a project
+license decision, public release artifacts, update/install documentation and npm
+packaging. Package the supported
+runtime integrations only after their M6/M7 qualification. Complete and validate
+the no-code flow in M6/M7. Include the
 runtime/adapter prerequisite setup already qualified in those milestones, without
 asking users to write scripts. Keep the static-only CLI installation lightweight.
 Document the offline scan and click-to-run workflows, model-access setup, supported

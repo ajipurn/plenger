@@ -3,9 +3,17 @@
 M6a starts with llmfy discovery. The goal remains a React + Vite dashboard where
 the user selects an unmodified project, provides model access and a budget, then
 clicks Start. plenger must prepare the supported runtime, test cases and
-instrumentation itself. This initial CLI command exposes the discovery module
-while the rest of that workflow is built; it does not require users to write a
-wrapper or fixtures.
+instrumentation itself. The CLI and initial local dashboard expose offline
+discovery and preparation while the executable workflow is built; neither requires
+users to write a wrapper or fixtures.
+
+## Available: local dashboard
+
+Run `pnpm dashboard` and open the printed local URL. Choose a project, scan source,
+review findings/inventory and open Red-team to review offline preparation. Multiple
+llmfy candidates can be selected in the interface and reviewed again. Every plan
+still has `executionReady: false`; this dashboard does not start an attack or ask
+for model credentials. See [DASHBOARD.md](DASHBOARD.md) for usage and current limits.
 
 ## Available: offline discovery
 
@@ -47,8 +55,8 @@ or incomplete scan coverage; 1 means an I/O/scan error; 2 means invalid argument
 Static finding gates, baselines and SARIF output do not apply to this command.
 
 The engine entry point is `discoverProject()` in `src/redteam/discover.ts`. The
-CLI formats its result; future planning and dashboard code can call the same
-module. Existing `scan`, `facts`, report and gate contracts remain unchanged.
+CLI formats its result; preparation and dashboard code reuse the same module.
+Existing `scan`, `facts`, report and gate contracts remain unchanged.
 
 ## Available: offline project preparation
 
@@ -59,7 +67,7 @@ pnpm dev redteam plan path/to/project --target llmfy:<candidate-id> --json
 
 Use a project directory. One candidate is selected automatically; multiple
 candidates remain visible and require an explicit choice. An absent or
-unsupported target is rejected. This selection will become a dashboard control;
+unsupported target is rejected. The dashboard exposes the same target selection;
 it does not require a user-written wrapper or config file.
 
 `planProject()` creates a private temporary snapshot and runs discovery against
@@ -150,19 +158,54 @@ outstanding reservations equals accounted tokens; outstanding reservations inclu
 headroom retained after a profile overrun. Provider errors propagate to the engine,
 which must redact them before displaying or persisting them.
 
-**Still pending:** the trusted provider profile that computes bounds from the entire
+The trusted fixture now exercises this controller through a host-side synthetic
+broker with worker networking disabled. See the qualification section below.
+**Still pending:** a live provider profile that computes bounds from the entire
 request, enforces output allowances and accounts for all charged token categories;
-the gateway and network policy that prevent a worker from bypassing admission; and
-worker/trial integration. This controller is not an enforced cost cap on arbitrary
-project traffic. No live provider was contacted during these tests, and
+qualified model access and evidence for user projects; and production worker/trial
+integration. This controller is not an enforced cost cap on arbitrary project
+traffic. No live provider was contacted during these tests, and
 `redteam plan` still reports `executionReady: false`.
+
+## Available: budget integration in the isolated fixture
+
+`pnpm qualify:llmfy` now also exercises `qualifyLlmfyBudget()`. The worker sends
+model requests and tool-stage events through bounded newline-delimited JSON on
+stdio. Its network remains disabled and no host credentials or project mounts
+are introduced. The host's `QualificationBroker` owns response generation, call
+admission and usage accounting; the worker supplies neither limits nor token counts.
+
+The synthetic profile counts UTF-8 bytes of serialized messages/tool declarations
+and responses as synthetic tokens. It reserves 1,024 output units before dispatch
+and checks the generated response against that allowance. This deterministic
+test accounting does not estimate any live model's token usage or cost.
+
+The successful path shares nine model calls across two clean controls and three
+probe cases, including sync/async entry points. Separate tests prove shared call
+exhaustion during an agent loop, refusal when token reservation cannot fit, and
+deadline/cancellation during a blocked handler. The original application approval
+check still executes. Events received before interruption survive container cleanup:
+a confirmed forbidden recording effect remains `violation_observed`; incomplete
+work without that evidence is `inconclusive`. Planned cases never started have
+`started: false` and remain unevaluable.
+
+The developer report has `kind: "llmfy-budget-qualification"`, with the budget
+snapshot, explicit `transport: "stdio-network-none"` and
+`tokenAccounting: "synthetic-utf8-bytes-v1"`. It excludes model messages and
+responses. It returns partial results only after successful cleanup; unrelated
+protocol/worker errors and cleanup failures still throw.
+
+These are observations from a trusted bundled fixture. Sequence/correlation
+validation does not authenticate evidence from arbitrary application code or
+prove that a malicious project cannot forge events. Live-provider qualification,
+dependency setup, test-pack binding and the dynamic dashboard journey remain open.
 
 ## Remaining M6a stages
 
 The bundled runtime now has an executable synthetic qualification recipe:
 `pnpm qualify:llmfy`. It exercises real llmfy in a Podman container, verifies the
 isolation configuration before fixture import, preserves handler approval, and
-tests observations, call-limit outcomes and worker lifecycle. See
+tests observations, host budget admission, partial outcomes and worker lifecycle. See
 [LLMFY_RUNTIME.md](LLMFY_RUNTIME.md) for the exact configuration and limitations.
 This is a developer check, separate from the planned click-to-run project flow.
 
@@ -180,10 +223,11 @@ This is a developer check, separate from the planned click-to-run project flow.
    controller to qualified model access, worker cancellation and cleanup. Qualify
    both normal-task success and forbidden-boundary outcomes.
    Missing access or ambiguous targets become interface choices, not user code.
-3. **Deliver the React + Vite workflow.** Expose static scan/inventory/findings and
-   dynamic target selection, access/budget setup, progress, cancellation, evidence,
-   saved profiles, local history and reruns through a local service using the same
-   engine. Complete the real-model no-code acceptance journey before closing M6a.
+3. **Complete the React + Vite workflow.** Static scans, inventory/findings and
+   offline target selection are available through the local service. Add dynamic
+   access/budget setup, progress, cancellation, evidence, saved profiles, persistent
+   run history and reruns using the same engine. Complete the real-model no-code
+   acceptance journey before closing M6a.
 
 HTTP/project expansion follows in M6b, MCP/CI in M6c, and indirect prompt injection
 in M7. Their acceptance criteria remain in [ROADMAP.md](ROADMAP.md).
