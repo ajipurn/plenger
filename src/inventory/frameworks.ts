@@ -75,6 +75,7 @@ export const FRAMEWORKS: FrameworkInfo[] = [
   { id: "hono", name: "Hono", javascript: ["hono"] },
   { id: "fastify", name: "Fastify", javascript: ["fastify"] },
   { id: "nextjs", name: "Next.js", javascript: ["next"] },
+  { id: "sqlite", name: "SQLite", javascript: ["better-sqlite3", "node:sqlite"] },
 ];
 
 /**

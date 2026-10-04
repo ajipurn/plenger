@@ -217,40 +217,45 @@ def qualify(gateway=None, observer=None, scenario="suite"):
     return cases
 
 
-request = json.loads(sys.stdin.buffer.readline(65537))
-checks = preflight(request)
-if request.get("mode") == "wait":
-    import time
-    time.sleep(120)
-elif request.get("mode") == "flood":
-    print("x" * 1048576)
-elif request.get("mode") == "budget":
-    def emit(message):
-        print(json.dumps(message), flush=True)
+def main():
+    request = json.loads(sys.stdin.buffer.readline(65537))
+    checks = preflight(request)
+    if request.get("mode") == "wait":
+        import time
+        time.sleep(120)
+    elif request.get("mode") == "flood":
+        print("x" * 1048576)
+    elif request.get("mode") == "budget":
+        def emit(message):
+            print(json.dumps(message), flush=True)
 
-    next_id = 0
+        next_id = 0
 
-    def gateway(case, messages, tools):
-        global next_id
-        next_id += 1
-        emit({"type": "model_request", "id": next_id, "case": case,
-              "messages": messages, "tools": tools})
-        line = sys.stdin.buffer.readline(65537)
-        require(line.endswith(b"\n") and len(line) <= 65536, "invalid gateway frame")
-        reply = json.loads(line)
-        require(reply.get("type") == "model_response" and reply.get("id") == next_id,
-                "invalid gateway correlation")
-        return reply["value"]
+        def gateway(case, messages, tools):
+            nonlocal next_id
+            next_id += 1
+            emit({"type": "model_request", "id": next_id, "case": case,
+                  "messages": messages, "tools": tools})
+            line = sys.stdin.buffer.readline(65537)
+            require(line.endswith(b"\n") and len(line) <= 65536, "invalid gateway frame")
+            reply = json.loads(line)
+            require(reply.get("type") == "model_response" and reply.get("id") == next_id,
+                    "invalid gateway correlation")
+            return reply["value"]
 
-    emit({"type": "ready", "python": platform.python_version(), "llmfy": version("llmfy"),
-          "os": platform.system(), "arch": platform.machine(), "isolationChecks": checks})
-    qualify(gateway=gateway, observer=emit, scenario=request.get("scenario", "suite"))
-    emit({"type": "finished"})
-else:
-    cases = qualify()
-    print(json.dumps({
-        "schemaVersion": 1, "kind": "llmfy-runtime-qualification", "provider": "synthetic",
-        "python": platform.python_version(), "llmfy": version("llmfy"),
-        "os": platform.system(), "arch": platform.machine(),
-        "isolationChecks": checks, "cases": cases, "liveModelQualified": False,
-    }))
+        emit({"type": "ready", "python": platform.python_version(), "llmfy": version("llmfy"),
+              "os": platform.system(), "arch": platform.machine(), "isolationChecks": checks})
+        qualify(gateway=gateway, observer=emit, scenario=request.get("scenario", "suite"))
+        emit({"type": "finished"})
+    else:
+        cases = qualify()
+        print(json.dumps({
+            "schemaVersion": 1, "kind": "llmfy-runtime-qualification", "provider": "synthetic",
+            "python": platform.python_version(), "llmfy": version("llmfy"),
+            "os": platform.system(), "arch": platform.machine(),
+            "isolationChecks": checks, "cases": cases, "liveModelQualified": False,
+        }))
+
+
+if __name__ == "__main__":
+    main()

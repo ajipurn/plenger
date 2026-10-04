@@ -1,7 +1,23 @@
-import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
-import type { ComponentProps } from "react";
+import { OverlayScrollbarsComponent, useOverlayScrollbars } from "overlayscrollbars-react";
+import { type ComponentProps, useCallback } from "react";
+import { horizontalScrollbars, verticalScrollbars } from "./scrollbars.ts";
 
-/** Keep page scrolling native; enhance only bounded lists. */
+/** Enhance an existing viewport without moving React or Base UI children. */
+export function useElementScrollbars<T extends HTMLElement>(axis: "x" | "y" = "y") {
+  const [initialize, instance] = useOverlayScrollbars({
+    options: axis === "x" ? horizontalScrollbars : verticalScrollbars,
+  });
+  return useCallback(
+    (element: T | null) => {
+      // Dialog portals detach while their parent remains mounted.
+      instance()?.destroy();
+      if (element) initialize({ target: element, elements: { viewport: element } });
+    },
+    [initialize, instance],
+  );
+}
+
+/** A bounded list with a keyboard-accessible viewport. */
 export function ScrollArea({
   children,
   className,
@@ -14,10 +30,7 @@ export function ScrollArea({
     <OverlayScrollbarsComponent
       defer
       className={`scroll-area ${className ?? ""}`}
-      options={{
-        overflow: { x: "hidden", y: "scroll" },
-        scrollbars: { theme: "os-theme-plenger", autoHide: "never", clickScroll: false },
-      }}
+      options={verticalScrollbars}
       {...props}
       events={{
         initialized(instance) {

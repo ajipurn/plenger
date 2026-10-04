@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import type { DashboardScan, DashboardSession } from "../src/dashboard/model.ts";
+import type { DashboardScan, DashboardSession, DashboardState } from "../src/dashboard/model.ts";
+import type { ProjectPlan } from "../src/redteam/plan.ts";
 import type { Report } from "../src/report/model.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -15,6 +16,83 @@ const source = resolve(process.argv[2] ?? join(root, "dist/binary", filename));
 const environment: NodeJS.ProcessEnv = { PATH: "", NO_COLOR: "1" };
 if (process.platform === "win32" && process.env.SystemRoot)
   environment.SystemRoot = process.env.SystemRoot;
+
+async function launchDashboard(binary: string, runtime: string, fixture: string, dataDir: string) {
+  const server = spawn(binary, ["serve", fixture, "--port", "0", "--data-dir", dataDir], {
+    cwd: runtime,
+    env: environment,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  server.stdout.on("data", (data: Buffer) => {
+    stdout += data.toString();
+  });
+  server.stderr.on("data", (data: Buffer) => {
+    stderr += data.toString();
+  });
+  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+    (accept, reject) => {
+      server.once("error", reject);
+      server.once("close", (code, signal) => accept({ code, signal }));
+    },
+  );
+  const dispose = async () => {
+    if (server.exitCode === null && server.signalCode === null) {
+      server.kill("SIGKILL");
+      await exited;
+    }
+  };
+  try {
+    const origin = await new Promise<string>((accept, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error(`Dashboard startup timed out. ${stderr}`)),
+        15_000,
+      );
+      const detect = () => {
+        const url = /http:\/\/127\.0\.0\.1:\d+/.exec(stdout)?.[0];
+        if (url) {
+          clearTimeout(timeout);
+          accept(url);
+        }
+      };
+      server.stdout.on("data", detect);
+      void exited.then(({ code, signal }) => {
+        clearTimeout(timeout);
+        reject(new Error(`Dashboard exited before startup (${code ?? signal}). ${stderr}`));
+      }, reject);
+      detect();
+    });
+    return {
+      fetchPage: (path: string, options: RequestInit = {}) =>
+        fetch(`${origin}${path}`, { ...options, signal: AbortSignal.timeout(30_000) }),
+      dispose,
+      async stop() {
+        assert.equal(server.kill("SIGTERM"), true);
+        const stopped = await Promise.race([
+          exited,
+          new Promise<never>((_accept, reject) => {
+            setTimeout(() => reject(new Error("Dashboard did not stop.")), 10_000).unref();
+          }),
+        ]);
+        if (process.platform === "win32")
+          assert.ok(stopped.code === 0 || stopped.signal === "SIGTERM");
+        else assert.deepEqual(stopped, { code: 0, signal: null });
+        // Node 22 reports its built-in SQLite status once; all other stderr remains a failure.
+        assert.equal(
+          stderr.replace(
+            /^\(node:\d+\) ExperimentalWarning: SQLite is an experimental feature and might change at any time\r?\n\(Use `[^`]+ --trace-warnings \.\.\.` to show where the warning was created\)\r?\n/,
+            "",
+          ),
+          "",
+        );
+      },
+    };
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
+}
 
 async function main() {
   const version = (
@@ -60,54 +138,29 @@ async function main() {
     assert.equal(report.files.find((file) => file.path === "app/broken.py")?.syntaxErrors, true);
     console.log("Binary CLI passed with an empty PATH outside the checkout (Python, JS, TS, TSX).");
 
-    const server = spawn(binary, ["serve", fixture, "--port", "0"], {
-      cwd: runtime,
-      env: environment,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    server.stdout.on("data", (data: Buffer) => {
-      stdout += data.toString();
-    });
-    server.stderr.on("data", (data: Buffer) => {
-      stderr += data.toString();
-    });
-    const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-      (accept, reject) => {
-        server.once("error", reject);
-        server.once("close", (code, signal) => accept({ code, signal }));
-      },
+    const nextFixture = join(temporary, "next-project");
+    await cp(join(root, "test/fixtures/redteam/vercel"), nextFixture, { recursive: true });
+    const next = JSON.parse(
+      (await run(["redteam", "plan", nextFixture, "--json"])).stdout,
+    ) as ProjectPlan;
+    assert.equal(next.nextProfile?.id, "vercel-booking-sqlite-v1");
+    assert.equal(next.preparation.status, "ready");
+    assert.equal(next.sources.policy, "next-route-sqlite-v1");
+    assert.ok(next.sources.files.some((file) => file.path === "app/api/chat/route.ts"));
+    console.log(
+      "Binary managed Next.js planning passed outside the checkout without Node in PATH.",
     );
+
+    const dataDir = join(temporary, "data");
+    const server = await launchDashboard(binary, runtime, fixture, dataDir);
+    let saved: DashboardScan;
     try {
-      const origin = await new Promise<string>((accept, reject) => {
-        const timeout = setTimeout(
-          () => reject(new Error(`Dashboard startup timed out. ${stderr}`)),
-          15_000,
-        );
-        const detect = () => {
-          const url = /http:\/\/127\.0\.0\.1:\d+/.exec(stdout)?.[0];
-          if (url) {
-            clearTimeout(timeout);
-            accept(url);
-          }
-        };
-        server.stdout.on("data", detect);
-        void exited.then(({ code, signal }) => {
-          clearTimeout(timeout);
-          reject(new Error(`Dashboard exited before startup (${code ?? signal}). ${stderr}`));
-        }, reject);
-        detect();
-      });
-      const fetchPage = (path: string, options: RequestInit = {}) =>
-        fetch(`${origin}${path}`, {
-          ...options,
-          signal: AbortSignal.timeout(30_000),
-        });
+      const { fetchPage } = server;
       const home = await fetchPage("/");
       assert.equal(home.status, 200);
       const html = await home.text();
       assert.match(html, /id="root"/);
+      assert.match(html, /data-theme="dark"/);
       const nonce = /name="plenger-style-nonce" content="([A-Za-z0-9+/=]+)"/.exec(html)?.[1];
       assert.ok(nonce, "Dashboard HTML has no stylesheet nonce.");
       assert.ok(home.headers.get("content-security-policy")?.includes(`'nonce-${nonce}'`));
@@ -148,26 +201,70 @@ async function main() {
       assert.deepEqual(dashboard.scan.files, report.files);
       assert.deepEqual(dashboard.scan.findings, report.findings);
       assert.ok(dashboard.rules.length > 0);
-      assert.equal(server.kill("SIGTERM"), true);
-      const stopped = await Promise.race([
-        exited,
-        new Promise<never>((_accept, reject) => {
-          setTimeout(() => reject(new Error("Dashboard did not stop.")), 10_000).unref();
-        }),
-      ]);
-      if (process.platform === "win32")
-        assert.ok(stopped.code === 0 || stopped.signal === "SIGTERM");
-      else assert.deepEqual(stopped, { code: 0, signal: null });
-      assert.equal(stderr, "");
-      console.log(
-        `Binary dashboard passed: embedded assets, deep links, authenticated scan, ${process.platform === "win32" ? "process termination" : "graceful signal shutdown"}.`,
-      );
+      saved = dashboard;
+      const themed = await fetchPage("/api/theme", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Plenger-Token": session.token },
+        body: JSON.stringify({ theme: "light" }),
+      });
+      assert.equal(themed.status, 200);
+      assert.deepEqual(await themed.json(), { theme: "light" });
+      assert.match(await (await fetchPage("/redteam")).text(), /data-theme="light"/);
+      await server.stop();
     } finally {
-      if (server.exitCode === null && server.signalCode === null) {
-        server.kill("SIGKILL");
-        await exited;
-      }
+      await server.dispose();
     }
+    assert.equal(
+      (await readFile(join(dataDir, "dashboard.sqlite"))).subarray(0, 16).toString(),
+      "SQLite format 3\0",
+    );
+    const resumed = await launchDashboard(binary, runtime, fixture, dataDir);
+    try {
+      const session = (await (await resumed.fetchPage("/api/session")).json()) as DashboardSession;
+      const headers = { "X-Plenger-Token": session.token, "Content-Type": "application/json" };
+      const state = (await (
+        await resumed.fetchPage("/api/state", { headers })
+      ).json()) as DashboardState;
+      assert.deepEqual(state.report, saved);
+      assert.equal(state.theme, "light");
+      assert.match(await (await resumed.fetchPage("/findings")).text(), /data-theme="light"/);
+      assert.deepEqual(
+        state.history.map((item) => item.id),
+        [saved.id],
+      );
+      const cleared = await resumed.fetchPage("/api/state/clear", {
+        method: "POST",
+        headers,
+        body: "{}",
+      });
+      assert.equal(cleared.status, 200);
+      const empty = (await cleared.json()) as DashboardState;
+      assert.equal(empty.report, null);
+      assert.equal(empty.plan, null);
+      assert.deepEqual(empty.history, []);
+      assert.equal(empty.theme, "light");
+      await resumed.stop();
+    } finally {
+      await resumed.dispose();
+    }
+    const cleared = await launchDashboard(binary, runtime, fixture, dataDir);
+    try {
+      const session = (await (await cleared.fetchPage("/api/session")).json()) as DashboardSession;
+      const state = (await (
+        await cleared.fetchPage("/api/state", {
+          headers: { "X-Plenger-Token": session.token },
+        })
+      ).json()) as DashboardState;
+      assert.equal(state.report, null);
+      assert.deepEqual(state.history, []);
+      assert.equal(state.theme, "light");
+      await cleared.stop();
+    } finally {
+      await cleared.dispose();
+    }
+    console.log(
+      `Binary dashboard passed: embedded assets, deep links, authenticated scan, saved theme, SQLite restart/clear, ${process.platform === "win32" ? "process termination" : "graceful signal shutdown"}.`,
+    );
   } finally {
     await rm(temporary, { recursive: true, force: true });
   }

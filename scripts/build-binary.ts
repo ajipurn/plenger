@@ -87,6 +87,25 @@ async function main() {
     }
     for (const filename of dashboardFiles)
       assets[`dashboard/${filename}`] = join(dashboard, filename);
+    for (const filename of [
+      "Dockerfile",
+      "requirements.txt",
+      "qualify.py",
+      "worker.py",
+      "project/agent.py",
+    ])
+      assets[`runtimes/llmfy/${filename}`] = join(root, "runtimes/llmfy", filename);
+    for (const filename of [
+      "Dockerfile",
+      "package.json",
+      "package-lock.json",
+      "worker.mjs",
+      "bridge.mjs",
+      "ai.mjs",
+      "google.mjs",
+      "sqlite.mjs",
+    ])
+      assets[`runtimes/vercel/${filename}`] = join(root, "runtimes/vercel", filename);
 
     const bundle = join(temporary, "plenger.cjs");
     await build({

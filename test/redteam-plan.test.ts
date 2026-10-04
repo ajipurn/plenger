@@ -43,6 +43,31 @@ afterEach(async () => {
 });
 
 describe("offline project preparation", () => {
+  it("reviews unsupported Vercel routes without treating them as executable targets", async () => {
+    const root = await project({
+      "agent.py": "",
+      "app/api/chat/route.ts": `import { streamText, tool } from "ai";
+const tools = { lookup: tool({ execute: async ({ id }) => id }) };
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+  return streamText({ model: "test", messages, tools });
+}`,
+    });
+    const plan = await planProject(root);
+    expect(plan.targets).toHaveLength(1);
+    expect(plan.targets[0]?.status).toBe("unsupported");
+    expect(plan.preparation.status).toBe("blocked");
+    expect(plan.executionReady).toBe(false);
+    expect(plan.coverage).toMatchObject({
+      files: 2,
+      agentDeclarations: 0,
+      toolUsingCalls: 1,
+      httpEntryPoints: [
+        expect.objectContaining({ method: "POST", path: "/api/chat", toolUsing: true }),
+      ],
+    });
+    expect(plan.sources.files.map((file) => file.path)).toEqual(["app/api/chat/route.ts"]);
+  });
   it("automatically selects the only candidate and creates a deterministic non-executable plan", async () => {
     const root = await project();
     const first = await planProject(root);

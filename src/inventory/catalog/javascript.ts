@@ -459,6 +459,13 @@ export const JAVASCRIPT_RULES: Rule[] = [
     tools: "tools",
   },
 
+  {
+    kind: "data_store",
+    framework: "sqlite",
+    calls: ["better-sqlite3{#default,}", "node:sqlite#{DatabaseSync,Database}"],
+    store: "database",
+  },
+
   // Vector databases used directly
   {
     kind: "data_store",

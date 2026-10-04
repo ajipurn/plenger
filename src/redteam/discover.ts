@@ -9,8 +9,8 @@ import { VERSION } from "../version.ts";
 
 export interface DiscoveryTarget {
   id: string;
-  framework: "llmfy";
-  kind: "function" | "factory" | "unresolved";
+  framework: "llmfy" | "vercel-ai";
+  kind: "function" | "factory" | "unresolved" | "route";
   location: Location;
   symbol: string | null;
   async: boolean | null;
@@ -41,7 +41,23 @@ export interface DiscoveryReport {
     syntaxErrors: string[];
   };
   otherFrameworks: string[];
+  /** Static observations from all scanned languages, separate from llmfy runtime candidates. */
+  coverage: StaticCoverage;
   requirements: string[];
+}
+
+export interface StaticCoverage {
+  files: number;
+  frameworks: { id: string; name: string }[];
+  agentDeclarations: number;
+  toolUsingCalls: number;
+  httpEntryPoints: {
+    framework: string;
+    method: string | null;
+    path: string | null;
+    location: Location;
+    toolUsing: boolean;
+  }[];
 }
 
 /**
@@ -206,6 +222,32 @@ export async function discoverProject(
       .filter((item) => item.id !== "llmfy")
       .map((item) => item.id)
       .sort(compare),
+    coverage: {
+      files: result.files.length,
+      frameworks: result.inventory.frameworks.map(({ id, name }) => ({ id, name })),
+      agentDeclarations: result.inventory.agents.length,
+      toolUsingCalls: result.inventory.llmCalls.filter((call) => call.tools.length > 0).length,
+      httpEntryPoints: result.inventory.entryPoints
+        .filter((entry) => entry.kind === "http")
+        .map((entry) => ({
+          framework: entry.framework,
+          method: entry.method,
+          path: entry.path,
+          location: entry.location,
+          toolUsing: entry.reaches.some(
+            (effect) =>
+              effect.kind === "agent" ||
+              (effect.kind === "llm" &&
+                result.inventory.llmCalls.some(
+                  (call) =>
+                    call.tools.length > 0 &&
+                    call.location.path === effect.location.path &&
+                    call.location.line === effect.location.line &&
+                    call.location.column === effect.location.column,
+                )),
+          ),
+        })),
+    },
     requirements: [
       "Runtime execution is not implemented; discovery is not a runnable test plan.",
       "Qualify framework/dependency versions and isolation before importing project code.",

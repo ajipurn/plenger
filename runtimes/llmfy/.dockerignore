@@ -2,5 +2,6 @@
 !Dockerfile
 !requirements.txt
 !qualify.py
+!worker.py
 !project
 !project/agent.py

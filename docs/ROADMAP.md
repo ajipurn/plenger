@@ -3,7 +3,7 @@
 ## Goal
 
 For an agentic AI project in Python, JavaScript or TypeScript, help a developer or
-security reviewer answer three questions quickly:
+security reviewer answer four questions quickly:
 
 1. **What can the agent do?** Its models, tools, MCP servers, retrievers and what
    each tool can reach (shell, files, network, databases, messages).
@@ -11,6 +11,8 @@ security reviewer answer three questions quickly:
    outputs that end up in a prompt or a tool call.
 3. **What should I look at first?** Findings ranked by severity and confidence,
    each pointing at the code that justifies it.
+4. **Can adversarial input cross the application's security boundary?** Run
+   scoped tests, inspect observed effects and rerun the same cases after a fix.
 
 The MVP combines static triage with red-teaming of the running agent. Triage comes
 first; [M6](#m6-red-team-harness-direct-input-in-progress) builds the red-team harness
@@ -20,25 +22,36 @@ injection through content the agent reads. Both are adversarial tests at the age
 level; model-level adversarial attacks are outside the MVP. Distribution is tracked
 in M8, with native binary packaging started alongside dashboard development.
 M0–M5 are implemented; M6a has offline llmfy discovery/preparation, synthetic
-runtime qualification and a local dashboard. Dynamic project execution and M7
-remain planned; M6a and M8 are incomplete.
+runtime qualification and a local dashboard with a limited managed file-canary
+preview. A limited Next/Vercel booking/SQLite profile has live-model evidence for
+one Autocare run. Broader project/model qualification and M7 remain planned;
+M6a, M6b and M8 are incomplete.
 
-**Product direction: reach core capability parity with promptfoo.** The early
-priority is a useful, complete AI security testing workflow, with promptfoo as the
-primary capability and usability reference and tools such as garak and Strix as
-additional references. A unique moat is not a prerequisite for building these
-capabilities; differentiation can develop through use and iteration. Plenger is
-built as a product with both a React + Vite dashboard and a CLI.
+**Product direction: reach capability and usability parity with promptfoo's
+red-teaming workflow.** This scope covers adversarial security testing of AI
+applications and agents, including model targets where relevant. Promptfoo is the
+primary capability and usability reference; garak and Strix are additional
+references. A unique moat is not a prerequisite for building these capabilities;
+differentiation can develop through use and iteration. Plenger is built as a
+product with both a React + Vite dashboard and a CLI.
 
 The capability target includes connecting models and applications, a broader
 security test catalogue, LLM-generated and adaptive attacks, multi-turn sessions,
-deterministic checks plus LLM judges, saved regression suites, comparisons and CI.
+deterministic checks plus LLM judges, saved security regression suites, comparisons
+of security outcomes and CI.
 M6/M7 establish the initial harness and injection tests; completing them alone
 does not establish parity. The expansion priorities are recorded under
 [Beyond the MVP](#beyond-the-mvp); their detailed delivery checkpoints remain to be
 planned. Measure progress on common target applications using setup effort,
 validated findings, false positives, evidence quality and execution cost, rather
 than feature counts alone.
+
+Static triage and inventory support target discovery, attack selection and source
+evidence. They remain available on their own, but the product's next delivery
+priorities centre on the red-team journey. General prompt-quality evaluation,
+model benchmarking and non-security A/B experiments are outside this direction.
+Comparing models, prompts or builds remains in scope when rerunning the same
+security cases to assess a boundary or verify a fix.
 
 **Product goal: choose a project, click Start, get evidence.** For supported
 integrations, users must not write wrappers, change application code, copy event
@@ -53,6 +66,43 @@ promise that every project shape or remote endpoint can be instrumented. Publish
 runtime compatibility matrix independently of static detection coverage. When an
 integration is unsupported, explain what cannot be tested; do not turn writing an
 adapter into the user's required next step or label a partial run as full coverage.
+
+### Red-team capability target
+
+Use [promptfoo's red-team architecture](https://www.promptfoo.dev/docs/red-team/architecture/)
+as the reference for separating vulnerability-specific cases from attack delivery
+strategies. Its [setup workflow](https://www.promptfoo.dev/docs/red-team/quickstart/)
+also treats application context, target configuration and test selection as parts
+of one journey. Plenger's supported integrations must expose that journey through
+the dashboard without requiring configuration files or application changes.
+
+The intended flow is: **choose a project or endpoint → review the target and
+application policy → select risks and strategies → review scope and budget →
+Start → inspect outcomes and evidence → save cases and retest a fix**. A supported
+project uses discovered defaults; context and policy questions appear only when
+the test cannot infer the application's permitted behaviour.
+
+| Capability | Plenger target | Current status / delivery |
+| --- | --- | --- |
+| Targets and application context | Project, endpoint or model target with purpose, permitted actions, access and observable scope saved in a profile | Limited llmfy and Next.js managed previews exist; M6a/M6b qualify and broaden supported targets, M6c adds MCP |
+| Risk catalogue | Versioned cases for injection, data leakage, unauthorised tool use, access boundaries and application policy; source evidence suggests relevant cases | Fixed file-canary and booking/payment checks exist; expand qualified packs in M6, indirect injection in M7, then the broader catalogue |
+| Attack strategies | Delivery is separate from the risk: direct input, transformed inputs, adaptive attempts, multi-turn conversations or lower-trust content | Direct fixed prompts exist; M7 adds indirect delivery; transformations, adaptive and multi-turn strategies are planned beyond the MVP |
+| Attack generation and grading | Optional attacker LLM generates/refines attempts; deterministic oracles establish effects, with an optional judge LLM for semantic outcomes | Current previews use fixed attacks, real target-model calls and deterministic observations; attacker and judge roles remain planned |
+| Campaigns and evidence | Progress, cancellation, shared budgets, clean controls, scoped conclusions, conversations and observed effects; incomplete coverage stays visible | Limited previews and SQLite history exist; M6c adds repetitions/statistics and reusable CLI/CI runs |
+| Security regression | Save an observed failure as a reusable case, rerun against a fix, compare the same cases across builds and gate CI | Run history is available; reusable security suites and comparisons remain planned, with M6c/M7 providing reporting and CI foundations |
+
+The **target model**, **attacker model** and **judge model** are distinct roles.
+Choosing an Ollama/OpenAI/Gemini model in today's preview configures the target
+model. It does not enable an attacker or judge. Fixed built-in attacks continue to
+work without those additional roles. Future campaigns must account for each role's
+usage within the shared budget and preserve observed effects independently of
+the judge's verdict.
+
+This table is a capability target, not a claim that parity is already implemented.
+Keep the immediate sequence: qualify the M6a llmfy journey, broaden M6b targets,
+complete M6c campaign/reporting foundations, then M7 indirect injection. Add the
+generated/adaptive, multi-turn and broader grading work as explicit delivery
+checkpoints after those foundations qualify.
 
 ## Principles
 
@@ -94,15 +144,17 @@ The dashboard uses React and TypeScript, Vite for production asset builds, React
 Router 7, Tailwind CSS 4, Base UI, Gravity icons, OverlayScrollbars and Torph text
 animation. A loopback Node.js service exposes the shared static scan and offline
 preparation modules. It provides folder selection, scan overview, searchable
-findings with evidence/remediation, inventory, JSON export and session scan history.
+findings with evidence/remediation, inventory, JSON export and SQLite scan history.
 `plenger serve [path]` serves the bundled dashboard; `pnpm dashboard` builds and
 serves it during source development. Neither needs a separate frontend development
 server. See [DASHBOARD.md](DASHBOARD.md) and [DISTRIBUTION.md](DISTRIBUTION.md).
 
-Dynamic project execution and provider access will belong to that service and its
-managed workers. Saved profiles, persistent history and dynamic run controls remain
-pending. The binary needs no separate Node.js, pnpm or frontend build on an end
-user's computer. Public releases and platform qualification remain work for M8.
+Dynamic project execution and provider access use that service and its managed
+workers for the limited previews. SQLite stores scans, plans, non-secret settings
+and run evidence; the dashboard exposes Start, cancellation, saved runs and clear
+saved data. Reusable CLI/CI profiles and broader runtime support remain pending.
+The binary needs no separate Node.js, pnpm or frontend build on an end user's
+computer. Public releases and platform qualification remain work for M8.
 
 ## Milestones
 
@@ -355,43 +407,47 @@ See [REPORTS.md](REPORTS.md).
 
 ### M6 Red-team harness: direct input (in progress)
 
-**Current slice:** `plenger redteam discover` detects llmfy invocation functions
-and directly returned agent factories offline, retains unsupported candidates and
-scan gaps, and reports root manifest presence. Its shared module also serves the
-local dashboard. This is discovery only, not an executable plan or a qualified
-runtime; M6a remains incomplete. See [REDTEAM.md](REDTEAM.md) for implementation
-status and the remaining stages.
+**Current slice:** offline discovery/preparation and a managed llmfy file-canary
+preview. CLI discovery and plans remain offline, with `executionReady: false`.
+The dashboard offers a separate Start/Cancel action for llmfy 0.11.0 projects
+with standard-library Python source and a compatible file-write tool. Plenger
+captures source, builds its pinned runtime, installs observation hooks and creates
+the three built-in checks without user-written wrappers or fixtures. Model access
+is configured through the interface for OpenAI, Gemini or Ollama. This preview does not
+complete M6a; see [REDTEAM.md](REDTEAM.md) for exact scope and remaining work.
 
-An executable synthetic llmfy qualification recipe now runs under
-Podman, covering isolation before fixture import, preserved handler approval,
-recording effects, sync/async entry points and bounded worker lifecycle. It does
-not yet launch user projects or contact real models. See
-[LLMFY_RUNTIME.md](LLMFY_RUNTIME.md) for its exact scope.
+Project code and original approval checks execute in a fresh, networkless Podman
+worker per trial, with no host mounts or forwarded credentials. The host broker
+admits model calls through one shared budget, caps output, bounds transport data
+and retains observed effects on interruption. Results cover isolated file-canary
+state and require a working clean control for negative verdicts. Container tests
+exercise guarded/unguarded original handlers, async entry, budget exhaustion and
+cancellation with synthetic model responses. Live-model qualification and a
+qualified provider token bound remain pending. See [LLMFY_RUNTIME.md](LLMFY_RUNTIME.md).
 
-`plenger redteam plan` now builds an offline Python source-preparation plan with
-target selection, reviewed dependency declarations, captured source digests and
-explicit gaps. The shared preparation module creates and cleans private source
-snapshots without importing application code. Plans remain non-executable: no
-live provider, test-pack binding or project runner is enabled yet.
+The dashboard also persists scans, plans, run evidence and non-secret settings in
+SQLite; refresh reconnects to active runs. API keys and raw model payloads are not
+saved. Clear saved data removes this history. Static preparation coverage now
+reports files and HTTP/tool-using flows across all scanned languages separately
+from runtime snapshots. An additional `vercel-booking-sqlite-v1` preview now
+captures eligible Next.js POST handlers and their import closure, prepares disposable
+SQLite, validates backend handlers and records model-driven database effects.
+It reuses shared budgets/history, preserves project policy checks, and requires no
+user wrapper. Docker Desktop qualification with synthetic replies passes on
+macOS Apple Silicon. A [user-run Autocare report](qualifications/autocare-live-2026-10-03.md)
+with Ollama `gemma4:31b-cloud` passed the normal booking control, observed a
+manager-price override and recorded refusal of one zero-payment prompt. Broader
+model/backend/platform qualification remains pending. Committed SQLite effects
+are retained on cancellation, budget stops and later restoration; rollback is
+excluded. Static indications, direct backend checks and model trials are labeled
+separately. This limited profile does not complete M6b. SQLite tool capabilities
+through imported factory-returned stores are linked, with read/write classification
+and bound parameters distinguished from SQL text. See [DASHBOARD.md](DASHBOARD.md).
 
-The shared `ModelBudget` engine component now reserves calls and tokens before
-dispatch across run phases/retries, reconciles confirmed usage, retains unknown
-reservations and interrupts callers on exhaustion, cancellation or deadline.
-Synthetic tests cover concurrent admission and late provider replies. The bundled
-worker now also routes its synthetic model requests through a host broker over
-bounded stdio, with networking disabled. Container tests verify shared control/probe
-limits, worker removal on exhaustion/deadline/cancel and preservation of streamed
-partial evidence. Synthetic tokens are serialized UTF-8 bytes; the budget snapshot
-retains `submitted-dispatches` as its enforcement scope. Live provider bounds,
-output enforcement, user-project evidence and production runner integration remain
-pending. This fixture integration does not qualify live model access or complete M6a.
-
-The initial React + Vite dashboard is now available through `pnpm dashboard`.
-Users can select a folder, scan source, inspect inventory/findings, export JSON and
-review offline llmfy preparation with explicit target selection. History retains
-the last 20 scans in the browser session only. This dashboard stage precedes live
-provider work; dynamic Start, access/budget setup, cancellation, saved profiles and
-persistent run history remain to be implemented. See [DASHBOARD.md](DASHBOARD.md).
+Next steps remain: qualify the llmfy journey with a real model and broaden
+pack/resource binding within M6a, repeat/extend Next/Vercel model qualification and broaden HTTP profiles in M6b,
+then MCP/CI/statistics in M6c and indirect injection in M7. Static Autocare scan
+coverage does not establish a runtime security verdict.
 
 Turn the inventory into reviewable test hypotheses, then run them against a managed
 test instance or selected endpoint. First prove the complete workflow on a
@@ -972,9 +1028,11 @@ completion status. Detailed sequencing will be defined after scoping these gaps:
   LLM judges for semantic outcomes; record judge configuration, uncertainty and
   calibration against labelled examples. Keep model judgments distinct from
   observed actions.
-- **Evaluation and regression suites:** save failures as reusable cases, import
-  datasets and compare prompts, models and builds through the dashboard and CI.
-  Track target, attacker and judge usage within the campaign budget.
+- **Security regression suites:** save observed failures as reusable cases and
+  import security cases, then compare the same attacks and policies across fixes,
+  prompts, models or builds through the dashboard and CI. Preserve case/strategy
+  versions and scope so comparisons do not imply equivalent coverage when the
+  setup changed. Track target, attacker and judge usage within the campaign budget.
 - **Expanded dashboard:** team collaboration and cross-project views. The React +
   Vite dashboard, local run history and setup/run/results flow already belong to
   M6; indirect-injection scenarios and before/after reports belong to M7.

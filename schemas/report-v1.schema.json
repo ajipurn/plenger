@@ -297,6 +297,16 @@
         "query": {
           "const": true
         },
+        "operation": {
+          "type": "string",
+          "enum": ["read", "write", "unknown"]
+        },
+        "dataInputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dynamicPart"
+          }
+        },
         "host": {
           "type": "array",
           "items": {
@@ -877,7 +887,7 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["vector_store", "embeddings", "retriever", "checkpointer", "memory"]
+          "enum": ["vector_store", "embeddings", "retriever", "checkpointer", "memory", "database"]
         },
         "target": {
           "type": "string"

@@ -3,7 +3,8 @@
 This is the first executable M6a feasibility check. It runs a bundled, unmodified
 llmfy fixture inside a constrained Podman container using synthetic model
 responses. It does **not** run arbitrary user projects or establish support for
-live providers. M6a remains incomplete.
+live providers. M6a remains incomplete. The separate managed source-snapshot preview
+reuses this lifecycle; see [REDTEAM.md](REDTEAM.md) for its supported scope.
 
 ## Reproduce
 
@@ -15,10 +16,11 @@ pnpm qualify:llmfy
 
 This developer command builds the pinned image, prints both runtime and host-budget
 qualification JSON reports including the immutable image ID, and runs the container
-integration tests.
+integration tests, including prepared source snapshots through `worker.py`.
 Image setup downloads the fixed base image and six pinned Python packages. Only
 hashed wheels are accepted; no application manifests, install scripts or `.env`
-files are read. The build context is restricted by `runtimes/llmfy/.dockerignore`.
+files are read. The managed builder copies the five bundled recipe files into a
+private temporary context. Direct builds also use `runtimes/llmfy/.dockerignore`.
 The test worker has networking disabled and makes no live model requests.
 
 The base image is pinned by digest in `runtimes/llmfy/Dockerfile`. The Python lock
@@ -34,7 +36,7 @@ uv pip compile runtimes/llmfy/requirements.in --python-version 3.12 \
 The regular `pnpm check` remains offline and skips the container integration
 tests. To test an already built qualification image, set
 `PLENGER_TEST_LLMFY_IMAGE` to its full `sha256:` image ID and run
-`pnpm exec vitest run test/redteam-runtime.test.ts`. Mutable tags are rejected.
+`pnpm exec vitest run test/redteam-runtime.test.ts test/redteam-worker.test.ts`. Mutable tags are rejected.
 The image must be built from this repository's trusted qualification recipe;
 this interface is not an API for accepting arbitrary images or reports.
 

@@ -81,6 +81,10 @@ export interface Capability {
   command?: "shell" | "program" | "arguments";
   /** For `database`: the input is a query (SQL), not data. */
   query?: true;
+  /** The SQL statement's effect, when a literal query can be classified. */
+  operation?: "read" | "write" | "unknown";
+  /** Values bound to a prepared SQL statement, separate from the query text. */
+  dataInputs?: DynamicPart[];
   /**
    * For `network` and `browser`: the inputs that decide the URL's scheme and host (all
    * of them when the whole URL is one value); absent when the host is fixed.
@@ -248,7 +252,7 @@ export interface DataStore {
   id: string;
   framework: string;
   location: Location;
-  kind: "vector_store" | "embeddings" | "retriever" | "checkpointer" | "memory";
+  kind: "vector_store" | "embeddings" | "retriever" | "checkpointer" | "memory" | "database";
   target: string;
 }
 

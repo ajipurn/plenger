@@ -117,15 +117,21 @@ async function runWorker(
     mode?: "suite" | "wait" | "flood" | "budget";
     scenario?: BudgetScenario;
     onMessage?: (message: unknown) => Promise<unknown | undefined>;
+    projectRequest?: Record<string, unknown>;
+    runtime?: "vercel";
+    onLaunch?: (name: string) => void;
   },
 ): Promise<string> {
   const timeoutMs = options.timeoutMs ?? 30_000;
+  const engine = options.runtime === "vercel" && image.startsWith("docker:") ? "docker" : "podman";
+  if (engine === "docker") image = image.slice(7);
   validateLaunch(image, timeoutMs, options.signal);
   const directory = await mkdtemp(join(tmpdir(), "plenger-qualification-"));
-  const name = `plenger-qualification-${randomUUID()}`;
+  const name = `${options.projectRequest ? "plenger-run" : "plenger-qualification"}-${randomUUID()}`;
   let attempted = false;
   let output: string | undefined;
   const errors: unknown[] = [];
+  let cleanupConfirmed = false;
   try {
     const hostMarker = join(directory, "host-only");
     await writeFile(hostMarker, "This file must not be visible inside the worker.", {
@@ -134,6 +140,7 @@ async function runWorker(
     if (options.signal?.aborted)
       throw new QualificationInterruptedError("Qualification cancelled before launch.");
     attempted = true;
+    options.onLaunch?.(name);
     output = await podman(
       [
         "run",
@@ -141,11 +148,11 @@ async function runWorker(
         "--name",
         name,
         "--label",
-        "org.plenger.purpose=qualification",
+        `org.plenger.purpose=${options.projectRequest ? "redteam-run" : "qualification"}`,
         "--pull=never",
         "--network=none",
         "--read-only",
-        "--read-only-tmpfs=false",
+        ...(engine === "podman" ? ["--read-only-tmpfs=false"] : []),
         "--user=65532:65532",
         "--cap-drop=ALL",
         "--security-opt=no-new-privileges",
@@ -154,31 +161,69 @@ async function runWorker(
         "--memory-swap=256m",
         "--cpus=1",
         // Daemon-side backstop if this host process disappears entirely.
-        `--timeout=${Math.ceil(timeoutMs / 1000) + 10}`,
+        ...(engine === "podman" ? [`--timeout=${Math.ceil(timeoutMs / 1000) + 10}`] : []),
         "--restart=no",
         "--stop-timeout=0",
         "--no-healthcheck",
-        "--image-volume=ignore",
+        ...(engine === "podman" ? ["--image-volume=ignore"] : []),
         "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777",
         "--log-driver=none",
-        "--http-proxy=false",
+        ...(engine === "podman"
+          ? ["--http-proxy=false"]
+          : [
+              "--env=HTTP_PROXY=",
+              "--env=HTTPS_PROXY=",
+              "--env=ALL_PROXY=",
+              "--env=NO_PROXY=",
+              "--env=http_proxy=",
+              "--env=https_proxy=",
+              "--env=all_proxy=",
+              "--env=no_proxy=",
+            ]),
         "--interactive",
-        "--entrypoint=python",
+        options.runtime === "vercel" ? "--entrypoint=node" : "--entrypoint=python",
         image,
-        "-I",
-        "/opt/plenger/qualify.py",
+        ...(options.runtime === "vercel"
+          ? ["/opt/plenger/worker.mjs"]
+          : ["-I", options.projectRequest ? "/opt/plenger/worker.py" : "/opt/plenger/qualify.py"]),
       ],
-      JSON.stringify({ hostMarker, mode: options.mode ?? "suite", scenario: options.scenario }),
+      JSON.stringify(
+        options.projectRequest
+          ? { ...options.projectRequest, hostMarker }
+          : { hostMarker, mode: options.mode ?? "suite", scenario: options.scenario },
+      ),
       timeoutMs,
       options.signal,
       options.onMessage,
+      options.runtime === "vercel" ? 512 * 1024 : 64 * 1024,
+      engine,
     );
   } catch (error) {
     errors.push(error);
   }
   try {
     // --rm alone is insufficient if the CLI connection dies while the worker runs.
-    if (attempted) await podman(["rm", "--force", "--time=0", "--ignore", name], "", 10_000);
+    if (attempted) {
+      if (engine === "podman")
+        await podman(["rm", "--force", "--time=0", "--ignore", name], "", 10_000);
+      else {
+        const args = ["ps", "--all", "--quiet", "--filter", `name=^/${name}$`];
+        if ((await podman(args, "", 10_000, undefined, undefined, 65536, engine)).trim()) {
+          try {
+            await podman(["rm", "--force", name], "", 10_000, undefined, undefined, 65536, engine);
+          } catch {
+            /* --rm may already be removing it; confirm absence below. */
+          }
+          for (let attempt = 0; attempt < 10; attempt++) {
+            if (!(await podman(args, "", 1000, undefined, undefined, 65536, engine)).trim()) break;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+        }
+        if ((await podman(args, "", 10_000, undefined, undefined, 65536, engine)).trim())
+          throw new Error("Worker remains active.");
+      }
+    }
+    cleanupConfirmed = true;
   } catch (error) {
     errors.push(
       new Error(`Qualification cleanup failed for ${name}; inspect this container.`, {
@@ -191,14 +236,51 @@ async function runWorker(
   } catch (error) {
     errors.push(error);
   }
-  if (errors.length === 1) throw errors[0];
+  if (errors.length === 1) throw Object.assign(errors[0] as Error, { cleanupConfirmed });
   if (errors.length > 1)
-    throw new AggregateError(
-      errors,
-      `Qualification failed; cleanup could not be confirmed for ${name}.`,
+    throw Object.assign(
+      new AggregateError(
+        errors,
+        `Qualification failed; cleanup could not be confirmed for ${name}.`,
+      ),
+      { cleanupConfirmed },
     );
   if (output === undefined) throw new Error("No qualification output.");
   return output;
+}
+
+/** Shared lifecycle and isolation controls for the managed project worker. */
+export async function runProjectWorker(
+  image: string,
+  request: Record<string, unknown>,
+  signal: AbortSignal,
+  onMessage: (message: unknown) => Promise<unknown | undefined>,
+  onLaunch?: (name: string) => void,
+): Promise<void> {
+  await runWorker(image, {
+    projectRequest: request,
+    signal,
+    timeoutMs: 120_000,
+    onMessage,
+    ...(onLaunch ? { onLaunch } : {}),
+  });
+}
+
+export async function runNextWorker(
+  image: string,
+  request: Record<string, unknown>,
+  signal: AbortSignal,
+  onMessage: (message: unknown) => Promise<unknown | undefined>,
+  onLaunch?: (name: string) => void,
+): Promise<void> {
+  await runWorker(image, {
+    projectRequest: request,
+    runtime: "vercel",
+    signal,
+    timeoutMs: 120_000,
+    onMessage,
+    ...(onLaunch ? { onLaunch } : {}),
+  });
 }
 
 function podman(
@@ -207,9 +289,11 @@ function podman(
   timeoutMs: number,
   signal?: AbortSignal,
   onMessage?: (message: unknown) => Promise<unknown | undefined>,
+  maxOutputBytes = 64 * 1024,
+  engine = "podman",
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("podman", args, {
+    const child = spawn(engine, args, {
       stdio: ["pipe", "pipe", "pipe"],
       // Podman's CLI needs its host configuration. None of this env is passed to
       // the container; proxy propagation is explicitly disabled above.
@@ -254,7 +338,7 @@ function podman(
     ] as const) {
       stream.on("data", (data: Buffer) => {
         bytes += data.length;
-        if (bytes > 64 * 1024) {
+        if (bytes > maxOutputBytes) {
           stop(new Error("Qualification output limit exceeded."));
           return;
         }

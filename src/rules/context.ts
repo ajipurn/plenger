@@ -173,8 +173,8 @@ export class RuleContext {
       return false;
     if (
       capability.kind === "database" &&
-      !capability.query &&
-      DATABASE_READ.test(capability.target)
+      (capability.operation === "read" ||
+        (!capability.query && DATABASE_READ.test(capability.target)))
     )
       return false;
     return true;

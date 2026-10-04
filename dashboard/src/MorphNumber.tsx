@@ -8,8 +8,8 @@ function subscribe(onChange: () => void) {
   return () => media.removeEventListener("change", onChange);
 }
 
-/** Animate status changes; semantics and live announcements stay on the parent. */
-export function MorphText({ children }: { children: string }) {
+/** Animate changing numeric values while honoring the user's reduced-motion setting. */
+export function MorphNumber({ value }: { value: number }) {
   const reduce = useSyncExternalStore(
     subscribe,
     () => window.matchMedia(motionQuery).matches,
@@ -20,10 +20,11 @@ export function MorphText({ children }: { children: string }) {
       duration={200}
       ease="cubic-bezier(0.77, 0, 0.175, 1)"
       scale={false}
+      numbers
       disabled={reduce}
       respectReducedMotion
     >
-      {children}
+      {value}
     </TextMorph>
   );
 }

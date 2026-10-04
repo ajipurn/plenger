@@ -4,7 +4,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import { App } from "./App.tsx";
-import "@fontsource-variable/inter";
+import { verticalScrollbars } from "./scrollbars.ts";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
+import "@fontsource/nanum-pen-script/latin-400.css";
 import "./styles.css";
 import "./scrollbars.css";
 
@@ -18,6 +21,11 @@ if (window.location.pathname === "/" && legacy) {
 }
 const nonce = document.querySelector<HTMLMetaElement>('meta[name="plenger-style-nonce"]')?.content;
 OverlayScrollbars.nonce(nonce);
+// Keep document scrolling and Base UI's modal scroll lock on the real viewport.
+OverlayScrollbars(
+  { target: document.body, elements: { viewport: document.body }, cancel: { body: null } },
+  verticalScrollbars,
+);
 
 const element = document.getElementById("root");
 if (!element) throw new Error("Dashboard root is missing.");

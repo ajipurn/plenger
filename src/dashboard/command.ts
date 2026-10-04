@@ -2,17 +2,19 @@ import type { Io } from "../cli.ts";
 import { startDashboard } from "./server.ts";
 
 export const SERVE_USAGE = `Usage:
-  plenger serve [path] [--port <0-65535>]
-  plenger serve --workspace <folder> [--port <0-65535>]
+  plenger serve [path] [--port <0-65535>] [--data-dir <folder>]
+  plenger serve --workspace <folder> [--port <0-65535>] [--data-dir <folder>]
 
 Serve the dashboard on 127.0.0.1. The folder defaults to the current directory.
 Port 0 chooses a free port. Open the printed URL in your browser.
+Scans and project reviews are saved locally in SQLite. Clear them from Scan history.
+--data-dir overrides the default Plenger application data folder.
 Press Ctrl+C to stop the server. Project operations remain offline.
 `;
 
 /** Keep the CLI alive until its local server has closed. */
 export async function serveDashboard(
-  options: { port: number; workspace?: string },
+  options: { port: number; workspace?: string; dataDir?: string },
   io: Pick<Io, "stdout">,
 ): Promise<number> {
   const dashboard = await startDashboard(options);

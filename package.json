@@ -13,7 +13,7 @@
   "packageManager": "pnpm@10.19.0",
   "scripts": {
     "dev": "node src/bin.ts",
-    "dashboard": "pnpm --filter @plenger/dashboard build && node src/dashboard/bin.ts",
+    "dashboard": "pnpm --filter @plenger/dashboard build && node src/dashboard/dev.ts",
     "dashboard:build": "pnpm --filter @plenger/dashboard build",
     "build": "tsc -p tsconfig.build.json",
     "build:binary": "node scripts/build-binary.ts",
@@ -24,6 +24,7 @@
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm --filter @plenger/dashboard typecheck && pnpm lint && pnpm test",
     "qualify:llmfy": "node scripts/qualify-llmfy.ts",
+    "qualify:vercel": "node scripts/qualify-vercel.ts",
     "grammars": "node scripts/update-grammars.ts"
   },
   "dependencies": {

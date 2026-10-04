@@ -88,6 +88,8 @@ const definitions: Record<string, Schema> = {
       tool: text,
       command: choices("shell", "program", "arguments"),
       query: yes,
+      operation: choices("read", "write", "unknown"),
+      dataInputs: parts,
       host: parts,
       sandbox: choices("none", "container", "remote"),
       systemInputs: parts,
@@ -181,7 +183,7 @@ const definitions: Record<string, Schema> = {
   mcpClient: object({ ...item, target: text, command: nullable(text), url: nullable(text) }),
   dataStore: object({
     ...item,
-    kind: choices("vector_store", "embeddings", "retriever", "checkpointer", "memory"),
+    kind: choices("vector_store", "embeddings", "retriever", "checkpointer", "memory", "database"),
     target: text,
   }),
   entryPoint: object(

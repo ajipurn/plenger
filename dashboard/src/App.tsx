@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Link,
   matchPath,
@@ -10,22 +10,34 @@ import {
   useNavigate,
   useSearchParams,
 } from "react-router";
-import type { DashboardScan } from "../../src/dashboard/model.ts";
+import type {
+  DashboardScan,
+  DashboardScanSummary,
+  DashboardState,
+  DashboardTheme,
+  SavedRunProfile,
+} from "../../src/dashboard/model.ts";
 import type { ProjectPlan } from "../../src/redteam/plan.ts";
+import type { RedteamRun } from "../../src/redteam/run.ts";
 import { connect, type DashboardApi } from "./api.ts";
-import { Icon, type IconName, Mark } from "./icons.tsx";
-import { MorphText } from "./MorphText.tsx";
+import { ClearSavedData } from "./ClearSavedData.tsx";
+import { DashboardSkeleton } from "./DashboardSkeleton.tsx";
+import { FindingsView } from "./FindingsView.tsx";
+import { Icon, Mark } from "./icons.tsx";
+import { MorphNumber } from "./MorphNumber.tsx";
+import Overview from "./Overview.tsx";
 import { ProjectPicker } from "./ProjectPicker.tsx";
+import { useElementScrollbars } from "./ScrollArea.tsx";
 import { Button } from "./ui.tsx";
-import { FindingsView, InventoryView, RedteamView } from "./views.tsx";
+import { InventoryView, RedteamView } from "./views.tsx";
 
 type View = "overview" | "findings" | "inventory" | "redteam" | "history";
-const pages: { id: View; label: string; icon: IconName }[] = [
-  { id: "overview", label: "Overview", icon: "overview" },
-  { id: "findings", label: "Findings", icon: "findings" },
-  { id: "inventory", label: "Inventory", icon: "inventory" },
-  { id: "redteam", label: "Red-team", icon: "redteam" },
-  { id: "history", label: "Scan history", icon: "history" },
+const pages: { id: View; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "findings", label: "Findings" },
+  { id: "inventory", label: "Inventory" },
+  { id: "redteam", label: "Red-team" },
+  { id: "history", label: "Scan history" },
 ];
 function routeFor(view: View): string {
   return view === "overview" ? "/" : `/${view}`;
@@ -41,6 +53,7 @@ function date(value: string): string {
 
 export function App() {
   const location = useLocation();
+  const previousPath = useRef(location.pathname);
   const navigate = useNavigate();
   const [search] = useSearchParams();
   const view =
@@ -48,16 +61,86 @@ export function App() {
       ?.id ?? "overview";
   const findingId = search.get("finding");
   const pickerTrigger = useRef<HTMLButtonElement>(null);
+  const clearTrigger = useRef<HTMLButtonElement>(null);
+  const navigationScrollbars = useElementScrollbars<HTMLElement>("x");
   const [api, setApi] = useState<DashboardApi | null>(null);
   const [project, setProject] = useState("");
   const [report, setReport] = useState<DashboardScan | null>(null);
-  const [history, setHistory] = useState<DashboardScan[]>([]);
+  const [history, setHistory] = useState<DashboardScanSummary[]>([]);
   const [plan, setPlan] = useState<ProjectPlan | null>(null);
+  const [runs, setRuns] = useState<RedteamRun[]>([]);
+  const [runProfile, setRunProfile] = useState<SavedRunProfile | null>(null);
   const [picker, setPicker] = useState(false);
-  const [busy, setBusy] = useState<"scan" | "plan" | null>(null);
+  const [busy, setBusy] = useState<"scan" | "plan" | "project" | "history" | "clear" | null>(null);
   const [error, setError] = useState("");
   const [planError, setPlanError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearError, setClearError] = useState("");
+  const [theme, setTheme] = useState<DashboardTheme>(() =>
+    document.documentElement.dataset.theme === "light" ? "light" : "dark",
+  );
+  const [savingTheme, setSavingTheme] = useState(false);
+  const [themeError, setThemeError] = useState("");
+  const restore = useCallback((state: DashboardState) => {
+    setProject(state.project);
+    setReport(state.report);
+    setPlan(state.plan);
+    setRuns(state.runs);
+    setRunProfile(state.runProfile);
+    setHistory(state.history);
+    setError("");
+    setPlanError(null);
+  }, []);
+  const updateRun = useCallback((run: RedteamRun) => {
+    setRuns((previous) =>
+      [run, ...previous.filter((item) => item.id !== run.id)]
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+        .slice(0, 20),
+    );
+  }, []);
+  const activeRunId = runs.find((run) => run.state === "preparing" || run.state === "running")?.id;
+  const operationBlocked = !!busy || !!activeRunId;
+
+  useEffect(() => {
+    if (!api || !activeRunId) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      try {
+        const run = await api.getRun(activeRunId);
+        if (!disposed) {
+          updateRun(run);
+          if (run.finishedAt)
+            setAnnouncement(`Red-team run ${run.state}. Review its evidence and coverage.`);
+        }
+      } catch {
+        if (!disposed)
+          setAnnouncement("Unable to refresh run progress. Reconnecting to the local service…");
+      }
+      if (!disposed) timer = setTimeout(() => void poll(), 1000);
+    };
+    void poll();
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+    };
+  }, [api, activeRunId, updateRun]);
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    const color = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (color) color.content = theme === "dark" ? "#0b0b0b" : "#fafafa";
+    const scheme = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
+    if (scheme) scheme.content = theme;
+  }, [theme]);
+
+  useLayoutEffect(() => {
+    if (previousPath.current !== location.pathname) {
+      previousPath.current = location.pathname;
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     let active = true;
@@ -65,7 +148,8 @@ export function App() {
       .then((api) => {
         if (active) {
           setApi(api);
-          setProject(api.session.workspace);
+          setTheme(api.initialState.theme);
+          restore(api.initialState);
         }
       })
       .catch(() => {
@@ -75,10 +159,28 @@ export function App() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [restore]);
+
+  async function toggleTheme() {
+    if (!api || savingTheme) return;
+    const previous = theme;
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    setSavingTheme(true);
+    setThemeError("");
+    try {
+      await api.setTheme(next);
+      setAnnouncement(`${next === "dark" ? "Dark" : "Light"} mode enabled.`);
+    } catch {
+      setTheme(previous);
+      setThemeError("Could not save your theme. Try switching again.");
+    } finally {
+      setSavingTheme(false);
+    }
+  }
 
   async function runScan(path = project) {
-    if (!api || busy) return;
+    if (!api || operationBlocked) return;
     setBusy("scan");
     setError("");
     setAnnouncement("Scanning source code…");
@@ -88,7 +190,16 @@ export function App() {
       setProject(result.scan.root);
       setPlan(null);
       setPlanError(null);
-      setHistory((history) => [result, ...history].slice(0, 20));
+      setHistory((history) => [
+        {
+          id: result.id,
+          createdAt: result.createdAt,
+          project: result.scan.root,
+          findings: result.scan.findings.length,
+          files: result.scan.files.length,
+        },
+        ...history,
+      ]);
       setAnnouncement(
         `Scan complete. ${result.scan.findings.length} findings across ${result.scan.files.length} source files.`,
       );
@@ -100,14 +211,16 @@ export function App() {
     }
   }
   async function reviewPlan(target?: string) {
-    if (!api || busy) return;
+    if (!api || operationBlocked) return;
     setBusy("plan");
     setPlanError(null);
     setAnnouncement("Reviewing project preparation…");
     try {
       const result = await api.plan(project, target);
       setPlan(result);
-      setAnnouncement("Project preparation reviewed. Dynamic execution is not available yet.");
+      setAnnouncement(
+        "Project preparation reviewed. Check runtime eligibility before starting a run.",
+      );
     } catch (error) {
       setPlanError(
         error instanceof Error ? error.message : "Unable to review project preparation. Try again.",
@@ -116,24 +229,48 @@ export function App() {
       setBusy(null);
     }
   }
-  function selectProject(path: string) {
-    setProject(path);
-    setReport(null);
-    setPlan(null);
-    setError("");
-    setPlanError(null);
-    setPicker(false);
-    void navigate("/");
-    setAnnouncement(`Selected ${nameOf(path)}. Ready to scan.`);
+  async function selectProject(path: string) {
+    if (!api || operationBlocked) return;
+    setBusy("project");
+    try {
+      const state = await api.selectProject(path);
+      restore(state);
+      setPicker(false);
+      void navigate("/");
+      setAnnouncement(`Selected ${nameOf(state.project)}.`);
+    } finally {
+      setBusy(null);
+    }
   }
-  function openHistory(item: DashboardScan) {
-    setReport(item);
-    setProject(item.scan.root);
-    setPlan(null);
-    setPlanError(null);
+  async function openHistory(item: DashboardScanSummary) {
+    if (!api || operationBlocked) return;
+    setBusy("history");
     setError("");
-    void navigate("/");
-    setAnnouncement("Viewing an earlier scan. Rescan for current source code.");
+    try {
+      restore(await api.openScan(item.id));
+      void navigate("/");
+      setAnnouncement("Viewing a saved scan. Rescan for current source code.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Unable to open this saved scan.");
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function clearSavedData() {
+    if (!api || operationBlocked) return;
+    setBusy("clear");
+    setClearError("");
+    try {
+      restore(await api.clear());
+      setClearOpen(false);
+      setAnnouncement("Saved dashboard data cleared. Your project files are unchanged.");
+    } catch (error) {
+      setClearError(
+        error instanceof Error ? error.message : "Unable to clear saved data. Try again.",
+      );
+    } finally {
+      setBusy(null);
+    }
   }
   function download() {
     if (!report) return;
@@ -149,30 +286,85 @@ export function App() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   const selectedPage = pages.find((page) => page.id === view);
+  const isInitializing = !api && !error;
   const descriptions: Record<View, string> = {
     overview: report
-      ? "A clear view of your agent’s capabilities and the findings to review."
+      ? "Source findings, agent composition, and analysis coverage in one place."
       : "Understand what your agent can reach, starting with its source code.",
     findings: "Follow the evidence. Review what matters most.",
     inventory: "Explore the models, tools, and connections in your project.",
-    redteam: "Discover test targets and review what’s needed for a dynamic run.",
-    history: "Revisit the projects you’ve scanned in this session.",
+    redteam: "Test your agent, understand the results, and review the evidence.",
+    history: "Revisit your saved scans, even after a refresh or restart.",
   };
+  const overviewActions = (
+    <div className="overview-actions">
+      <Button
+        type="button"
+        className="button button-secondary"
+        disabled={!report}
+        onClick={download}
+      >
+        <Icon name="download" /> Export JSON
+      </Button>
+      <Button
+        type="button"
+        className="button button-primary"
+        disabled={!api || operationBlocked}
+        onClick={() => void runScan()}
+      >
+        <Icon name="scan" /> {report ? "Rescan project" : "Scan project"}
+      </Button>
+    </div>
+  );
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <aside className="sidebar">
-        <Link className="brand" to="/" aria-label="Plenger overview">
-          <Mark />
-          <span>
-            plenger<span className="brand-dot">.</span>
-          </span>
-        </Link>
-        <p className="sidebar-caption">Agent security workspace</p>
-        <p className="nav-label">Workspace</p>
-        <nav aria-label="Workspace navigation">
+      <header className="workspace-header">
+        <div className="workspace-topbar">
+          <div className="workspace-identity">
+            <Link className="brand" to="/" aria-label="Plenger overview">
+              <Mark />
+              {/*<span>plenger</span>*/}
+            </Link>
+            <span className="header-divider" aria-hidden="true" />
+            <Button
+              ref={pickerTrigger}
+              className="project-switcher"
+              disabled={!api || operationBlocked}
+              onClick={() => setPicker(true)}
+              aria-label={`Select project${project ? `, current project ${nameOf(project)}` : ""}`}
+            >
+              <Icon name="folder" />
+              {isInitializing ? (
+                <span className="skeleton-block skeleton-project-name" aria-hidden="true" />
+              ) : (
+                <strong>{project ? nameOf(project) : "Select project"}</strong>
+              )}
+              <Icon name="chevron" className="project-switcher-arrow" />
+            </Button>
+          </div>
+          <div className="workspace-status">
+            <Button
+              className="icon-button theme-toggle"
+              disabled={!api}
+              aria-disabled={savingTheme}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              onClick={() => void toggleTheme()}
+            >
+              <Icon name={theme === "dark" ? "sun" : "moon"} />
+            </Button>
+          </div>
+        </div>
+      </header>
+      <div className="workspace-nav-row">
+        <nav
+          ref={navigationScrollbars}
+          data-overlayscrollbars-initialize=""
+          aria-label="Workspace navigation"
+        >
           {pages.map((page) => (
             <NavLink
               key={page.id}
@@ -180,230 +372,231 @@ export function App() {
               end
               className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
             >
-              <Icon name={page.icon} />
               <span>{page.label}</span>
-              {page.id === "findings" && report && (
-                <span className="nav-count">{report.scan.findings.length}</span>
+              {page.id === "findings" && (
+                <span className="nav-count">
+                  <MorphNumber value={report?.scan.findings.length ?? 0} />
+                </span>
               )}
-              {page.id === "history" && history.length > 0 && (
-                <span className="nav-count">{history.length}</span>
+              {page.id === "history" && (
+                <span className="nav-count">
+                  <MorphNumber value={history.length} />
+                </span>
               )}
             </NavLink>
           ))}
         </nav>
-        <div className="sidebar-bottom">
-          <Button
-            ref={pickerTrigger}
-            className="sidebar-project project-switcher"
-            disabled={!api || !!busy}
-            onClick={() => setPicker(true)}
-            aria-label={`Select project${project ? `, current project ${nameOf(project)}` : ""}`}
-          >
-            <span className="project-monogram">
-              <Icon name="folder" />
-            </span>
-            <span className="project-switcher-copy">
-              <strong>{project ? nameOf(project) : "Connecting…"}</strong>
-              <span>Select project</span>
-            </span>
-            <Icon name="chevron" className="project-switcher-arrow" />
-          </Button>
-          <div className="sidebar-local">
-            <div className="local-label">
-              <span className="local-dot" /> Running locally
-            </div>
-            <p>Source analysis stays on this computer.</p>
-          </div>
-          <span className="version-label">Plenger / early preview</span>
-        </div>
-      </aside>
+      </div>
       <div className="main-shell">
-        <header className="workspace-bar">
-          <div className="breadcrumbs">
-            <Icon name="folder" />
-            <span>{project ? nameOf(project) : "Workspace"}</span>
-            <span className="slash">/</span>
-            <strong>{selectedPage?.label}</strong>
-          </div>
-          <span className="offline-label">
-            <span className="local-dot" /> Local workspace
-          </span>
-        </header>
-        <main id="main-content" tabIndex={-1}>
-          <div className="page-heading">
-            <div>
-              <p className="eyebrow">
-                {view === "overview" ? "Source security" : "Your workspace"}
-              </p>
-              <h1>
-                {view === "overview"
-                  ? report
-                    ? "Project overview"
-                    : "Start with your agent."
-                  : selectedPage?.label}
-              </h1>
-              <p className="muted">{descriptions[view]}</p>
-            </div>
-            <div className="heading-actions">
-              {report && (
-                <Button
-                  type="button"
-                  className="button button-secondary export-button"
-                  onClick={download}
-                >
-                  <Icon name="download" />
-                  Export JSON
-                </Button>
-              )}
-              <Button
-                type="button"
-                className="button button-primary"
-                disabled={!api || !!busy}
-                onClick={() => void runScan()}
+        <main id="main-content" tabIndex={-1} aria-busy={isInitializing}>
+          {isInitializing ? (
+            <DashboardSkeleton
+              overview={view === "overview"}
+              findings={view === "findings"}
+              actions={view === "overview" ? overviewActions : undefined}
+            />
+          ) : (
+            <>
+              <div
+                className={`page-heading ${view === "findings" && report ? "findings-page-heading" : ""}`}
               >
-                {busy === "scan" ? <span className="spinner" /> : <Icon name="scan" />}
-                <MorphText>
-                  {busy === "scan" ? "Scanning…" : report ? "Rescan project" : "Scan project"}
-                </MorphText>
-              </Button>
-            </div>
-          </div>
-          <div className="sr-only" role="status">
-            {announcement}
-          </div>
-          {error && (
-            <div role="alert" className="status-banner error-banner">
-              <p>{error}</p>
-              {!api && (
-                <Button
-                  type="button"
-                  className="button button-secondary"
-                  onClick={() => window.location.reload()}
-                >
-                  Reload page
-                </Button>
-              )}
-            </div>
-          )}
-          {busy === "scan" && (
-            <div className="status-banner scan-progress">
-              <span className="spinner" />
-              <div>
-                <strong>Reading source and tracing agent capabilities</strong>
-                <p className="muted">Findings will appear when analysis completes.</p>
-              </div>
-            </div>
-          )}
-          <Routes>
-            <Route
-              path="/"
-              element={
-                report ? (
-                  <Overview key={report.id} report={report} />
-                ) : (
-                  <Welcome onScan={() => void runScan()} available={!!api && !busy} />
-                )
-              }
-            />
-            <Route
-              path="/findings"
-              element={
-                report ? (
-                  <FindingsView
-                    key={`${report.id}:${findingId ?? "all"}`}
-                    report={report}
-                    initialSelection={findingId}
-                  />
-                ) : (
-                  <NeedsScan
-                    onScan={() => void runScan()}
-                    available={!!api && !busy}
-                    label="Findings"
-                  />
-                )
-              }
-            />
-            <Route
-              path="/inventory"
-              element={
-                report ? (
-                  <InventoryView key={report.id} report={report} />
-                ) : (
-                  <NeedsScan
-                    onScan={() => void runScan()}
-                    available={!!api && !busy}
-                    label="Inventory"
-                  />
-                )
-              }
-            />
-            <Route
-              path="/redteam"
-              element={
-                <RedteamView
-                  project={project}
-                  plan={plan}
-                  busy={busy === "plan"}
-                  disabled={!!busy || !api}
-                  error={planError}
-                  onPlan={(target) => void reviewPlan(target)}
-                />
-              }
-            />
-            <Route
-              path="/history"
-              element={
-                <section className="panel history-panel">
-                  <div className="section-heading">
-                    <div>
-                      <h2>Scans in this session</h2>
-                      <p className="muted">Select a scan to revisit its findings and inventory.</p>
-                    </div>
-                    <span className="tag">{history.length} / 20 scans</span>
-                  </div>
-                  {history.length === 0 ? (
-                    <NeedsScan
-                      onScan={() => void runScan()}
-                      available={!!api && !busy}
-                      label="Scan history"
-                    />
-                  ) : (
-                    <div className="history-list">
-                      {history.map((item) => (
-                        <Button
-                          type="button"
-                          key={item.id}
-                          className="history-row"
-                          disabled={!!busy}
-                          onClick={() => openHistory(item)}
-                        >
-                          <span className="history-icon">
-                            <Icon name="history" />
-                          </span>
-                          <span>
-                            <strong>{nameOf(item.scan.root)}</strong>
-                            <span className="muted break-path">{item.scan.root}</span>
-                          </span>
-                          <span className="history-date">{date(item.createdAt)}</span>
-                          <span className="tag">{item.scan.findings.length} findings</span>
-                          <Icon name="chevron" />
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                  <p className="panel-footnote history-summary">
-                    Session history clears when this page is closed or reloaded. Export a scan to
-                    keep it.
+                <div>
+                  <p className="eyebrow">
+                    {view === "overview" ? "Source security" : "Your workspace"}
                   </p>
-                </section>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          <footer className="page-footer">
-            <span>Static findings are review hypotheses, not verified exploits.</span>
-            <span>Built for agentic systems.</span>
-          </footer>
+                  <h1>
+                    {view === "overview"
+                      ? report
+                        ? "Project overview"
+                        : "Start with your agent."
+                      : selectedPage?.label}
+                    {view === "findings" && report && (
+                      <span className="findings-heading-count">
+                        <MorphNumber value={report.scan.findings.length} />
+                      </span>
+                    )}
+                  </h1>
+                  {!(view === "findings" && report) && (
+                    <p className="muted">{descriptions[view]}</p>
+                  )}
+                </div>
+                {view === "overview" && overviewActions}
+                {view === "findings" && report && (
+                  <div className="findings-snapshot">
+                    <span className="tag">Static analysis</span>
+                    <span className="muted">
+                      Scanned <time dateTime={report.createdAt}>{date(report.createdAt)}</time>
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="sr-only" role="status">
+                {announcement}
+              </div>
+              {themeError && (
+                <div role="alert" className="status-banner error-banner">
+                  <p>{themeError}</p>
+                </div>
+              )}
+              {error && (
+                <div role="alert" className="status-banner error-banner">
+                  <p>{error}</p>
+                  {!api && (
+                    <Button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => window.location.reload()}
+                    >
+                      Reload page
+                    </Button>
+                  )}
+                </div>
+              )}
+              {busy === "scan" && (
+                <div className="status-banner scan-progress">
+                  <span className="spinner" />
+                  <div>
+                    <strong>Reading source and tracing agent capabilities</strong>
+                    <p className="muted">Findings will appear when analysis completes.</p>
+                  </div>
+                </div>
+              )}
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    report ? (
+                      <Overview key={report.id} report={report} history={history} />
+                    ) : (
+                      <Welcome
+                        onScan={() => void runScan()}
+                        available={!!api && !operationBlocked}
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/findings"
+                  element={
+                    report ? (
+                      <FindingsView
+                        key={`${report.id}:${findingId ?? "all"}`}
+                        report={report}
+                        initialSelection={findingId}
+                      />
+                    ) : (
+                      <NeedsScan
+                        onScan={() => void runScan()}
+                        available={!!api && !operationBlocked}
+                        label="Findings"
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/inventory"
+                  element={
+                    report ? (
+                      <InventoryView key={report.id} report={report} />
+                    ) : (
+                      <NeedsScan
+                        onScan={() => void runScan()}
+                        available={!!api && !operationBlocked}
+                        label="Inventory"
+                      />
+                    )
+                  }
+                />
+                <Route
+                  path="/redteam"
+                  element={
+                    <RedteamView
+                      project={project}
+                      plan={plan}
+                      busy={busy === "plan"}
+                      disabled={operationBlocked || !api}
+                      error={planError}
+                      onPlan={(target) => void reviewPlan(target)}
+                      api={api}
+                      runs={runs}
+                      profile={runProfile}
+                      onRunUpdate={updateRun}
+                    />
+                  }
+                />
+                <Route
+                  path="/history"
+                  element={
+                    <section className="panel history-panel">
+                      <div className="section-heading">
+                        <div>
+                          <h2>Saved scans</h2>
+                          <p className="muted">
+                            Select a captured result to revisit its findings and inventory.
+                          </p>
+                        </div>
+                        <div className="history-actions">
+                          <span className="tag">
+                            {history.length} {history.length === 1 ? "scan" : "scans"}
+                          </span>
+                          <Button
+                            ref={clearTrigger}
+                            className="button button-secondary"
+                            disabled={!api || operationBlocked}
+                            onClick={() => {
+                              setClearError("");
+                              setClearOpen(true);
+                            }}
+                          >
+                            <Icon name="trash" /> Clear saved data
+                          </Button>
+                        </div>
+                      </div>
+                      {history.length === 0 ? (
+                        <NeedsScan
+                          onScan={() => void runScan()}
+                          available={!!api && !operationBlocked}
+                          label="Scan history"
+                        />
+                      ) : (
+                        <div className="history-list">
+                          {history.map((item) => (
+                            <Button
+                              type="button"
+                              key={item.id}
+                              className="history-row"
+                              disabled={!api || operationBlocked}
+                              onClick={() => void openHistory(item)}
+                            >
+                              <span className="history-icon">
+                                <Icon name="history" />
+                              </span>
+                              <span>
+                                <strong>{nameOf(item.project)}</strong>
+                                <span className="muted break-path">{item.project}</span>
+                              </span>
+                              <span className="history-date">{date(item.createdAt)}</span>
+                              <span className="tag">{item.findings} findings</span>
+                              <Icon name="chevron" />
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                      <p className="panel-footnote history-summary">
+                        Saved locally across refreshes and restarts. These are captured results;
+                        rescan your project to review current source code.
+                      </p>
+                    </section>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+              <footer className="page-footer">
+                <span>Static findings are review hypotheses, not verified exploits.</span>
+                <span>Built for agentic systems.</span>
+              </footer>
+            </>
+          )}
         </main>
       </div>
       {api && (
@@ -416,6 +609,14 @@ export function App() {
           onSelect={selectProject}
         />
       )}
+      <ClearSavedData
+        open={clearOpen}
+        busy={busy === "clear"}
+        error={clearError}
+        returnFocus={clearTrigger}
+        onClose={() => setClearOpen(false)}
+        onClear={clearSavedData}
+      />
     </div>
   );
 }
@@ -514,223 +715,5 @@ function NeedsScan({
         Scan project
       </Button>
     </section>
-  );
-}
-function Overview({ report }: { report: DashboardScan }) {
-  const { scan } = report;
-  const [showAllFrameworks, setShowAllFrameworks] = useState(false);
-  const frameworks = showAllFrameworks
-    ? scan.inventory.frameworks
-    : scan.inventory.frameworks.slice(0, 6);
-  const highImpact = scan.findings.filter(
-    (finding) => finding.severity === "critical" || finding.severity === "high",
-  ).length;
-  const syntax = scan.files.filter((file) => file.syntaxErrors).length;
-  const stats = [
-    {
-      label: "Findings to review",
-      count: scan.findings.length,
-      note: `${highImpact} critical or high`,
-      icon: "findings" as const,
-    },
-    {
-      label: "Agents discovered",
-      count: scan.inventory.agents.length,
-      note: "Statically identified",
-      icon: "redteam" as const,
-    },
-    {
-      label: "Tools mapped",
-      count: scan.inventory.tools.length,
-      note: `${scan.inventory.models.length} model clients`,
-      icon: "inventory" as const,
-    },
-    {
-      label: "Source files",
-      count: scan.files.length,
-      note: `${scan.durationMs.toLocaleString()} ms scan time`,
-      icon: "folder" as const,
-    },
-  ];
-  return (
-    <div className="stack overview-stack">
-      <div className="scan-meta">
-        <span className="tag tag-success">
-          <Icon name="check" />
-          Scan complete
-        </span>
-        <span className="muted">{date(report.createdAt)}</span>
-        <span className="muted break-path">{scan.root}</span>
-      </div>
-      <div className="stats-grid">
-        {stats.map((stat) => (
-          <div className="stat-card" key={stat.label}>
-            <div>
-              <span>{stat.label}</span>
-              <Icon name={stat.icon} />
-            </div>
-            <strong>{stat.count.toLocaleString()}</strong>
-            <p>{stat.note}</p>
-          </div>
-        ))}
-      </div>
-      <div className="overview-columns">
-        <section className="panel priority-panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Start here</p>
-              <h2>Priority findings</h2>
-            </div>
-            <Link to="/findings" className="text-link">
-              View all
-              <Icon name="chevron" />
-            </Link>
-          </div>
-          {scan.findings.length ? (
-            <div className="priority-list">
-              {scan.findings.slice(0, 4).map((finding) => (
-                <Link
-                  to={`/findings?finding=${encodeURIComponent(finding.fingerprint)}`}
-                  className="priority-row"
-                  key={finding.fingerprint}
-                >
-                  <span className={`severity-dot ${finding.severity}`} />
-                  <div>
-                    <strong>{finding.title}</strong>
-                    <span className="source-ref">
-                      {finding.location.path}:{finding.location.line}
-                      <span className="rule-id">{finding.rule}</span>
-                    </span>
-                  </div>
-                  <span className={`badge ${finding.severity}`}>{finding.severity}</span>
-                  <Icon name="chevron" />
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state compact">
-              <Icon name="check" />
-              <h3>No findings from the current rules</h3>
-              <p className="muted">
-                Review coverage and inventory. An empty finding list does not establish runtime
-                safety.
-              </p>
-            </div>
-          )}
-          <div className="panel-footnote">
-            Ranked by severity, confidence, and reachable exposure.
-          </div>
-        </section>
-        <section className="panel framework-panel">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Project composition</p>
-              <h2>Frameworks & connections</h2>
-            </div>
-            <span className="tag framework-count">{scan.inventory.frameworks.length}</span>
-          </div>
-          <div className="framework-list" id="overview-frameworks">
-            {scan.inventory.frameworks.length ? (
-              frameworks.map((framework) => (
-                <div className="framework-row" key={framework.id}>
-                  <span className="framework-monogram">
-                    {framework.name.slice(0, 1).toUpperCase()}
-                  </span>
-                  <div>
-                    <strong>{framework.name}</strong>
-                    <span>
-                      {framework.files.length} source{" "}
-                      {framework.files.length === 1 ? "file" : "files"}
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="muted">No recognized AI frameworks were found in the scanned source.</p>
-            )}
-          </div>
-          {scan.inventory.frameworks.length > 6 && (
-            <Button
-              className="text-link framework-toggle"
-              aria-expanded={showAllFrameworks}
-              aria-controls="overview-frameworks"
-              onClick={() => setShowAllFrameworks((value) => !value)}
-            >
-              {showAllFrameworks
-                ? "Show fewer frameworks"
-                : `Show all ${scan.inventory.frameworks.length} frameworks`}
-              <Icon name="chevron" />
-            </Button>
-          )}
-          <div className="connection-counts">
-            <div>
-              <span>Entry points</span>
-              <strong>{scan.inventory.entryPoints.length}</strong>
-            </div>
-            <div>
-              <span>MCP servers / clients</span>
-              <strong>
-                {scan.inventory.mcpServers.length} / {scan.inventory.mcpClients.length}
-              </strong>
-            </div>
-            <div>
-              <span>Data stores</span>
-              <strong>{scan.inventory.dataStores.length}</strong>
-            </div>
-          </div>
-          <Link to="/inventory" className="text-link">
-            Explore inventory
-            <Icon name="chevron" />
-          </Link>
-        </section>
-      </div>
-      <section className="panel coverage-panel">
-        <div className="coverage-heading">
-          <Icon name="scan" />
-          <div>
-            <h2>Analysis coverage</h2>
-            <p className="muted">Static observations from this scan’s scope.</p>
-          </div>
-        </div>
-        <div className="coverage-counts">
-          <div>
-            <strong>{scan.skipped.length}</strong>
-            <span>Files skipped</span>
-          </div>
-          <div>
-            <strong>{syntax}</strong>
-            <span>Syntax gaps</span>
-          </div>
-          <div>
-            <strong>{scan.excludedDirs.length}</strong>
-            <span>Directories excluded</span>
-          </div>
-          <div>
-            <strong>{scan.truncated ? "Reached" : "Within limit"}</strong>
-            <span>Source file limit</span>
-          </div>
-        </div>
-        {(scan.skipped.length > 0 || syntax > 0 || scan.truncated) && (
-          <details className="coverage-details">
-            <summary>Review analysis gaps</summary>
-            <ul>
-              {scan.truncated && (
-                <li>File-count limit reached; some source files were not scanned.</li>
-              )}
-              {scan.files
-                .filter((file) => file.syntaxErrors)
-                .map((file) => (
-                  <li key={file.path}>{file.path} — syntax errors</li>
-                ))}
-              {scan.skipped.map((file) => (
-                <li key={`${file.path}:${file.reason}`}>
-                  {file.path} — {file.reason.replaceAll("_", " ")}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-      </section>
-    </div>
   );
 }

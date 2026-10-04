@@ -33,5 +33,19 @@
     "filename": "overlayscrollbars-react-0.5.6.txt",
     "source": "https://raw.githubusercontent.com/KingSora/OverlayScrollbars/e0ad5d026909b85d10e9ed0f7605cddd067408c9/LICENSE",
     "sha256": "e15ad22c5d4a4e4d63ddfe8cf1993e9fecfcf87dd320a701daa939d55beeefbc"
+  },
+  {
+    "name": "victory-vendor",
+    "version": "37.3.6",
+    "filename": "victory-vendor-37.3.6.txt",
+    "source": "https://raw.githubusercontent.com/FormidableLabs/victory/v37.3.6/LICENSE.txt; bundled lib-vendor/*/LICENSE from installed npm package victory-vendor@37.3.6",
+    "sha256": "0ec5635158a768daa523d9d5b9744f24fda7c6796f956fe786c92e76c9c96e41"
+  },
+  {
+    "name": "react-remove-scroll-bar",
+    "version": "2.3.8",
+    "filename": "react-remove-scroll-bar-2.3.8.txt",
+    "source": "https://api.github.com/repos/theKashey/react-remove-scroll-bar/git/blobs/7c08c3990396ecefd90f99ff5d9a34f26f5b5616 (upstream license blob; npm react-remove-scroll-bar@2.3.8 declares MIT; published gitHead unavailable)",
+    "sha256": "a79aae0c0f21990d9d963bb3c5a79cdcea9a46f8523ba55c58d7fe776b6ebc84"
   }
 ]

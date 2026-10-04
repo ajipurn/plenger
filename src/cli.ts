@@ -34,7 +34,7 @@ const USAGE = `Usage:
   plenger serve [path]           Serve the local dashboard (default: .)
   plenger facts [path]           Print the imports, definitions, assignments and calls in path as JSON
   plenger redteam discover [path] Discover llmfy target candidates offline (no execution)
-  plenger redteam plan [path]     Review Python project preparation offline (no execution)
+  plenger redteam plan [path]     Review supported runtime preparation offline (no execution)
   plenger --version
   plenger --help
 
@@ -55,6 +55,7 @@ Options:
   --target <id>                  Select a candidate for redteam plan
   --port <0-65535>               Dashboard port; 0 chooses a free port (default: 0)
   --workspace <dir>              Dashboard project folder instead of a positional path
+  --data-dir <dir>               Dashboard SQLite storage folder (default: local application data)
 
 Exit codes: 0 success; 1 scan or I/O error; 2 invalid arguments or policy; 3 finding gate failed.
 `;
@@ -98,7 +99,8 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
   if (command === "serve") {
     try {
       const unsupported = parsed.tokens.find(
-        (token) => token.kind === "option" && !["port", "workspace"].includes(token.name),
+        (token) =>
+          token.kind === "option" && !["port", "workspace", "data-dir"].includes(token.name),
       );
       if (unsupported?.kind === "option")
         throw new PolicyError(`--${unsupported.name} is not supported by serve`);
@@ -106,6 +108,8 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
         throw new PolicyError("use a positional path or --workspace, not both");
       const workspace = values.workspace ?? operands[0];
       if (workspace === "") throw new PolicyError("serve needs a nonempty workspace path");
+      const dataDir = values["data-dir"];
+      if (dataDir === "") throw new PolicyError("--data-dir needs a nonempty path");
       const port = values.port === undefined ? 0 : Number(values.port);
       if (
         (values.port !== undefined && !/^\d+$/.test(values.port)) ||
@@ -113,7 +117,14 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
         port > 65535
       )
         throw new PolicyError("--port must be an integer between 0 and 65535");
-      return await serveDashboard(workspace === undefined ? { port } : { port, workspace }, io);
+      return await serveDashboard(
+        {
+          port,
+          ...(workspace === undefined ? {} : { workspace }),
+          ...(dataDir === undefined ? {} : { dataDir }),
+        },
+        io,
+      );
     } catch (error) {
       io.stderr(`plenger: ${describe(error)}\n`);
       return error instanceof PolicyError ? 2 : 1;
@@ -123,6 +134,8 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
   let format: ReportFormat;
   let threshold: FailOn;
   try {
+    if (values["data-dir"] !== undefined)
+      throw new PolicyError("--data-dir requires the serve command");
     if (values.port !== undefined || values.workspace !== undefined)
       throw new PolicyError("--port and --workspace require the serve command");
     format = reportFormat(values.format, values.json === true, facts);
@@ -291,6 +304,7 @@ function parseCommandLine(argv: string[]) {
       target: { type: "string" },
       port: { type: "string" },
       workspace: { type: "string" },
+      "data-dir": { type: "string" },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },

@@ -228,10 +228,15 @@ export class Project {
   #valueRef(path: string, value: Value, depth: number): Ref | null {
     const file = this.files.get(path);
     if (file === undefined) return null;
-    if (value.kind === "name" && value.ref !== null) return this.relink(value.ref, path, depth + 1);
+    if (value.kind === "name" && value.ref !== null) {
+      const ref = this.relink(value.ref, path, depth + 1);
+      return ref.kind === "local" ? { ...ref, file: ref.file ?? path } : ref;
+    }
     if (value.kind === "call") {
       const callee = file.facts.calls[value.call]?.ref ?? null;
-      return callee === null ? null : extend(this.relink(callee, path, depth + 1), "()");
+      if (callee === null) return null;
+      const ref = this.relink(callee, path, depth + 1);
+      return extend(ref.kind === "local" ? { ...ref, file: ref.file ?? path } : ref, "()");
     }
     return null;
   }

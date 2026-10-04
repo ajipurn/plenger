@@ -15,6 +15,11 @@ chooses an available port. Select a project in the dashboard to scan it; the
 binary includes all frontend assets, so this does not start a Vite development
 server. Ctrl+C stops the service.
 
+Dashboard state persists locally in SQLite across refreshes and restarts. Use
+`plenger serve --data-dir path/to/data` for a separate store; **Scan history → Clear
+saved data** removes saved scans and plans from that store. Storage locations and
+clear behavior are documented in [DASHBOARD.md](DASHBOARD.md).
+
 ## Current availability
 
 Native binary packaging is available from this repository. There is no public
@@ -23,7 +28,9 @@ release download or published npm package yet. The macOS Apple Silicon
 copies the executable outside the checkout and uses an empty `PATH`. It checks
 version/help, scans with all four grammars, embedded dashboard JavaScript/CSS,
 direct `/findings` loads, session-token authentication, scan API parity and a clean
-service exit on SIGTERM.
+service exit on SIGTERM. It also verifies SQLite snapshots across binary restarts
+and confirms clearing remains effective after another restart, using a temporary
+data directory.
 
 Native CI build, smoke-test and artifact-upload jobs are configured for
 `ubuntu-24.04`, `macos-14` and `windows-2022`, using Node.js 22.18.0. Those remote

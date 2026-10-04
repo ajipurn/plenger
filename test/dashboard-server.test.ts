@@ -37,7 +37,11 @@ describe("local dashboard transport", () => {
     await symlink(join(root, "visible"), join(root, "linked"));
     await symlink(join(root, "private.txt"), join(root, "assets", "leak.txt"));
     await symlink(root, join(root, "assets", "escape"));
-    dashboard = await startDashboard({ workspace: root, assets: join(root, "assets") });
+    dashboard = await startDashboard({
+      workspace: root,
+      assets: join(root, "assets"),
+      dataDir: join(root, ".dashboard-data"),
+    });
     session = (await (await fetch(`${dashboard.url}/api/session`)).json()) as DashboardSession;
   });
   afterEach(() => vi.restoreAllMocks());
@@ -59,7 +63,17 @@ describe("local dashboard transport", () => {
     const missing = await fetch(`${dashboard.url}/api/folders`);
     expect(missing.status).toBe(403);
     expect((await api("/api/folders", undefined, { "X-Plenger-Token": "wrong" })).status).toBe(403);
-    for (const endpoint of ["/api/session", "/api/folders", "/"]) {
+    for (const endpoint of [
+      "/api/session",
+      "/api/folders",
+      "/api/folders/choose",
+      "/api/state",
+      "/api/state/clear",
+      "/api/theme",
+      "/api/project",
+      "/api/history/open",
+      "/",
+    ]) {
       const foreign = await fetch(`${dashboard.url}${endpoint}`, {
         headers: { Origin: "https://evil.example", "X-Plenger-Token": session.token },
       });

@@ -325,7 +325,6 @@ export const JAVASCRIPT_SINKS: Sink[] = [
       "pg#{Client,Pool}()**.query",
       "{pg,postgres}{#default,}()**.{unsafe,query}",
       "mysql2{,/promise}#{createConnection,createPool}()**.{query,execute}",
-      "better-sqlite3{#default,}()**.{exec,prepare}",
       "@prisma/client#PrismaClient()**.{$executeRawUnsafe,$queryRawUnsafe}",
       "knex{#default,}()**.raw",
     ],

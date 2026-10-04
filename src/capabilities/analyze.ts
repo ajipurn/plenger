@@ -423,6 +423,8 @@ class CapabilityAnalyzer {
     }
     const name = call.ref?.name;
     if (name !== undefined && call.ref?.kind !== "local") {
+      const sqlite = this.sqliteEffect(file, call, location);
+      if (sqlite !== null) effects.push(sqlite);
       const match = sinksFor(file).find(({ pattern }) => pattern.test(name));
       if (match !== undefined) effects.push(this.sinkEffect(file, call, match.sink, location));
     }
@@ -437,6 +439,8 @@ class CapabilityAnalyzer {
         };
         if (effect.systemInputs !== undefined)
           bound.systemInputs = rebind(effect.systemInputs, bindings, "inputs");
+        if (effect.dataInputs !== undefined)
+          bound.dataInputs = rebind(effect.dataInputs, bindings, "inputs");
         if (effect.host !== undefined) {
           // A URL passed in decides the host by what the caller put at its start.
           const host = rebind(effect.host, bindings, "host");
@@ -447,6 +451,40 @@ class CapabilityAnalyzer {
       }
     }
     return effects;
+  }
+
+  /** Preparing SQL does not execute it; bind data separately from the SQL text. */
+  sqliteEffect(file: ProjectFile, call: CallFact, location: Location): Capability | null {
+    const name = call.ref?.name ?? "";
+    if (!/^(?:better-sqlite3(?:#default)?\(\)|node:sqlite#Database(?:Sync)?\(\))/.test(name))
+      return null;
+    let statement: CallFact | undefined;
+    let data: Value[] = [];
+    if (name.endsWith(".exec")) statement = call;
+    else if (/\.prepare\(\)\.(?:run|get|all|iterate)$/.test(name)) {
+      statement = chainHead(file.facts, call);
+      if (statement?.ref?.name.endsWith(".prepare") !== true) {
+        const assigned =
+          call.receiver === undefined ? undefined : file.facts.assignments[call.receiver];
+        const value = assigned === undefined ? undefined : deref(assigned.value, file.facts);
+        statement = value?.kind === "call" ? file.facts.calls[value.call] : undefined;
+      }
+      data = call.arguments.map((argument) => argument.value);
+    }
+    if (statement === undefined) return null;
+    const queries = select(statement.arguments, file.facts, "#0");
+    const query = literalString(queries[0], file.facts);
+    const operation = sqlOperation(query);
+    return {
+      kind: "database",
+      target: name,
+      location,
+      via: [],
+      query: true,
+      operation: operation ?? "unknown",
+      inputs: uniqueParts(queries.flatMap((value) => inputsOf(value, file.facts, call.scope))),
+      dataInputs: uniqueParts(data.flatMap((value) => inputsOf(value, file.facts, call.scope))),
+    };
   }
 
   /**
@@ -654,6 +692,25 @@ class CapabilityAnalyzer {
     if (base === undefined) return null;
     const member = /^(?:\(\))?\.([\w$#]+)$/.exec(ref.path)?.[1];
     if (member !== undefined) {
+      if (base.kind !== "class" && ref.path.startsWith("()")) {
+        const facts = this.#project.files.get(path)?.facts;
+        if (facts === undefined) return null;
+        const returned = (base.returns ?? []).flatMap((value) => {
+          const object = deref(value, facts);
+          if (object.kind !== "object") return [];
+          return object.entries
+            .filter((entry) => entry.key === member)
+            .map((entry) => deref(entry.value, facts));
+        });
+        const targets = new Set(
+          returned.filter((value) => value.kind === "function").map((value) => value.definition),
+        );
+        const id =
+          targets.size === 1 && returned.every((value) => value.kind === "function")
+            ? [...targets][0]
+            : undefined;
+        return id !== undefined && has(id) ? { path, definition: id } : null;
+      }
       const id = `${ref.definition}.${member}`;
       return has(id) ? { path, definition: id } : null;
     }
@@ -769,6 +826,21 @@ class CapabilityAnalyzer {
     const call = calls.find((candidate) => candidate.ref?.name === target) ?? calls[0];
     return call === undefined ? undefined : { file, call };
   }
+}
+
+/** Unknown/compound SQL stays conservative; a fixed SELECT is not a write. */
+function sqlOperation(query: string | null): NonNullable<Capability["operation"]> {
+  if (query === null) return "unknown";
+  const sql = query
+    .replace(/\/\*[\s\S]*?\*\/|--[^\n]*/g, "")
+    .trim()
+    .replace(/;\s*$/, "");
+  if (
+    /^(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|ALTER|DROP|VACUUM|REINDEX|ATTACH|DETACH)\b/i.test(sql)
+  )
+    return "write";
+  if (!sql.includes(";") && /^(?:SELECT|EXPLAIN)\b/i.test(sql)) return "read";
+  return "unknown";
 }
 
 /** An approval option set to anything but false or never. */

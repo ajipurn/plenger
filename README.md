@@ -1,16 +1,21 @@
 # plenger
 
-Static triage for agentic AI projects written in Python, JavaScript and TypeScript:
-what can the agent do, what can reach it, and what should a reviewer look at first.
+Red-teaming for agentic AI projects written in Python, JavaScript and TypeScript,
+with source triage to discover targets, tools and the boundaries worth testing.
 
-plenger reads source code only. It never runs, imports or installs the project it
-scans, and scanning needs no network access.
+`plenger scan` reads source code only. Scanning never runs, imports or installs the
+project and needs no network access. Dynamic tests run only after an explicit
+Start action, using the selected target and a supported managed runtime profile.
 
 **Status:** M0–M5 implemented; M6a has offline llmfy discovery and project
 preparation plans, synthetic runtime qualification and a shared model-budget
-controller tested with synthetic providers. The local dashboard is available for
-static scans and offline project preparation through `plenger serve`; live model
-access remains pending. A native binary build bundles the CLI, dashboard and WASM
+controller tested with synthetic providers. Through `plenger serve`, the local
+dashboard provides static scans, offline preparation and a limited managed llmfy
+file-canary preview and a Next.js booking/SQLite route-handler preview, with model
+access, budgets, cancellation and SQLite run history.
+The Next.js profile has live-model evidence from one Autocare run. Live llmfy and
+broader project/model qualification remain pending; M6a and M6b are incomplete.
+A native binary build bundles the CLI, dashboard and WASM
 parsers, verified locally on macOS Apple Silicon. Native CI is configured; its
 remote runs, public releases and qualification for other platforms remain pending.
 See [docs/DASHBOARD.md](docs/DASHBOARD.md) and
@@ -30,16 +35,25 @@ The planned MVP also includes red-teaming of the running agent: a harness that t
 direct input to HTTP APIs, Python/Node agent functions and MCP endpoints (M6), then
 indirect prompt injection through content the agent reads (M7), followed by
 distribution (M8). The initial React + Vite dashboard exposes static scans, agent
-inventory, findings, session scan history and offline llmfy target selection and
+inventory, findings, persistent scan history and offline llmfy target selection and
 preparation plans. The planned dynamic workflow lets users choose a project or
 endpoint and start built-in tests without writing wrappers, adding instrumentation
 or preparing fixtures; plenger manages that setup. Missing access or ambiguous
 targets are handled through the interface, and profiles can be reused from the CLI
-or CI. Dynamic execution and saved profiles remain pending; M6a is incomplete.
+or CI. The dynamic preview handles llmfy 0.11.0 and an isolated file boundary.
+The Next.js/Vercel booking profile prepares a disposable SQLite database and
+records backend checks, model tool calls and database effects. Broader HTTP
+profiles/resources, broader live-model qualification and CI reuse remain pending.
+See [docs/REDTEAM.md](docs/REDTEAM.md#available-managed-file-canary-preview).
 
-The product direction is core capability parity with promptfoo, developed in
-stages. Generated/adaptive attacks, multi-turn testing, hybrid grading and broader
-evaluation/regression workflows are planned beyond the initial M6/M7 foundation.
+The product direction is capability and usability parity with **promptfoo's
+red-teaming workflow**, developed in stages: configure a target and application
+policy, choose risks and attack strategies, run a campaign, inspect evidence and
+retest fixes. Source scans and inventory inform this workflow. Generated/adaptive
+attacks, multi-turn testing, hybrid grading and saved security regression suites
+are planned beyond the initial M6/M7 foundation. General prompt-quality evaluation,
+model benchmarking and non-security prompt experiments are outside this direction.
+See [the red-team capability target](docs/ROADMAP.md#red-team-capability-target).
 
 ## Install and run
 
@@ -81,9 +95,11 @@ pnpm dev redteam discover path/to/llmfy-project --json
 pnpm dev redteam plan path/to/llmfy-project --json
 ```
 
-`pnpm dashboard` builds the frontend and starts the local service; after a frontend
-build, `pnpm dev serve` starts the same service. Open the printed
-`http://127.0.0.1:<port>` address, select a project folder and scan its source.
+`pnpm dashboard` builds the frontend once, then starts Vite with hot reload and the
+local service. Changes under `dashboard/` update in the browser while it is running.
+Open the printed `http://127.0.0.1:<port>` address, select a project folder and scan
+its source. Use `pnpm dashboard:build` to rebuild production assets, or
+`pnpm dev serve` to run the local service with the last frontend build.
 The standalone binary already contains the frontend. Static scanning needs no
 project wrapper, configuration or credentials. See [docs/DASHBOARD.md](docs/DASHBOARD.md)
 for the available views and session limits.
@@ -152,7 +168,8 @@ inventory and reports unsupported shapes with reasons. It reads source without
 importing the project, installing dependencies or calling a model. Its terminal
 and JSON outputs include scan gaps and root dependency-manifest presence. A
 candidate is not yet a runnable target: runtime qualification, input/output
-mapping, isolation, test packs and execution are still pending. The discovery JSON
+mapping and runtime compatibility still need verification. The dashboard's file-test
+preview is a separate execution action. The discovery JSON
 uses its own `kind: "redteam-discovery"` contract with `executionReady: false`;
 it is not a scan report or an attack result. See [docs/REDTEAM.md](docs/REDTEAM.md)
 for the current scope and the remaining M6a stages.

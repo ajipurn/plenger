@@ -6,7 +6,13 @@ import { type CollectOptions, collectSourceFiles } from "../files.ts";
 import { PLACEHOLDER, redact, redactReport } from "../secrets.ts";
 import { VERSION } from "../version.ts";
 import { type DependencyReview, reviewDependencies } from "./dependencies.ts";
-import { type DiscoveryReport, type DiscoveryTarget, discoverProject } from "./discover.ts";
+import {
+  type DiscoveryReport,
+  type DiscoveryTarget,
+  discoverProject,
+  type StaticCoverage,
+} from "./discover.ts";
+import { captureNextProject, type NextProfile } from "./next-plan.ts";
 import { decodeSource, ProjectFileError, readProjectFile } from "./project-files.ts";
 
 export class PreparationError extends Error {}
@@ -25,7 +31,7 @@ export interface ProjectPlan {
   targets: DiscoveryTarget[];
   preparation: { status: "ready" | "blocked"; reasons: string[] };
   sources: {
-    policy: "python-only-v1";
+    policy: "python-only-v1" | "next-route-sqlite-v1";
     resources: "not-collected";
     files: { path: string; bytes: number; sha256: string }[];
     omitted: { path: string; reason: string }[];
@@ -34,6 +40,9 @@ export interface ProjectPlan {
   };
   dependencies: DependencyReview;
   pending: string[];
+  /** Separate static review of the original project; not part of the runtime snapshot digest. */
+  coverage?: StaticCoverage;
+  nextProfile?: NextProfile;
 }
 
 export interface PlanOptions extends CollectOptions {
@@ -93,6 +102,13 @@ async function capture(path: string, options: PlanOptions) {
     if (!Number.isSafeInteger(value) || value < 1 || value > ceiling)
       throw new PreparationError(`${name} must be an integer between 1 and ${ceiling}.`);
   }
+  const staticDiscovery = await discoverProject(root, options);
+  if (
+    staticDiscovery.coverage.frameworks.some((item) => item.id === "vercel-ai") &&
+    (!staticDiscovery.targets.some((item) => item.status === "candidate") ||
+      options.target?.startsWith("next:"))
+  )
+    return captureNextProject(root, options, staticDiscovery.coverage);
   const dependencies = await reviewDependencies(root);
   const collected = await collectSourceFiles(root, { ...options, maxFileBytes, maxFiles });
   const directory = await realpath(await mkdtemp(join(tmpdir(), "plenger-project-")));
@@ -186,6 +202,7 @@ async function capture(path: string, options: PlanOptions) {
       selectedTarget: selected?.id ?? null,
       selection,
       targets: discovered.targets,
+      coverage: staticDiscovery.coverage,
       preparation: { status: reasons.length ? "blocked" : "ready", reasons },
       sources: {
         policy: "python-only-v1",
@@ -230,7 +247,7 @@ export function formatProjectPlan(plan: ProjectPlan): string {
     "",
     `Source preparation: ${plan.preparation.status}`,
     `Target selection: ${plan.selection}${plan.selectedTarget ? ` (${plan.selectedTarget})` : ""}`,
-    `Captured Python sources: ${plan.sources.files.length}; omitted source entries: ${plan.sources.omitted.length}`,
+    `Captured runtime sources: ${plan.sources.files.length}; omitted source entries: ${plan.sources.omitted.length}`,
     `Source digest: ${plan.sourceDigest}`,
     "",
   ];

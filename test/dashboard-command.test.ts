@@ -66,6 +66,14 @@ describe("dashboard command lifecycle", () => {
     expect(start).toHaveBeenCalledWith({ port: 0, workspace: "my project" });
   });
 
+  it("accepts an isolated data directory and rejects it outside serve", async () => {
+    await runServe(["--data-dir", "my data"], "SIGTERM");
+    expect(start).toHaveBeenCalledWith({ port: 0, dataDir: "my data" });
+    const io: Io = { color: false, stdout: vi.fn(), stderr: vi.fn() };
+    expect(await main(["scan", "--data-dir", "my data"], io)).toBe(2);
+    expect(await main(["serve", "--data-dir="], io)).toBe(2);
+  });
+
   it("reports shutdown failures and removes its signal listeners", async () => {
     close.mockRejectedValueOnce(new Error("Dashboard could not close cleanly."));
     expect(await runServe([], "SIGTERM")).toMatchObject({

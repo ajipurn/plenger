@@ -1,0 +1,12 @@
+{
+  "name": "plenger-vercel-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ai": "7.0.29",
+    "zod": "4.4.3",
+    "better-sqlite3": "12.11.1",
+    "esbuild": "0.28.2"
+  }
+}
