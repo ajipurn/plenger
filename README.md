@@ -1,115 +1,70 @@
 # plenger
 
-Red-teaming for agentic AI projects written in Python, JavaScript and TypeScript,
-with source triage to discover targets, tools and the boundaries worth testing.
+Red-teaming and static triage for agentic AI projects written in Python,
+JavaScript and TypeScript. One CLI and one local dashboard.
 
-`plenger scan` reads source code only. Scanning never runs, imports or installs the
-project and needs no network access. Dynamic tests run only after an explicit
-Start action, using the selected target and a supported managed runtime profile.
+`plenger scan` reads source code only. It never runs, imports or installs the
+project and needs no network access. It reports the agent inventory, what each
+tool and entry point can do, and ranked findings with the code that supports
+them. `plenger redteam run` tests supported projects inside networkless
+containers after an explicit start, with a model connection and budget you
+choose. The product direction is capability parity with promptfoo's red-teaming
+workflow; see the [roadmap](docs/ROADMAP.md).
 
-**Status:** M0–M5 implemented; M6a has offline llmfy discovery and project
-preparation plans, synthetic runtime qualification and a shared model-budget
-controller tested with synthetic providers. Through `plenger serve`, the local
-dashboard provides static scans, offline preparation and a limited managed llmfy
-file-canary preview and a Next.js booking/SQLite route-handler preview, with model
-access, budgets, cancellation and SQLite run history.
-The Next.js profile has live-model evidence from one Autocare run. Live llmfy and
-broader project/model qualification remain pending; M6a and M6b are incomplete.
-A native binary build bundles the CLI, dashboard and WASM
-parsers, verified locally on macOS Apple Silicon. Native CI is configured; its
-remote runs, public releases and qualification for other platforms remain pending.
-See [docs/DASHBOARD.md](docs/DASHBOARD.md) and
-[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
-`plenger scan` parses every supported file,
-links the project's modules, and reports the agent inventory (models, LLM calls,
-agents, tools, MCP servers and clients, prompts, data stores, HTTP entry points),
-what each tool, agent and entry point can do (run commands, execute code, touch
-files, reach the network, databases, messages and payments), and risk findings
-ranked for triage, each with the code that supports it and its OWASP and CWE
-mapping. Reports include versioned JSON, SARIF 2.1.0 and Markdown, with baselines,
-suppression files, a CI severity gate and a GitHub Action. See
-[docs/ROADMAP.md](docs/ROADMAP.md). The earlier Python implementation (v0) is kept
-on the `feat/backup` branch.
+## Status
 
-The planned MVP also includes red-teaming of the running agent: a harness that tests
-direct input to HTTP APIs, Python/Node agent functions and MCP endpoints (M6), then
-indirect prompt injection through content the agent reads (M7), followed by
-distribution (M8). The initial React + Vite dashboard exposes static scans, agent
-inventory, findings, persistent scan history and offline llmfy target selection and
-preparation plans. The planned dynamic workflow lets users choose a project or
-endpoint and start built-in tests without writing wrappers, adding instrumentation
-or preparing fixtures; plenger manages that setup. Missing access or ambiguous
-targets are handled through the interface, and profiles can be reused from the CLI
-or CI. The dynamic preview handles llmfy 0.11.0 and an isolated file boundary.
-The Next.js/Vercel booking profile prepares a disposable SQLite database and
-records backend checks, model tool calls and database effects. Broader HTTP
-profiles/resources, broader live-model qualification and CI reuse remain pending.
-See [docs/REDTEAM.md](docs/REDTEAM.md#available-managed-file-canary-preview).
+| Area | State |
+| --- | --- |
+| Static scan, reports, CI gate, GitHub Action | Available (M0 to M5 done) |
+| Local dashboard with scan history, providers and red-team runs | Available |
+| Managed red-team profiles: llmfy file canary, Next.js booking/SQLite | Available; synthetic qualification plus one live-model record |
+| CLI campaigns (`redteam run`) and before/after comparisons (`redteam compare`) | Available |
+| Standalone binary | Builds locally on macOS Apple Silicon; no public release yet |
 
-The product direction is capability and usability parity with **promptfoo's
-red-teaming workflow**, developed in stages: configure a target and application
-policy, choose risks and attack strategies, run a campaign, inspect evidence and
-retest fixes. Source scans and inventory inform this workflow. Generated/adaptive
-attacks, multi-turn testing, hybrid grading and saved security regression suites
-are planned beyond the initial M6/M7 foundation. General prompt-quality evaluation,
-model benchmarking and non-security prompt experiments are outside this direction.
-See [the red-team capability target](docs/ROADMAP.md#red-team-capability-target).
+[docs/STATUS.md](docs/STATUS.md) is the single source of truth for what is
+available, qualified and pending.
 
-## Install and run
+## Install
 
-The standalone executable needs no separate Node.js or pnpm installation. After
-extracting a binary archive, put `plenger` in a directory on your `PATH`:
+The standalone executable needs no Node.js or pnpm. There is no public download
+yet; maintainers build the archive with `pnpm build:binary`. After extracting:
 
 ```sh
 mkdir -p ~/.local/bin ~/.local/share/plenger
 install -m 755 plenger ~/.local/bin/plenger
 install -m 644 THIRD_PARTY_NOTICES.txt ~/.local/share/plenger/THIRD_PARTY_NOTICES.txt
 export PATH="$HOME/.local/bin:$PATH"
-plenger scan path/to/project
-plenger serve path/to/project --port 4180
+plenger --version
 ```
 
-Open the address printed by `serve` to use the dashboard. Without `--port`, it
-chooses a free local port. There is no public release download yet; maintainers
-can create the native archive with `pnpm build:binary`. See
-[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for build, installation and platform
-status. Keep the archive's third-party notices with the installed executable.
+The binary embeds the CLI, the dashboard, the tree-sitter parsers and the
+container runtime recipes. See [docs/guide/install.md](docs/guide/install.md).
+To run from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Source development requires Node.js 22.18 or newer (see `.nvmrc`) and pnpm 10.
-
-## Usage from source
+## Quick start
 
 ```sh
-pnpm install
-pnpm dashboard
-pnpm dev serve path/to/project --port 4180
-pnpm dev scan path/to/project
-pnpm dev scan path/to/project --all
-pnpm dev scan path/to/project --json
-pnpm dev scan path/to/project --format sarif --output plenger.sarif --fail-on high
-pnpm dev scan path/to/project --format markdown --output report.md
-pnpm dev rules
-pnpm dev facts path/to/project/agent.py
-pnpm dev redteam discover path/to/llmfy-project
-pnpm dev redteam discover path/to/llmfy-project --json
-pnpm dev redteam plan path/to/llmfy-project --json
+plenger scan path/to/project
+plenger scan path/to/project --format sarif --output plenger.sarif --fail-on high
+plenger serve path/to/project --port 4180
+plenger redteam run path/to/project --provider "Local security tests" --repeat 20 --fail-on high
+plenger redteam compare before.json after.json --change "Require approval before a price override"
 ```
 
-`pnpm dashboard` builds the frontend once, then starts Vite with hot reload and the
-local service. Changes under `dashboard/` update in the browser while it is running.
-Open the printed `http://127.0.0.1:<port>` address, select a project folder and scan
-its source. Use `pnpm dashboard:build` to rebuild production assets, or
-`pnpm dev serve` to run the local service with the last frontend build.
-The standalone binary already contains the frontend. Static scanning needs no
-project wrapper, configuration or credentials. See [docs/DASHBOARD.md](docs/DASHBOARD.md)
-for the available views and session limits.
+`serve` prints a `http://127.0.0.1:<port>` address. Open it, select a project
+and scan it. Save a model connection under Settings → Providers before a
+red-team run. Each command accepts only its own options; `plenger <command> --help`
+lists them.
 
-`scan` reports the files it parsed per language, files with syntax errors (results
-for those may be partial), files it skipped and why, and directories it excluded
-(dependencies, build output, virtualenvs, and whatever the project's `.gitignore`
-files ignore; `--no-gitignore` turns that off). A path can also be a single file.
+## Static scan
 
-It then summarises the agent inventory, for example:
+The scan parses every supported file, links the project's modules and reports
+frameworks, models, LLM calls, agents, tools, MCP servers and clients, prompts,
+data stores and HTTP entry points. A capabilities section lists which tools run
+commands, execute code, touch files or reach the network, databases, messages and
+payments. Findings come last, most urgent first, each with its evidence chain,
+score and OWASP/CWE mapping. [docs/guide/scanning.md](docs/guide/scanning.md)
+explains the output; [docs/RULES.md](docs/RULES.md) describes every rule.
 
 ```text
   Agent inventory
@@ -118,148 +73,65 @@ It then summarises the agent inventory, for example:
     LLM calls        39  llmfy invoke ×18, llmfy chat ×13, …
     Agents           47  LLMfy ×36, FlowEngine ×11
     Tools            12  get_current_weather, get_current_time
-    Prompts          31  0 with dynamic parts, 5 with template variables
-    Data stores      14  checkpointer ×8, embeddings ×6
-    Not understood yet: google.genai (1 file)
-```
 
-After the inventory, a capabilities section lists the tools that can run commands,
-execute code, write or delete files and so on, the agents that execute code
-themselves, and the HTTP entry points that reach a model or agent.
-
-Last come the findings, most urgent first (`--all` lists every one):
-
-```text
   Findings  10 critical · 19 high · 7 medium · 4 low
 
     CRITICAL 100  Tool `run` runs a shell command built from model input
                   mcp_servers.py:13  PLG101 · high confidence · exposed
                   │ return subprocess.run(command, shell=True, capture_output=True, text=True).stdout
-
-    CRITICAL 100  Tool `shell` runs a shell command built from model input
-                  tools_unsafe.py:18  PLG101 · high confidence · exposed
-                  │ return subprocess.run(command, shell=True, capture_output=True, text=True).stdout
 ```
 
-The score (0–100) combines severity, confidence and exposure (reachable from an HTTP
-route or a network MCP server). `plenger rules` lists the rules;
-[docs/RULES.md](docs/RULES.md) describes each one with its fix. A rule that finds
-nothing proves nothing: plenger reports what it can see in the code.
+## Red-teaming
 
-`scan --json` includes every item with its location, every capability with its
-call chain and the non-constant inputs of the effect (and where each input comes
-from), and every finding with its evidence chain, source lines and a stable
-fingerprint. Recognised secrets are redacted throughout the output, including
-`facts`: plenger reports their kind and location, and shows `<redacted>` in their
-place. Supported frameworks are listed
-in [docs/ROADMAP.md](docs/ROADMAP.md#m2-agent-inventory-done); the detection rules
-are data in [src/inventory/catalog/](src/inventory/catalog/).
+Two managed profiles exist. `llmfy-file-canary-v1` runs an llmfy 0.11.0 project
+and checks whether a forbidden file write happens. `vercel-booking-sqlite-v1`
+runs a Next.js booking route handler against a disposable SQLite database and
+checks price-override and zero-payment boundaries. plenger captures the source,
+builds a pinned container image, installs its observation hooks and runs a clean
+control before the attacks. The project's own tool handlers and approval checks
+execute unchanged inside the container. Campaigns repeat trials, share one
+budget, report 95% Wilson intervals and gate CI on severity, coverage and scope.
+See [docs/guide/redteam.md](docs/guide/redteam.md).
 
-`facts` prints, per file, the imports, definitions (with decorators, base classes
-and docstrings), assignments and calls. Call targets are resolved through imports,
-variables, `self`/`this` attributes and destructuring into canonical names such as
-`openai.OpenAI().chat.completions.create` (Python) or
-`openai#default().chat.completions.create` (JS/TS); see
-[src/facts/model.ts](src/facts/model.ts). Both commands emit JSON report version 1;
-[schemas/report-v1.schema.json](schemas/report-v1.schema.json) defines the contract.
-
-`redteam discover` finds llmfy function/factory candidates using the static
-inventory and reports unsupported shapes with reasons. It reads source without
-importing the project, installing dependencies or calling a model. Its terminal
-and JSON outputs include scan gaps and root dependency-manifest presence. A
-candidate is not yet a runnable target: runtime qualification, input/output
-mapping and runtime compatibility still need verification. The dashboard's file-test
-preview is a separate execution action. The discovery JSON
-uses its own `kind: "redteam-discovery"` contract with `executionReady: false`;
-it is not a scan report or an attack result. See [docs/REDTEAM.md](docs/REDTEAM.md)
-for the current scope and the remaining M6a stages.
-
-`redteam plan` reviews dependency declarations and Python source preparation.
-It selects a sole candidate automatically; use `--target <id>` when a choice is
-needed. Plans report captured source hashes, exclusions and pending runtime work.
-Planning uses a temporary private source snapshot, removes it afterward, and
-never imports the project or installs its dependencies. `preparation.status:
-"ready"` means a source snapshot can be prepared, while `executionReady` remains
-`false`. See [docs/REDTEAM.md](docs/REDTEAM.md#available-offline-project-preparation)
-for the supported metadata and source policy.
+Docker is used when available, otherwise Podman. Workers have no network, no
+host mounts and no credentials; the model provider runs on the host.
 
 ## Reports and CI
 
-`--format terminal|json|sarif|markdown` selects a report; `--json` is an alias for
-`--format json`. `--output` writes it to a file and creates parent directories.
-JSON, SARIF and Markdown include every finding, its evidence and the rules that
-fired. Terminal output shows the first 20 active findings (`--all` shows all).
-When the scanned path is a subdirectory, `--source-root <repository root>` makes
-SARIF and Markdown paths relative to the repository, as GitHub code scanning
-expects.
+`--format terminal|json|sarif|markdown` selects a scan report and `--output`
+writes it. `--write-baseline` records reviewed findings; `--baseline` plus
+`--fail-on high` fails only for new high or critical findings (exit 3). The
+composite [GitHub Action](action.yml) writes SARIF and a job summary.
+`redteam run` produces the same four formats for dynamic campaigns. See
+[docs/guide/reports-ci.md](docs/guide/reports-ci.md).
 
-Create a reviewed baseline, then gate new findings:
+## Documentation
 
-```sh
-pnpm dev scan path/to/project --write-baseline plenger-baseline.json
-pnpm dev scan path/to/project --baseline plenger-baseline.json --fail-on high
-```
-
-`--fail-on high` fails for new, unsuppressed high or critical findings. The default
-is `none`; thresholds are `critical`, `high`, `medium`, `low` or `none`. Reports are
-written before a failed gate exits with code 3. Scan/I/O errors exit 1; invalid
-arguments or policy files exit 2. Baseline findings remain visible and do not fail
-the gate. A `--suppressions` file requires a review reason for each exclusion;
-`--omit-suppressed` leaves suppressed findings out of the report but keeps their count.
-
-The composite [GitHub Action](action.yml) produces SARIF and a Markdown job summary
-from one scan, and defaults to `fail-on: high`. Its SARIF paths are relative to the
-repository root, and it leaves suppressed findings out of the SARIF because GitHub
-does not honour SARIF suppressions. The repository's
-[CI workflow](.github/workflows/ci.yml) tests it with `uses: ./`.
-See [docs/REPORTS.md](docs/REPORTS.md) for report contracts, policy formats and
-the workflow for uploading results to GitHub code scanning.
+- [docs/README.md](docs/README.md): index of all documentation
+- [docs/STATUS.md](docs/STATUS.md): capabilities, qualifications, pending work
+- Guides: [scanning](docs/guide/scanning.md), [reports and CI](docs/guide/reports-ci.md),
+  [dashboard](docs/guide/dashboard.md), [red-teaming](docs/guide/redteam.md),
+  [install](docs/guide/install.md)
+- Design: [red-team contracts](docs/design/redteam-contracts.md),
+  [worker protocol](docs/design/worker-protocol.md),
+  [red-team engine](docs/design/redteam-engine.md),
+  [llmfy runtime](docs/design/llmfy-runtime.md),
+  [dashboard UI](docs/design/dashboard-ui.md),
+  [distribution](docs/design/distribution.md),
+  [architecture](docs/ARCHITECTURE.md)
+- [docs/ROADMAP.md](docs/ROADMAP.md) and [CHANGELOG.md](CHANGELOG.md)
+- [SECURITY.md](SECURITY.md)
 
 ## Development
 
-```sh
-pnpm check      # type-check, lint and test
-pnpm build      # compile to dist/
-pnpm build:binary # bundle the dashboard and produce a native executable/archive
-pnpm test:binary # smoke-test the executable outside the checkout, without Node on PATH
-pnpm format     # apply Biome formatting and import order
-node scripts/benchmark.ts   # precision and recall of the inventory and findings on the fixture corpora
-node scripts/rules-doc.ts  # regenerate docs/RULES.md after changing the rule catalog
-node scripts/report-schemas.ts # regenerate the versioned JSON schemas
-pnpm qualify:llmfy # opt-in Podman integration checks; builds the pinned synthetic runtime
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain, checks, fixture and
+benchmark workflow, container prerequisites and commit style. [AGENTS.md](AGENTS.md)
+holds instructions for coding agents. The earlier Python implementation (v0) is
+kept on the `feat/backup` branch.
 
-The llmfy qualification command requires an active Podman Linux backend and
-downloads its pinned image dependencies during setup. It runs a bundled fixture
-with synthetic model responses and no worker network access; it does not execute
-user projects. See [docs/LLMFY_RUNTIME.md](docs/LLMFY_RUNTIME.md). Regular
-`pnpm check` does not require Podman.
+## Licence
 
-To support a new framework, add rules to the catalog and a fixture under
-`test/fixtures/frameworks/`; to add a risk rule, add it to
-[src/rules/catalog.ts](src/rules/catalog.ts) with a check in
-[src/rules/checks/](src/rules/checks/) and positive and negative cases under
-`test/fixtures/risks/`. Then run `node scripts/benchmark.ts --write` and review the
-diff of `expected-inventory.json` and `expected-findings.json` line by line before
-committing it.
-
-Source is TypeScript that Node runs directly (type stripping), so `pnpm dev` needs
-no build step. Use only erasable TypeScript syntax: no enums, namespaces or
-parameter properties.
-
-### Grammars
-
-Parsing uses [web-tree-sitter](https://github.com/tree-sitter/tree-sitter) with the
-Python, JavaScript, TypeScript and TSX grammars vendored as WASM in `grammars/`.
-`grammars/manifest.json` records each file's source package, version and SHA-256,
-and a test checks them. To change a grammar version, edit
-`scripts/update-grammars.ts` and run `pnpm grammars`; the script unpacks the npm
-tarballs without installing them, so their native install scripts never run.
-
-### Dependencies
-
-`pnpm-workspace.yaml` only accepts package versions published at least three days
-ago and blocks dependency install scripts. Keep runtime dependencies to a minimum;
-there are three today: `web-tree-sitter`, `ignore` (for `.gitignore` rules) and
-`smol-toml` (for declarative project metadata). None has runtime dependencies of
-its own. Reading metadata never invokes a project's build backend or installer.
+No licence has been chosen yet. Third-party notices for the bundled runtime,
+grammars and dashboard dependencies are listed in
+[docs/licenses/sources.json](docs/licenses/sources.json) and shipped as
+`THIRD_PARTY_NOTICES.txt` with every binary archive.

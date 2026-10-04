@@ -1,7 +1,7 @@
 {
   "name": "plenger",
   "version": "0.1.0",
-  "description": "Static triage for agentic AI projects written in Python, JavaScript and TypeScript",
+  "description": "Red-teaming and static triage for agentic AI projects written in Python, JavaScript and TypeScript",
   "private": true,
   "type": "module",
   "bin": {
@@ -25,7 +25,11 @@
     "check": "pnpm typecheck && pnpm --filter @plenger/dashboard typecheck && pnpm lint && pnpm test",
     "qualify:llmfy": "node scripts/qualify-llmfy.ts",
     "qualify:vercel": "node scripts/qualify-vercel.ts",
-    "grammars": "node scripts/update-grammars.ts"
+    "grammars": "node scripts/update-grammars.ts",
+    "bench": "node scripts/benchmark.ts",
+    "docs:rules": "node scripts/rules-doc.ts",
+    "schemas": "node scripts/report-schemas.ts",
+    "generate": "pnpm docs:rules && pnpm schemas"
   },
   "dependencies": {
     "ignore": "7.0.10",

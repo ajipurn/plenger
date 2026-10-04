@@ -1,16 +1,17 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
-import { rulesMarkdown } from "../src/report/rules.ts";
+import { describe, expect, it } from "vitest";
+import { rulesMarkdown } from "../src/report/rule-list.ts";
 import { packageSpec } from "../src/rules/checks/mcp.ts";
 import { RULES, triageScore } from "../src/rules/index.ts";
 import { scan } from "../src/scan.ts";
-import { findSecret, redact, redactKnown, secretIn } from "../src/secrets.ts";
-import { compactFindings } from "./compact.ts";
-import { fixturePath } from "./helpers.ts";
+import { findSecret, redact, redactKnown, secretIn } from "../src/shared/secrets.ts";
+import { compactFindings } from "./support/compact.ts";
+import { CORPORA } from "./support/corpora.ts";
+import { fixturePath } from "./support/fixtures.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
-describe.each(["frameworks", "crossfile", "risks"])("findings on the %s corpus", (corpus) => {
+describe.each(CORPORA)("findings on the %s corpus", (corpus) => {
   it("are exactly the reviewed ones", async () => {
     const expected: string[] = JSON.parse(
       await readFile(fixturePath(`${corpus}/expected-findings.json`), "utf8"),
@@ -44,19 +45,14 @@ describe("rule catalog", () => {
 });
 
 describe("findings", () => {
-  const roots: string[] = [];
   const project = async (files: Record<string, string>) => {
-    const root = await mkdtemp(join(tmpdir(), "plenger-rules-"));
-    roots.push(root);
+    const root = await temporaryDir("plenger-rules-");
     for (const [path, content] of Object.entries(files)) {
       await mkdir(join(root, path, ".."), { recursive: true });
       await writeFile(join(root, path), content);
     }
     return root;
   };
-  afterAll(async () => {
-    for (const root of roots) await rm(root, { recursive: true, force: true });
-  });
 
   const tools = `import subprocess
 from langchain_core.tools import tool

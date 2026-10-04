@@ -1,5 +1,5 @@
 import type { Tree } from "web-tree-sitter";
-import type { Grammar } from "../languages.ts";
+import type { Grammar } from "../source/languages.ts";
 import { extractJavaScript } from "./javascript.ts";
 import type { FileFacts } from "./model.ts";
 import { extractPython } from "./python.ts";

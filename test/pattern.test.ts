@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compilePatterns } from "../src/inventory/pattern.ts";
+import { compilePatterns } from "../src/facts/pattern.ts";
 
 describe("compilePatterns", () => {
   const matches = (patterns: string[], name: string) => compilePatterns(patterns).test(name);

@@ -1,5 +1,5 @@
 import type { Project } from "../project/project.ts";
-import { ProjectDetector } from "./detect.ts";
+import { ProjectDetector } from "./detect/index.ts";
 import { emptyInventory, type Inventory } from "./model.ts";
 
 export type * from "./model.ts";

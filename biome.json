@@ -13,6 +13,16 @@
   "linter": {
     "rules": { "preset": "recommended" }
   },
+  "overrides": [
+    {
+      "includes": ["dashboard/src/**/*.css"],
+      "linter": {
+        "rules": {
+          "style": { "noDescendingSpecificity": "off" }
+        }
+      }
+    }
+  ],
   "assist": {
     "actions": { "source": { "organizeImports": "on" } }
   }

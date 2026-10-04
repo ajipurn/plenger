@@ -2,47 +2,40 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { DashboardScan, DashboardSession, FolderListing } from "../src/dashboard/model.ts";
+import type { DashboardScan, FolderListing } from "../src/dashboard/contract.ts";
 import { startDashboard } from "../src/dashboard/server.ts";
 import type { ProjectPlan } from "../src/redteam/plan.ts";
 import { RULES } from "../src/rules/index.ts";
 import * as scanner from "../src/scan.ts";
+import { startTestDashboard, type TestDashboard } from "./support/dashboard.ts";
+import { fixturePath } from "./support/fixtures.ts";
 
-const fixture = fileURLToPath(new URL("fixtures/mixed-agent", import.meta.url));
-const risks = fileURLToPath(new URL("fixtures/risks", import.meta.url));
-const llmfy = fileURLToPath(new URL("fixtures/redteam/llmfy", import.meta.url));
+const fixture = fixturePath("mixed-agent");
+const risks = fixturePath("risks");
+const llmfy = fixturePath("redteam/llmfy");
 let root: string;
-let dashboard: Awaited<ReturnType<typeof startDashboard>>;
-let session: DashboardSession;
+let dashboard: TestDashboard;
 
-async function api(path: string, body?: unknown, headers: Record<string, string> = {}) {
-  return fetch(`${dashboard.url}${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: { "X-Plenger-Token": session.token, "Content-Type": "application/json", ...headers },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-}
+const api: TestDashboard["request"] = (...args) => dashboard.request(...args);
 
 describe("local dashboard transport", () => {
+  // One server for the whole file, so the temporary folder outlives each test.
   beforeAll(async () => {
     root = await realpath(await mkdtemp(join(tmpdir(), "plenger-dashboard-")));
-    await mkdir(join(root, "assets"));
     await mkdir(join(root, "visible"));
     await mkdir(join(root, ".hidden"));
-    await writeFile(join(root, "assets", "index.html"), "<html>Dashboard shell</html>");
-    await writeFile(join(root, "assets", "app.js"), "console.log('dashboard');");
     await writeFile(join(root, "private.txt"), "outside asset root");
     await symlink(join(root, "visible"), join(root, "linked"));
+    dashboard = await startTestDashboard({
+      root,
+      workspace: root,
+      dataDir: join(root, ".dashboard-data"),
+      html: "<html>Dashboard shell</html>",
+    });
+    await writeFile(join(root, "assets", "app.js"), "console.log('dashboard');");
     await symlink(join(root, "private.txt"), join(root, "assets", "leak.txt"));
     await symlink(root, join(root, "assets", "escape"));
-    dashboard = await startDashboard({
-      workspace: root,
-      assets: join(root, "assets"),
-      dataDir: join(root, ".dashboard-data"),
-    });
-    session = (await (await fetch(`${dashboard.url}/api/session`)).json()) as DashboardSession;
   });
   afterEach(() => vi.restoreAllMocks());
   afterAll(async () => {
@@ -57,6 +50,7 @@ describe("local dashboard transport", () => {
   });
 
   it("binds a loopback session and refuses foreign origins, rebinding hosts and missing tokens", async () => {
+    const { session } = dashboard;
     expect(dashboard.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
     expect(session.workspace).toBe(root);
     expect(session.token).toMatch(/^[a-f0-9]{64}$/);
@@ -143,21 +137,16 @@ describe("local dashboard transport", () => {
   });
 
   it("serializes expensive operations and clears busy status after a failure", async () => {
-    let rejectScan: (error: Error) => void = () => {};
-    let markStarted: () => void = () => {};
-    const started = new Promise<void>((resolveStarted) => {
-      markStarted = resolveStarted;
-    });
+    const started = Promise.withResolvers<void>();
+    const result = Promise.withResolvers<scanner.ScanResult>();
     const spy = vi.spyOn(scanner, "scan").mockImplementationOnce(() => {
-      markStarted();
-      return new Promise((_resolve, reject) => {
-        rejectScan = reject;
-      });
+      started.resolve();
+      return result.promise;
     });
     const first = api("/api/scan", { path: fixture });
-    await started;
+    await started.promise;
     expect((await api("/api/plan", { path: llmfy })).status).toBe(409);
-    rejectScan(new Error("private-path credential=do-not-repeat"));
+    result.reject(new Error("private-path credential=do-not-repeat"));
     const failed = await first;
     expect(failed.status).toBe(500);
     expect(await failed.text()).not.toContain("do-not-repeat");
@@ -184,7 +173,7 @@ describe("local dashboard transport", () => {
     expect((await api("/api/scan", { path: "x".repeat(9000) })).status).toBe(413);
     const malformed = await fetch(`${dashboard.url}/api/scan`, {
       method: "POST",
-      headers: { "X-Plenger-Token": session.token, "Content-Type": "application/json" },
+      headers: { "X-Plenger-Token": dashboard.session.token, "Content-Type": "application/json" },
       body: "{",
     });
     expect(malformed.status).toBe(400);

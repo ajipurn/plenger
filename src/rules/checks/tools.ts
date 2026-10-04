@@ -1,6 +1,7 @@
 import type { Capability, DynamicPart, Tool } from "../../inventory/model.ts";
-import { code, inputList, type RuleContext } from "../context.ts";
+import type { RuleContext } from "../context.ts";
 import type { Confidence, Draft, Severity } from "../model.ts";
+import { code, inputList } from "../text.ts";
 
 /** Built-in SQL tools whose whole purpose is to run the query the model writes. */
 const SQL_TOOL = /^QuerySQLData[Bb]aseTool$/;

@@ -1,6 +1,8 @@
 import type { Capability, DynamicPart, Location } from "../../inventory/model.ts";
-import { callLabel, code, inputList, type RuleContext } from "../context.ts";
+import { callLabel } from "../../shared/text.ts";
+import type { RuleContext } from "../context.ts";
 import type { Draft, Severity } from "../model.ts";
+import { code, inputList } from "../text.ts";
 
 /** PLG401: model output used as a command, code, query, file path or URL. */
 export function outputChecks(cx: RuleContext): Draft[] {

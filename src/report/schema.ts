@@ -401,14 +401,14 @@ export const REPORT_SCHEMA = document(
   definitions,
 );
 
-export const BASELINE_SCHEMA = document(
+const BASELINE_SCHEMA = document(
   "plenger baseline v1",
   object({
     schemaVersion: { const: 1 },
     findings: array(object({ fingerprint, rule: ruleId, path: text })),
   }),
 );
-export const SUPPRESSIONS_SCHEMA = document(
+const SUPPRESSIONS_SCHEMA = document(
   "plenger suppressions v1",
   object({
     schemaVersion: { const: 1 },

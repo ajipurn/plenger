@@ -1,13 +1,7 @@
 import type { McpClient, McpServer } from "../../inventory/model.ts";
-import {
-  ACTION_PHRASE,
-  actionKinds,
-  code,
-  listed,
-  NETWORK_TRANSPORT,
-  type RuleContext,
-} from "../context.ts";
+import { actionKinds, NETWORK_TRANSPORT, type RuleContext } from "../context.ts";
 import type { Draft, Evidence } from "../model.ts";
+import { ACTION_PHRASE, code, listed, UNNAMED } from "../text.ts";
 
 const LOCAL_HOST =
   /^(?:localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0|host\.docker\.internal|[\w-]+\.local|[\w-]+\.localhost)$/i;
@@ -45,7 +39,7 @@ function unauthenticated(cx: RuleContext, server: McpServer): Draft | null {
     return found;
   });
   if (actions.length === 0) return null;
-  const name = server.name ?? "unnamed";
+  const name = server.name ?? UNNAMED;
   const kinds = actionKinds(actions);
   return {
     rule: "PLG601",

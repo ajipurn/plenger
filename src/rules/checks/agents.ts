@@ -1,16 +1,10 @@
 import type { Argument, FileFacts } from "../../facts/model.ts";
+import { deref, select } from "../../facts/query.ts";
 import type { Capability, Location } from "../../inventory/model.ts";
-import { deref, select } from "../../inventory/values.ts";
-import {
-  ACTION_PHRASE,
-  actionKinds,
-  callLabel,
-  clientLabel,
-  code,
-  listed,
-  type RuleContext,
-} from "../context.ts";
+import { callLabel } from "../../shared/text.ts";
+import { actionKinds, type RuleContext } from "../context.ts";
 import type { Draft, Evidence } from "../model.ts";
+import { ACTION_PHRASE, clientLabel, code, listed } from "../text.ts";
 
 const SEVERE = new Set(["process", "code", "payment", "file_delete"]);
 const MAX_ACTION_EVIDENCE = 6;

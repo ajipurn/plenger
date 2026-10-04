@@ -1,28 +1,26 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { scan } from "../src/scan.ts";
-import { type CompactInventory, compact, score } from "./compact.ts";
-import { fixturePath } from "./helpers.ts";
+import { type CompactInventory, compact, score } from "./support/compact.ts";
+import { CORPORA } from "./support/corpora.ts";
+import { fixturePath } from "./support/fixtures.ts";
 
-describe.each(["frameworks", "crossfile", "risks"])(
-  "agent inventory on the %s corpus",
-  async (corpus) => {
-    const expected: CompactInventory = JSON.parse(
-      await readFile(fixturePath(`${corpus}/expected-inventory.json`), "utf8"),
-    );
-    const actual = compact((await scan(fixturePath(corpus))).inventory);
+describe.each(CORPORA)("agent inventory on the %s corpus", async (corpus) => {
+  const expected: CompactInventory = JSON.parse(
+    await readFile(fixturePath(`${corpus}/expected-inventory.json`), "utf8"),
+  );
+  const actual = compact((await scan(fixturePath(corpus))).inventory);
 
-    it.each(Object.keys(expected))("finds exactly the expected %s", (kind) => {
-      expect([...(actual[kind] ?? [])].sort()).toEqual([...(expected[kind] ?? [])].sort());
-    });
+  it.each(Object.keys(expected))("finds exactly the expected %s", (kind) => {
+    expect([...(actual[kind] ?? [])].sort()).toEqual([...(expected[kind] ?? [])].sort());
+  });
 
-    it("scores precision and recall of 1 in every section", () => {
-      for (const row of score(expected, actual)) {
-        expect(row, row.kind).toMatchObject({ precision: 1, recall: 1 });
-      }
-    });
-  },
-);
+  it("scores precision and recall of 1 in every section", () => {
+    for (const row of score(expected, actual)) {
+      expect(row, row.kind).toMatchObject({ precision: 1, recall: 1 });
+    }
+  });
+});
 
 describe("agent inventory details", () => {
   it("never keeps the value of a literal API key", async () => {

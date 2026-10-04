@@ -1,8 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join, posix } from "node:path";
+import { posix } from "node:path";
 import type { FileFacts, Ref, Value } from "../facts/model.ts";
-import { localPythonModules } from "../inventory/modules.ts";
-import type { Language } from "../languages.ts";
+import type { Language } from "../source/languages.ts";
+import { localPythonModules } from "./modules.ts";
 
 export interface ProjectFile {
   /** Relative to the project root, with forward slashes. */
@@ -21,11 +20,17 @@ type Export =
 const JS_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 const LINK_DEPTH = 8;
 
+export interface ProjectOptions {
+  /** Text of the root `tsconfig.json`, for path aliases; absent when there is none. */
+  tsconfig?: string | undefined;
+}
+
 /**
- * The scanned files of one project, with module resolution between them. `link()`
+ * The scanned files of one project, with module resolution between them. Linking
  * rewrites refs that import from another project file so that they point at what
  * that file defines: a function or class (a local ref with `file`), or the value of a
  * module-level variable (its resolved ref, with `origin` and, for constants, `constant`).
+ * `Project.link` builds a linked project; every consumer of facts expects one.
  */
 export class Project {
   readonly root: string;
@@ -36,7 +41,14 @@ export class Project {
   readonly #exports = new Map<string, Map<string, Export>>();
   readonly #resolving = new Set<string>();
 
-  constructor(root: string, files: ProjectFile[]) {
+  /** Builds the project and links its files; the only way to get a `Project`. */
+  static link(root: string, files: ProjectFile[], options: ProjectOptions = {}): Project {
+    const project = new Project(root, files, options);
+    project.#link();
+    return project;
+  }
+
+  private constructor(root: string, files: ProjectFile[], options: ProjectOptions) {
     this.root = root;
     for (const file of files) this.files.set(file.path, file);
     this.localModules = localPythonModules(files.map((file) => file.path));
@@ -59,7 +71,7 @@ export class Project {
         this.#pythonModules.set(name, paths);
       }
     }
-    this.#aliases = readAliases(root);
+    this.#aliases = readAliases(options.tsconfig);
   }
 
   /** The project file an import refers to, if it is one. */
@@ -136,7 +148,7 @@ export class Project {
   }
 
   /** Rewrites every import ref in every file that points into another project file. */
-  link(): void {
+  #link(): void {
     for (const file of this.files.values()) {
       const relink = (ref: Ref | null) => (ref === null ? null : this.relink(ref, file.path, 0));
       for (const call of file.facts.calls) {
@@ -239,11 +251,6 @@ export class Project {
       return extend(ref.kind === "local" ? { ...ref, file: ref.file ?? path } : ref, "()");
     }
     return null;
-  }
-
-  /** Reads a file's text, for checks that need more than facts. */
-  read(path: string): string {
-    return readFileSync(join(this.root, path), "utf8");
   }
 }
 
@@ -353,16 +360,16 @@ function closest(from: string, candidates: string[]): string | undefined {
 }
 
 /** Path aliases from the root tsconfig.json (`compilerOptions.paths`), else `@/` and `~/`. */
-function readAliases(root: string): { prefix: string; targets: string[] }[] {
+function readAliases(tsconfig: string | undefined): { prefix: string; targets: string[] }[] {
   const defaults = [
     { prefix: "@/", targets: ["src/", ""] },
     { prefix: "~/", targets: ["src/", ""] },
   ];
+  if (tsconfig === undefined) return defaults;
   let config: { compilerOptions?: { baseUrl?: string; paths?: Record<string, string[]> } };
   try {
-    const text = readFileSync(join(root, "tsconfig.json"), "utf8");
     config = JSON.parse(
-      text.replace(/\/\*[\s\S]*?\*\/|(?<![:"])\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"),
+      tsconfig.replace(/\/\*[\s\S]*?\*\/|(?<![:"])\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"),
     );
   } catch {
     return defaults;

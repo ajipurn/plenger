@@ -1,8 +1,12 @@
 import type { Span, Value } from "../../facts/model.ts";
 import type { Location } from "../../inventory/model.ts";
-import { findSecret } from "../../secrets.ts";
-import { clientLabel, code, type RuleContext } from "../context.ts";
+import { findSecret } from "../../shared/secrets.ts";
+import type { RuleContext } from "../context.ts";
 import type { Draft } from "../model.ts";
+import { clientLabel, code } from "../text.ts";
+
+/** How deep into nested strings, lists and objects a literal secret is looked for. */
+const VALUE_DEPTH = 6;
 
 /** PLG501–PLG503: keys and tokens written in code and prompts. */
 export function secretChecks(cx: RuleContext): Draft[] {
@@ -51,7 +55,7 @@ export function secretChecks(cx: RuleContext): Draft[] {
   for (const [path, file] of cx.project.files) {
     const found = new Map<string, { name: string; span: Span; owner: string }>();
     const visit = (value: Value, span: Span, owner: string, depth: number) => {
-      if (depth > 6) return;
+      if (depth > VALUE_DEPTH) return;
       switch (value.kind) {
         case "string": {
           const secret = findSecret(value.value);

@@ -2,32 +2,28 @@ import {
   access,
   link,
   mkdir,
-  mkdtemp,
   readdir,
   readFile,
-  realpath,
   rm,
   stat,
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { main } from "../src/cli.ts";
+import { describe, expect, it } from "vitest";
+import { main } from "../src/cli/index.ts";
 import { reviewDependencies } from "../src/redteam/dependencies.ts";
 import { planProject, withPreparedProject } from "../src/redteam/plan.ts";
 import { readProjectFile } from "../src/redteam/project-files.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
-const temporary: string[] = [];
 const source = `from llmfy import LLMfy, OpenAIChatModel
 agent = LLMfy(OpenAIChatModel(model="gpt-4o-mini"))
 def chat(message: str):
     return agent.invoke(message).result.content
 `;
 async function project(files: Record<string, string> = {}) {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "plenger-plan-test-")));
-  temporary.push(root);
+  const root = await temporaryDir("plenger-plan-test-");
   for (const [path, value] of Object.entries({
     "agent.py": source,
     "requirements.txt": "llmfy==0.11.0\n",
@@ -38,10 +34,6 @@ async function project(files: Record<string, string> = {}) {
   }
   return root;
 }
-afterEach(async () => {
-  await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
-});
-
 describe("offline project preparation", () => {
   it("reviews unsupported Vercel routes without treating them as executable targets", async () => {
     const root = await project({

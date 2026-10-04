@@ -1,14 +1,16 @@
 import type { Node } from "web-tree-sitter";
-import type {
-  AssignmentFact,
-  CallFact,
-  Decorator,
-  DefinitionFact,
-  FileFacts,
-  ImportFact,
-  Ref,
-  Span,
-  Value,
+import type { LanguageFamily } from "../source/languages.ts";
+import {
+  ANONYMOUS,
+  type AssignmentFact,
+  type CallFact,
+  type Decorator,
+  type DefinitionFact,
+  type FileFacts,
+  type ImportFact,
+  type Ref,
+  type Span,
+  type Value,
 } from "./model.ts";
 
 export const LIMITS = {
@@ -111,7 +113,7 @@ export interface LanguageHooks {
  * two (`finish`) resolves names once every binding in the file is known.
  */
 export class Context {
-  readonly language: "python" | "javascript";
+  readonly language: LanguageFamily;
   readonly module = new Scope("module", null, null);
   readonly imports: ImportFact[] = [];
   readonly classes = new Map<string, ClassInfo>();
@@ -128,12 +130,12 @@ export class Context {
   readonly #resolved = new Map<Binding, Ref | null>();
   #hooks: LanguageHooks | undefined;
 
-  constructor(language: "python" | "javascript") {
+  constructor(language: LanguageFamily) {
     this.language = language;
   }
 
   allocateId(parent: string | null, name: string | null, node: Node): string {
-    const base = name ?? "<anonymous>";
+    const base = name ?? ANONYMOUS;
     let id = parent === null ? base : `${parent}.${base}`;
     if (name === null || this.#ids.has(id)) {
       id += `@${node.startPosition.row + 1}:${node.startPosition.column + 1}`;
@@ -313,7 +315,7 @@ export class Context {
   }
 }
 
-export function joinPath(path: string, segment: string): string {
+function joinPath(path: string, segment: string): string {
   if (segment === "") return path;
   if (path === "" || segment.startsWith("(")) return path + segment;
   return `${path}.${segment}`;

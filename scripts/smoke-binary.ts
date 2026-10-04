@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import type { DashboardScan, DashboardSession, DashboardState } from "../src/dashboard/model.ts";
+import type { DashboardScan, DashboardSession, DashboardState } from "../src/dashboard/contract.ts";
 import type { ProjectPlan } from "../src/redteam/plan.ts";
 import type { Report } from "../src/report/model.ts";
 
@@ -118,6 +118,8 @@ async function main() {
       });
     assert.equal((await run(["--version"])).stdout.trim(), version);
     assert.match((await run(["--help"])).stdout, /plenger serve/);
+    assert.match((await run(["redteam", "run", "--help"])).stdout, /--provider <name\|id>/);
+    assert.match((await run(["redteam", "compare", "--help"])).stdout, /--change <text>/);
     const cli = await run(["scan", fixture, "--json"]);
     assert.equal(cli.stderr, "");
     const report = JSON.parse(cli.stdout) as Report;
@@ -202,6 +204,24 @@ async function main() {
       assert.deepEqual(dashboard.scan.findings, report.findings);
       assert.ok(dashboard.rules.length > 0);
       saved = dashboard;
+      const provider = await fetchPage("/api/providers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Plenger-Token": session.token },
+        body: JSON.stringify({
+          name: "Binary smoke provider",
+          provider: "openai",
+          model: "smoke-model",
+          baseUrl: "https://api.openai.com/v1",
+          temperature: 0,
+          maxOutputTokens: 512,
+          isDefault: true,
+          apiKey: "smoke-secret-do-not-export",
+        }),
+      });
+      assert.equal(provider.status, 200);
+      const providerText = await provider.text();
+      assert.doesNotMatch(providerText, /smoke-secret-do-not-export/);
+      assert.equal(JSON.parse(providerText).hasApiKey, true);
       const themed = await fetchPage("/api/theme", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Plenger-Token": session.token },
@@ -218,6 +238,10 @@ async function main() {
       (await readFile(join(dataDir, "dashboard.sqlite"))).subarray(0, 16).toString(),
       "SQLite format 3\0",
     );
+    assert.doesNotMatch(
+      (await readFile(join(dataDir, "dashboard.sqlite"))).toString(),
+      /smoke-secret-do-not-export/,
+    );
     const resumed = await launchDashboard(binary, runtime, fixture, dataDir);
     try {
       const session = (await (await resumed.fetchPage("/api/session")).json()) as DashboardSession;
@@ -227,6 +251,15 @@ async function main() {
       ).json()) as DashboardState;
       assert.deepEqual(state.report, saved);
       assert.equal(state.theme, "light");
+      assert.deepEqual(state.campaigns, []);
+      const providers = (await (await resumed.fetchPage("/api/providers", { headers })).json()) as {
+        name: string;
+        hasApiKey: boolean;
+        isDefault: boolean;
+      }[];
+      assert.equal(providers[0]?.name, "Binary smoke provider");
+      assert.equal(providers[0]?.hasApiKey, true);
+      assert.equal(providers[0]?.isDefault, true);
       assert.match(await (await resumed.fetchPage("/findings")).text(), /data-theme="light"/);
       assert.deepEqual(
         state.history.map((item) => item.id),
@@ -242,6 +275,8 @@ async function main() {
       assert.equal(empty.report, null);
       assert.equal(empty.plan, null);
       assert.deepEqual(empty.history, []);
+      assert.deepEqual(empty.campaigns, []);
+      assert.deepEqual(await (await resumed.fetchPage("/api/providers", { headers })).json(), []);
       assert.equal(empty.theme, "light");
       await resumed.stop();
     } finally {

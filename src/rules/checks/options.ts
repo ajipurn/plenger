@@ -1,8 +1,9 @@
 import type { FileFacts, Value } from "../../facts/model.ts";
+import { deref, literalString, select } from "../../facts/query.ts";
 import type { Location } from "../../inventory/model.ts";
-import { deref, literalString, select } from "../../inventory/values.ts";
-import { clientLabel, code, type RuleContext } from "../context.ts";
+import type { RuleContext } from "../context.ts";
 import type { Draft, Severity } from "../model.ts";
+import { clientLabel, code } from "../text.ts";
 
 /** smolagents imports that give generated code the run of the host. */
 const DANGEROUS_IMPORTS =
@@ -10,7 +11,7 @@ const DANGEROUS_IMPORTS =
 
 interface Option {
   rule: string;
-  /** Argument paths (inventory/values.ts `select`) where the option may be set. */
+  /** Argument paths (facts/query.ts `select`) where the option may be set. */
   paths: string[];
   severity: Severity;
   /** What the option does, for the title. */

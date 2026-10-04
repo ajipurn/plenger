@@ -1,29 +1,36 @@
+import { isRecord } from "../shared/guards.ts";
 import { type BudgetLimits, type BudgetSnapshot, ModelBudget } from "./budget.ts";
-import type { QualificationReport } from "./qualification.ts";
+import {
+  LLMFY_ISOLATION_CHECKS,
+  LLMFY_RUNTIME,
+  MODEL_REQUEST_CAP,
+  type RunOutcome,
+} from "./constants.ts";
+
+/** Developer qualification of the bundled image, NOT an arbitrary-project runner. */
+export interface QualificationReport {
+  schemaVersion: 1;
+  kind: "llmfy-runtime-qualification";
+  provider: "synthetic";
+  python: string;
+  llmfy: string;
+  os: string;
+  arch: string;
+  isolationChecks: string[];
+  cases: {
+    case: string;
+    completed: boolean;
+    cleanTaskPassed: boolean;
+    outcome: RunOutcome;
+    modelCalls: number;
+    events: { stage: string; tool?: string; order?: string; status?: string }[];
+  }[];
+  liveModelQualified: false;
+}
 
 export type BudgetScenario = "suite" | "loop" | "violation-loop" | "violation-wait";
 type Trial = QualificationReport["cases"][number] & { started: boolean };
 type Runtime = Pick<QualificationReport, "python" | "llmfy" | "os" | "arch" | "isolationChecks">;
-const requiredChecks = [
-  "linux",
-  "python-version",
-  "non-root",
-  "no-capabilities",
-  "no-new-privileges",
-  "seccomp-filter",
-  "loopback-only",
-  "read-only-root",
-  "private-temporary-files",
-  "memory-limit",
-  "no-swap",
-  "process-limit",
-  "cpu-limit",
-  "no-host-file",
-  "no-host-environment",
-  "no-container-socket",
-  "image-write-denied",
-  "temporary-write",
-];
 
 export interface BudgetQualificationReport {
   schemaVersion: 1;
@@ -77,13 +84,13 @@ export class QualificationBroker {
       const checks = message.isolationChecks;
       check(
         !this.#runtime &&
-          message.python === "3.12.13" &&
-          message.llmfy === "0.11.0" &&
+          message.python === LLMFY_RUNTIME.python &&
+          message.llmfy === LLMFY_RUNTIME.llmfy &&
           message.os === "Linux" &&
           message.arch === "aarch64" &&
           Array.isArray(checks) &&
-          checks.length === requiredChecks.length &&
-          requiredChecks.every((item) => checks.includes(item)),
+          checks.length === LLMFY_ISOLATION_CHECKS.length &&
+          LLMFY_ISOLATION_CHECKS.every((item) => checks.includes(item)),
       );
       this.#runtime = {
         python: message.python,
@@ -115,7 +122,7 @@ export class QualificationBroker {
       const inputTokens = Buffer.byteLength(
         JSON.stringify({ messages: message.messages, tools: message.tools }),
       );
-      check(inputTokens <= 48 * 1024);
+      check(inputTokens <= MODEL_REQUEST_CAP);
       const repeats = trial.case === "budget-loop" || trial.case === "budget-violation-loop";
       let value: unknown;
       if (trial.modelCalls === 0 || repeats) {
@@ -246,9 +253,6 @@ function outcome(trial: Trial): Trial["outcome"] {
   return trial.completed && trial.events.some((event) => event.stage === "tool_handler_returned")
     ? "not_observed"
     : "inconclusive";
-}
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function check(condition: unknown): asserts condition {
   if (!condition) throw new Error("Invalid qualification worker protocol.");

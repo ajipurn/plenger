@@ -5,6 +5,8 @@ import { qualifyLlmfy, qualifyLlmfyBudget } from "../src/redteam/qualification.t
 
 const image = process.env.PLENGER_TEST_LLMFY_IMAGE;
 const inertId = `sha256:${"a".repeat(64)}`;
+const engine = image?.startsWith("docker:") ? "docker" : "podman";
+const imageId = image?.replace(/^docker:/, "");
 
 it("requires an immutable image and bounded deadline before launching anything", async () => {
   await expect(qualifyLlmfy("python:latest")).rejects.toThrow("sha256 image ID");
@@ -24,7 +26,7 @@ it("requires an immutable image and bounded deadline before launching anything",
 });
 
 // Requires the pinned, locally built image. Not part of the offline static suite.
-describe.skipIf(!image)("llmfy in a real Podman container", () => {
+describe.skipIf(!image)("llmfy in a real isolated container", () => {
   it("preserves approval, clean-task fidelity and evidence stages for sync/async calls", async () => {
     const report = await qualifyLlmfy(image as string);
     expect(report).toMatchObject({
@@ -92,15 +94,15 @@ describe.skipIf(!image)("llmfy in a real Podman container", () => {
     await expect(
       new Promise<string>((resolve, reject) => {
         const child = execFile(
-          "podman",
+          engine,
           [
             "run",
             "--rm",
             "--interactive",
             "--pull=never",
             "--network=none",
-            "--timeout=10",
-            image as string,
+            ...(engine === "podman" ? ["--timeout=10"] : []),
+            imageId as string,
           ],
           { timeout: 15000 },
           (error, _stdout, stderr) => {
@@ -226,7 +228,7 @@ describe.skipIf(!image)("llmfy in a real Podman container", () => {
 
   it("leaves no running or stopped qualification containers", async () => {
     const { stdout } = await promisify(execFile)(
-      "podman",
+      engine,
       ["ps", "--all", "--quiet", "--filter", "label=org.plenger.purpose=qualification"],
       { timeout: 10000 },
     );

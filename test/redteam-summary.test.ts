@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backendResult, modelResult, summarizeRun } from "../dashboard/src/run-summary.ts";
+import { backendResult, modelResult, summarizeRun } from "../dashboard/src/redteam/run-summary.ts";
 import type { DatabaseState, RedteamRun, RunTrial } from "../src/redteam/run.ts";
 
 const database = (amount = 350_000): DatabaseState => ({

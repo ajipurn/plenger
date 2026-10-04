@@ -2,11 +2,14 @@
 
 import asyncio
 import errno
+import fcntl
 import functools
 import importlib.util
 import json
 import os
 import platform
+import socket
+import struct
 import sys
 from importlib.metadata import version
 from pathlib import Path
@@ -34,7 +37,16 @@ def preflight(request):
           and int(status["CapBnd"].strip(), 16) == 0)
     check("no-new-privileges", status["NoNewPrivs"].strip() == "1")
     check("seccomp-filter", status["Seccomp"].strip() == "2")
-    check("loopback-only", sorted(os.listdir("/sys/class/net")) == ["lo"])
+    # Docker kernels may expose dormant tunnel interfaces even with --network=none.
+    # With all capabilities dropped these DOWN interfaces cannot be activated.
+    # Inspect IFF_UP in this process's namespace rather than requiring exact names.
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as network:
+        active = []
+        for _, name in socket.if_nameindex():
+            flags = fcntl.ioctl(network.fileno(), 0x8913, struct.pack("256s", name.encode()))
+            if struct.unpack("H", flags[16:18])[0] & 1:
+                active.append(name)
+    check("loopback-only", sorted(active) == ["lo"])
     mounts = [line.split() for line in Path("/proc/mounts").read_text().splitlines()]
     check("read-only-root", any(item[1] == "/" and "ro" in item[3].split(",") for item in mounts))
     check("private-temporary-files", any(item[1] == "/tmp" and item[2] == "tmpfs" for item in mounts))

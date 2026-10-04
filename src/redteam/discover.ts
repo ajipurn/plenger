@@ -1,11 +1,15 @@
-import { createHash } from "node:crypto";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import type { DefinitionFact, FileFacts, Value } from "../facts/model.ts";
-import type { CollectOptions } from "../files.ts";
 import type { Agent, Location } from "../inventory/model.ts";
 import { type ScannedFile, type ScanResult, scan } from "../scan.ts";
-import { VERSION } from "../version.ts";
+import { compareStrings as compare } from "../shared/compare.ts";
+import { isErrno } from "../shared/guards.ts";
+import { sha256Hex } from "../shared/hash.ts";
+import { VERSION } from "../shared/runtime.ts";
+import type { CollectOptions } from "../source/files.ts";
+
+export { formatDiscovery } from "./format.ts";
 
 export interface DiscoveryTarget {
   id: string;
@@ -58,6 +62,75 @@ export interface StaticCoverage {
     location: Location;
     toolUsing: boolean;
   }[];
+  /** Discovered scope, not a promise that a runtime adapter supports each surface. */
+  surfaces?: DiscoveredSurface[];
+  incomplete?: boolean;
+}
+
+export interface DiscoveredSurface {
+  id: string;
+  kind: "input" | "tool" | "mcp" | "web" | "retrieval";
+  label: string;
+  location: Location;
+}
+
+function inventorySurfaces(result: ScanResult): DiscoveredSurface[] {
+  const surfaces = new Map<string, DiscoveredSurface>();
+  function add(
+    kind: DiscoveredSurface["kind"],
+    identity: string,
+    label: string,
+    location: Location,
+  ) {
+    const id = `surface:${sha256Hex(JSON.stringify([kind, location.path, identity]), 24)}`;
+    surfaces.set(id, { id, kind, label, location });
+  }
+  for (const entry of result.inventory.entryPoints) {
+    add(
+      "input",
+      `${entry.handler ?? entry.id}:${entry.method}:${entry.path}`,
+      `${entry.method ?? entry.kind.toUpperCase()} ${entry.path ?? entry.handler ?? "entry point"}`,
+      entry.location,
+    );
+    for (const capability of entry.reaches)
+      if ((capability.kind === "network" || capability.kind === "browser") && !capability.tool)
+        add(
+          "web",
+          `${entry.handler ?? entry.id}:${capability.target}:${capability.location.line}`,
+          `${entry.handler ?? "entry point"} → ${capability.target}`,
+          capability.location,
+        );
+  }
+  for (const tool of result.inventory.tools) {
+    add("tool", `${tool.handler ?? tool.id}:${tool.name}:${tool.server}`, tool.name, tool.location);
+    for (const capability of tool.capabilities)
+      if (capability.kind === "network" || capability.kind === "browser")
+        add(
+          "web",
+          `${tool.handler ?? tool.id}:${capability.target}:${capability.location.line}`,
+          `${tool.name} → ${capability.target}`,
+          capability.location,
+        );
+  }
+  for (const server of result.inventory.mcpServers)
+    add("mcp", server.id, server.name ?? `${server.framework} server`, server.location);
+  for (const client of result.inventory.mcpClients)
+    add("mcp", client.id, `${client.framework} client`, client.location);
+  for (const store of result.inventory.dataStores)
+    if (store.kind === "retriever" || store.kind === "vector_store")
+      add("retrieval", store.id, `${store.kind}: ${store.target}`, store.location);
+  for (const agent of result.inventory.agents)
+    for (const capability of agent.capabilities)
+      if (capability.kind === "network" || capability.kind === "browser")
+        if (!capability.tool)
+          // Tool-owned effects were already recorded at the tool boundary.
+          add(
+            "web",
+            `${agent.id}:${capability.target}:${capability.location.line}`,
+            capability.target,
+            capability.location,
+          );
+  return [...surfaces.values()].sort((a, b) => compare(a.kind, b.kind) || compare(a.id, b.id));
 }
 
 /**
@@ -81,7 +154,7 @@ export async function discoverProject(
     evidence: DiscoveryTarget["evidence"][number],
   ) => {
     const identity = [file.path, definition?.id ?? agent.id, kind];
-    const id = `llmfy:${createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 16)}`;
+    const id = `llmfy:${sha256Hex(JSON.stringify(identity), 16)}`;
     let target = targets.get(id);
     if (target === undefined) {
       const reasons: string[] = [];
@@ -189,10 +262,7 @@ export async function discoverProject(
     } catch (error) {
       manifests.push({
         path: name,
-        status:
-          error instanceof Error && "code" in error && error.code === "ENOENT"
-            ? "missing"
-            : "unreadable",
+        status: isErrno(error, "ENOENT") ? "missing" : "unreadable",
       });
     }
   }
@@ -227,6 +297,12 @@ export async function discoverProject(
       frameworks: result.inventory.frameworks.map(({ id, name }) => ({ id, name })),
       agentDeclarations: result.inventory.agents.length,
       toolUsingCalls: result.inventory.llmCalls.filter((call) => call.tools.length > 0).length,
+      surfaces: inventorySurfaces(result),
+      incomplete:
+        result.truncated ||
+        result.skipped.length > 0 ||
+        result.inventory.unrecognised.length > 0 ||
+        result.files.some((file) => file.syntaxErrors),
       httpEntryPoints: result.inventory.entryPoints
         .filter((entry) => entry.kind === "http")
         .map((entry) => ({
@@ -286,40 +362,4 @@ function returnedAgent(
     if (agent && call.ref?.name === `${agent.target}().build`) return agent;
   }
   return undefined;
-}
-
-function compare(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-export function formatDiscovery(report: DiscoveryReport): string {
-  const lines = [
-    `plenger ${VERSION} · offline red-team discovery`,
-    report.root,
-    "",
-    "No project code was imported or executed. No model was contacted.",
-    "Candidates require qualification; dynamic execution is not available yet.",
-    "",
-  ];
-  if (report.targets.length === 0) lines.push("No llmfy targets discovered.");
-  for (const target of report.targets) {
-    lines.push(
-      `${target.status}  ${target.kind}  ${target.symbol ?? "(unresolved)"}  ${target.location.path}:${target.location.line}`,
-      `  ${target.id}`,
-    );
-    if (target.reasons.length) lines.push(`  ${target.reasons.join(", ")}`);
-  }
-  lines.push("", "Root dependency manifests (presence only):");
-  for (const item of report.manifests) lines.push(`  ${item.path}: ${item.status}`);
-  if (report.otherFrameworks.length)
-    lines.push("", `Other detected frameworks: ${report.otherFrameworks.join(", ")}`);
-  lines.push(
-    "",
-    `${report.scan.files} files scanned; ${report.scan.skipped.length} skipped; ${report.scan.syntaxErrors.length} with syntax errors.`,
-  );
-  if (report.scan.truncated)
-    lines.push("Discovery is incomplete: the scan file limit was reached.");
-  for (const item of report.scan.skipped) lines.push(`  skipped ${item.path}: ${item.reason}`);
-  lines.push("", "Before execution:", ...report.requirements.map((item) => `  ${item}`));
-  return `${lines.join("\n")}\n`;
 }

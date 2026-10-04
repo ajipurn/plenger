@@ -2,8 +2,8 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { collectSourceFiles } from "../src/files.ts";
-import { classifyPath } from "../src/languages.ts";
+import { collectSourceFiles } from "../src/source/files.ts";
+import { classifyPath } from "../src/source/languages.ts";
 
 describe("classifyPath", () => {
   it.each([

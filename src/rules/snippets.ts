@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { redact } from "../secrets.ts";
+import { redact } from "../shared/secrets.ts";
 import type { Finding } from "./model.ts";
 
 const SNIPPET_WIDTH = 160;

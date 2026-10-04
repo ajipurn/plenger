@@ -1,6 +1,6 @@
-import type { Language } from "../languages.ts";
+import { familyOf, type Language, type LanguageFamily } from "../source/languages.ts";
 
-export interface FrameworkInfo {
+interface FrameworkInfo {
   id: string;
   name: string;
   /** Import modules that mean the framework is used: exact, or a parent of the module. */
@@ -82,7 +82,7 @@ export const FRAMEWORKS: FrameworkInfo[] = [
  * AI libraries plenger recognises by import but has no detectors for yet. Importing
  * one is reported as unrecognised usage rather than dropped silently.
  */
-export const UNSUPPORTED_AI_MODULES: Record<Language, string[]> = {
+const UNSUPPORTED_AI_MODULES: Record<LanguageFamily, string[]> = {
   python: [
     "vertexai",
     "cohere",
@@ -105,7 +105,6 @@ export const UNSUPPORTED_AI_MODULES: Record<Language, string[]> = {
     "@huggingface/*",
     "@voltagent/*",
   ],
-  typescript: [],
 };
 
 /**
@@ -113,14 +112,14 @@ export const UNSUPPORTED_AI_MODULES: Record<Language, string[]> = {
  * packages with `/`; a trailing `*` in the prefix matches any name continuation
  * (`langchain_*` covers `langchain_openai`).
  */
-export function moduleMatches(module: string, prefix: string, language: Language): boolean {
+function moduleMatches(module: string, prefix: string, language: Language): boolean {
   if (prefix.endsWith("*")) return module.startsWith(prefix.slice(0, -1));
   const separator = language === "python" ? "." : "/";
   return module === prefix || module.startsWith(prefix + separator);
 }
 
 export function frameworkOfModule(module: string, language: Language): FrameworkInfo | undefined {
-  const family = language === "python" ? "python" : "javascript";
+  const family = familyOf(language);
   // More specific frameworks first: LangGraph's JS package lives under @langchain.
   let best: { info: FrameworkInfo; length: number } | undefined;
   for (const info of FRAMEWORKS) {
@@ -137,6 +136,7 @@ export function frameworkOfModule(module: string, language: Language): Framework
 }
 
 export function unsupportedModule(module: string, language: Language): string | undefined {
-  const family = language === "python" ? "python" : "javascript";
-  return UNSUPPORTED_AI_MODULES[family].find((prefix) => moduleMatches(module, prefix, language));
+  return UNSUPPORTED_AI_MODULES[familyOf(language)].find((prefix) =>
+    moduleMatches(module, prefix, language),
+  );
 }

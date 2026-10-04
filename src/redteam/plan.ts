@@ -1,54 +1,31 @@
-import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
-import { type CollectOptions, collectSourceFiles } from "../files.ts";
-import { PLACEHOLDER, redact, redactReport } from "../secrets.ts";
-import { VERSION } from "../version.ts";
-import { type DependencyReview, reviewDependencies } from "./dependencies.ts";
+import { compareStrings } from "../shared/compare.ts";
+import { sha256Hex } from "../shared/hash.ts";
+import { VERSION } from "../shared/runtime.ts";
+import { redact, redactReport } from "../shared/secrets.ts";
+import { collectSourceFiles } from "../source/files.ts";
+import { reviewDependencies } from "./dependencies.ts";
+import { type DiscoveryTarget, discoverProject } from "./discover.ts";
 import {
-  type DiscoveryReport,
-  type DiscoveryTarget,
-  discoverProject,
-  type StaticCoverage,
-} from "./discover.ts";
-import { captureNextProject, type NextProfile } from "./next-plan.ts";
-import { decodeSource, ProjectFileError, readProjectFile } from "./project-files.ts";
+  type PlanOptions,
+  PreparationError,
+  type ProjectPlan,
+  type ProjectSnapshot,
+} from "./plan-model.ts";
+import {
+  decodeSource,
+  hasLiteralAccess,
+  isSensitiveSourcePath,
+  ProjectFileError,
+  readProjectFile,
+} from "./project-files.ts";
+import { captureNextProject } from "./vercel-plan.ts";
 
-export class PreparationError extends Error {}
-
-export interface ProjectPlan {
-  schemaVersion: 1;
-  kind: "redteam-project-plan";
-  tool: { name: "plenger"; version: string };
-  root: string;
-  mode: "offline";
-  executionReady: false;
-  /** Covers captured Python bytes and reviewed manifests, not undiscovered resources. */
-  sourceDigest: string;
-  selectedTarget: string | null;
-  selection: "automatic" | "explicit" | "required" | "unavailable";
-  targets: DiscoveryTarget[];
-  preparation: { status: "ready" | "blocked"; reasons: string[] };
-  sources: {
-    policy: "python-only-v1" | "next-route-sqlite-v1";
-    resources: "not-collected";
-    files: { path: string; bytes: number; sha256: string }[];
-    omitted: { path: string; reason: string }[];
-    excludedDirs: DiscoveryReport["scan"]["excludedDirs"];
-    truncated: boolean;
-  };
-  dependencies: DependencyReview;
-  pending: string[];
-  /** Separate static review of the original project; not part of the runtime snapshot digest. */
-  coverage?: StaticCoverage;
-  nextProfile?: NextProfile;
-}
-
-export interface PlanOptions extends CollectOptions {
-  target?: string;
-  maxTotalBytes?: number;
-}
+export { formatProjectPlan } from "./format.ts";
+export type { NextProfile, PlanOptions, ProjectPlan } from "./plan-model.ts";
+export { PreparationError } from "./plan-model.ts";
 
 /** Read-only planning: the private analysis snapshot is always removed. */
 export async function planProject(path: string, options: PlanOptions = {}): Promise<ProjectPlan> {
@@ -87,7 +64,7 @@ export async function withPreparedProject<T>(
   }
 }
 
-async function capture(path: string, options: PlanOptions) {
+async function capture(path: string, options: PlanOptions): Promise<ProjectSnapshot> {
   const root = await realpath(path);
   if (!(await stat(root)).isDirectory())
     throw new PreparationError("Project planning requires a directory.");
@@ -131,11 +108,7 @@ async function capture(path: string, options: PlanOptions) {
         omitted.push({ path: file.path, reason: "outside-python-profile" });
         continue;
       }
-      if (
-        file.path
-          .split("/")
-          .some((part) => part.startsWith(".") || /^(?:credentials|secrets)(?:[_.-]|$)/i.test(part))
-      ) {
+      if (isSensitiveSourcePath(file.path)) {
         omitted.push({ path: file.path, reason: "sensitive-source-path" });
         continue;
       }
@@ -149,7 +122,7 @@ async function capture(path: string, options: PlanOptions) {
         await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
         await writeFile(destination, bytes, { mode: 0o400, flag: "wx" });
         total += bytes.length;
-        files.push({ path: file.path, bytes: bytes.length, sha256: hash(bytes) });
+        files.push({ path: file.path, bytes: bytes.length, sha256: sha256Hex(bytes) });
       } catch (error) {
         if (!(error instanceof ProjectFileError)) throw error;
         omitted.push({ path: file.path, reason: error.reason });
@@ -190,7 +163,7 @@ async function capture(path: string, options: PlanOptions) {
       )
     )
       reasons.push("source-preparation-gaps");
-    omitted.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+    omitted.sort((a, b) => compareStrings(a.path, b.path));
     const plan: ProjectPlan = {
       schemaVersion: 1,
       kind: "redteam-project-plan",
@@ -198,7 +171,7 @@ async function capture(path: string, options: PlanOptions) {
       root,
       mode: "offline",
       executionReady: false,
-      sourceDigest: hash(JSON.stringify({ files, manifests: dependencies.manifests })),
+      sourceDigest: sha256Hex(JSON.stringify({ files, manifests: dependencies.manifests })),
       selectedTarget: selected?.id ?? null,
       selection,
       targets: discovered.targets,
@@ -228,46 +201,4 @@ async function capture(path: string, options: PlanOptions) {
     await dispose();
     throw error;
   }
-}
-
-function hash(value: string | Buffer): string {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-function hasLiteralAccess(text: string): boolean {
-  const pattern =
-    /\b(?:api_?key|password|passwd|secret|access_?token|auth_?token)\s*=\s*(["'])([^"'\r\n]+)\1/gi;
-  return [...text.matchAll(pattern)].some((match) => !PLACEHOLDER.test(match[2] as string));
-}
-
-export function formatProjectPlan(plan: ProjectPlan): string {
-  const lines = [
-    `plenger ${VERSION} · offline project preparation plan`,
-    plan.root,
-    "",
-    `Source preparation: ${plan.preparation.status}`,
-    `Target selection: ${plan.selection}${plan.selectedTarget ? ` (${plan.selectedTarget})` : ""}`,
-    `Captured runtime sources: ${plan.sources.files.length}; omitted source entries: ${plan.sources.omitted.length}`,
-    `Source digest: ${plan.sourceDigest}`,
-    "",
-  ];
-  for (const target of plan.targets)
-    lines.push(
-      `${target.id}  ${target.status}  ${target.kind}  ${target.symbol ?? "(unresolved)"}  ${target.location.path}:${target.location.line}`,
-    );
-  lines.push("", `Dependencies: ${plan.dependencies.status}; not resolved or installed.`);
-  for (const item of plan.dependencies.packages)
-    lines.push(
-      `  ${item.name}${item.extras.length ? `[${item.extras.join(",")}]` : ""}${item.constraint} (${item.source})`,
-    );
-  for (const item of plan.dependencies.issues) lines.push(`  ${item.path}: ${item.reason}`);
-  for (const item of plan.sources.omitted) lines.push(`  omitted ${item.path}: ${item.reason}`);
-  if (plan.preparation.reasons.length)
-    lines.push("", `Needs attention: ${plan.preparation.reasons.join(", ")}`);
-  lines.push(
-    "",
-    "Execution is unavailable; no project code was imported and no model was contacted.",
-    ...plan.pending.map((item) => `  ${item}`),
-  );
-  return `${lines.join("\n")}\n`;
 }

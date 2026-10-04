@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
+import { PLACEHOLDER } from "../shared/secrets.ts";
 
 export class ProjectFileError extends Error {
   readonly reason: string;
@@ -69,6 +70,21 @@ export async function readProjectFile(root: string, path: string, limit: number)
         : "unreadable",
     );
   }
+}
+
+/** Hidden paths and credential/secret folders are never captured into a snapshot. */
+export function isSensitiveSourcePath(path: string): boolean {
+  return path
+    .split("/")
+    .some((part) => part.startsWith(".") || /^(?:credentials|secrets)(?:[_.-]|$)/i.test(part));
+}
+
+const LITERAL_ACCESS =
+  /\b(?:api_?key|password|passwd|secret|access_?token|auth_?token)\s*[:=]\s*(["'])([^"'\r\n]+)\1/gi;
+
+/** A credential-like name assigned a non-placeholder string literal (`=` or `:`). */
+export function hasLiteralAccess(text: string): boolean {
+  return [...text.matchAll(LITERAL_ACCESS)].some((match) => !PLACEHOLDER.test(match[2] as string));
 }
 
 export function decodeSource(bytes: Buffer): string {

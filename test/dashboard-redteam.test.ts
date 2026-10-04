@@ -1,27 +1,26 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { DashboardSession, DashboardState } from "../src/dashboard/model.ts";
-import { startDashboard } from "../src/dashboard/server.ts";
-import { DashboardStore } from "../src/dashboard/store.ts";
+import type { StartRunRequest } from "../src/dashboard/contract.ts";
 import { planProject } from "../src/redteam/plan.ts";
-import { newRun, type RedteamRun, type RunOptions } from "../src/redteam/run.ts";
+import { newRun, type RedteamRun } from "../src/redteam/run.ts";
+import { DashboardStore } from "../src/storage/store.ts";
+import { required, startTestDashboard, type TestDashboard } from "./support/dashboard.ts";
+import { fixturePath } from "./support/fixtures.ts";
+import { offlineProvider } from "./support/provider.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
-const fixture = fileURLToPath(new URL("fixtures/redteam/llmfy", import.meta.url));
+const fixture = fixturePath("redteam/llmfy");
 let root: string;
-let dashboard: Awaited<ReturnType<typeof startDashboard>>;
-let session: DashboardSession;
-let config: Record<string, unknown>;
+let dashboard: TestDashboard;
+let config: StartRunRequest;
 let launches: number;
 let finish: (() => void) | undefined;
 
 async function start() {
-  dashboard = await startDashboard({
+  dashboard = await startTestDashboard({
+    root,
     workspace: fixture,
-    assets: join(root, "assets"),
-    dataDir: join(root, "data"),
     runExecutor: async (run, options) => {
       launches += 1;
       run.state = "running";
@@ -37,29 +36,21 @@ async function start() {
       return run;
     },
   });
-  session = (await (await fetch(`${dashboard.url}/api/session`)).json()) as DashboardSession;
 }
-function request(path: string, body?: unknown, headers: Record<string, string> = {}) {
-  return fetch(`${dashboard.url}${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: { "Content-Type": "application/json", "X-Plenger-Token": session.token, ...headers },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-}
-async function state() {
-  return (await (await request("/api/state")).json()) as DashboardState;
-}
+const request: TestDashboard["request"] = (...args) => dashboard.request(...args);
+const state = () => dashboard.state();
 
 describe("dashboard managed runs", () => {
   beforeEach(async () => {
     launches = 0;
     finish = undefined;
-    root = await realpath(await mkdtemp(join(tmpdir(), "plenger-run-api-")));
-    await mkdir(join(root, "assets"));
-    await writeFile(join(root, "assets/index.html"), "<html>Dashboard</html>");
+    root = await temporaryDir("plenger-run-api-");
     const discovery = await planProject(fixture);
-    const target = discovery.targets.find((item) => item.kind === "factory")?.id;
-    const plan = await planProject(fixture, { target: target as string });
+    const target = required(
+      discovery.targets.find((item) => item.kind === "factory"),
+      "factory target",
+    ).id;
+    const plan = await planProject(fixture, { target });
     config = {
       path: fixture,
       target,
@@ -74,7 +65,6 @@ describe("dashboard managed runs", () => {
   afterEach(async () => {
     finish?.();
     await dashboard?.close();
-    await rm(root, { recursive: true, force: true });
   });
 
   it("persists non-secret run settings and evidence across refreshes and restarts", async () => {
@@ -109,7 +99,7 @@ describe("dashboard managed runs", () => {
   });
 
   it("selects the managed Next.js profile and saves Gemini settings without its key", async () => {
-    const next = fileURLToPath(new URL("fixtures/redteam/vercel", import.meta.url));
+    const next = fixturePath("redteam/vercel");
     const plan = await planProject(next);
     expect((await request("/api/plan", { path: next })).status).toBe(200);
     const response = await request("/api/redteam/start", {
@@ -214,16 +204,14 @@ describe("dashboard managed runs", () => {
   it("recovers unfinished run evidence after a service crash without claiming cleanup", async () => {
     await dashboard.close();
     const store = await DashboardStore.open(join(root, "data"));
-    const options = {
+    const run = newRun(fixture, {
       target: config.target,
       sourceDigest: config.sourceDigest,
       limits: config.limits,
-      provider: { name: "synthetic", model: "test" },
-    } as RunOptions;
-    const run = newRun(fixture, options);
+      provider: offlineProvider("synthetic", "test"),
+    });
     run.state = "running";
-    const trial = run.trials[0];
-    if (!trial) throw new Error("Missing initial control.");
+    const trial = required(run.trials[0], "initial control");
     trial.started = true;
     trial.outcome = "violation_observed";
     store.saveRun(run);

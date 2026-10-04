@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type Io, main } from "../src/cli.ts";
+import { type Io, main } from "../src/cli/index.ts";
 import { startDashboard } from "../src/dashboard/server.ts";
 
 vi.mock("../src/dashboard/server.ts", () => ({ startDashboard: vi.fn() }));

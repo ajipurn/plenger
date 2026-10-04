@@ -1,21 +1,24 @@
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { analyzeCapabilities } from "./capabilities/analyze.ts";
 import { extractFacts, type FileFacts } from "./facts/index.ts";
+import { literalCredentials } from "./facts/query.ts";
+import { buildInventory, type Inventory } from "./inventory/index.ts";
+import { Project, type ProjectFile } from "./project/project.ts";
+import { evaluateRules, type Finding } from "./rules/index.ts";
+import { attachSnippets } from "./rules/snippets.ts";
+import { compareStrings } from "./shared/compare.ts";
+import { redactReport } from "./shared/secrets.ts";
 import {
   type CollectOptions,
   collectSourceFiles,
   DEFAULT_MAX_FILE_BYTES,
   type ExcludedDir,
   type SkipReason,
-} from "./files.ts";
-import { buildInventory, type Inventory } from "./inventory/index.ts";
-import { literalString, select } from "./inventory/values.ts";
-import { LANGUAGE_OF, type Language } from "./languages.ts";
-import { SourceParser } from "./parser.ts";
-import { Project, type ProjectFile } from "./project/project.ts";
-import { evaluateRules, type Finding } from "./rules/index.ts";
-import { attachSnippets } from "./rules/snippets.ts";
-import { looksLikeSecret, redactReport } from "./secrets.ts";
+} from "./source/files.ts";
+import { LANGUAGE_OF, type Language } from "./source/languages.ts";
+import { SourceParser } from "./source/parser.ts";
+import { countLines, looksMinified, type ReadSkipReason, readSource } from "./source/read.ts";
 
 export interface ScannedFile {
   path: string;
@@ -33,7 +36,7 @@ export interface ScanOptions extends CollectOptions {
   facts?: boolean;
 }
 
-export type ScanSkipReason = SkipReason | "binary" | "not_utf8";
+export type ScanSkipReason = SkipReason | ReadSkipReason;
 
 export interface ScanResult {
   root: string;
@@ -46,8 +49,6 @@ export interface ScanResult {
   findings: Finding[];
   durationMs: number;
 }
-
-const utf8 = new TextDecoder("utf-8", { fatal: true });
 
 /** Reads and parses every supported source file under `root`. Never executes project code. */
 export async function scan(root: string, options: ScanOptions = {}): Promise<ScanResult> {
@@ -92,14 +93,15 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   }
 
   // Facts are per file; linking points imports of project files at what those files define.
-  const project = new Project(collected.root, parsed);
-  project.link();
+  const project = Project.link(collected.root, parsed, {
+    tsconfig: await readOptional(join(collected.root, "tsconfig.json")),
+  });
   const inventory = buildInventory(project);
   analyzeCapabilities(project, inventory);
   const findings = evaluateRules(project, inventory);
   await attachSnippets(collected.root, findings);
 
-  skipped.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  skipped.sort((a, b) => compareStrings(a.path, b.path));
   const result: ScanResult = {
     root: collected.root,
     files,
@@ -115,51 +117,11 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   return result;
 }
 
-/** API keys written in the code, whatever their format, so that no part of the report repeats them. */
-function literalCredentials(files: ProjectFile[]): string[] {
-  const keys = new Set<string>();
-  for (const { facts } of files) {
-    for (const call of facts.calls) {
-      for (const value of select(
-        call.arguments,
-        facts,
-        "api_key|apiKey|openai_api_key|openAIApiKey|anthropic_api_key|anthropicApiKey|google_api_key",
-      )) {
-        const text = literalString(value, facts);
-        if (text !== null && looksLikeSecret(text)) keys.add(text);
-      }
-    }
-  }
-  return [...keys];
-}
-
-async function readSource(
-  path: string,
-  maxFileBytes: number,
-): Promise<string | { reason: ScanSkipReason }> {
-  let bytes: Buffer;
+/** A file's text, or undefined when it is missing or unreadable. */
+async function readOptional(path: string): Promise<string | undefined> {
   try {
-    bytes = await readFile(path);
+    return await readFile(path, "utf8");
   } catch {
-    return { reason: "unreadable" };
+    return undefined;
   }
-  if (bytes.length > maxFileBytes) return { reason: "too_large" };
-  if (bytes.subarray(0, 8192).includes(0)) return { reason: "binary" };
-  try {
-    return utf8.decode(bytes);
-  } catch {
-    return { reason: "not_utf8" };
-  }
-}
-
-/** Bundler output such as Vite's hashed assets: large files with very long lines. */
-export function looksMinified(text: string): boolean {
-  return text.length >= 2048 && text.length / Math.max(countLines(text), 1) > 300;
-}
-
-function countLines(text: string): number {
-  if (text.length === 0) return 0;
-  let lines = 1;
-  for (let i = text.indexOf("\n"); i !== -1; i = text.indexOf("\n", i + 1)) lines++;
-  return text.endsWith("\n") ? lines - 1 : lines;
 }

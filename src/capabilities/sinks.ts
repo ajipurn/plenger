@@ -2,13 +2,13 @@ import type { CapabilityKind } from "../inventory/model.ts";
 
 /**
  * Calls with an effect outside the program: patterns over canonical call names (see
- * inventory/pattern.ts), with the path of the argument that says what the effect acts
+ * facts/pattern.ts), with the path of the argument that says what the effect acts
  * on (command, path, URL, query, code, recipient).
  */
 export interface Sink {
   kind: CapabilityKind;
   calls: string[];
-  /** Argument path (inventory/values.ts `select`) of the main input. */
+  /** Argument path (facts/query.ts `select`) of the main input. */
   input?: string;
   /** Take the input from the first call of the chain (`Path(p).write_text()` acts on `p`). */
   chainInput?: boolean;

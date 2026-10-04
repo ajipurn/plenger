@@ -2,17 +2,14 @@ import { isAbsolute, relative, sep } from "node:path";
 import type { Location } from "../inventory/model.ts";
 import type { Rule, Severity } from "../rules/index.ts";
 import { SEVERITIES } from "../rules/model.ts";
+import { json } from "../shared/json.ts";
 import { activeFindings, type Report, type ReportFinding } from "./model.ts";
 import { formatSummary, type SummaryOptions } from "./summary.ts";
 
 export const FORMATS = ["terminal", "json", "sarif", "markdown"] as const;
 export type ReportFormat = (typeof FORMATS)[number];
 
-export function json(value: unknown): string {
-  return `${JSON.stringify(value, null, 2)}\n`;
-}
-
-export interface SourceOptions {
+interface SourceOptions {
   /**
    * Real path of the directory that SARIF and Markdown paths are relative to, such as
    * the repository root; the scan root when absent. It must contain the scan root.

@@ -1,4 +1,4 @@
-import { sinkOf } from "../../capabilities/analyze.ts";
+import { sinkOf } from "../../capabilities/catalog.ts";
 import type {
   Agent,
   Capability,
@@ -7,19 +7,12 @@ import type {
   LlmCall,
   Prompt,
 } from "../../inventory/model.ts";
-import type { Language } from "../../languages.ts";
-import {
-  ACTION_PHRASE,
-  actionKinds,
-  callLabel,
-  code,
-  inputList,
-  listed,
-  locationKey,
-  type RuleContext,
-  routeLabel,
-} from "../context.ts";
+import { locationKey } from "../../shared/location.ts";
+import { callLabel, routeLabel } from "../../shared/text.ts";
+import type { Language } from "../../source/languages.ts";
+import { actionKinds, type RuleContext } from "../context.ts";
 import type { Draft, Evidence } from "../model.ts";
+import { ACTION_PHRASE, code, inputList, listed } from "../text.ts";
 
 const MAX_ACTION_EVIDENCE = 5;
 const RETRIEVAL =

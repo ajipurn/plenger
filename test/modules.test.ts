@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localPythonModules } from "../src/inventory/modules.ts";
+import { localPythonModules } from "../src/project/modules.ts";
 
 describe("localPythonModules", () => {
   it("finds top-level packages wherever their source root is", () => {

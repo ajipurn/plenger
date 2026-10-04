@@ -1,0 +1,81 @@
+import { testProviderConnection } from "../../redteam/provider.ts";
+import { type ProviderInput, validateProviderInput } from "../../redteam/provider-config.ts";
+import { errorMessage } from "../../shared/guards.ts";
+import { StoreValidationError } from "../../storage/store.ts";
+import { API, type DeleteResult, type ProviderTestResult } from "../contract.ts";
+import { expectKeys, HttpError, jsonRequest, requireString } from "../http.ts";
+import type { Route } from "../router.ts";
+import type { Services } from "../services.ts";
+
+/** Saved model connections. Keys go in; they never come back out through these routes. */
+export function providerRoutes({ store }: Services): Route[] {
+  async function selectedId(request: Parameters<typeof jsonRequest>[0]): Promise<string> {
+    const body = await jsonRequest(request);
+    const message = "Choose a saved provider.";
+    expectKeys(body, ["id"], message);
+    return requireString(body.id, message);
+  }
+  return [
+    {
+      method: "GET",
+      path: API.providers,
+      handler: () => ({ status: 200, body: store.readProviders() }),
+    },
+    {
+      method: "POST",
+      path: API.providers,
+      handler: async ({ request }) => {
+        const body = await jsonRequest(request);
+        let input: ProviderInput;
+        try {
+          input = validateProviderInput(body);
+        } catch (error) {
+          // Field-level messages written for the person filling in the form.
+          throw new HttpError(400, errorMessage(error), { cause: error });
+        }
+        try {
+          return { status: 200, body: store.saveProvider(input) };
+        } catch (error) {
+          // Only the store's own refusals are the caller's concern; SQLite and I/O
+          // failures are internal and must not reach the page.
+          if (error instanceof StoreValidationError)
+            throw new HttpError(400, error.message, { cause: error });
+          throw error;
+        }
+      },
+    },
+    {
+      method: "POST",
+      path: API.deleteProvider,
+      handler: async ({ request }) => {
+        const id = await selectedId(request);
+        if (!store.deleteProvider(id)) throw new HttpError(404, "Provider not found.");
+        const result: DeleteResult = { deleted: true };
+        return { status: 200, body: result };
+      },
+    },
+    {
+      method: "POST",
+      path: API.testProvider,
+      handler: async ({ request }) => {
+        const id = await selectedId(request);
+        let access: ReturnType<typeof store.resolveProvider>["access"];
+        try {
+          ({ access } = store.resolveProvider(id));
+        } catch (error) {
+          if (error instanceof StoreValidationError)
+            throw new HttpError(400, error.message, { cause: error });
+          throw error;
+        }
+        try {
+          const connection = await testProviderConnection(access);
+          const result: ProviderTestResult = { connected: true, ...connection };
+          return { status: 200, body: result };
+        } catch (error) {
+          // `testProviderConnection` already reduced the failure to a safe category.
+          throw new HttpError(400, errorMessage(error), { cause: error });
+        }
+      },
+    },
+  ];
+}

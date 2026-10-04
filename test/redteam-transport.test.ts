@@ -6,6 +6,7 @@ const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock("node:child_process", () => ({ spawn }));
 
 import { qualifyLlmfyBudget } from "../src/redteam/qualification.ts";
+import { WorkerError } from "../src/redteam/worker.ts";
 
 const image = `sha256:${"a".repeat(64)}`;
 const limits = { maxModelCalls: 9, maxTokens: 1, timeoutMs: 30_000 };
@@ -203,8 +204,8 @@ it.each(["malformed-json", "bad-protocol", "truncated-frame", "invalid-utf8"])(
       child.stdout.write(Buffer.concat([frames(ready, started, request), extra]));
     };
     const error = await qualifyLlmfyBudget(image, { limits }).catch((error: unknown) => error);
-    expect(error).toBeInstanceOf(AggregateError);
-    const errors = (error as AggregateError).errors as Error[];
+    expect(error).toBeInstanceOf(WorkerError);
+    const errors = (error as WorkerError).errors as Error[];
     expect(errors[0]?.message).toContain("cancelled");
     expect(errors[1]?.message).toContain(
       failure === "truncated-frame" ? "Truncated" : "protocol failed",
@@ -219,10 +220,10 @@ it("surfaces output overflow racing a budget interruption", async () => {
     child.stdout.write(frames(ready, started, request));
   };
   const error = await qualifyLlmfyBudget(image, { limits }).catch((error: unknown) => error);
-  expect(error).toBeInstanceOf(AggregateError);
-  expect((error as AggregateError).errors.map((item: Error) => item.message)).toEqual([
-    "Qualification cancelled.",
-    "Qualification output limit exceeded.",
+  expect(error).toBeInstanceOf(WorkerError);
+  expect((error as WorkerError).errors.map((item) => (item as Error).message)).toEqual([
+    "Worker cancelled.",
+    "Worker output limit exceeded.",
   ]);
   expect(spawn).toHaveBeenCalledTimes(2);
 });
@@ -230,8 +231,9 @@ it("surfaces output overflow racing a budget interruption", async () => {
 it("preserves interruption and cleanup failures instead of returning a partial report", async () => {
   failCleanup = true;
   const error = await qualifyLlmfyBudget(image, { limits }).catch((error: unknown) => error);
-  expect(error).toBeInstanceOf(AggregateError);
-  const errors = (error as AggregateError).errors as Error[];
+  expect(error).toBeInstanceOf(WorkerError);
+  expect((error as WorkerError).cleanupConfirmed).toBe(false);
+  const errors = (error as WorkerError).errors as Error[];
   expect(errors[0]?.message).toContain("cancelled");
   expect(errors[1]?.message).toContain("cleanup failed");
   const cause = errors[1]?.cause;

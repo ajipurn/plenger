@@ -1,9 +1,11 @@
 import { styleText } from "node:util";
 import type { CapabilityKind, Inventory } from "../inventory/model.ts";
-import { LANGUAGE_LABEL, type Language } from "../languages.ts";
 import { type Finding, SEVERITIES, type Severity } from "../rules/model.ts";
+import { UNNAMED } from "../rules/text.ts";
 import type { ScanResult, ScanSkipReason } from "../scan.ts";
-import { VERSION } from "../version.ts";
+import { VERSION } from "../shared/runtime.ts";
+import { callLabel, routeLabel, shortName } from "../shared/text.ts";
+import { LANGUAGE_LABEL, type Language } from "../source/languages.ts";
 
 const SKIP_LABEL: Record<ScanSkipReason, string> = {
   declaration: "type declarations",
@@ -122,7 +124,9 @@ function fileLines(result: ScanResult, s: Styles): string[] {
     lines.push(
       s.warn(`  ${plural(broken.length, "file")} with syntax errors; results may be partial:`),
     );
-    lines.push(...listed(broken.map((file) => file.path)).map((path) => `    ${s.dim(path)}`));
+    lines.push(
+      ...truncatedList(broken.map((file) => file.path)).map((path) => `    ${s.dim(path)}`),
+    );
   }
   if (result.skipped.length > 0) {
     const counts = new Map<ScanSkipReason, number>();
@@ -134,7 +138,7 @@ function fileLines(result: ScanResult, s: Styles): string[] {
     const dirs = result.excludedDirs.map(({ path, reason }) =>
       reason === "default" ? path : `${path} (${reason})`,
     );
-    lines.push(`  Excluded directories: ${s.dim(listed(dirs).join(", "))}`);
+    lines.push(`  Excluded directories: ${s.dim(truncatedList(dirs).join(", "))}`);
   }
   return lines;
 }
@@ -187,7 +191,7 @@ function inventoryLines(inventory: Inventory, s: Styles): string[] {
     inventory.mcpServers.length,
     inventory.mcpServers.map(
       (server) =>
-        `${server.name ?? "unnamed"}${server.transport === null ? "" : ` (${server.transport})`}: ${plural(server.tools.length, "tool")}`,
+        `${server.name ?? UNNAMED}${server.transport === null ? "" : ` (${server.transport})`}: ${plural(server.tools.length, "tool")}`,
     ),
   );
   row(
@@ -210,13 +214,7 @@ function inventoryLines(inventory: Inventory, s: Styles): string[] {
     inventory.dataStores.length,
     counted(inventory.dataStores.map((store) => store.kind.replace("_", " "))),
   );
-  row(
-    "Entry points",
-    inventory.entryPoints.length,
-    unique(
-      inventory.entryPoints.map((entry) => `${entry.method ?? ""} ${entry.path ?? "?"}`.trim()),
-    ),
-  );
+  row("Entry points", inventory.entryPoints.length, unique(inventory.entryPoints.map(routeLabel)));
   if (lines.length === 2) lines.push("    No LLM, agent, tool or MCP usage found.");
   if (inventory.unrecognised.length > 0) {
     const modules = inventory.unrecognised.map(
@@ -227,6 +225,7 @@ function inventoryLines(inventory: Inventory, s: Styles): string[] {
   return lines;
 }
 
+/** Verb phrases for the terminal summary; rules/text.ts `ACTION_PHRASE` words `network` and `database` differently for finding titles. */
 const CAPABILITY_LABEL: Record<CapabilityKind, string> = {
   process: "run commands",
   code: "execute code",
@@ -302,24 +301,15 @@ function capabilityLines(inventory: Inventory, s: Styles): string[] {
             ? `agent ${agentName.get(item.target) ?? item.target}`
             : callLabel(item.target),
         );
-      const route = `${entry.method ?? ""} ${entry.path ?? "?"}`.trim();
-      lines.push(`      ${route} ${s.dim(`→ ${clip(unique(targets).join(", "), DETAIL_WIDTH)}`)}`);
+      lines.push(
+        `      ${routeLabel(entry)} ${s.dim(`→ ${clip(unique(targets).join(", "), DETAIL_WIDTH)}`)}`,
+      );
     }
     if (reaching.length > LIST_LIMIT)
       lines.push(s.dim(`      … ${reaching.length - LIST_LIMIT} more`));
   }
   if (lines.length === 2) lines.push("    No tool or entry point with an outside effect found.");
   return lines;
-}
-
-/** `openai.OpenAI().chat.completions.create` → `chat.completions.create`; `ai#generateText` → `generateText`. */
-function callLabel(target: string): string {
-  const afterClient = /\(\)\.(.+)$/.exec(target)?.[1];
-  return (afterClient ?? shortName(target)).replace(/\(\)/g, "");
-}
-
-function shortName(target: string): string {
-  return /([\w$]+)(?:\(\))?$/.exec(target)?.[1] ?? target;
 }
 
 function counted(items: string[]): string[] {
@@ -338,7 +328,8 @@ function clip(text: string, width: number): string {
   return text.length <= width ? text : `${text.slice(0, width - 1)}…`;
 }
 
-function listed(items: string[]): string[] {
+/** The first `LIST_LIMIT` items, with a count of the rest. */
+function truncatedList(items: string[]): string[] {
   return items.length <= LIST_LIMIT
     ? items
     : [...items.slice(0, LIST_LIMIT), `… ${items.length - LIST_LIMIT} more`];

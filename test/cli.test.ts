@@ -1,11 +1,11 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { type Io, main, VERSION } from "../src/cli.ts";
+import { type Io, main, VERSION } from "../src/cli/index.ts";
+import { fixturePath } from "./support/fixtures.ts";
 
-const fixture = fileURLToPath(new URL("fixtures/mixed-agent", import.meta.url));
+const fixture = fixturePath("mixed-agent");
 
 async function run(...argv: string[]) {
   const out: string[] = [];
@@ -67,7 +67,7 @@ describe("plenger scan", () => {
 });
 
 describe("agent inventory output", () => {
-  const corpus = fileURLToPath(new URL("fixtures/frameworks", import.meta.url));
+  const corpus = fixturePath("frameworks");
 
   it("summarises the inventory after the files", async () => {
     const { code, stdout } = await run("scan", corpus);
@@ -91,7 +91,7 @@ describe("agent inventory output", () => {
 });
 
 describe("findings output", () => {
-  const risks = fileURLToPath(new URL("fixtures/risks", import.meta.url));
+  const risks = fixturePath("risks");
 
   it("lists the most urgent findings with their place and source line", async () => {
     const { code, stdout } = await run("scan", risks);

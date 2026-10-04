@@ -1,16 +1,17 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DashboardSession, FolderListing } from "../src/dashboard/model.ts";
-import { startDashboard } from "../src/dashboard/server.ts";
+import type { FolderListing } from "../src/dashboard/contract.ts";
+import type { FolderPicker } from "../src/dashboard/folder-picker.ts";
+import { startTestDashboard, type TestDashboard } from "./support/dashboard.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
 describe("dashboard system folder picker", () => {
   let root: string;
-  let dashboard: Awaited<ReturnType<typeof startDashboard>>;
-  let session: DashboardSession;
-  const folderPicker = vi.fn<(path: string, signal: AbortSignal) => Promise<string | null>>();
+  let dashboard: TestDashboard;
+  const folderPicker = vi.fn<FolderPicker>();
 
+  /** Like `dashboard.request`, but with full control of headers and an abort signal. */
   function choose(body: unknown = { path: root }, options: RequestInit = {}) {
     return fetch(`${dashboard.url}/api/folders/choose`, {
       method: "POST",
@@ -18,38 +19,22 @@ describe("dashboard system folder picker", () => {
       ...options,
       headers: {
         "Content-Type": "application/json",
-        "X-Plenger-Token": session.token,
+        "X-Plenger-Token": dashboard.session.token,
         ...options.headers,
       },
     });
   }
-
-  async function state() {
-    return (
-      await fetch(`${dashboard.url}/api/state`, {
-        headers: { "X-Plenger-Token": session.token },
-      })
-    ).json();
-  }
+  const state = () => dashboard.state();
 
   beforeEach(async () => {
     folderPicker.mockReset();
-    root = await realpath(await mkdtemp(join(tmpdir(), "plenger-folder-picker-")));
-    await mkdir(join(root, "assets"));
+    root = await temporaryDir("plenger-folder-picker-");
     await mkdir(join(root, "selected"));
-    await writeFile(join(root, "assets", "index.html"), "<html>Dashboard</html>");
-    dashboard = await startDashboard({
-      workspace: root,
-      assets: join(root, "assets"),
-      dataDir: join(root, ".dashboard-data"),
-      folderPicker,
-    });
-    session = (await (await fetch(`${dashboard.url}/api/session`)).json()) as DashboardSession;
+    dashboard = await startTestDashboard({ root, workspace: root, folderPicker });
   });
 
   afterEach(async () => {
     await dashboard?.close();
-    await rm(root, { recursive: true, force: true });
   });
 
   it("opens the system picker and returns the chosen folder to the dashboard", async () => {
@@ -77,10 +62,7 @@ describe("dashboard system folder picker", () => {
     expect((await choose(undefined, { headers: { Origin: "https://evil.example" } })).status).toBe(
       403,
     );
-    const get = await fetch(`${dashboard.url}/api/folders/choose`, {
-      headers: { "X-Plenger-Token": session.token },
-    });
-    expect(get.status).toBe(405);
+    expect((await dashboard.request("/api/folders/choose")).status).toBe(405);
     expect((await choose(undefined, { headers: { "Content-Type": "text/plain" } })).status).toBe(
       415,
     );
@@ -110,10 +92,7 @@ describe("dashboard system folder picker", () => {
     const failure = await response.text();
     expect(failure).toContain("Browse the folders below");
     expect(failure).not.toContain("private native process stderr");
-    const manual = await fetch(`${dashboard.url}/api/folders`, {
-      headers: { "X-Plenger-Token": session.token },
-    });
-    expect(manual.status).toBe(200);
+    expect((await dashboard.request("/api/folders")).status).toBe(200);
     folderPicker.mockResolvedValue(null);
     expect((await choose()).status).toBe(200);
   });

@@ -35,6 +35,5 @@ incremental committed snapshots and runtime provenance fields: it does not conta
 an immutable image ID or a recorded runtime/observer version. Those facts cannot be
 retrofitted, and this run does not qualify a later worker revision.
 
-M6b remains incomplete. Further model/platform qualification, broader HTTP profiles,
-repetitions/CI (M6c), and indirect injection (M7) still require implementation and
-validation. The llmfy live-model journey (M6a) also remains pending.
+Current qualification status, including what remains pending for this profile
+and for llmfy, is in [../STATUS.md](../STATUS.md#qualified-versus-pending).

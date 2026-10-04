@@ -2,7 +2,6 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { Ajv } from "ajv";
 import type { FormatsPlugin } from "ajv-formats";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -23,6 +22,7 @@ import {
 import { REPORT_SCHEMA, REPORT_SCHEMAS } from "../src/report/schema.ts";
 import { SEVERITIES } from "../src/rules/model.ts";
 import { scan } from "../src/scan.ts";
+import { fixturePath } from "./support/fixtures.ts";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const addFormats: FormatsPlugin = createRequire(import.meta.url)("ajv-formats");
@@ -32,19 +32,13 @@ const validateReport = ajv.compile(REPORT_SCHEMA);
 const sarifAjv = new Ajv({ allErrors: true, strict: false, unicodeRegExp: false });
 addFormats(sarifAjv);
 const validateSarif = sarifAjv.compile(
-  JSON.parse(
-    await readFile(new URL("fixtures/reports/sarif-2.1.0.schema.json", import.meta.url), "utf8"),
-  ),
+  JSON.parse(await readFile(fixturePath("reports/sarif-2.1.0.schema.json"), "utf8")),
 );
 const reports: Report[] = [];
 let report: Report;
 beforeAll(async () => {
   for (const corpus of ["frameworks", "crossfile", "risks", "mixed-agent"]) {
-    reports.push(
-      createReport(
-        await scan(fileURLToPath(new URL(`fixtures/${corpus}`, import.meta.url)), { facts: true }),
-      ),
-    );
+    reports.push(createReport(await scan(fixturePath(corpus), { facts: true })));
   }
   report = reports[2] as Report;
 });

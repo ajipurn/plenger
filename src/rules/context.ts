@@ -1,19 +1,22 @@
 import type { CallFact } from "../facts/model.ts";
+import { isEnabled, select } from "../facts/query.ts";
 import type {
   Agent,
   Capability,
   CapabilityKind,
   DynamicPart,
-  EntryPoint,
   Inventory,
   LlmCall,
   Location,
   McpServer,
   Tool,
 } from "../inventory/model.ts";
-import { isEnabled, select } from "../inventory/values.ts";
+import { ProjectIndex } from "../project/index.ts";
 import type { Project, ProjectFile } from "../project/project.ts";
+import { locationKey, sameStart } from "../shared/location.ts";
+import { routeLabel, shortName } from "../shared/text.ts";
 import type { Evidence } from "./model.ts";
+import { code, UNNAMED } from "./text.ts";
 
 /** Handler parameters that frameworks fill in rather than the model. */
 const CONTEXT_PARAMS =
@@ -34,7 +37,7 @@ const AUTH_MODULE =
 export const NETWORK_TRANSPORT = /^(?:streamable-http|sse|http)$/;
 
 /** Capabilities an agent should not use unattended. */
-export const HIGH_IMPACT = new Set<CapabilityKind>([
+const HIGH_IMPACT = new Set<CapabilityKind>([
   "process",
   "code",
   "file_write",
@@ -56,10 +59,11 @@ export class RuleContext {
   readonly llmCalls: Map<string, LlmCall>;
   /** Items reachable from outside (tool, agent and LLM call ids) and the route or server that reaches them. */
   readonly exposure = new Map<string, string>();
-  readonly #callsAt = new Map<string, Map<string, CallFact[]>>();
+  readonly #index: ProjectIndex;
 
   constructor(project: Project, inventory: Inventory) {
     this.project = project;
+    this.#index = new ProjectIndex(project);
     this.inventory = inventory;
     this.tools = new Map(inventory.tools.map((tool) => [tool.id, tool]));
     this.agents = new Map(inventory.agents.map((agent) => [agent.id, agent]));
@@ -99,7 +103,7 @@ export class RuleContext {
     for (const server of this.inventory.mcpServers) {
       if (server.transport === null || !NETWORK_TRANSPORT.test(server.transport)) continue;
       if (this.serverAuth(server) !== null) continue;
-      const label = `MCP server ${server.name ?? "unnamed"} (${server.transport})`;
+      const label = `MCP server ${server.name ?? UNNAMED} (${server.transport})`;
       for (const toolId of server.tools) mark(toolId, label);
     }
   }
@@ -199,8 +203,7 @@ export class RuleContext {
         if (candidate.value.kind !== "call" || candidate.member !== undefined) return false;
         const span = facts.calls[candidate.value.call]?.span;
         return (
-          candidate.value.call === index ||
-          (span?.line === site.call.span.line && span.column === site.call.span.column)
+          candidate.value.call === index || (span !== undefined && sameStart(span, site.call.span))
         );
       });
       if (assignment !== undefined) return assignment.target.replace(/^(?:self|this)\./, "");
@@ -226,102 +229,17 @@ export class RuleContext {
 
   /** Calls that start at a location (the calls of a chain share their start). */
   callsAt(location: Location): { file: ProjectFile; calls: CallFact[] } | undefined {
-    const file = this.project.files.get(location.path);
-    if (file === undefined) return undefined;
-    let index = this.#callsAt.get(file.path);
-    if (index === undefined) {
-      index = new Map();
-      for (const call of file.facts.calls) {
-        const at = `${call.span.line}:${call.span.column}`;
-        const list = index.get(at) ?? [];
-        list.push(call);
-        index.set(at, list);
-      }
-      this.#callsAt.set(file.path, index);
-    }
-    return { file, calls: index.get(`${location.line}:${location.column}`) ?? [] };
+    return this.#index.callsAt(location);
   }
 
   /** The call an inventory item was found at, preferring the one with the item's target. */
   callAt(location: Location, target?: string): { file: ProjectFile; call: CallFact } | undefined {
-    const found = this.callsAt(location);
-    if (found === undefined) return undefined;
-    const calls = found.calls.filter(
-      (call) =>
-        call.span.endLine === location.endLine && call.span.endColumn === location.endColumn,
-    );
-    const call = calls.find((candidate) => candidate.ref?.name === target) ?? calls[0];
-    return call === undefined ? undefined : { file: found.file, call };
+    return this.#index.callAt(location, target);
   }
 }
 
-export function routeLabel(entry: EntryPoint): string {
-  return `${entry.method ?? ""} ${entry.path ?? "?"}`.trim();
-}
-
-export function locationKey(location: Location): string {
-  return `${location.path}:${location.line}:${location.column}`;
-}
-
-/** `openai.OpenAI().chat.completions.create` → `chat.completions.create`; `ai#generateText` → `generateText`. */
-export function callLabel(target: string): string {
-  const afterClient = /\(\)\.(.+)$/.exec(target)?.[1];
-  return (afterClient ?? shortName(target)).replace(/\(\)/g, "");
-}
-
-/** A readable name for a constructor or function: `openai.OpenAI` → `OpenAI`, `openai#default` → `openai`, `FAISS.load_local` stays. */
-export function clientLabel(target: string): string {
-  const name = target.replace(/\(\)/g, "");
-  const module = /^(.+)#default$/.exec(name)?.[1];
-  if (module !== undefined) return module;
-  const parts = name.split(/[.#]/);
-  const last = parts.at(-1) ?? name;
-  const previous = parts.at(-2);
-  return previous !== undefined && /^[A-Z]/.test(previous) ? `${previous}.${last}` : last;
-}
-
-export function shortName(target: string): string {
-  return /([\w$]+)(?:\(\))?$/.exec(target)?.[1] ?? target;
-}
-
-/** `a`, `a and b`, `a, b and c`. */
-export function listed(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? "";
-  return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
-}
-
-/** Text as inline code: whitespace collapsed, clipped to 60 characters. */
-export function code(text: string): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  return `\`${flat.length > 60 ? `${flat.slice(0, 59)}…` : flat}\``;
-}
-
-/** The texts of input parts, as code, for titles and messages. */
-export function inputList(parts: DynamicPart[]): string {
-  return listed([...new Set(parts.map((part) => part.text))].slice(0, 3).map(code));
-}
-
-/** What capability kinds let an agent do, as verb phrases. */
-export const ACTION_PHRASE: Record<CapabilityKind, string> = {
-  process: "run commands",
-  code: "execute code",
-  file_write: "write files",
-  file_delete: "delete files",
-  file_read: "read files",
-  network: "make network requests",
-  database: "change databases",
-  message: "send messages",
-  payment: "make payments",
-  secret: "read secrets",
-  deserialize: "load unsafe data",
-  browser: "drive a browser",
-  mcp: "use MCP servers",
-  agent: "run other agents",
-  llm: "call models",
-};
-
 /** Ordered roughly by how much damage misuse can do. */
-export const ACTION_ORDER: CapabilityKind[] = [
+const ACTION_ORDER: CapabilityKind[] = [
   "process",
   "code",
   "payment",

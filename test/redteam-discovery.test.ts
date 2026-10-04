@@ -1,21 +1,16 @@
-import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { access, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { main } from "../src/cli.ts";
+import { describe, expect, it } from "vitest";
+import { main } from "../src/cli/index.ts";
 import { discoverProject, formatDiscovery } from "../src/redteam/discover.ts";
-import { fixturePath } from "./helpers.ts";
+import { fixturePath } from "./support/fixtures.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
-const temporary: string[] = [];
 async function project(files: Record<string, string>) {
-  const root = await mkdtemp(join(tmpdir(), "plenger-discovery-"));
-  temporary.push(root);
+  const root = await temporaryDir("plenger-discovery-");
   for (const [name, contents] of Object.entries(files)) await writeFile(join(root, name), contents);
   return root;
 }
-afterEach(async () => {
-  await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
-});
 
 const simple = `from llmfy import LLMfy, OpenAIChatModel
 model = OpenAIChatModel(model="gpt-4o-mini")

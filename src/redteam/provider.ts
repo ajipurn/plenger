@@ -1,4 +1,12 @@
-import type { ModelReservation, TokenUsage } from "./budget.ts";
+import { isRecord } from "../shared/guards.ts";
+import {
+  BudgetStoppedError,
+  ModelBudget,
+  type ModelReservation,
+  type TokenUsage,
+} from "./budget.ts";
+import { MODEL_REQUEST_CAP, MODEL_RESPONSE_CAP, type ProviderId } from "./constants.ts";
+import { PROVIDER_URLS, providerBaseUrl, validateProviderSettings } from "./provider-config.ts";
 
 export interface ModelRequest {
   messages: unknown[];
@@ -18,9 +26,21 @@ export interface RunProvider {
   ): Promise<{ value: ModelReply; usage?: TokenUsage }>;
 }
 export interface ProviderAccess {
-  provider: "openai" | "ollama" | "gemini";
+  provider: ProviderId;
   model: string;
   apiKey?: string;
+  baseUrl?: string;
+  temperature?: number | null;
+  maxOutputTokens?: number;
+}
+
+/** Only the status is surfaced; provider error bodies may contain request data. */
+export class ModelProviderHttpError extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(`Model provider returned HTTP ${status}. Check access and model availability.`);
+    this.status = status;
+  }
 }
 
 /** No SDK retries, redirects, credential discovery, or worker-selected destinations. */
@@ -28,23 +48,11 @@ export function createRunProvider(
   access: ProviderAccess,
   dispatch: typeof fetch = fetch,
 ): RunProvider {
-  if (
-    !["openai", "ollama", "gemini"].includes(access.provider) ||
-    !/^[\w./:-]{1,128}$/.test(access.model) ||
-    access.model.includes("://")
-  )
-    throw new Error("Choose a supported provider and enter a model ID.");
-  if (
-    access.provider !== "ollama" &&
-    (!access.apiKey || /[\r\n]/.test(access.apiKey) || access.apiKey.length > 4096)
-  )
+  validateProviderSettings(access);
+  if (access.provider !== "ollama" && !access.apiKey)
     throw new Error("Enter your selected provider's API key for this run.");
-  const url =
-    access.provider === "openai"
-      ? "https://api.openai.com/v1/chat/completions"
-      : access.provider === "gemini"
-        ? "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-        : "http://127.0.0.1:11434/v1/chat/completions";
+  const url = `${providerBaseUrl(access.baseUrl ?? PROVIDER_URLS[access.provider])}/chat/completions`;
+  const outputLimit = access.maxOutputTokens ?? 1024;
   // Gemini's OpenAI-compatible transport requires its returned thought signatures
   // on later function-call turns. Retain these only within this provider instance.
   const metadata = new Map<string, unknown>();
@@ -68,6 +76,7 @@ export function createRunProvider(
     }),
     ...(request.tools?.length ? { tools: request.tools } : {}),
     stream: false,
+    ...(access.temperature == null ? {} : { temperature: access.temperature }),
     ...(access.provider === "openai"
       ? { max_completion_tokens: maxOutputTokens, store: false }
       : { max_tokens: maxOutputTokens }),
@@ -76,15 +85,15 @@ export function createRunProvider(
     name: access.provider,
     model: access.model,
     reservation(request, purpose) {
-      const bytes = Buffer.byteLength(JSON.stringify(requestBody(request, 1024)));
-      if (bytes > 48 * 1024)
+      const bytes = Buffer.byteLength(JSON.stringify(requestBody(request, outputLimit)));
+      if (bytes > MODEL_REQUEST_CAP)
         throw new Error("Model request exceeds the runtime profile's size limit.");
       // Conservative admission estimate, reconciled with provider usage. An overrun
       // stops the run; this is not a guaranteed billing cap for every model.
       return {
         purpose,
         inputTokensUpperBound: bytes * 4 + 4096,
-        maxOutputTokens: 1024,
+        maxOutputTokens: outputLimit,
         additionalTokensUpperBound: 0,
       };
     },
@@ -97,7 +106,7 @@ export function createRunProvider(
           signal,
           headers: {
             "Content-Type": "application/json",
-            ...(access.provider !== "ollama" ? { Authorization: `Bearer ${access.apiKey}` } : {}),
+            ...(access.apiKey ? { Authorization: `Bearer ${access.apiKey}` } : {}),
           },
           body: JSON.stringify(requestBody(request, maxOutputTokens)),
         });
@@ -106,9 +115,7 @@ export function createRunProvider(
       }
       if (!response.ok) {
         await response.body?.cancel();
-        throw new Error(
-          `Model provider returned HTTP ${response.status}. Check access and model availability.`,
-        );
+        throw new ModelProviderHttpError(response.status);
       }
       const reader = response.body?.getReader();
       if (!reader) throw new Error("Model provider returned an empty response.");
@@ -119,7 +126,7 @@ export function createRunProvider(
           const next = await reader.read();
           if (next.done) break;
           bytes += next.value.byteLength;
-          if (bytes > 64 * 1024) throw new Error("Model response exceeds the size limit.");
+          if (bytes > MODEL_RESPONSE_CAP) throw new Error("Model response exceeds the size limit.");
           chunks.push(next.value);
         }
       } finally {
@@ -144,6 +151,53 @@ export function createRunProvider(
       return parsed;
     },
   };
+}
+
+const CONNECTION_TEST_TIMEOUT_MS = 20_000;
+
+/** What a successful connection test reports. */
+export interface ProviderConnection {
+  model: string;
+  durationMs: number;
+}
+
+/**
+ * One bounded request proving the endpoint, model and key work together. Failures
+ * are reported by category only; provider error bodies may echo the request.
+ */
+export async function testProviderConnection(
+  access: ProviderAccess,
+  dispatch: typeof fetch = fetch,
+): Promise<ProviderConnection> {
+  const budget = new ModelBudget({
+    maxModelCalls: 1,
+    maxTokens: 100_000,
+    timeoutMs: CONNECTION_TEST_TIMEOUT_MS,
+  });
+  const started = performance.now();
+  try {
+    const provider = createRunProvider(access, dispatch);
+    const request: ModelRequest = {
+      messages: [{ role: "user", content: "Reply with OK." }],
+      tools: null,
+    };
+    await budget.execute(provider.reservation(request, "setup"), (allowance) =>
+      provider.generate(request, allowance),
+    );
+    return { model: provider.model, durationMs: Math.round(performance.now() - started) };
+  } catch (error) {
+    throw new Error(connectionTestFailure(error), { cause: error });
+  } finally {
+    budget.finish();
+  }
+}
+
+function connectionTestFailure(error: unknown): string {
+  if (error instanceof ModelProviderHttpError)
+    return `Connection test failed: provider returned HTTP ${error.status}. Check model availability and access.`;
+  if (error instanceof BudgetStoppedError && error.reason === "deadline")
+    return `Connection test timed out after ${CONNECTION_TEST_TIMEOUT_MS / 1000} seconds. Check that the model is available and responding.`;
+  return "Connection test failed. Check the endpoint, model and API key.";
 }
 
 export function parseModelReply(raw: unknown): { value: ModelReply; usage?: TokenUsage } {
@@ -198,8 +252,8 @@ export function parseModelReply(raw: unknown): { value: ModelReply; usage?: Toke
   return result;
 }
 
+/** A worker or provider frame must be a JSON object. */
 export function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error("Invalid runtime message.");
-  return value as Record<string, unknown>;
+  if (!isRecord(value)) throw new Error("Invalid runtime message.");
+  return value;
 }

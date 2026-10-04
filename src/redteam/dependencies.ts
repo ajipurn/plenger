@@ -1,6 +1,8 @@
-import { createHash } from "node:crypto";
 import { parse } from "smol-toml";
-import { redact } from "../secrets.ts";
+import { isRecord } from "../shared/guards.ts";
+import { sha256Hex } from "../shared/hash.ts";
+import { redact } from "../shared/secrets.ts";
+import { LLMFY_RUNTIME } from "./constants.ts";
 import { decodeSource, ProjectFileError, readProjectFile } from "./project-files.ts";
 
 export interface DependencyReview {
@@ -51,7 +53,7 @@ export async function reviewDependencies(root: string): Promise<DependencyReview
     report.manifests.push({
       path,
       status: "read",
-      sha256: createHash("sha256").update(bytes).digest("hex"),
+      sha256: sha256Hex(bytes),
     });
     if (path === "requirements.txt") {
       for (const [index, raw] of text.split(/\r?\n/).entries()) {
@@ -101,7 +103,7 @@ export async function reviewDependencies(root: string): Promise<DependencyReview
     ),
   ];
   if (pins.length === 1 && pins[0] !== null) report.llmfy.version = pins[0] ?? null;
-  report.llmfy.matchesSyntheticBaseline = report.llmfy.version === "0.11.0";
+  report.llmfy.matchesSyntheticBaseline = report.llmfy.version === LLMFY_RUNTIME.llmfy;
   if (llmfy.length === 0)
     report.issues.push({ path: ".", reason: "llmfy-dependency-not-declared" });
   else if (report.llmfy.version === null)
@@ -120,9 +122,7 @@ export async function reviewDependencies(root: string): Promise<DependencyReview
 }
 
 function object(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+  return isRecord(value) ? value : {};
 }
 
 function requirement(value: string): Omit<DependencyReview["packages"][number], "source"> | null {

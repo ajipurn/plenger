@@ -90,9 +90,7 @@ export class ModelBudget {
   #accountedTokens = 0;
 
   constructor(limits: BudgetLimits, options: { signal?: AbortSignal } = {}) {
-    integer(limits.maxModelCalls, "maxModelCalls", 1, 100_000);
-    integer(limits.maxTokens, "maxTokens", 1, Number.MAX_SAFE_INTEGER);
-    integer(limits.timeoutMs, "timeoutMs", 1, 86_400_000);
+    validateBudgetLimits(limits);
     this.#limits = {
       maxModelCalls: limits.maxModelCalls,
       maxTokens: limits.maxTokens,
@@ -305,6 +303,13 @@ export class ModelBudget {
     clearTimeout(this.#timer);
     this.#externalSignal?.removeEventListener("abort", this.#onExternalAbort);
   }
+}
+
+/** The bounds a `ModelBudget` accepts, checked without arming a deadline timer. */
+export function validateBudgetLimits(limits: BudgetLimits): void {
+  integer(limits.maxModelCalls, "maxModelCalls", 1, 100_000);
+  integer(limits.maxTokens, "maxTokens", 1, Number.MAX_SAFE_INTEGER);
+  integer(limits.timeoutMs, "timeoutMs", 1, 86_400_000);
 }
 
 function integer(

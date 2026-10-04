@@ -16,6 +16,7 @@ import { createRequire } from "node:module";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { RUNTIME_FILES } from "../src/redteam/runtime.ts";
 import { writeBinaryNotices } from "./binary-notices.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -87,30 +88,14 @@ async function main() {
     }
     for (const filename of dashboardFiles)
       assets[`dashboard/${filename}`] = join(dashboard, filename);
-    for (const filename of [
-      "Dockerfile",
-      "requirements.txt",
-      "qualify.py",
-      "worker.py",
-      "project/agent.py",
-    ])
-      assets[`runtimes/llmfy/${filename}`] = join(root, "runtimes/llmfy", filename);
-    for (const filename of [
-      "Dockerfile",
-      "package.json",
-      "package-lock.json",
-      "worker.mjs",
-      "bridge.mjs",
-      "ai.mjs",
-      "google.mjs",
-      "sqlite.mjs",
-    ])
-      assets[`runtimes/vercel/${filename}`] = join(root, "runtimes/vercel", filename);
+    for (const [profile, filenames] of Object.entries(RUNTIME_FILES))
+      for (const filename of filenames)
+        assets[`runtimes/${profile}/${filename}`] = join(root, "runtimes", profile, filename);
 
     const bundle = join(temporary, "plenger.cjs");
     await build({
       stdin: {
-        contents: `import { main } from "./src/cli.ts";
+        contents: `import { main } from "./src/cli/index.ts";
 main(process.argv.slice(2)).then((code) => { process.exitCode = code; }, (error) => {
   console.error("plenger:", error instanceof Error ? error.message : String(error));
   process.exitCode = 1;

@@ -4,33 +4,16 @@
  * nothing about whether the code runs.
  */
 
+import type { Credential, DynamicPart } from "../facts/query.ts";
+
+export type { Credential, DynamicPart };
+
 export interface Location {
   path: string;
   line: number;
   column: number;
   endLine: number;
   endColumn: number;
-}
-
-/** A part of a prompt or input that is not fixed text. */
-export interface DynamicPart {
-  /** The expression as written. */
-  text: string;
-  /** `param`: a parameter of the enclosing function, the usual way outside input arrives. */
-  source: "param" | "name" | "call" | "other";
-  /** Resolved target, when there is one (`ai#generateText().text`, `os.getenv`). */
-  ref?: string;
-  /**
-   * Where the value comes from, as far as plenger can trace it through variables, calls
-   * and string building: parameters of the enclosing function (`body` from
-   * `await req.json()` comes from `req`), and request objects of web frameworks
-   * (`flask.request`).
-   */
-  from?: string[];
-  /** Canonical names of the calls the value is computed from (`openai.OpenAI().chat.completions.create`). */
-  calls?: string[];
-  /** Where each of `calls` is, as `line:column` in the file the part was found in. */
-  callSites?: string[];
 }
 
 /** What code can do outside the program. */
@@ -114,18 +97,6 @@ export interface Prompt {
   usedBy: string[];
 }
 
-/**
- * Where an API key comes from. `literal`: written in the code; `placeholder`: a literal
- * that is not a real key (`"ollama"`, `"sk-test"`, `"EMPTY"`), as local model servers take.
- */
-export type Credential =
-  | "literal"
-  | "placeholder"
-  | "environment"
-  | "parameter"
-  | "default"
-  | "other";
-
 export interface Model {
   id: string;
   framework: string;
@@ -186,7 +157,7 @@ export interface Agent {
   approval?: string;
 }
 
-export interface Invocation {
+interface Invocation {
   location: Location;
   inputs: DynamicPart[];
 }
@@ -231,7 +202,7 @@ export interface McpServer {
   prompts: McpMember[];
 }
 
-export interface McpMember {
+interface McpMember {
   name: string;
   handler: string | null;
   handlerPath?: string;
@@ -272,14 +243,14 @@ export interface EntryPoint {
   reaches: Capability[];
 }
 
-export interface FrameworkUse {
+interface FrameworkUse {
   id: string;
   name: string;
   files: string[];
 }
 
 /** An AI library the project imports whose usage plenger does not understand. */
-export interface Unrecognised {
+interface Unrecognised {
   module: string;
   files: string[];
 }

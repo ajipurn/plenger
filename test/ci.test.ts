@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { main } from "../src/cli.ts";
-import { runGitHubAction } from "../src/report/github.ts";
+import { runGitHubAction } from "../src/cli/commands/github-action.ts";
+import { main } from "../src/cli/index.ts";
 
 const unsafe = `from langchain_core.tools import tool
 import subprocess

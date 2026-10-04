@@ -1,40 +1,25 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, realpath, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DashboardScan, DashboardSession, DashboardState } from "../src/dashboard/model.ts";
-import { startDashboard } from "../src/dashboard/server.ts";
+import type { DashboardScan, DashboardState } from "../src/dashboard/contract.ts";
 import type { ProjectPlan } from "../src/redteam/plan.ts";
 import * as scanner from "../src/scan.ts";
+import { startTestDashboard, type TestDashboard } from "./support/dashboard.ts";
+import { fixturePath } from "./support/fixtures.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
-const fixture = fileURLToPath(new URL("fixtures/mixed-agent", import.meta.url));
-const llmfy = fileURLToPath(new URL("fixtures/redteam/llmfy", import.meta.url));
-const risks = fileURLToPath(new URL("fixtures/risks", import.meta.url));
+const fixture = fixturePath("mixed-agent");
+const llmfy = fixturePath("redteam/llmfy");
+const risks = fixturePath("risks");
 let root: string;
-let assets: string;
 let dataDir: string;
-let dashboard: Awaited<ReturnType<typeof startDashboard>>;
-let session: DashboardSession;
+let dashboard: TestDashboard;
 
 async function start(workspace?: string) {
-  dashboard = await startDashboard({
-    assets,
-    dataDir,
-    ...(workspace === undefined ? {} : { workspace }),
-  });
-  session = (await (await fetch(`${dashboard.url}/api/session`)).json()) as DashboardSession;
+  dashboard = await startTestDashboard({ root, ...(workspace === undefined ? {} : { workspace }) });
 }
-function request(path: string, body?: unknown, headers: Record<string, string> = {}) {
-  return fetch(`${dashboard.url}${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: { "Content-Type": "application/json", "X-Plenger-Token": session.token, ...headers },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-}
-async function state() {
-  return (await (await request("/api/state")).json()) as DashboardState;
-}
+const request: TestDashboard["request"] = (...args) => dashboard.request(...args);
+const state = () => dashboard.state();
 async function scan(path: string) {
   const response = await request("/api/scan", { path });
   expect(response.status).toBe(200);
@@ -43,20 +28,13 @@ async function scan(path: string) {
 
 describe("SQLite dashboard persistence", () => {
   beforeEach(async () => {
-    root = await realpath(await mkdtemp(join(tmpdir(), "plenger-persistence-")));
-    assets = join(root, "assets");
+    root = await temporaryDir("plenger-persistence-");
     dataDir = join(root, "data");
-    await mkdir(assets);
-    await writeFile(
-      join(assets, "index.html"),
-      '<html lang="en" data-theme="dark"><head><meta name="color-scheme" content="dark"><meta name="theme-color" content="#0b0b0b"></head><body>Dashboard</body></html>',
-    );
     await start(fixture);
   });
   afterEach(async () => {
     vi.restoreAllMocks();
     await dashboard.close();
-    await rm(root, { recursive: true, force: true });
   });
 
   it("persists the global theme across projects and service restarts and serves it before JavaScript loads", async () => {
@@ -98,11 +76,71 @@ describe("SQLite dashboard persistence", () => {
     expect(await state()).toEqual(saved);
     const upgraded = new DatabaseSync(join(dataDir, "dashboard.sqlite"));
     try {
-      expect(upgraded.prepare("PRAGMA user_version").get()?.user_version).toBe(3);
+      expect(upgraded.prepare("PRAGMA user_version").get()?.user_version).toBe(5);
     } finally {
       upgraded.close();
     }
     expect((await request("/api/theme", { theme: "light" })).status).toBe(200);
+  });
+
+  it("upgrades a first-release database that has only the original three tables", async () => {
+    await dashboard.close();
+    await rm(dataDir, { recursive: true, force: true });
+    await mkdir(dataDir, { recursive: true });
+    const { DatabaseSync } = await import("node:sqlite");
+    const legacy = new DatabaseSync(join(dataDir, "dashboard.sqlite"));
+    legacy.exec(`
+      CREATE TABLE projects (path TEXT PRIMARY KEY, scan_id TEXT REFERENCES scans(id) ON DELETE SET NULL, plan TEXT) STRICT;
+      CREATE TABLE scans (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, project TEXT NOT NULL REFERENCES projects(path) ON DELETE CASCADE, created_at TEXT NOT NULL, findings INTEGER NOT NULL, files INTEGER NOT NULL, payload TEXT NOT NULL) STRICT;
+      CREATE TABLE workspace (id INTEGER PRIMARY KEY CHECK (id = 1), project TEXT NOT NULL REFERENCES projects(path) ON DELETE CASCADE) STRICT;
+      INSERT INTO projects (path) VALUES ('/legacy');
+      INSERT INTO workspace (id, project) VALUES (1, '/legacy');
+      PRAGMA user_version = 1;
+    `);
+    legacy.close();
+    await start();
+    expect(await state()).toMatchObject({
+      project: "/legacy",
+      theme: "dark",
+      runs: [],
+      campaigns: [],
+      runProfile: null,
+    });
+    expect(await (await request("/api/providers")).json()).toEqual([]);
+    const upgraded = new DatabaseSync(join(dataDir, "dashboard.sqlite"));
+    try {
+      expect(upgraded.prepare("PRAGMA user_version").get()?.user_version).toBe(5);
+      const tables = upgraded
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+        .all()
+        .map((row) => row.name);
+      expect(tables).toEqual([
+        "model_providers",
+        "preferences",
+        "projects",
+        "redteam_campaigns",
+        "redteam_profiles",
+        "redteam_runs",
+        "scans",
+        "sqlite_sequence",
+        "workspace",
+      ]);
+    } finally {
+      upgraded.close();
+    }
+  });
+
+  it("refuses a database written by a newer Plenger instead of guessing its schema", async () => {
+    await dashboard.close();
+    const { DatabaseSync } = await import("node:sqlite");
+    const future = new DatabaseSync(join(dataDir, "dashboard.sqlite"));
+    future.exec("PRAGMA user_version = 99");
+    future.close();
+    await expect(start()).rejects.toThrow("version is unsupported");
+    const restored = new DatabaseSync(join(dataDir, "dashboard.sqlite"));
+    restored.exec("PRAGMA user_version = 5");
+    restored.close();
+    await start();
   });
 
   it("validates and authenticates theme changes without replacing the last saved preference", async () => {
@@ -214,26 +252,21 @@ describe("SQLite dashboard persistence", () => {
 
   it("keeps committed results when scans fail and refuses clear or selection during a scan", async () => {
     const saved = await scan(fixture);
-    let rejectScan!: (error: Error) => void;
-    let started!: () => void;
-    const running = new Promise<void>((resolve) => {
-      started = resolve;
-    });
+    const running = Promise.withResolvers<void>();
+    const result = Promise.withResolvers<scanner.ScanResult>();
     vi.spyOn(scanner, "scan").mockImplementationOnce(() => {
-      started();
-      return new Promise((_resolve, reject) => {
-        rejectScan = reject;
-      });
+      running.resolve();
+      return result.promise;
     });
     const pending = request("/api/scan", { path: fixture });
-    await running;
+    await running.promise;
     expect((await request("/api/theme", { theme: "light" })).status).toBe(200);
     expect((await state()).theme).toBe("light");
     expect((await request("/api/state/clear", {})).status).toBe(409);
     expect((await request("/api/project", { path: llmfy })).status).toBe(409);
     expect((await request("/api/history/open", { id: saved.id })).status).toBe(409);
     expect((await state()).report).toEqual(saved);
-    rejectScan(new Error("Scan failed"));
+    result.reject(new Error("Scan failed"));
     expect((await pending).status).toBe(500);
     expect((await state()).report).toEqual(saved);
     expect((await request("/api/state/clear", {})).status).toBe(200);

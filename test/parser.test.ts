@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { Grammar } from "../src/languages.ts";
-import { GRAMMAR_FILE, SourceParser } from "../src/parser.ts";
+import type { Grammar } from "../src/source/languages.ts";
+import { GRAMMAR_FILE, SourceParser } from "../src/source/parser.ts";
 
 const grammarDir = new URL("../grammars/", import.meta.url);
 

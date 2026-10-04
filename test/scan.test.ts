@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { looksMinified } from "../src/scan.ts";
+import { looksMinified } from "../src/source/read.ts";
 
 describe("looksMinified", () => {
   it("flags large single-line bundles", () => {

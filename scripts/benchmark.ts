@@ -4,7 +4,6 @@
 //   --write  replace the expected results with the current output (review the diff!)
 
 import { readFile, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import { scan } from "../src/scan.ts";
 import {
   type CompactInventory,
@@ -13,14 +12,13 @@ import {
   type Score,
   score,
   scoreFindings,
-} from "../test/compact.ts";
-
-/** Fixture directories with an expected-inventory.json and an expected-findings.json. */
-export const CORPORA = ["frameworks", "crossfile", "risks"];
+} from "../test/support/compact.ts";
+import { CORPORA } from "../test/support/corpora.ts";
+import { fixturePath } from "../test/support/fixtures.ts";
 
 let failed = false;
 for (const corpus of CORPORA) {
-  const root = fileURLToPath(new URL(`../test/fixtures/${corpus}`, import.meta.url));
+  const root = fixturePath(corpus);
   const result = await scan(root);
   const inventory = compact(result.inventory);
   const findings = compactFindings(result.findings);

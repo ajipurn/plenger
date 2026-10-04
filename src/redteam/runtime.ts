@@ -1,21 +1,50 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { embeddedAsset } from "../assets.ts";
+import { sha256Hex } from "../shared/hash.ts";
+import { embeddedAsset } from "../shared/runtime.ts";
 
 const execute = promisify(execFile);
-const filenames = ["Dockerfile", "requirements.txt", "qualify.py", "worker.py", "project/agent.py"];
+
+/** Every file of each managed runtime recipe; the binary build embeds exactly these. */
+export const RUNTIME_FILES = {
+  llmfy: ["Dockerfile", "requirements.txt", "qualify.py", "worker.py", "project/agent.py"],
+  vercel: [
+    "Dockerfile",
+    "package.json",
+    "package-lock.json",
+    "worker.mjs",
+    "bridge.mjs",
+    "ai.mjs",
+    "google.mjs",
+    "sqlite.mjs",
+  ],
+} as const;
+type RuntimeProfile = keyof typeof RUNTIME_FILES;
 
 /** Build only the bundled, pinned recipe. Never run a project's Dockerfile/scripts. */
 export async function prepareLlmfyRuntime(signal: AbortSignal): Promise<string> {
-  return prepareManagedRuntime("llmfy", filenames, signal);
+  return prepareRuntime("llmfy", signal);
 }
 
-export async function prepareNextRuntime(signal: AbortSignal): Promise<string> {
+/** The managed Next.js route image; the same recipe policy as the llmfy image. */
+export async function prepareVercelRuntime(signal: AbortSignal): Promise<string> {
+  return prepareRuntime("vercel", signal);
+}
+
+/** @deprecated Renamed to `prepareVercelRuntime`. */
+export const prepareNextRuntime = prepareVercelRuntime;
+
+async function prepareRuntime(profile: RuntimeProfile, signal: AbortSignal): Promise<string> {
+  const engine = await availableEngine(signal);
+  const image = await prepareManagedRuntime(profile, RUNTIME_FILES[profile], signal, engine);
+  return engine === "docker" ? `docker:${image}` : image;
+}
+
+async function availableEngine(signal: AbortSignal): Promise<"docker" | "podman"> {
   let engine: "docker" | "podman" = "podman";
   try {
     await execute("docker", ["info", "--format", "{{.ServerVersion}}"], {
@@ -27,27 +56,12 @@ export async function prepareNextRuntime(signal: AbortSignal): Promise<string> {
   } catch {
     signal.throwIfAborted();
   }
-  const image = await prepareManagedRuntime(
-    "vercel",
-    [
-      "Dockerfile",
-      "package.json",
-      "package-lock.json",
-      "worker.mjs",
-      "bridge.mjs",
-      "ai.mjs",
-      "google.mjs",
-      "sqlite.mjs",
-    ],
-    signal,
-    engine,
-  );
-  return engine === "docker" ? `docker:${image}` : image;
+  return engine;
 }
 
 async function prepareManagedRuntime(
-  profile: string,
-  files: string[],
+  profile: RuntimeProfile,
+  files: readonly string[],
   signal: AbortSignal,
   engine = "podman",
 ): Promise<string> {
@@ -62,11 +76,9 @@ async function prepareManagedRuntime(
         )),
     })),
   );
-  const digest = createHash("sha256")
-    .update(
-      Buffer.concat(recipe.map((file) => Buffer.concat([Buffer.from(file.path), file.content]))),
-    )
-    .digest("hex");
+  const digest = sha256Hex(
+    Buffer.concat(recipe.map((file) => Buffer.concat([Buffer.from(file.path), file.content]))),
+  );
   const tag = `localhost/plenger-${profile}:${digest.slice(0, 20)}`;
   const inspect = async () => {
     const result = await execute(engine, ["image", "inspect", "--format", "{{.Id}}", tag], {

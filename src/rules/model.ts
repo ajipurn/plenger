@@ -34,7 +34,7 @@ export interface Evidence {
   snippet?: string;
 }
 
-export type SubjectKind =
+type SubjectKind =
   | "tool"
   | "agent"
   | "llm_call"

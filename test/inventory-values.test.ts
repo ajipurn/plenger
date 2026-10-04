@@ -6,7 +6,7 @@ import {
   select,
   summarizeText,
   urlString,
-} from "../src/inventory/values.ts";
+} from "../src/facts/query.ts";
 import { factsOf } from "./helpers.ts";
 
 async function callToF(source: string, grammar: "python" | "typescript" = "python") {

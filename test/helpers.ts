@@ -1,14 +1,12 @@
-import { fileURLToPath } from "node:url";
 import { expect } from "vitest";
 import { extractFacts } from "../src/facts/index.ts";
 import type { CallFact, DefinitionFact, FileFacts, Value } from "../src/facts/model.ts";
-import type { Grammar } from "../src/languages.ts";
-import { SourceParser } from "../src/parser.ts";
 import { scan } from "../src/scan.ts";
+import type { Grammar } from "../src/source/languages.ts";
+import { SourceParser } from "../src/source/parser.ts";
+import { fixturePath } from "./support/fixtures.ts";
 
-export function fixturePath(relative: string): string {
-  return fileURLToPath(new URL(`fixtures/${relative}`, import.meta.url));
-}
+export { fixturePath };
 
 /** Facts for one fixture file, extracted the way `plenger facts` does. */
 export async function factsOfFixture(relative: string): Promise<FileFacts> {

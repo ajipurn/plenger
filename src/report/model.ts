@@ -1,8 +1,15 @@
+/**
+ * The report: a scan result with its findings reviewed against a baseline and
+ * suppressions. Shared by every output format, the CLI, the GitHub action, the
+ * dashboard and the red-team commands, so its shape is versioned (`schemaVersion`)
+ * and described by report/schema.ts.
+ */
+
 import { type Finding, RULES, type Rule, type Severity } from "../rules/index.ts";
 import { SEVERITIES } from "../rules/model.ts";
 import type { ScanResult } from "../scan.ts";
-import { redactReport } from "../secrets.ts";
-import { VERSION } from "../version.ts";
+import { VERSION } from "../shared/runtime.ts";
+import { redactReport } from "../shared/secrets.ts";
 import { type Baseline, matchesSuppression, type Suppression } from "./policy.ts";
 
 export interface ReportFinding extends Finding {

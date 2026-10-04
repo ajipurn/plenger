@@ -31,7 +31,7 @@ export type Ref = (
   ProjectLinks;
 
 /** Added by project linking (src/project) when a ref crosses into another project file. */
-export interface ProjectLinks {
+interface ProjectLinks {
   /** For a local ref: the project file its definition is in, when that is another file. */
   file?: string;
   /** The module-level variable of another project file the ref goes through. */
@@ -116,6 +116,9 @@ export interface Decorator {
   arguments: Argument[] | null;
   span: Span;
 }
+
+/** The name stand-in for functions and classes that have none, in definition ids and tool names. */
+export const ANONYMOUS = "<anonymous>";
 
 export interface DefinitionFact {
   /** Unique within the file: qualified name (`Agent.run`), with `@line:column` added for anonymous or repeated names. */

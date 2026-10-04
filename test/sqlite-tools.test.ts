@@ -1,20 +1,14 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { scan } from "../src/scan.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
 describe("SQLite effects through a tool's returned store", () => {
-  const roots: string[] = [];
-  afterAll(async () => {
-    for (const root of roots) await rm(root, { recursive: true, force: true });
-  });
-
   async function project(
     options: { readOnly?: boolean; approval?: boolean; statementAlias?: boolean } = {},
   ) {
-    const root = await mkdtemp(join(tmpdir(), "plenger-sqlite-tools-"));
-    roots.push(root);
+    const root = await temporaryDir("plenger-sqlite-tools-");
     const files = {
       "lib/store.ts": `import Database from "better-sqlite3";
 export const createStore = () => {

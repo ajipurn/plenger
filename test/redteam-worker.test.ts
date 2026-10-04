@@ -1,19 +1,14 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { planProject } from "../src/redteam/plan.ts";
-import type { RunProvider } from "../src/redteam/provider.ts";
 import { executeRun, newRun, type RunOptions } from "../src/redteam/run.ts";
+import { stubProvider } from "./support/provider.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
 const image = process.env.PLENGER_TEST_LLMFY_IMAGE;
-const roots: string[] = [];
-afterEach(async () => {
-  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
-});
 async function project(guarded: boolean, asyncEntry = false, asyncFactory = false) {
-  const root = await mkdtemp(join(tmpdir(), "plenger-worker-test-"));
-  roots.push(root);
+  const root = await temporaryDir("plenger-worker-test-");
   await writeFile(join(root, "requirements.txt"), "llmfy==0.11.0\n");
   const source = `from pathlib import Path
 from llmfy import LLMfy, OpenAIChatModel, Tool
@@ -35,15 +30,9 @@ ${asyncEntry ? 'async def chat(message: str):\n    agent = LLMfy(OpenAIChatModel
   if (!target) throw new Error("Missing test target.");
   const plan = await planProject(root, { target: target.id });
   let dispatches = 0;
-  const provider: RunProvider = {
-    name: "synthetic-test",
-    model: "test",
-    reservation: (_request, purpose) => ({
-      purpose,
-      inputTokensUpperBound: 1000,
-      maxOutputTokens: 1000,
-      additionalTokensUpperBound: 0,
-    }),
+  const provider = stubProvider({
+    inputTokensUpperBound: 1000,
+    maxOutputTokens: 1000,
     generate: async (request) => {
       dispatches += 1;
       const user = request.messages.find(
@@ -69,7 +58,7 @@ ${asyncEntry ? 'async def chat(message: str):\n    agent = LLMfy(OpenAIChatModel
         usage: { inputTokens: 100, outputTokens: 100, additionalTokens: 0 },
       };
     },
-  };
+  });
   const options: RunOptions = {
     target: target.id,
     sourceDigest: plan.sourceDigest,

@@ -1,19 +1,19 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { planProject } from "../src/redteam/plan.ts";
-import { createRunProvider, parseModelReply, type RunProvider } from "../src/redteam/provider.ts";
-import type { runProjectWorker } from "../src/redteam/qualification.ts";
+import {
+  createRunProvider,
+  ModelProviderHttpError,
+  parseModelReply,
+} from "../src/redteam/provider.ts";
 import { executeRun, newRun, type RunOptions } from "../src/redteam/run.ts";
+import { WorkerError, type WorkerLauncher } from "../src/redteam/worker.ts";
+import { stubProvider, toolCallReply } from "./support/provider.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
-const roots: string[] = [];
-afterEach(async () => {
-  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
-});
 async function project() {
-  const root = await mkdtemp(join(tmpdir(), "plenger-run-"));
-  roots.push(root);
+  const root = await temporaryDir("plenger-run-");
   await writeFile(join(root, "requirements.txt"), "llmfy==0.11.0\n");
   await writeFile(
     join(root, "agent.py"),
@@ -30,20 +30,12 @@ def build_agent():
 `,
   );
   const plan = await planProject(root);
-  const provider: RunProvider = {
-    name: "synthetic-test",
-    model: "test",
-    reservation: (_request, purpose) => ({
-      purpose,
-      inputTokensUpperBound: 10,
-      maxOutputTokens: 20,
-      additionalTokensUpperBound: 0,
-    }),
-    generate: async () => ({
-      value: { content: null, toolCalls: [{ id: "call-1", name: "save", arguments: {} }] },
+  const provider = stubProvider({
+    generate: {
+      value: toolCallReply("save"),
       usage: { inputTokens: 5, outputTokens: 5, additionalTokens: 0 },
-    }),
-  };
+    },
+  });
   const options: RunOptions = {
     target: plan.selectedTarget as string,
     sourceDigest: plan.sourceDigest,
@@ -77,7 +69,7 @@ function worker({
   violate = false,
   cleanFails = false,
   interruptAfterEffect = false,
-} = {}): typeof runProjectWorker {
+} = {}): WorkerLauncher {
   return async (_image, request, _signal, receive) => {
     const control = (request.input as string).includes("allowed.txt");
     await receive({ type: "ready", python: "3.12.13", llmfy: "0.11.0", isolationChecks: checks });
@@ -106,7 +98,7 @@ function worker({
           tools: [],
         });
       } catch (error) {
-        throw Object.assign(error as Error, { cleanupConfirmed: true });
+        throw new WorkerError("Worker stopped.", { cleanupConfirmed: true, cause: error });
       }
     }
     await receive({ type: "finished", completed: true });
@@ -115,6 +107,45 @@ function worker({
 const prepare = async () => `sha256:${"a".repeat(64)}`;
 
 describe("managed run scoring and shared budget", () => {
+  it("preserves a safe model HTTP status after worker cleanup without counting a failed control as safe", async () => {
+    const { root, options } = await project();
+    options.provider.generate = async () => {
+      throw new ModelProviderHttpError(410);
+    };
+    const simulate = worker();
+    const report = await executeRun(newRun(root, options), options, {
+      prepare,
+      worker: async (image, request, signal, receive) => {
+        try {
+          await simulate(image, request, signal, receive);
+        } catch {
+          throw new WorkerError("Worker protocol failed.", { cleanupConfirmed: true });
+        }
+      },
+    });
+    expect(report.state).toBe("failed");
+    expect(report.error).toContain("HTTP 410");
+    expect(report.cleanControlPassed).toBe(false);
+    expect(report.trials[0]?.outcome).toBe("inconclusive");
+    expect(report.trials.slice(1).every((trial) => !trial.started)).toBe(true);
+    expect(report.cleanupConfirmed).toBe(true);
+  });
+  it("uses a fresh marker for every control and probe and records verified runtime provenance", async () => {
+    const { root, options } = await project();
+    const markers: unknown[] = [];
+    const simulate = worker({ violate: true });
+    const report = await executeRun(newRun(root, options), options, {
+      prepare,
+      worker: async (image, request, signal, receive) => {
+        markers.push(request.marker);
+        expect(request.input).toContain(request.marker);
+        return simulate(image, request, signal, receive);
+      },
+    });
+    expect(markers).toHaveLength(3);
+    expect(new Set(markers).size).toBe(3);
+    expect(report.runtime).toEqual({ image: await prepare(), python: "3.12.13", llmfy: "0.11.0" });
+  });
   it("requires a working clean task and scores observed effects rather than assistant text", async () => {
     const { root, options } = await project();
     const report = await executeRun(newRun(root, options), options, {

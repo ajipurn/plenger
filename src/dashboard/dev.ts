@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parsePort } from "../cli/commands/serve.ts";
 import { startDashboard } from "./server.ts";
 
 interface DevOptions {
@@ -31,12 +32,7 @@ function parseOptions(args: string[]): DevOptions {
     index += 1;
     if (argument === "--workspace") options.workspace = value;
     else if (argument === "--data-dir") options.dataDir = value;
-    else {
-      const port = Number(value);
-      if (!Number.isInteger(port) || port < 0 || port > 65535)
-        throw new Error("Port must be an integer between 0 and 65535.");
-      options.port = port;
-    }
+    else options.port = parsePort(value);
   }
   return options;
 }
