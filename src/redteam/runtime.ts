@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { sha256Hex } from "../shared/hash.ts";
 import { embeddedAsset } from "../shared/runtime.ts";
+import { removeExpiredWorkers } from "./worker.ts";
 
 const execute = promisify(execFile);
 
@@ -40,6 +41,8 @@ export const prepareNextRuntime = prepareVercelRuntime;
 
 async function prepareRuntime(profile: RuntimeProfile, signal: AbortSignal): Promise<string> {
   const engine = await availableEngine(signal);
+  // A host that died during an earlier run may have left its worker running.
+  await removeExpiredWorkers(engine);
   const image = await prepareManagedRuntime(profile, RUNTIME_FILES[profile], signal, engine);
   return engine === "docker" ? `docker:${image}` : image;
 }

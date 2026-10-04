@@ -75,7 +75,7 @@ Records live in [qualifications/](qualifications/).
 | Profile or path | Qualified | Pending |
 | --- | --- | --- |
 | llmfy runtime, synthetic model (Podman) | [2026-10-02](qualifications/llmfy-synthetic-2026-10-02.md) | Live-model run on an unmodified project |
-| llmfy runtime, synthetic model (Docker) | [2026-10-04](qualifications/llmfy-docker-2026-10-04.md) | Abrupt host-process death and Docker cleanup after it |
+| llmfy runtime, synthetic model (Docker) | [2026-10-04](qualifications/llmfy-docker-2026-10-04.md); protocol version and host-death cleanup [2026-10-04](qualifications/worker-lifecycle-docker-2026-10-04.md) | Live-model run on an unmodified project; host-death check on Podman |
 | Next.js booking profile, scripted model | [2026-10-04](qualifications/vercel-synthetic-2026-10-04.md) | Other models, backends and platforms |
 | Next.js booking profile, live model | [2026-10-03, Autocare, `gemma4:31b-cloud`](qualifications/autocare-live-2026-10-03.md) | Repetition-based success-rate estimates |
 | Binary smoke test | macOS Apple Silicon locally; Ubuntu 24.04 x64, macOS 15 ARM64 and Windows 2022 x64 in CI (Node.js 22.18.0) | Intel macOS and Linux ARM64 |

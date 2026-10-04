@@ -11,12 +11,23 @@ import platform
 import socket
 import struct
 import sys
+import threading
 from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import patch
 
 # Frame version from docs/design/worker-protocol.md; matches WORKER_PROTOCOL_VERSION on the host.
 PROTOCOL_VERSION = 1
+# A live host stops its worker at 120 s; exiting at 130 s covers a host that died.
+WORKER_DEADLINE_SECONDS = 130
+
+
+def start_deadline():
+    """Exit the container even when the host is gone. The timer holds its own reference
+    to os._exit, so project code that replaces os._exit later cannot cancel it."""
+    timer = threading.Timer(WORKER_DEADLINE_SECONDS, os._exit, args=(124,))
+    timer.daemon = True
+    timer.start()
 
 
 def require(condition, message):
@@ -233,6 +244,7 @@ def qualify(gateway=None, observer=None, scenario="suite"):
 
 
 def main():
+    start_deadline()
     request = json.loads(sys.stdin.buffer.readline(65537))
     checks = preflight(request)
     if request.get("mode") == "wait":

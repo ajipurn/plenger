@@ -177,8 +177,7 @@ the llmfy path blocks M6a; it is not deferred to M6b or made a user task.
 
 - M6a: qualify the llmfy journey with a live model on an unmodified project;
   qualify the provider's request bounds and charged-token accounting; broaden
-  test-pack binding beyond the three file-canary cases; cover abrupt host
-  death and Docker cleanup. The rest of the
+  test-pack binding beyond the three file-canary cases. The rest of the
   checkpoint (discovery, setup, isolation before import, preserved approval,
   bounded model access, dashboard workflow, saved profiles, history) is
   delivered with synthetic qualification. See

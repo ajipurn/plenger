@@ -23,6 +23,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   the generic `redteam` usage.
 - The installed CLI reports an unsupported Node.js version instead of failing
   on a missing built-in module.
+- A worker whose host process died no longer runs on indefinitely under
+  Docker. The llmfy worker exits after 130 seconds like the Vercel worker, and
+  preparing a runtime removes containers past their `org.plenger.expires`
+  label.
 - `executeRun` forwards injected dependencies to the Next.js executor.
 - Both executors redact run snapshots; the llmfy executor previously did not.
 - Captured Next.js sources are hashed in code-unit order, so the source digest

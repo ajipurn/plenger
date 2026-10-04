@@ -29,11 +29,12 @@ def load(name, filename):
 
 
 def main():
+    qualification = load("plenger_qualification", "/opt/plenger/qualify.py")
+    qualification.start_deadline()
     line = incoming.readline(16 * 1024 * 1024 + 1)
     if not line.endswith(b"\n") or len(line) > 16 * 1024 * 1024:
         raise RuntimeError("invalid source frame")
     request = json.loads(line)
-    qualification = load("plenger_qualification", "/opt/plenger/qualify.py")
     if request.get("protocolVersion") != qualification.PROTOCOL_VERSION:
         raise RuntimeError("unsupported protocol version")
     checks = qualification.preflight(request)

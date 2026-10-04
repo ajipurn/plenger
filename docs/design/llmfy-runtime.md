@@ -90,9 +90,12 @@ host deadline also counts launch time. On Docker there is no daemon-side cap;
 the launcher confirms removal by polling `docker ps`. Cleanup errors surface
 with the container name and keep the original failure.
 
-**Gap:** abrupt host-process death is not covered by the integration tests,
-and Docker cleanup after that event is not guaranteed. Ordinary cancellation,
-timeout and cleanup are verified.
+If the host process dies, nothing kills its worker. The worker then exits by
+itself after 130 seconds with code 124; the timer thread holds its own
+reference to `os._exit`. Each container also carries an `org.plenger.expires`
+label, and preparing a runtime removes labelled containers past that time.
+[The 2026-10-04 lifecycle record](../qualifications/worker-lifecycle-docker-2026-10-04.md)
+verifies both on Docker.
 
 ## What the synthetic suite proves
 
@@ -176,7 +179,8 @@ every model request admitted through the host broker with run-wide call and
 token limits, correlated and sequence-checked worker events, and the shared
 engine connected to planning, saved profiles and the dashboard workflow.
 Request and `ready` frames carry `protocolVersion`
-([worker-protocol.md](worker-protocol.md#version)).
+([worker-protocol.md](worker-protocol.md#version)), and a worker left by a host
+that died stops at its own deadline and is swept at the next preparation.
 
 Still open before M6a is complete:
 
@@ -187,7 +191,6 @@ Still open before M6a is complete:
   charged-token accounting against a live provider.
 - Broaden test-pack binding beyond the three file-canary cases, bound to
   verified semantics rather than tool names.
-- Cover abrupt host-process death and Docker cleanup after it.
 
 Framework reference: [llmfy 0.11.0](https://pypi.org/project/llmfy/0.11.0/).
 Container controls follow the [Podman run options](https://docs.podman.io/en/latest/markdown/podman-run.1.html)

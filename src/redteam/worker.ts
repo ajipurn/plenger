@@ -8,6 +8,14 @@ import { BudgetStoppedError } from "./budget.ts";
 import { IMAGE_ID, WORKER_PROTOCOL_VERSION, WORKER_TIMEOUT_MS } from "./constants.ts";
 import type { BudgetScenario } from "./qualification-broker.ts";
 
+/**
+ * Every worker container is labelled with the time after which only a host that died
+ * could have left it running: a live host stops its worker at the transport deadline.
+ */
+const EXPIRES_LABEL = "org.plenger.expires";
+/** Margin past the deadline for the expiry label and the Podman daemon backstop. */
+const BACKSTOP_GRACE_MS = 10_000;
+
 /** Receives one worker frame and may return a reply frame to write back. */
 export type WorkerHandler = (message: unknown) => Promise<unknown | undefined>;
 /** Launch a managed project worker; executors accept a substitute for offline tests. */
@@ -168,6 +176,8 @@ function containerArguments(
     name,
     "--label",
     `org.plenger.purpose=${options.projectRequest ? "redteam-run" : "qualification"}`,
+    "--label",
+    `${EXPIRES_LABEL}=${Date.now() + timeoutMs + BACKSTOP_GRACE_MS}`,
     "--pull=never",
     "--network=none",
     "--read-only",
@@ -180,7 +190,9 @@ function containerArguments(
     "--memory-swap=256m",
     "--cpus=1",
     // Daemon-side backstop if this host process disappears entirely.
-    ...(engine === "podman" ? [`--timeout=${Math.ceil(timeoutMs / 1000) + 10}`] : []),
+    ...(engine === "podman"
+      ? [`--timeout=${Math.ceil((timeoutMs + BACKSTOP_GRACE_MS) / 1000)}`]
+      : []),
     "--restart=no",
     "--stop-timeout=0",
     "--no-healthcheck",
@@ -244,6 +256,42 @@ async function removeContainer(engine: "docker" | "podman", name: string): Promi
     }
   }
   if ((await list(10_000)).trim()) throw new Error("Worker remains active.");
+}
+
+/**
+ * Remove worker containers left behind by a host process that died. Containers of live
+ * runs, including other plenger processes, have not expired yet. Best effort: a failure
+ * leaves the container for the next sweep. Returns the number removed.
+ */
+export async function removeExpiredWorkers(
+  engine: "docker" | "podman",
+  now = Date.now(),
+): Promise<number> {
+  const command = (args: string[]) =>
+    runContainer({ engine, args, input: "", timeoutMs: 10_000, maxOutputBytes: 65536 });
+  let ids: string[];
+  try {
+    ids = (await command(["ps", "--all", "--quiet", "--filter", `label=${EXPIRES_LABEL}`]))
+      .split("\n")
+      .map((id) => id.trim())
+      .filter(Boolean);
+  } catch {
+    return 0;
+  }
+  let removed = 0;
+  for (const id of ids) {
+    try {
+      const label = (
+        await command(["inspect", "--format", `{{index .Config.Labels "${EXPIRES_LABEL}"}}`, id])
+      ).trim();
+      if (!/^\d{1,16}$/.test(label) || Number(label) >= now) continue;
+      await command(["rm", "--force", id]);
+      removed++;
+    } catch {
+      // Already removed by --rm, or refused by the engine; the next sweep retries.
+    }
+  }
+  return removed;
 }
 
 /** Shared lifecycle and isolation controls for the managed llmfy project worker. */

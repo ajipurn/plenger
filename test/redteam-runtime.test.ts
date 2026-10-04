@@ -1,7 +1,12 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { qualifyLlmfy, qualifyLlmfyBudget } from "../src/redteam/qualification.ts";
+import { removeExpiredWorkers } from "../src/redteam/worker.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
 const image = process.env.PLENGER_TEST_LLMFY_IMAGE;
 const inertId = `sha256:${"a".repeat(64)}`;
@@ -225,6 +230,51 @@ describe.skipIf(!image)("llmfy in a real isolated container", () => {
     },
     20000,
   );
+
+  it("removes the worker of a host process that died", async () => {
+    const run = promisify(execFile);
+    const list = async () =>
+      (
+        await run(
+          engine,
+          ["ps", "--all", "--quiet", "--filter", "label=org.plenger.purpose=qualification"],
+          { timeout: 10000 },
+        )
+      ).stdout.trim();
+    const script = join(await temporaryDir(), "host.ts");
+    const module = fileURLToPath(new URL("../src/redteam/qualification.ts", import.meta.url));
+    await writeFile(
+      script,
+      `import { qualifyLlmfy } from ${JSON.stringify(module)};
+await qualifyLlmfy(${JSON.stringify(image)}, { mode: "wait", timeoutMs: 5000 });
+`,
+    );
+    const host = spawn(process.execPath, [script], { stdio: "ignore" });
+    const closed = new Promise((resolve) => host.once("close", resolve));
+    let id = "";
+    try {
+      for (let attempt = 0; attempt < 40 && !id; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        id = await list();
+      }
+    } finally {
+      host.kill("SIGKILL");
+      await closed;
+    }
+    expect(id).not.toBe("");
+    // Nothing stops the worker now; it stays until its expiry label has passed.
+    expect(await list()).toBe(id);
+    expect(await removeExpiredWorkers(engine)).toBe(0);
+    const { stdout } = await run(engine, [
+      "inspect",
+      "--format",
+      '{{index .Config.Labels "org.plenger.expires"}}',
+      id,
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, Number(stdout.trim()) - Date.now() + 500));
+    expect(await removeExpiredWorkers(engine)).toBe(1);
+    expect(await list()).toBe("");
+  }, 40000);
 
   it("leaves no running or stopped qualification containers", async () => {
     const { stdout } = await promisify(execFile)(

@@ -29,6 +29,10 @@ container stdio.
   `--network=none` (full flag list in [llmfy-runtime.md](llmfy-runtime.md#isolation-and-process-lifecycle)).
   The launcher is `runWorker()` in `src/redteam/worker.ts`, shared by
   qualification and managed runs.
+- Each container carries `org.plenger.expires`: launch time plus deadline plus
+  10 seconds, in epoch milliseconds. A live host stops its worker before then,
+  so `removeExpiredWorkers()` treats a labelled container past that time as
+  left by a host that died and removes it when a runtime is prepared.
 - The host writes exactly one request line to stdin, then keeps stdin open
   for `model_response` replies. Each frame is one JSON object followed by
   `\n`.
@@ -50,7 +54,8 @@ container stdio.
 | Trial events accepted per trial | 128 | 128 |
 | Captured source sent in the request | 4 MiB total (host); `.py` only | 4 MiB total (worker and host); 100 files |
 | Transport deadline per worker | 120 s for managed runs; 1 to 120 s for qualification | same |
-| Daemon-side backstop | Podman `--timeout` of `ceil(timeout) + 10` s; none on Docker | same, plus the worker exits with code 124 after 130 s |
+| Daemon-side backstop | Podman `--timeout` of `ceil(timeout) + 10` s; none on Docker | same |
+| Worker-side backstop | Exit code 124 after 130 s | same |
 
 Exceeding an output or frame limit, a trailing partial frame at exit, a
 non-zero exit without a protocol failure, and a worker that ends before
@@ -246,11 +251,11 @@ out-of-sequence id or sequence number, and any unknown type end the worker.
 | Effect observation | `canary_state` from a `Path.write_text` patch and a final file audit | `database_state` from committed SQLite snapshots |
 | Pre-model checks | none | `backend_check` worker without a model |
 | Output cap on the host | 64 KiB | 512 KiB |
-| Worker-side backstop | none (Podman `--timeout` only) | `process.exit(124)` after 130 s |
+| Worker-side backstop | `os._exit(124)` from a timer thread after 130 s | `process.exit(124)` after 130 s |
 | Suppressing project output | `redirect_stdout`/`redirect_stderr` to `/dev/null` | `process.stdout.write` and `console.*` replaced after `ready` |
 | Isolation checks | 18 | 16 |
 
-Open gaps: the llmfy worker has no
-daemon-side lifetime cap on Docker, and abrupt host-process death is not
-covered by the integration tests. Both are listed in
-[../STATUS.md](../STATUS.md#qualified-versus-pending).
+Docker has no daemon-side lifetime cap. A worker whose host died still stops
+at its own 130 second deadline, and the next runtime preparation removes any
+worker past its expiry label (see [Transport](#transport)).
+`test/redteam-runtime.test.ts` covers a host killed with SIGKILL.
