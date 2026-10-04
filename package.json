@@ -1,7 +1,12 @@
 {
   "name": "plenger-cli",
+  "author": {
+    "name": "Aji Purnomo",
+    "email": "hi@aji.is-a.dev"
+  },
   "version": "0.1.0",
   "description": "Red-teaming and static triage for agentic AI projects written in Python, JavaScript and TypeScript",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "bin": {

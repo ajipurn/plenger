@@ -62,6 +62,7 @@ async function main() {
     assert.ok(packed);
     const files = new Set(packed.files.map((file) => file.path));
     for (const path of [
+      "LICENSE",
       "dist/bin.js",
       "dashboard/dist/index.html",
       "dist/THIRD_PARTY_NOTICES.txt",

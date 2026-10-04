@@ -137,7 +137,9 @@ kept on the `feat/backup` branch.
 
 ## Licence
 
-The project licence status is tracked in [docs/STATUS.md](docs/STATUS.md).
+plenger is licensed under the [Apache License 2.0](LICENSE). Copyright 2026
+Aji Purnomo.
+
 Third-party notices for the grammars and dashboard dependencies are listed in
 [docs/licenses/sources.json](docs/licenses/sources.json) and shipped as
 `dist/THIRD_PARTY_NOTICES.txt` in the npm package. Optional standalone archives

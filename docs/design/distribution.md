@@ -20,7 +20,8 @@ version before it loads the CLI. The package contains:
 - the four tree-sitter grammars and their manifest in `grammars`
 - the managed container recipes listed in `RUNTIME_FILES`, under `runtimes`
 - report and campaign JSON schemas in `schemas`
-- third-party notices in `dist/THIRD_PARTY_NOTICES.txt`
+- the Apache-2.0 `LICENSE` and third-party notices in
+  `dist/THIRD_PARTY_NOTICES.txt`
 
 npm installs the three pinned production dependencies. Dashboard dependencies
 are bundled into the frontend. TypeScript sources, tests, developer scripts,

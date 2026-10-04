@@ -50,7 +50,7 @@ Podman.
 | Installed CLI and dashboard | Global install, npm exec, all four grammars, offline Next.js planning and authenticated dashboard scans checked locally |
 | Linux, macOS and Windows CI | Installed-package jobs configured in [package.yml](../.github/workflows/package.yml); remote runs not yet observed |
 | Public npm registry release | Not published; `private: true` blocks publishing. A placeholder `plenger-cli@0.0.1` reserves the name; it contains no scanner |
-| Project licence | Not chosen |
+| Project licence | Apache-2.0, see [LICENSE](../LICENSE) |
 
 ## Binary per platform
 

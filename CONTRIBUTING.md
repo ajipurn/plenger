@@ -222,3 +222,9 @@ Use conventional commit prefixes as in the log: `feat:`, `feat(redteam):`,
 under 72 characters. The body explains what changed and why, names the tests
 that cover it and records measurements (test count, benchmark result) when they
 changed. Commit generated files together with the change that caused them.
+
+## Licence
+
+plenger is licensed under the Apache License 2.0. Contributions are licensed
+under the same terms, as section 5 of [LICENSE](LICENSE) states. No separate
+contributor agreement is needed.
