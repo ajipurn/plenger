@@ -287,16 +287,15 @@ with SHA-256 checksums. npm is the primary user installation. See
 [design/distribution.md](design/distribution.md), [guide/install.md](guide/install.md)
 and [STATUS.md](STATUS.md) for release and platform evidence.
 
-**Next checkpoints:** collect passing npm installation CI evidence per platform
-and publish the npm release. Qualify runtime
-integrations under M6/M7 before advertising their dynamic coverage. Keep
-installation free of frontend builds and automatic container setup. Document
-the offline scan and click-to-run workflows, model-access setup, supported
-framework versions, observation limits, profile export and CI use; keep custom adapters and handwritten
-configuration in advanced documentation. Explain that the gates differ on
-purpose: the static gate ignores baseline findings, the dynamic gate fails on
-an observed violation even when a baseline contains it. State that dynamic
-testing is for targets the user owns or has permission to test.
+**Next checkpoints:** publish the npm release. Qualify runtime integrations
+under M6/M7 before advertising their dynamic coverage. Keep installation free of
+frontend builds and automatic container setup. Document the offline scan and
+click-to-run workflows, model-access setup, supported framework versions,
+observation limits, profile export and CI use; keep custom adapters and
+handwritten configuration in advanced documentation. Explain that the gates
+differ on purpose: the static gate ignores baseline findings, the dynamic gate
+fails on an observed violation even when a baseline contains it. State that
+dynamic testing is for targets the user owns or has permission to test.
 
 ## Risks
 

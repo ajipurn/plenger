@@ -13,7 +13,7 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | M6b: HTTP and project expansion | In progress | Managed `vercel-booking-sqlite-v1` profile runs with one live-model record; broader profiles pending |
 | M6c: MCP and CI | Partly delivered | Campaigns, statistics, gates, comparisons and CLI reports exist; MCP adapter pending |
 | M7: indirect prompt injection | Planned | See [ROADMAP.md](ROADMAP.md#m7-red-team-indirect-prompt-injection-planned) |
-| M8: distribution | In progress | npm packaging and installed-package checks implemented; public release and platform evidence pending |
+| M8: distribution | In progress | npm package and standalone binary checks pass in CI on Linux, macOS and Windows; public release pending |
 
 ## Capability matrix
 
@@ -60,7 +60,7 @@ npm installation.
 | Platform | State |
 | --- | --- |
 | macOS Apple Silicon (`darwin-arm64`) | Built and smoke-tested locally with Node.js 22.23.2 |
-| Ubuntu 24.04, macOS 15, Windows 2022 | Jobs in [binary.yml](../.github/workflows/binary.yml) build on all three; the smoke test failed on `redteam compare --help` until the 2026-10-04 CLI fix. No passing remote run is recorded yet |
+| Ubuntu 24.04 (x64), macOS 15 (ARM64), Windows 2022 (x64) | Built and smoke-tested in [binary.yml](../.github/workflows/binary.yml) with Node.js 22.18.0 (commit `0950732`, 2026-10-04); archives kept as workflow artifacts |
 | Public binary release download | Not available |
 | Publisher signing, notarization | Not done; macOS builds carry an ad-hoc signature |
 
@@ -78,7 +78,7 @@ Records live in [qualifications/](qualifications/).
 | llmfy runtime, synthetic model (Docker) | [2026-10-04](qualifications/llmfy-docker-2026-10-04.md) | Abrupt host-process death and Docker cleanup after it |
 | Next.js booking profile, scripted model | [2026-10-04](qualifications/vercel-synthetic-2026-10-04.md) | Other models, backends and platforms |
 | Next.js booking profile, live model | [2026-10-03, Autocare, `gemma4:31b-cloud`](qualifications/autocare-live-2026-10-03.md) | Repetition-based success-rate estimates |
-| Binary smoke test | macOS Apple Silicon, local | Linux, Windows and Intel macOS evidence |
+| Binary smoke test | macOS Apple Silicon locally; Ubuntu 24.04 x64, macOS 15 ARM64 and Windows 2022 x64 in CI (Node.js 22.18.0) | Intel macOS and Linux ARM64 |
 | npm package smoke test | macOS Apple Silicon locally (Node.js 22.23.2, npm 10.9.8); Ubuntu 24.04, macOS 15 and Windows 2022 in CI (Node.js 22.18.0) | Intel macOS and other Node.js versions |
 
 Every qualification used the bundled fixture or one user project. None
