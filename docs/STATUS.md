@@ -13,7 +13,7 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | M6b: HTTP and project expansion | In progress | Managed `vercel-booking-sqlite-v1` profile runs with one live-model record; broader profiles pending |
 | M6c: MCP and CI | Partly delivered | Campaigns, statistics, gates, comparisons and CLI reports exist; MCP adapter pending |
 | M7: indirect prompt injection | Planned | See [ROADMAP.md](ROADMAP.md#m7-red-team-indirect-prompt-injection-planned) |
-| M8: distribution | In progress | Binary builds locally; native CI configured; no public release or licence yet |
+| M8: distribution | In progress | npm packaging and installed-package checks implemented; public release and platform evidence pending |
 
 ## Capability matrix
 
@@ -23,6 +23,7 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | Reports: terminal, JSON v1, SARIF 2.1.0, Markdown | Available | Baselines, suppressions, `--fail-on` gate, exit codes. [guide/reports-ci.md](guide/reports-ci.md) |
 | GitHub Action (composite) | Available, unverified remotely | Tested locally and in the repository's own CI workflow; a hosted code-scanning upload has not run because this checkout has no remote |
 | Local dashboard (`plenger serve`) | Available | Scans, inventory, findings, history, providers, red-team runs, campaigns and comparisons. [guide/dashboard.md](guide/dashboard.md) |
+| npm package | Available locally | Compiled CLI, built dashboard, grammars, schemas and red-team recipes in one tarball. [guide/install.md](guide/install.md) |
 | `redteam discover` and `redteam plan` (offline) | Available | llmfy function/factory discovery; Python source and Next.js route preparation plans |
 | Red-team profile `llmfy-file-canary-v1` | Available, synthetic qualification only | Three fixed file-canary checks; see qualification records below |
 | Red-team profile `vercel-booking-sqlite-v1` | Available, one live-model record | Backend checks plus three model trials against a disposable SQLite database |
@@ -35,15 +36,33 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | Indirect injection channels | Planned | M7 |
 | Worker protocol version field | Gap | Compatibility relies on runtime versions in the `ready` frame. [design/worker-protocol.md](design/worker-protocol.md) |
 
+## npm distribution
+
+npm is the primary installation method. The CLI includes `scan`, `serve` and
+`redteam`. Users need Node.js 22.18 or newer. The installed dashboard uses the
+built frontend without a separate build. Red-team runs still need Docker or
+Podman.
+
+| Package or platform | State |
+| --- | --- |
+| Package name | `@plenger/cli` with the `plenger` command; the unscoped `plenger` name belongs to an unrelated package |
+| Local npm tarball | Built and installed on macOS Apple Silicon with Node.js 22.23.2 and npm 10.9.8 |
+| Installed CLI and dashboard | Global install, npm exec, all four grammars, offline Next.js planning and authenticated dashboard scans checked locally |
+| Linux, macOS and Windows CI | Installed-package jobs configured in [package.yml](../.github/workflows/package.yml); remote runs not yet observed |
+| Public npm registry release | Not published; `private: true` blocks publishing and the npm `plenger` organisation is not yet created |
+| Project licence | Not chosen |
+
 ## Binary per platform
+
+The standalone build is an optional contributor artifact. It is separate from
+npm installation.
 
 | Platform | State |
 | --- | --- |
 | macOS Apple Silicon (`darwin-arm64`) | Built and smoke-tested locally with Node.js 22.23.2 |
 | Ubuntu 24.04, macOS 15, Windows 2022 | Build, smoke-test and artifact jobs configured in [binary.yml](../.github/workflows/binary.yml); remote runs not yet observed |
-| Public release download, npm package | Not available |
+| Public binary release download | Not available |
 | Publisher signing, notarization | Not done; macOS builds carry an ad-hoc signature |
-| Project licence | Not chosen |
 
 See [design/distribution.md](design/distribution.md) and
 [guide/install.md](guide/install.md).
@@ -60,6 +79,7 @@ Records live in [qualifications/](qualifications/).
 | Next.js booking profile, scripted model | [2026-10-04](qualifications/vercel-synthetic-2026-10-04.md) | Other models, backends and platforms |
 | Next.js booking profile, live model | [2026-10-03, Autocare, `gemma4:31b-cloud`](qualifications/autocare-live-2026-10-03.md) | Repetition-based success-rate estimates |
 | Binary smoke test | macOS Apple Silicon, local | Linux, Windows and Intel macOS evidence |
+| npm package smoke test | macOS Apple Silicon, local, Node.js 22.23.2 and npm 10.9.8 | Linux and Windows installed-package evidence |
 
 Every qualification used the bundled fixture or one user project. None
 establishes support for arbitrary projects, provider billing caps or protection

@@ -113,9 +113,9 @@ isolation infrastructure grew far ahead of what the tool could detect.
 Node.js 22.18+ and TypeScript (strict, erasable syntax only), web-tree-sitter
 with vendored WASM grammars for Python, JavaScript, TypeScript and TSX, pnpm,
 Vitest and Biome. One parser for all three languages keeps the tool free of
-native add-ons. The standalone binary embeds the engine, parser runtime,
-grammars, built dashboard and container runtime recipes with Node.js single
-executable applications.
+native add-ons. The primary npm package includes the compiled engine, grammars,
+built dashboard and container runtime recipes. The optional standalone binary
+also embeds Node.js through single executable applications.
 
 The dashboard is React and TypeScript with Vite, React Router 7, Tailwind CSS
 4, Base UI, Gravity icons, OverlayScrollbars and Torph, served by a loopback
@@ -275,23 +275,24 @@ separately from harness self-tests.
 
 ### M8 Distribution (in progress)
 
-**Delivered:** a native executable containing the CLI, local service, built
-dashboard, parser WASM assets and runtime recipes; `plenger scan`, `serve`
-and `redteam` run without Node.js or pnpm. Build artifacts include an archive
-and SHA-256 checksums. The macOS Apple Silicon build is verified locally
-outside the checkout without Node on `PATH`. Native build, smoke and artifact
-jobs exist for Ubuntu 24.04, macOS 15 and Windows 2022 but have not run
-remotely. See [design/distribution.md](design/distribution.md) and
-[guide/install.md](guide/install.md).
+**Delivered:** an npm package containing the compiled CLI, local service, built
+dashboard, parser WASM assets and managed runtime recipes. npm and npx expose
+`plenger scan`, `serve` and `redteam` through one CLI. A prepack build prepares
+the package. The installed-package check verifies global installation, npm
+command resolution, scanning, offline planning and the dashboard outside the
+checkout. Installed-package CI jobs cover Linux, macOS and Windows.
 
-**Remaining:** passing native CI evidence per platform, publisher-signed
-releases, a project licence decision, public release artifacts, update and
-install documentation for those releases, and npm packaging of the static
-CLI. Package runtime integrations only after their M6/M7 qualification,
-including the prerequisite setup already qualified there. Keep the static-only
-CLI installation lightweight. Document the offline scan and click-to-run
-workflows, model-access setup, supported framework versions, observation
-limits, profile export and CI use; keep custom adapters and handwritten
+The optional standalone build bundles Node.js and produces native archives
+with SHA-256 checksums. npm is the primary user installation. See
+[design/distribution.md](design/distribution.md), [guide/install.md](guide/install.md)
+and [STATUS.md](STATUS.md) for release and platform evidence.
+
+**Next checkpoints:** collect passing npm installation CI evidence per platform,
+choose the project licence and publish the npm release. Qualify runtime
+integrations under M6/M7 before advertising their dynamic coverage. Keep
+installation free of frontend builds and automatic container setup. Document
+the offline scan and click-to-run workflows, model-access setup, supported
+framework versions, observation limits, profile export and CI use; keep custom adapters and handwritten
 configuration in advanced documentation. Explain that the gates differ on
 purpose: the static gate ignores baseline findings, the dynamic gate fails on
 an observed violation even when a baseline contains it. State that dynamic

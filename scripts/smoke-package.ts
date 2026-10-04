@@ -1,0 +1,235 @@
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { delimiter, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import {
+  API,
+  type DashboardScan,
+  type DashboardSession,
+  TOKEN_HEADER,
+} from "../src/dashboard/contract.ts";
+import type { ProjectPlan } from "../src/redteam/plan-model.ts";
+import { RUNTIME_FILES } from "../src/redteam/runtime.ts";
+import type { Report } from "../src/report/model.ts";
+import { fixturePath } from "../test/support/fixtures.ts";
+import { launchDashboard } from "./lib/dashboard-smoke.ts";
+
+interface Packed {
+  filename: string;
+  files: { path: string }[];
+}
+
+const root = fileURLToPath(new URL("../", import.meta.url));
+const execute = promisify(execFile);
+const npmCli = [
+  join(dirname(process.execPath), "node_modules/npm/bin/npm-cli.js"),
+  resolve(dirname(process.execPath), "../lib/node_modules/npm/bin/npm-cli.js"),
+].find(existsSync);
+
+async function main() {
+  assert.ok(npmCli, "The package smoke check needs Node.js with npm installed.");
+  const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8")) as {
+    name: string;
+    version: string;
+    dependencies: Record<string, string>;
+  };
+  const temporary = await realpath(await mkdtemp(join(tmpdir(), "plenger-package-smoke-")));
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    PATH: `${dirname(process.execPath)}${delimiter}${process.env.PATH ?? ""}`,
+    NO_COLOR: "1",
+    npm_config_cache: join(temporary, "cache"),
+  };
+  const npm = (args: string[], cwd = root) =>
+    execute(process.execPath, [npmCli, ...args], {
+      cwd,
+      env,
+      timeout: 120_000,
+      maxBuffer: 16 * 1024 * 1024,
+    });
+  try {
+    const output = join(root, "dist/npm");
+    await mkdir(output, { recursive: true });
+    const [packed] = JSON.parse(
+      (await npm(["pack", "--json", "--foreground-scripts=false", "--pack-destination", output]))
+        .stdout,
+    ) as Packed[];
+    assert.ok(packed);
+    const files = new Set(packed.files.map((file) => file.path));
+    for (const path of [
+      "dist/bin.js",
+      "dashboard/dist/index.html",
+      "dist/THIRD_PARTY_NOTICES.txt",
+    ]) {
+      assert.ok(files.has(path), `Missing packaged asset: ${path}`);
+    }
+    // Exactly the recipes the container builder reads, so local leftovers never ship.
+    const recipes = Object.entries(RUNTIME_FILES).flatMap(([profile, paths]) =>
+      paths.map((path) => `runtimes/${profile}/${path}`),
+    );
+    assert.deepEqual(
+      [...files].filter((path) => path.startsWith("runtimes/")).sort(),
+      recipes.sort(),
+      "Packaged runtime files must match RUNTIME_FILES.",
+    );
+    assert.ok(![...files].some((path) => /^(?:src|test|scripts|dist\/binary)\//.test(path)));
+    for (const path of files) {
+      const compiled = /^dist\/(.+)\.js$/.exec(path)?.[1];
+      if (compiled !== undefined)
+        assert.ok(existsSync(join(root, "src", `${compiled}.ts`)), `Stale compiled file: ${path}`);
+    }
+
+    // Pack the installed production dependency closure so the install needs no registry access.
+    const dependencies = join(temporary, "dependencies");
+    await mkdir(dependencies);
+    const archives = [join(output, packed.filename)];
+    const visited = new Set<string>();
+    const packDependency = async (name: string, parent: string): Promise<void> => {
+      const metadata = createRequire(parent)
+        .resolve.paths(name)
+        ?.map((path) => join(path, name, "package.json"))
+        .find(existsSync);
+      assert.ok(metadata, `Missing installed dependency: ${name}`);
+      const filename = await realpath(metadata);
+      if (visited.has(filename)) return;
+      visited.add(filename);
+      const [dependency] = JSON.parse(
+        (
+          await npm([
+            "pack",
+            dirname(filename),
+            "--json",
+            "--ignore-scripts",
+            "--offline",
+            "--pack-destination",
+            dependencies,
+          ])
+        ).stdout,
+      ) as Packed[];
+      assert.ok(dependency);
+      archives.push(join(dependencies, dependency.filename));
+      const manifest = JSON.parse(await readFile(filename, "utf8")) as {
+        dependencies?: Record<string, string>;
+      };
+      for (const child of Object.keys(manifest.dependencies ?? {}))
+        await packDependency(child, filename);
+    };
+    for (const name of Object.keys(pkg.dependencies))
+      await packDependency(name, join(root, "package.json"));
+    const runtime = join(temporary, "installed");
+    await mkdir(runtime);
+    await npm([
+      "install",
+      "--prefix",
+      runtime,
+      "--ignore-scripts",
+      "--offline",
+      "--no-audit",
+      "--no-fund",
+      ...archives,
+    ]);
+    const installed = join(runtime, "node_modules", pkg.name);
+    const prefix = join(temporary, "global");
+    await npm([
+      "install",
+      "--global",
+      "--prefix",
+      prefix,
+      "--ignore-scripts",
+      "--offline",
+      "--no-audit",
+      "--no-fund",
+      ...archives,
+    ]);
+    const globalCommand = await execute("plenger", ["--version"], {
+      cwd: runtime,
+      env: {
+        ...env,
+        PATH: `${process.platform === "win32" ? prefix : join(prefix, "bin")}${delimiter}${env.PATH}`,
+      },
+      shell: process.platform === "win32",
+      timeout: 30_000,
+    });
+    assert.equal(globalCommand.stdout.trim(), pkg.version);
+    const notices = await readFile(join(installed, "dist/THIRD_PARTY_NOTICES.txt"), "utf8");
+    assert.match(notices, /tree-sitter-python@/);
+    assert.doesNotMatch(notices, /Node\.js@/);
+    const run = (args: string[]) => npm(["exec", "--offline", "--", "plenger", ...args], runtime);
+    assert.equal((await run(["--version"])).stdout.trim(), pkg.version);
+    assert.match((await run(["serve", "--help"])).stdout, /--port/);
+    assert.match((await run(["redteam", "run", "--help"])).stdout, /--provider/);
+    const fixture = join(temporary, "project");
+    await cp(fixturePath("mixed-agent"), fixture, { recursive: true });
+    const report = JSON.parse((await run(["scan", fixture, "--json"])).stdout) as Report;
+    assert.equal(report.files.length, 6);
+    assert.ok(report.inventory.models.length > 0);
+    assert.ok(report.inventory.llmCalls.length > 0);
+    assert.ok(report.inventory.tools.length > 0);
+    console.log(
+      "Global npm install and npm exec passed outside the checkout (Python, JS, TS, TSX).",
+    );
+
+    const nextFixture = join(temporary, "next-project");
+    await cp(fixturePath("redteam/vercel"), nextFixture, { recursive: true });
+    const plan = JSON.parse(
+      (await run(["redteam", "plan", nextFixture, "--json"])).stdout,
+    ) as ProjectPlan;
+    assert.equal(plan.nextProfile?.id, "vercel-booking-sqlite-v1");
+    assert.equal(plan.preparation.status, "ready");
+
+    const server = await launchDashboard({
+      program: process.execPath,
+      args: [join(installed, "dist/bin.js")],
+      cwd: runtime,
+      workspace: fixture,
+      dataDir: join(temporary, "data"),
+      env,
+    });
+    try {
+      const home = await server.fetchPage("/");
+      assert.equal(home.status, 200);
+      const html = await home.text();
+      assert.match(html, /id="root"/);
+      const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(
+        (match) => match[1],
+      );
+      assert.ok(assets.some((path) => path?.endsWith(".js")));
+      assert.ok(assets.some((path) => path?.endsWith(".css")));
+      for (const asset of assets) {
+        assert.ok(asset);
+        assert.equal((await server.fetchPage(asset)).status, 200);
+      }
+      assert.equal((await server.fetchPage("/findings")).status, 200);
+      const session = (await (await server.fetchPage(API.session)).json()) as DashboardSession;
+      const response = await server.fetchPage(API.scan, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", [TOKEN_HEADER]: session.token },
+        body: JSON.stringify({ path: fixture }),
+      });
+      assert.equal(response.status, 200);
+      const saved = (await response.json()) as DashboardScan;
+      assert.deepEqual(saved.scan.inventory, report.inventory);
+      await server.stop();
+    } finally {
+      await server.dispose();
+    }
+    console.log(
+      "Installed plenger serve passed: built frontend, deep links and authenticated scan.",
+    );
+    console.log(`Verified npm archive: ${archives[0]}`);
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+
+main().catch((error: unknown) => {
+  console.error(
+    `Package smoke check failed: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exitCode = 1;
+});

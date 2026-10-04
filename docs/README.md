@@ -8,7 +8,7 @@ repeating milestone status.
 
 | Read | When you want to |
 | --- | --- |
-| [guide/install.md](guide/install.md) | Install or update the standalone binary |
+| [guide/install.md](guide/install.md) | Install through npm, run with npx and start the dashboard |
 | [guide/scanning.md](guide/scanning.md) | Understand `plenger scan` output: inventory, capabilities, findings, facts |
 | [guide/reports-ci.md](guide/reports-ci.md) | Produce JSON, SARIF or Markdown reports; use baselines, suppressions, the CI gate and the GitHub Action |
 | [guide/dashboard.md](guide/dashboard.md) | Use `plenger serve`: project selection, scan review, providers, red-team runs, saved data |
@@ -26,7 +26,7 @@ repeating milestone status.
 | [design/redteam-engine.md](design/redteam-engine.md) | Engine internals: budget controller, project preparation, qualification broker |
 | [design/llmfy-runtime.md](design/llmfy-runtime.md) | The llmfy container image, isolation checks and the synthetic qualification suite |
 | [design/dashboard-ui.md](design/dashboard-ui.md) | Visual design rules for the dashboard |
-| [design/distribution.md](design/distribution.md) | How the binary is built and what release work remains |
+| [design/distribution.md](design/distribution.md) | How the npm package and optional binary are built and checked |
 | [qualifications/](qualifications/) | Dated qualification records |
 | [ROADMAP.md](ROADMAP.md) | Goals, principles, remaining M6 checkpoints, M7, M8, risks |
 | [history/m0-m5.md](history/m0-m5.md) | The completed milestones as recorded at completion |
@@ -34,4 +34,4 @@ repeating milestone status.
 | [../SECURITY.md](../SECURITY.md) | Execution policy and how to report an issue |
 
 [licenses/](licenses/) holds the third-party licence texts bundled into the
-binary and their provenance in `sources.json`.
+npm package and optional binary, with their provenance in `sources.json`.

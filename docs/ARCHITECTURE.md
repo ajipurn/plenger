@@ -2,9 +2,11 @@
 
 plenger is one TypeScript codebase with two adapters, a command line and a local
 dashboard, on top of a static-analysis pipeline and a red-team engine. Node 22 runs
-the sources directly; `pnpm build` compiles them to `dist/` and `pnpm build:binary`
-bundles everything into a single executable. This page describes the layers, the
-direction of dependencies and where each kind of change belongs.
+the sources directly; `pnpm build` compiles them to `dist/`. `pnpm build:package`
+prepares the npm CLI with its built dashboard and assets. The optional
+`pnpm build:binary` bundles everything into a single executable. This page
+describes the layers, the direction of dependencies and where each kind of
+change belongs.
 
 ## Layers
 
@@ -93,7 +95,7 @@ explicit start.
   state transitions, source reading, model dispatch, ready-frame validation).
   `worker.ts` launches one container per trial and turns protocol violations and
   cleanup results into a typed `WorkerError`. `runtime.ts` builds the pinned
-  images and lists the recipe files (`RUNTIME_FILES`) that the binary bundles.
+  images and lists the recipe files (`RUNTIME_FILES`) shipped by both distributions.
 - **Campaigns.** `campaign-model.ts` defines campaign plans, reports and the
   built-in case catalog; `campaign.ts` creates, validates and executes campaigns;
   `campaign-evidence.ts` computes statistics and the gate; `campaign-report.ts`
@@ -141,7 +143,8 @@ stderr so tests can call `main()` directly. `redteam-run.ts` and
 ## The dashboard
 
 The service in `src/dashboard/` binds `127.0.0.1`, issues a per-process token and
-serves the built page from `dashboard/dist` (or the embedded assets in the binary).
+serves the built page from `dashboard/dist` in the npm package or checkout (or
+the embedded assets in the optional binary).
 `server.ts` listens and dispatches through the explicit route table in
 `routes/index.ts`; each file under `routes/` handles one area (session, state,
 scan, history, folders, providers, red-team, theme). `http.ts` holds the request

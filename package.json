@@ -1,5 +1,5 @@
 {
-  "name": "plenger",
+  "name": "@plenger/cli",
   "version": "0.1.0",
   "description": "Red-teaming and static triage for agentic AI projects written in Python, JavaScript and TypeScript",
   "private": true,
@@ -15,7 +15,10 @@
     "dev": "node src/bin.ts",
     "dashboard": "pnpm --filter @plenger/dashboard build && node src/dashboard/dev.ts",
     "dashboard:build": "pnpm --filter @plenger/dashboard build",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/clean-dist.ts && tsc -p tsconfig.build.json",
+    "build:package": "pnpm build && pnpm dashboard:build && node scripts/package-notices.ts",
+    "prepack": "pnpm build:package",
+    "test:package": "node scripts/smoke-package.ts",
     "build:binary": "node scripts/build-binary.ts",
     "test:binary": "node scripts/smoke-binary.ts",
     "typecheck": "tsc -p tsconfig.json",
@@ -48,8 +51,16 @@
     "yaml": "2.8.1"
   },
   "files": [
-    "dist",
+    "dist/**/*.js",
+    "dist/THIRD_PARTY_NOTICES.txt",
+    "dashboard/dist",
     "grammars",
+    "runtimes",
+    "!runtimes/llmfy/.dockerignore",
+    "!runtimes/llmfy/requirements.in",
     "schemas"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

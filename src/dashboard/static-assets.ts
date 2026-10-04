@@ -42,9 +42,12 @@ export async function dashboardAssets(override?: string): Promise<AssetSource> {
     await readFile(index);
     return root;
   } catch (error) {
-    throw new Error("Dashboard assets are unavailable. Run pnpm dashboard:build first.", {
-      cause: error,
-    });
+    throw new Error(
+      "Dashboard assets are unavailable. Reinstall the package, or run pnpm dashboard:build in a source checkout.",
+      {
+        cause: error,
+      },
+    );
   }
 }
 

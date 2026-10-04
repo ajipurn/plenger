@@ -20,8 +20,12 @@ interface LicenseSource {
   sha256: string;
 }
 
-/** Include full upstream texts for the runtime and the production dependency closure. */
-export async function writeBinaryNotices(root: string, destination: string): Promise<void> {
+/** Include upstream texts for grammars and production dependencies, optionally the bundled runtime. */
+export async function writeBinaryNotices(
+  root: string,
+  destination: string,
+  options: { includeNodeRuntime?: boolean } = {},
+): Promise<void> {
   const sources = JSON.parse(
     await readFile(join(root, "docs/licenses/sources.json"), "utf8"),
   ) as LicenseSource[];
@@ -87,27 +91,28 @@ export async function writeBinaryNotices(root: string, destination: string): Pro
     if (!notices.has(id)) notices.set(id, await vendoredLicense(grammar.package, grammar.version));
   }
 
-  const nodeSource = `https://raw.githubusercontent.com/nodejs/node/v${process.versions.node}/LICENSE`;
-  const nodeLicense = [
-    join(dirname(process.execPath), "LICENSE"),
-    join(dirname(dirname(process.execPath)), "LICENSE"),
-  ].find(existsSync);
-  let nodeText: string;
-  if (nodeLicense !== undefined) nodeText = await readFile(nodeLicense, "utf8");
-  else {
-    const response = await fetch(nodeSource, { signal: AbortSignal.timeout(30_000) });
-    if (!response.ok) throw new Error(`Cannot retrieve the Node.js license (${response.status}).`);
-    nodeText = await response.text();
+  if (options.includeNodeRuntime !== false) {
+    const nodeSource = `https://raw.githubusercontent.com/nodejs/node/v${process.versions.node}/LICENSE`;
+    const nodeLicense = [
+      join(dirname(process.execPath), "LICENSE"),
+      join(dirname(dirname(process.execPath)), "LICENSE"),
+    ].find(existsSync);
+    let nodeText: string;
+    if (nodeLicense !== undefined) nodeText = await readFile(nodeLicense, "utf8");
+    else {
+      const response = await fetch(nodeSource, { signal: AbortSignal.timeout(30_000) });
+      if (!response.ok)
+        throw new Error(`Cannot retrieve the Node.js license (${response.status}).`);
+      nodeText = await response.text();
+    }
+    notices.set(`Node.js@${process.versions.node}`, `Source: ${nodeSource}\n\n${nodeText}`);
   }
-  notices.set(`Node.js@${process.versions.node}`, `Source: ${nodeSource}\n\n${nodeText}`);
   const sections = [...notices]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([name, text]) => `${"=".repeat(72)}\n${name}\n${"=".repeat(72)}\n\n${text.trim()}\n`);
   await writeFile(
     destination,
-    `Plenger third-party notices\n\nFull license texts for the bundled Node.js runtime, WASM grammars, and backend\nand dashboard production dependencies (including dependencies trimmed by bundling).\nTailwind CSS is included because its generated styles ship in the dashboard.\n\n${sections.join("\n")}\n`,
+    `Plenger third-party notices\n\nFull license texts for ${options.includeNodeRuntime === false ? "WASM grammars" : "the bundled Node.js runtime and WASM grammars"}, backend\nand dashboard production dependencies (including dependencies trimmed by bundling).\nTailwind CSS is included because its generated styles ship in the dashboard.\n\n${sections.join("\n")}\n`,
   );
-  console.log(
-    `Third-party notices: ${notices.size} components (including Node.js bundled notices).`,
-  );
+  console.log(`Third-party notices: ${notices.size} components.`);
 }

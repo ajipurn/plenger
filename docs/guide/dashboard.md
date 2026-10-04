@@ -1,14 +1,14 @@
 # Local dashboard
 
 `plenger serve` runs a local web dashboard for static scans, scan history,
-saved model connections and the managed red-team profiles. The standalone
-executable includes the frontend and the local service. What is available and
+saved model connections and the managed red-team profiles. The npm package
+includes the built frontend and the local service. What is available and
 qualified is tracked in [../STATUS.md](../STATUS.md); the visual design rules
 are in [../design/dashboard-ui.md](../design/dashboard-ui.md).
 
 ## Start
 
-With the executable on your `PATH`:
+After installing the npm package:
 
 ```sh
 plenger serve
@@ -16,6 +16,14 @@ plenger serve path/to/project --port 4180
 plenger serve --workspace path/to/project --port 4180
 plenger serve --data-dir path/to/dashboard-data
 ```
+
+For a published release, npx can launch the same dashboard:
+
+```sh
+npx @plenger/cli@latest serve --port 4180
+```
+
+See [install.md](install.md) for npm installation and local tarballs.
 
 Use either a positional project path or `--workspace`, not both. Without
 `--port` (or with `--port 0`) a free local port is chosen. `--data-dir` selects
@@ -57,7 +65,7 @@ OverlayScrollbars and Torph. Dark mode is the default; the sun/moon button at
 the bottom of the sidebar switches appearance. The choice is saved in SQLite for the data
 directory, across projects and restarts, and rendered into the page before
 scripts load. Fonts are bundled and served locally, including from the
-executable. Layouts adapt to narrow screens, and keyboard focus and the project
+npm package. Layouts adapt to narrow screens, and keyboard focus and the project
 picker are available throughout.
 
 ## Select a project
@@ -204,7 +212,7 @@ directory:
 
 `--data-dir <folder>` selects a separate directory. New directories are
 private (`0700`) and the database uses `0600` on Unix. SQLite comes from the
-bundled Node.js runtime; its Node 22 experimental warning may appear when
+installed Node.js runtime; its Node 22 experimental warning may appear when
 `serve` starts.
 
 **Clear saved data** is in **Scan history**. After confirmation it removes, for

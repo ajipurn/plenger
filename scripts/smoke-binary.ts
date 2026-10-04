@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { chmod, copyFile, cp, mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import type { DashboardScan, DashboardSession, DashboardState } from "../src/dashboard/contract.ts";
 import type { ProjectPlan } from "../src/redteam/plan.ts";
 import type { Report } from "../src/report/model.ts";
+import { launchDashboard } from "./lib/dashboard-smoke.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const execute = promisify(execFile);
@@ -16,83 +17,6 @@ const source = resolve(process.argv[2] ?? join(root, "dist/binary", filename));
 const environment: NodeJS.ProcessEnv = { PATH: "", NO_COLOR: "1" };
 if (process.platform === "win32" && process.env.SystemRoot)
   environment.SystemRoot = process.env.SystemRoot;
-
-async function launchDashboard(binary: string, runtime: string, fixture: string, dataDir: string) {
-  const server = spawn(binary, ["serve", fixture, "--port", "0", "--data-dir", dataDir], {
-    cwd: runtime,
-    env: environment,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let stdout = "";
-  let stderr = "";
-  server.stdout.on("data", (data: Buffer) => {
-    stdout += data.toString();
-  });
-  server.stderr.on("data", (data: Buffer) => {
-    stderr += data.toString();
-  });
-  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-    (accept, reject) => {
-      server.once("error", reject);
-      server.once("close", (code, signal) => accept({ code, signal }));
-    },
-  );
-  const dispose = async () => {
-    if (server.exitCode === null && server.signalCode === null) {
-      server.kill("SIGKILL");
-      await exited;
-    }
-  };
-  try {
-    const origin = await new Promise<string>((accept, reject) => {
-      const timeout = setTimeout(
-        () => reject(new Error(`Dashboard startup timed out. ${stderr}`)),
-        15_000,
-      );
-      const detect = () => {
-        const url = /http:\/\/127\.0\.0\.1:\d+/.exec(stdout)?.[0];
-        if (url) {
-          clearTimeout(timeout);
-          accept(url);
-        }
-      };
-      server.stdout.on("data", detect);
-      void exited.then(({ code, signal }) => {
-        clearTimeout(timeout);
-        reject(new Error(`Dashboard exited before startup (${code ?? signal}). ${stderr}`));
-      }, reject);
-      detect();
-    });
-    return {
-      fetchPage: (path: string, options: RequestInit = {}) =>
-        fetch(`${origin}${path}`, { ...options, signal: AbortSignal.timeout(30_000) }),
-      dispose,
-      async stop() {
-        assert.equal(server.kill("SIGTERM"), true);
-        const stopped = await Promise.race([
-          exited,
-          new Promise<never>((_accept, reject) => {
-            setTimeout(() => reject(new Error("Dashboard did not stop.")), 10_000).unref();
-          }),
-        ]);
-        if (process.platform === "win32")
-          assert.ok(stopped.code === 0 || stopped.signal === "SIGTERM");
-        else assert.deepEqual(stopped, { code: 0, signal: null });
-        // Node 22 reports its built-in SQLite status once; all other stderr remains a failure.
-        assert.equal(
-          stderr.replace(
-            /^\(node:\d+\) ExperimentalWarning: SQLite is an experimental feature and might change at any time\r?\n\(Use `[^`]+ --trace-warnings \.\.\.` to show where the warning was created\)\r?\n/,
-            "",
-          ),
-          "",
-        );
-      },
-    };
-  } catch (error) {
-    await dispose();
-    throw error;
-  }
-}
 
 async function main() {
   const version = (
@@ -154,7 +78,13 @@ async function main() {
     );
 
     const dataDir = join(temporary, "data");
-    const server = await launchDashboard(binary, runtime, fixture, dataDir);
+    const server = await launchDashboard({
+      program: binary,
+      cwd: runtime,
+      workspace: fixture,
+      dataDir,
+      env: environment,
+    });
     let saved: DashboardScan;
     try {
       const { fetchPage } = server;
@@ -242,7 +172,13 @@ async function main() {
       (await readFile(join(dataDir, "dashboard.sqlite"))).toString(),
       /smoke-secret-do-not-export/,
     );
-    const resumed = await launchDashboard(binary, runtime, fixture, dataDir);
+    const resumed = await launchDashboard({
+      program: binary,
+      cwd: runtime,
+      workspace: fixture,
+      dataDir,
+      env: environment,
+    });
     try {
       const session = (await (await resumed.fetchPage("/api/session")).json()) as DashboardSession;
       const headers = { "X-Plenger-Token": session.token, "Content-Type": "application/json" };
@@ -282,7 +218,13 @@ async function main() {
     } finally {
       await resumed.dispose();
     }
-    const cleared = await launchDashboard(binary, runtime, fixture, dataDir);
+    const cleared = await launchDashboard({
+      program: binary,
+      cwd: runtime,
+      workspace: fixture,
+      dataDir,
+      env: environment,
+    });
     try {
       const session = (await (await cleared.fetchPage("/api/session")).json()) as DashboardSession;
       const state = (await (

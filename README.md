@@ -19,27 +19,33 @@ workflow; see the [roadmap](docs/ROADMAP.md).
 | Local dashboard with scan history, providers and red-team runs | Available |
 | Managed red-team profiles: llmfy file canary, Next.js booking/SQLite | Available; synthetic qualification plus one live-model record |
 | CLI campaigns (`redteam run`) and before/after comparisons (`redteam compare`) | Available |
-| Standalone binary | Builds locally on macOS Apple Silicon; no public release yet |
+| npm package | CLI, dashboard and red-team recipes in one package; see [release status](docs/STATUS.md) |
 
 [docs/STATUS.md](docs/STATUS.md) is the single source of truth for what is
 available, qualified and pending.
 
 ## Install
 
-The standalone executable needs no Node.js or pnpm. There is no public download
-yet; maintainers build the archive with `pnpm build:binary`. After extracting:
+The primary distribution is an npm package. Users need Node.js 22.18 or newer.
+See [docs/STATUS.md](docs/STATUS.md) for release availability. For a published
+release, install the CLI globally:
 
 ```sh
-mkdir -p ~/.local/bin ~/.local/share/plenger
-install -m 755 plenger ~/.local/bin/plenger
-install -m 644 THIRD_PARTY_NOTICES.txt ~/.local/share/plenger/THIRD_PARTY_NOTICES.txt
-export PATH="$HOME/.local/bin:$PATH"
+npm install -g @plenger/cli
 plenger --version
 ```
 
-The binary embeds the CLI, the dashboard, the tree-sitter parsers and the
-container runtime recipes. See [docs/guide/install.md](docs/guide/install.md).
-To run from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Or run it with npx:
+
+```sh
+npx @plenger/cli@latest scan path/to/project
+npx @plenger/cli@latest serve --port 4180
+```
+
+The package includes the CLI, built dashboard, tree-sitter grammars and
+container runtime recipes. Users do not build the frontend or install pnpm.
+See [docs/guide/install.md](docs/guide/install.md). To build and verify a local
+npm tarball, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Quick start
 
@@ -131,7 +137,8 @@ kept on the `feat/backup` branch.
 
 ## Licence
 
-No licence has been chosen yet. Third-party notices for the bundled runtime,
-grammars and dashboard dependencies are listed in
+The project licence status is tracked in [docs/STATUS.md](docs/STATUS.md).
+Third-party notices for the grammars and dashboard dependencies are listed in
 [docs/licenses/sources.json](docs/licenses/sources.json) and shipped as
-`THIRD_PARTY_NOTICES.txt` with every binary archive.
+`dist/THIRD_PARTY_NOTICES.txt` in the npm package. Optional standalone archives
+also include the bundled Node.js runtime notices.

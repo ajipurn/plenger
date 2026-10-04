@@ -174,7 +174,31 @@ Base images are pinned by digest in each `Dockerfile`. A recipe change produces
 a new image digest; the qualification records in `docs/qualifications/` state
 which image they tested.
 
-## Binary
+## npm package
+
+```sh
+pnpm build:package   # compile the CLI, build the dashboard and write notices
+pnpm test:package    # pack, install offline and check the installed CLI and dashboard
+```
+
+`npm pack` and `npm publish` run `prepack`, which builds the package first.
+`private: true` keeps `npm publish` refusing until the release; see
+[docs/STATUS.md](docs/STATUS.md).
+Installation from the tarball or registry uses the built files and runs no
+Plenger install scripts. The package includes all CLI commands, the dashboard,
+grammars and container recipes. Docker or Podman is needed only for red-team
+execution.
+
+The smoke check writes `dist/npm/plenger-cli-<version>.tgz`. It installs the archive
+and the locally packed production dependency closure in a temporary directory
+without registry access. It fails on runtime files outside `RUNTIME_FILES` and
+on compiled files without a matching source. It checks npm command resolution, all four grammars, offline
+Next.js preparation and `serve` with the real frontend and authenticated scans.
+The npm package workflow runs it on Linux, macOS and Windows.
+
+See [docs/design/distribution.md](docs/design/distribution.md).
+
+## Optional standalone binary
 
 ```sh
 pnpm build:binary     # scripts/build-binary.ts: bundle, embed assets, create dist/binary/

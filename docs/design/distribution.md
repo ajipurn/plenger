@@ -1,110 +1,105 @@
 # Distribution
 
-How the standalone binary is built, what it contains, which platforms have
-evidence and what release work remains. Installation steps for users are in
-[../guide/install.md](../guide/install.md); platform status is summarised in
-[../STATUS.md](../STATUS.md#binary-per-platform).
+npm is the primary distribution for the CLI and local dashboard. The user
+flow follows [promptfoo's npm installation](https://www.promptfoo.dev/docs/installation/):
+install a CLI package or run it with npx, then open the dashboard through a CLI
+command. Plenger uses `plenger serve [path]` with `--port`, `--workspace` and
+`--data-dir`. User steps are in [../guide/install.md](../guide/install.md).
+Release availability and platform evidence are in [../STATUS.md](../STATUS.md).
 
-## What the binary contains
+## npm package contents
 
-`scripts/build-binary.ts` bundles `src/cli/index.ts` with esbuild into one
-CommonJS file, then creates a Node.js single executable application (SEA) with
-postject. Embedded assets, served through `src/shared/runtime.ts`:
+The package is named `@plenger/cli` because the unscoped `plenger` name belongs
+to an unrelated npm package. `package.json` maps the `plenger` command to
+`dist/bin.js`. Node.js 22.18 or newer runs the compiled JavaScript. npm only
+warns about `engines`, so `dist/bin.js` checks the Node.js version before it
+loads the CLI. The package contains:
 
-- `package.json` (version), `runtime/web-tree-sitter.wasm` and the four
-  grammars `grammars/tree-sitter-{python,javascript,typescript,tsx}.wasm`
-- the built dashboard (`dashboard/manifest.json` plus every file of the Vite
-  build, including locally bundled fonts)
-- the llmfy runtime recipe: `Dockerfile`, `requirements.txt`, `qualify.py`,
-  `worker.py`, `project/agent.py`
-- the Next.js runtime recipe: `Dockerfile`, `package.json`,
-  `package-lock.json`, `worker.mjs`, `bridge.mjs`, `ai.mjs`, `google.mjs`,
-  `sqlite.mjs`
+- compiled CLI, scan engine, storage, dashboard service and red-team engine
+- the built frontend in `dashboard/dist`, including bundled fonts
+- the four tree-sitter grammars and their manifest in `grammars`
+- the managed container recipes listed in `RUNTIME_FILES`, under `runtimes`
+- report and campaign JSON schemas in `schemas`
+- third-party notices in `dist/THIRD_PARTY_NOTICES.txt`
 
-The binary therefore runs static scans, the dashboard service, offline
-discovery and planning, and the managed red-team runs. The runs still need
-Docker or Podman on the machine; the binary builds the pinned images from the
-embedded recipes and never runs a project's Dockerfile or scripts. Bundling
-changes installation, not the execution policy: scans and plans never import
-project code, install dependencies or read `.env` files, and the dashboard keeps
-its loopback Host/Origin checks, session token and Content Security Policy.
+npm installs the three pinned production dependencies. Dashboard dependencies
+are bundled into the frontend. TypeScript sources, tests, developer scripts,
+source maps and standalone binaries are excluded from the package.
 
-SQLite comes from the bundled Node.js runtime and adds no npm dependency.
-esbuild and postject are build dependencies, not end-user requirements.
+Asset paths resolve relative to the installed package. The command works from
+any project directory without the source checkout. `serve` uses the packaged
+frontend and keeps its SQLite data outside the installation directory.
 
-## Build from source
+The package includes static and red-team commands. Static scans and plans
+never import project code, install its dependencies or load `.env` files.
+Dynamic runs require Docker or Podman and start only after an explicit action.
+`RUNTIME_FILES` remains the recipe list used by the container builder and checked
+against the npm archive. Shipping recipes does not execute a project or build
+an image during npm installation.
 
-Maintainers need Node.js 22.18 or newer and pnpm 10.19 (see
-[../../CONTRIBUTING.md](../../CONTRIBUTING.md)). From the repository root:
+## Build and pack
+
+Maintainers use Node.js and pnpm from
+[../../CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ```sh
-pnpm install --ignore-scripts
+pnpm build:package
+npm pack
+```
+
+`build:package` compiles the engine, builds the frontend and generates notices.
+`pnpm build` first clears compiled output in `dist/`, keeping `dist/binary` and
+`dist/npm`, so files from removed sources never ship.
+The `prepack` hook runs this build for `npm pack` and `npm publish`. npm
+installation uses the prepared files and runs no Plenger install scripts.
+The npm notices include the WASM grammars and dashboard dependency closure.
+They omit Node.js because the npm package uses the user's installed runtime.
+`private: true` in `package.json` makes `npm publish` refuse while `npm pack`
+still works. `publishConfig.access` is `public` for the scoped package.
+
+## Installed package check
+
+```sh
+pnpm test:package
+```
+
+`scripts/smoke-package.ts` runs `npm pack` with its build hook and writes
+`dist/npm/plenger-cli-<version>.tgz`. It packs the installed production dependency
+closure locally and installs all archives into a temporary directory without registry
+access. From that directory it checks:
+
+- npm executable resolution, version and command help
+- a JSON scan covering Python, JavaScript, TypeScript and TSX
+- offline preparation of the managed Next.js fixture
+- runtime files that match `RUNTIME_FILES` exactly
+- no compiled file in `dist/` without a matching source file
+- `serve` with its real HTML, JavaScript, CSS and browser routes
+- session issuance, authenticated scanning and shutdown
+- packaged third-party notices without a bundled Node.js runtime
+
+The [npm package workflow](../../.github/workflows/package.yml) runs this check
+on Ubuntu 24.04, macOS 15 and Windows 2022. It saves the npm archive as an
+artifact. Publishing to the registry is a separate maintainer action.
+
+## Optional standalone binary
+
+The standalone build is an additional contributor workflow. It packages the
+same CLI and dashboard with Node.js, so users of that archive need no separate
+Node.js installation. It is not part of npm installation.
+
+```sh
 pnpm build:binary
 pnpm test:binary
 ```
 
-The build writes the native executable to `dist/binary/` with an archive named
-`plenger-<version>-<os>-<arch>.tar.gz` and a `SHA256SUMS` file beside it. The
-archive contains the executable and `THIRD_PARTY_NOTICES.txt`, generated by
-`scripts/binary-notices.ts` from [../licenses/sources.json](../licenses/sources.json)
-and the licence texts in `docs/licenses/`. Those notices cover the bundled
-runtime, grammars, engine and frontend dependencies; they do not choose a
-licence for plenger itself.
+`scripts/build-binary.ts` bundles the CLI with esbuild and creates a Node.js
+single executable application with postject. It embeds the frontend, parser
+runtime, grammars and recipes. SQLite comes from the bundled Node.js runtime.
+The archive also contains third-party notices for that runtime.
 
-Build on the target platform with its matching Node.js executable. Renaming an
-archive does not produce a binary for another OS or architecture.
-
-## Smoke test
-
-`pnpm test:binary` (`scripts/smoke-binary.ts`) copies the executable outside
-the checkout and runs it with an empty `PATH` (`SystemRoot` kept on Windows).
-It checks:
-
-- `--version`, `--help`, `redteam run --help` and `redteam compare --help`
-- a JSON scan of the mixed-agent fixture: all four grammars parse, the
-  deliberate syntax error is reported, no stderr output
-- `redteam plan --json` on the Next.js fixture produces a ready
-  `vercel-booking-sqlite-v1` plan with the `next-route-sqlite-v1` source policy
-- the dashboard: served HTML with the theme attribute and stylesheet nonce in
-  the Content Security Policy, embedded JavaScript and CSS assets, a direct
-  `/findings` load, a 404 for a missing asset, session token issuance, 403
-  without the token, an authenticated scan whose result matches the CLI report
-- providers: saving a provider through the API returns `hasApiKey: true`
-  without echoing the key, and the key does not appear in the SQLite file
-- theme persistence and server-side rendering of the saved theme
-- SQLite persistence across a restart (scan, theme, provider as default) and
-  clearing through `/api/state/clear`, verified empty after another restart,
-  using a temporary `--data-dir`
-- a clean exit on SIGTERM (process termination on Windows)
-
-## Platform evidence
-
-| Platform | Evidence |
-| --- | --- |
-| macOS Apple Silicon (`darwin-arm64`) | Built and smoke-tested locally with Node.js 22.23.2 |
-| `ubuntu-24.04`, `macos-15`, `windows-2022` | Build, smoke-test and artifact-upload jobs in [binary.yml](../../.github/workflows/binary.yml) with Node.js 22.18.0; remote runs not yet observed because this checkout has no remote |
-| Intel macOS | No evidence |
-
-Linux, Windows and Intel macOS need their own passing build and smoke-test
-runs before they are advertised as supported. A scanner binary for an OS does
-not qualify a container backend on that OS; managed runs are qualified
-separately per backend ([../STATUS.md](../STATUS.md#qualified-versus-pending)).
-
-The binary workflow skips documentation-only pushes and cancels superseded
-runs for the same ref.
-
-## Release work remaining
-
-M8 still needs:
-
-- passing native CI evidence for each published platform
-- public release artifacts with checksums
-- publisher signing for macOS and Windows; current macOS builds carry a local
-  ad-hoc signature, not notarization
-- a project licence decision
-- release installation and update documentation, and an npm package for the
-  static CLI
-- packaging of runtime integrations only after their M6/M7 qualification
-
-No download URL or install command is advertised until release artifacts
-exist. See [../ROADMAP.md](../ROADMAP.md#m8-distribution-in-progress).
+Build on the target platform with its matching Node.js executable. Windows
+uses `plenger.exe` in a ZIP archive. Linux and macOS use `plenger` in a tarball.
+The binary check runs outside the checkout with an empty `PATH` and checks
+scans, planning, dashboard assets, saved providers and SQLite persistence.
+The [binary workflow](../../.github/workflows/binary.yml) checks native builds
+separately. Platform qualifications are tracked in [../STATUS.md](../STATUS.md).
