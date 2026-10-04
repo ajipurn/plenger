@@ -3,6 +3,8 @@ import {
   ArrowRightToSquare,
   Check,
   ChevronRight,
+  ChevronsExpandVertical,
+  Clock,
   ClockArrowRotateLeft,
   Comments,
   Cpu,
@@ -42,6 +44,8 @@ export type IconName =
   | "providers"
   | "folder"
   | "chevron"
+  | "selector"
+  | "clock"
   | "parent-folder"
   | "models"
   | "agents"
@@ -75,6 +79,8 @@ const glyphs: Record<IconName, typeof Folder> = {
   providers: PlugConnection,
   folder: Folder,
   chevron: ChevronRight,
+  selector: ChevronsExpandVertical,
+  clock: Clock,
   "parent-folder": FolderArrowUp,
   models: Cpu,
   agents: FaceRobot,

@@ -6,3 +6,4 @@ coverage/
 
 # plenger output written into scanned projects
 .plenger/
+.claude

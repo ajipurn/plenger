@@ -47,9 +47,14 @@ Old `#overview`, `#findings`, `#inventory`, `#redteam` and `#history` links are
 converted to routes when the page opens. Direct loads and refreshes restore the
 selected project's saved scan and preparation plan from SQLite.
 
+The sidebar groups the views under Analyze, Test and Workspace; on narrow
+screens it becomes a header with a scrolling tab strip. The topbar shows where
+you are, when the open scan was taken, and **Export JSON** and **Scan project**
+(**Rescan project** once a scan exists) on every page.
+
 The dashboard uses React Router 7, Tailwind CSS 4, Base UI, Gravity icons,
-OverlayScrollbars and Torph. Dark mode is the default; the sun/moon button in
-the header switches appearance. The choice is saved in SQLite for the data
+OverlayScrollbars and Torph. Dark mode is the default; the sun/moon button at
+the bottom of the sidebar switches appearance. The choice is saved in SQLite for the data
 directory, across projects and restarts, and rendered into the page before
 scripts load. Fonts are bundled and served locally, including from the
 executable. Layouts adapt to narrow screens, and keyboard focus and the project
@@ -57,8 +62,8 @@ picker are available throughout.
 
 ## Select a project
 
-Press the project name in the header (**Select project** when none is
-chosen). The picker shows the current location as a breadcrumb with a dense
+Press the project switcher at the top of the sidebar (**Select project** when
+none is chosen). The picker shows the current location as a breadcrumb with a dense
 folder list below. **Browse…** opens the operating system's folder chooser on
 the computer running `plenger serve`: macOS uses Finder's dialog, Windows uses
 FolderBrowserDialog, Linux uses an installed Zenity or KDialog. Cancelling the
@@ -171,8 +176,10 @@ against its exact local address. Folder, state, scan, plan, provider and run
 requests require a token generated for each launch. No CORS access is enabled.
 Run-scoped model credentials stay in the host broker and never enter a worker.
 The page uses a Content Security Policy with scripts restricted to its origin;
-runtime styles use a per-response nonce and a hash for the pinned Torph
-stylesheet.
+runtime styles use a per-response nonce (OverlayScrollbars, Base UI and the
+drawer scroll lock) and hashes for the stylesheets the pinned Torph and Vaul
+inject. Upgrading either library means updating `src/dashboard/style-policy.ts`;
+a test recomputes the Vaul hash from the installed package.
 
 ## Saved data and clearing
 

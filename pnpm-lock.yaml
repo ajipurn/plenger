@@ -57,12 +57,12 @@ importers:
       '@fontsource-variable/geist-mono':
         specifier: 5.3.0
         version: 5.3.0
-      '@fontsource/nanum-pen-script':
-        specifier: 5.3.0
-        version: 5.3.0
       '@gravity-ui/icons':
         specifier: 2.22.0
         version: 2.22.0(react@19.3.0)
+      get-nonce:
+        specifier: 1.0.1
+        version: 1.0.1
       overlayscrollbars:
         specifier: 2.16.0
         version: 2.16.0
@@ -370,9 +370,6 @@ packages:
 
   '@fontsource-variable/geist@5.3.0':
     resolution: {integrity: sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA==}
-
-  '@fontsource/nanum-pen-script@5.3.0':
-    resolution: {integrity: sha512-at9MFL8ga0A3Xce1+CO6/56F/SHIlf++D4vVKw3yCNRPKh6JU0UgZ3r9un0qHPVxx0Miq2bGZ35RRRlu/4BIDg==}
 
   '@gravity-ui/icons@2.22.0':
     resolution: {integrity: sha512-v304kVTXbtsq8b3Uq3ZnX9R3LnRdECToeLspDgCs92C9fcID4C7dJqS3PywHKEaM4PFEZO8LRp/6JQbIm9UjHA==}
@@ -1760,8 +1757,6 @@ snapshots:
   '@fontsource-variable/geist-mono@5.3.0': {}
 
   '@fontsource-variable/geist@5.3.0': {}
-
-  '@fontsource/nanum-pen-script@5.3.0': {}
 
   '@gravity-ui/icons@2.22.0(react@19.3.0)':
     dependencies:

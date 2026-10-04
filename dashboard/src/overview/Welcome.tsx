@@ -33,8 +33,8 @@ export function Welcome({ onScan, available }: { onScan: () => void; available: 
         </div>
       </section>
       <section className="getting-started">
-        <p className="eyebrow">Three steps to a clearer picture</p>
         <h2>Your review workflow</h2>
+        <p className="muted getting-started-intro">Three steps to a clearer picture.</p>
         <ol className="workflow-list">
           <li>
             <span className="step-number">01</span>

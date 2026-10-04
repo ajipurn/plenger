@@ -18,12 +18,12 @@ body > .os-theme-plenger.os-scrollbar {
   z-index: 40;
 }
 
-.workspace-nav-row .os-scrollbar-horizontal {
-  --os-size: 8px;
-  --os-padding-perpendicular: 2px;
+.sidebar-nav .os-scrollbar-horizontal {
+  --os-size: 5px;
+  --os-padding-perpendicular: 1px;
 }
 
-.workspace-nav-row nav:focus-visible {
+.sidebar-nav:focus-visible {
   outline-offset: -2px;
 }
 

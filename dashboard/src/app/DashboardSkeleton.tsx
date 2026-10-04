@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 function SkeletonPanel() {
   return (
     <div className="panel">
@@ -28,7 +26,6 @@ export function OverviewChartSkeleton() {
         <div className="panel overview-chart-panel" key={index}>
           <div className="overview-chart-heading">
             <div className="skeleton-heading">
-              <span className="skeleton-block skeleton-eyebrow" />
               <span className="skeleton-block skeleton-panel-title" />
               <span className="skeleton-block skeleton-description" />
             </div>
@@ -49,24 +46,18 @@ export function DashboardSkeleton({
   overview,
   findings = false,
   settings = false,
-  actions,
 }: {
   overview: boolean;
   findings?: boolean;
   settings?: boolean;
-  actions?: ReactNode;
 }) {
   return (
     <div role="status" aria-live="polite">
       <span className="sr-only">Loading dashboard…</span>
       <div aria-hidden="true">
-        <div className="page-heading">
-          <div className="skeleton-heading">
-            <span className="skeleton-block skeleton-eyebrow" />
-            <span className="skeleton-block skeleton-title" />
-            <span className="skeleton-block skeleton-description" />
-          </div>
-          {actions}
+        <div className="page-heading skeleton-heading">
+          <span className="skeleton-block skeleton-title" />
+          <span className="skeleton-block skeleton-description" />
         </div>
         <div className="stack">
           {overview && (
@@ -74,7 +65,7 @@ export function DashboardSkeleton({
               <div className="scan-meta">
                 <span className="skeleton-block skeleton-meta" />
               </div>
-              <div className="stats-grid">
+              <div className="stats-grid panel">
                 {["findings", "agents", "tools", "files"].map((metric) => (
                   <div className="stat-card skeleton-stat" key={metric}>
                     <span className="skeleton-block skeleton-stat-label" />

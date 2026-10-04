@@ -14,7 +14,8 @@ import { RedteamView } from "../redteam/RedteamView.tsx";
 import { downloadJson } from "../shared/download.ts";
 import { Icon } from "../shared/icons.tsx";
 import { Button } from "../shared/ui.tsx";
-import { AppHeader } from "./AppHeader.tsx";
+import { AppSidebar } from "./AppSidebar.tsx";
+import { AppTopbar } from "./AppTopbar.tsx";
 import { DashboardProvider, useDashboardState } from "./DashboardContext.tsx";
 import { DashboardSkeleton } from "./DashboardSkeleton.tsx";
 import { PageHeading } from "./PageHeading.tsx";
@@ -22,7 +23,6 @@ import { legacyRedirects, pageFor, routes } from "./routes.ts";
 import { useRunPolling } from "./useRunPolling.ts";
 import { useTheme } from "./useTheme.ts";
 import { useWorkspaceActions } from "./useWorkspaceActions.ts";
-import { WorkspaceNav } from "./WorkspaceNav.tsx";
 
 export function App() {
   const location = useLocation();
@@ -87,8 +87,8 @@ export function App() {
   const isInitializing = !api && !state.error;
   const available = !!api && !operationBlocked;
   const scan = () => void workspace.runScan();
-  const overviewActions = (
-    <div className="overview-actions">
+  const scanActions = (
+    <div className="scan-actions">
       <Button
         type="button"
         className="button button-secondary"
@@ -110,7 +110,7 @@ export function App() {
         <a className="skip-link" href="#main-content">
           Skip to content
         </a>
-        <AppHeader
+        <AppSidebar
           project={project}
           initializing={isInitializing}
           switcherDisabled={!available}
@@ -120,23 +120,21 @@ export function App() {
           themeDisabled={!api}
           themeSaving={theme.saving}
           onToggleTheme={() => void theme.toggle()}
-        />
-        <WorkspaceNav
           findingCount={report?.scan.findings.length ?? 0}
           historyCount={history.length}
         />
-        <div className="main-shell">
+        <div className="app-main">
+          <AppTopbar view={view} project={project} report={report} actions={scanActions} />
           <main id="main-content" tabIndex={-1} aria-busy={isInitializing}>
             {isInitializing ? (
               <DashboardSkeleton
                 overview={view === "overview"}
                 findings={view === "findings"}
                 settings={view === "settings"}
-                actions={view === "overview" ? overviewActions : undefined}
               />
             ) : (
               <>
-                <PageHeading view={view} report={report} actions={overviewActions} />
+                <PageHeading view={view} report={report} />
                 <div className="sr-only" role="status">
                   {announcement}
                 </div>

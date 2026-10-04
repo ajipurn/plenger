@@ -12,21 +12,26 @@ export const routes = {
   providers: "/settings/providers",
 } as const;
 
+/** Sidebar sections, in display order. */
+export const navigationGroups = ["Analyze", "Test", "Workspace"] as const;
+export type NavigationGroup = (typeof navigationGroups)[number];
+
 export interface Page {
   id: PageId;
   label: string;
   path: string;
+  group: NavigationGroup;
   /** Match the path exactly; settings has nested pages. */
   end: boolean;
 }
 
 export const pages: Page[] = [
-  { id: "overview", label: "Overview", path: routes.overview, end: true },
-  { id: "findings", label: "Findings", path: routes.findings, end: true },
-  { id: "inventory", label: "Inventory", path: routes.inventory, end: true },
-  { id: "redteam", label: "Red-team", path: routes.redteam, end: true },
-  { id: "history", label: "Scan history", path: routes.history, end: true },
-  { id: "settings", label: "Settings", path: routes.settings, end: false },
+  { id: "overview", label: "Overview", path: routes.overview, group: "Analyze", end: true },
+  { id: "findings", label: "Findings", path: routes.findings, group: "Analyze", end: true },
+  { id: "inventory", label: "Inventory", path: routes.inventory, group: "Analyze", end: true },
+  { id: "redteam", label: "Red-team", path: routes.redteam, group: "Test", end: true },
+  { id: "history", label: "Scan history", path: routes.history, group: "Workspace", end: true },
+  { id: "settings", label: "Settings", path: routes.settings, group: "Workspace", end: false },
 ];
 
 export function pageFor(pathname: string): PageId {

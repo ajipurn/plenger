@@ -2,7 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { TOKEN_HEADER } from "./contract.ts";
 import { HttpError } from "./http.ts";
-import { TORPH_STYLE_SOURCE } from "./style-policy.ts";
+import { LIBRARY_STYLE_SOURCES } from "./style-policy.ts";
 
 /** Where the server is reachable; requests must name exactly this host and origin. */
 export interface LocalAddress {
@@ -18,9 +18,12 @@ export function newSessionToken(): string {
   return randomBytes(32).toString("hex");
 }
 
-/** Scripts only from the page itself; stylesheets from the page, this response's nonce and Torph. */
+/**
+ * Scripts only from the page itself; stylesheets from the page, this response's nonce
+ * and the exact stylesheets Torph and Vaul inject.
+ */
 export function contentSecurityPolicy(styleNonce: string): string {
-  return `default-src 'self'; script-src 'self'; style-src 'self' 'nonce-${styleNonce}' ${TORPH_STYLE_SOURCE}; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`;
+  return `default-src 'self'; script-src 'self'; style-src 'self' 'nonce-${styleNonce}' ${LIBRARY_STYLE_SOURCES}; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`;
 }
 
 /** Set on every response, including errors and static files. */

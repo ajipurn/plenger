@@ -77,7 +77,7 @@ export default function OverviewCharts({
   const severity = SEVERITIES.map((level) => ({
     name: capitalize(level),
     count: report.scan.findings.filter((finding) => finding.severity === level).length,
-    color: `var(--${level === "low" ? "muted" : level})`,
+    color: `var(--${level})`,
   }));
   const highImpact = (severity[0]?.count ?? 0) + (severity[1]?.count ?? 0);
   const maxFindings = Math.max(1, ...trend.map((item) => item.findings));
@@ -87,7 +87,6 @@ export default function OverviewCharts({
       <section className="panel overview-chart-panel" aria-labelledby="scan-trend-heading">
         <div className="overview-chart-heading">
           <div>
-            <p className="eyebrow">Scan activity</p>
             <h2 id="scan-trend-heading">Findings over scans</h2>
             <p className="muted">
               {trend.length === 1
@@ -108,11 +107,11 @@ export default function OverviewCharts({
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--navigation-accent)" stopOpacity={0.22} />
-                  <stop offset="100%" stopColor="var(--navigation-accent)" stopOpacity={0.015} />
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.18} />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="var(--line)" strokeDasharray="3 5" vertical={false} />
+              <CartesianGrid stroke="var(--line)" vertical={false} />
               <XAxis
                 dataKey="label"
                 axisLine={false}
@@ -139,14 +138,14 @@ export default function OverviewCharts({
                 type="monotone"
                 dataKey="findings"
                 name="Findings"
-                stroke="var(--navigation-accent)"
-                strokeWidth={2}
+                stroke="var(--accent)"
+                strokeWidth={1.75}
                 fill={`url(#${gradientId})`}
                 isAnimationActive={false}
                 dot={{ r: 3, fill: "var(--surface)", strokeWidth: 2 }}
                 activeDot={{
                   r: 5,
-                  fill: "var(--navigation-accent)",
+                  fill: "var(--accent)",
                   stroke: "var(--surface)",
                   strokeWidth: 3,
                 }}
@@ -186,7 +185,6 @@ export default function OverviewCharts({
       <section className="panel overview-chart-panel" aria-labelledby="severity-chart-heading">
         <div className="overview-chart-heading">
           <div>
-            <p className="eyebrow">Review priorities</p>
             <h2 id="severity-chart-heading">Findings by severity</h2>
             <p className="muted">Distribution in the selected snapshot.</p>
           </div>
@@ -227,9 +225,9 @@ export default function OverviewCharts({
                 <Bar
                   dataKey="count"
                   name="Findings"
-                  barSize={10}
-                  radius={[0, 5, 5, 0]}
-                  background={{ fill: "var(--paper)", radius: 5 }}
+                  barSize={8}
+                  radius={[0, 4, 4, 0]}
+                  background={{ fill: "var(--paper)", radius: 4 }}
                   isAnimationActive={false}
                 >
                   {severity.map((item) => (

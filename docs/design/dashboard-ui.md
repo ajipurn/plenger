@@ -3,60 +3,79 @@
 Visual design rules for the dashboard frontend under `dashboard/src/`. Usage
 is documented in [../guide/dashboard.md](../guide/dashboard.md).
 
-The dashboard follows the [Fey reference on Refero](https://styles.refero.design/style/a0630421-7b66-48b4-aa14-6194a3b2c2b9).
-Its extended design notes and CSS Variables export were reviewed. The exported CSS
-is copied into `dashboard/src/styles/fey.css`; application mappings live in
-`dashboard/src/styles/tokens.css` and components in `dashboard/src/styles/styles.css`.
+The dashboard uses a monochrome enterprise system with one accent. Tokens live
+in `dashboard/src/styles/tokens.css`; components read only those tokens and are
+styled in `dashboard/src/styles/styles.css`. Both appearances share layout,
+type and spacing.
 
 ## Color and surfaces
 
-- Canvas: Fey Ink `#0b0b0b`.
-- Cards: Fey Charcoal `#191919`; nested content and inputs: Fey Obsidian `#131313`.
-- Primary text: white; secondary copy: Fey Graphite `#868f97`.
-- Navigation underline: Fey Signal `#479ffa`.
-- Selection and focus: Fey Growth `#4ebe96`.
-- Severity colors carry finding severity; blue carries navigation only.
+- Neutral layers, from back to front: canvas `#0b0b0b`, sidebar `#0e0e0f`,
+  cards `#111112`, nested surfaces `#18181a`. Floating layers (menus, drawers,
+  dialogs) use `--raised` with a soft popover shadow.
+- Borders are hairlines: 6% white for dividers, 11% white for controls.
+  Cards add a 1px top highlight instead of a heavy shadow.
+- Primary text `#ededee`, secondary `#8e8e96`, tertiary `#64646c`.
+- One accent, `#7ea4f7`, marks the active navigation item, focus rings,
+  selected rows and the primary chart series. Nothing else uses it.
+- Severity colors carry finding severity only, on tinted badges with a dot.
+  Green marks success and the local-workspace status.
+- Primary actions are monochrome: a light fill in dark mode, a dark fill in
+  light mode, each with a subtle vertical gradient.
 
-Dark is the default appearance. Light mode uses a `#fafafa` canvas, white cards,
-`#f4f5f6` nested surfaces, `#17191c` primary text and `#626b73` secondary text.
-Primary actions use dark fills in light mode. Shadows, code blocks, severity
-colors, focus rings, backdrops and scrollbars follow semantic appearance tokens;
-layout, typography and spacing stay consistent between modes.
-
-The header's compact sun/moon action switches to the other appearance and remains
-available on narrow screens. SQLite saves the global choice independently of the
-selected project. Apply it to the initial HTML to avoid a flash on page loads.
+Dark is the default appearance. Light mode uses a `#fafafa` canvas, a `#f4f4f5`
+sidebar, white cards, `#111113` primary text, `#66666f` secondary text and the
+accent `#2f63d6`. The sun/moon action in the sidebar footer switches to the other
+appearance and remains available on narrow screens. SQLite saves the global
+choice independently of the selected project. Apply it to the initial HTML to
+avoid a flash on page loads.
 
 ## Typography
 
 Use locally bundled Geist Sans for the interface and Geist Mono for code,
-source paths and identifiers. These typefaces follow the user's preference.
-UI copy is 14px/1.5, secondary metadata 12px/1.5, section headings
-18px/1.32, and page titles 26px/1.2 (24px on narrow screens). Body copy uses weight
-400, navigation and controls 500, and headings 600. Use the reference's tight
-tracking on page titles and tabular numbers for counts.
+source paths and identifiers. UI copy is 14px/1.5, table text and secondary
+copy 13px, metadata 12px, and group labels and table headers 11px uppercase
+with 0.06em tracking. Card titles are 15px, page titles 24px (22px on phones)
+with -0.025em tracking. Body copy uses weight 400, navigation and controls 500,
+headings 600. Counts and metrics use tabular numbers.
 
-The header wordmark uses locally bundled Nanum Pen Script at its native 400
-weight, 30px on desktop and 28px on narrow screens, with natural letter spacing.
-The lowercase `n` monogram is outlined from the same font and shared by the
-header and favicon through `dashboard/public/mark.svg`. This keeps the logo
-independent of font loading while preserving the handwritten glyph exactly.
+The brand pairs the outlined `n` monogram from `dashboard/public/mark.svg` with
+the Plenger wordmark in Geist. Light mode inverts the monogram tile.
+
+## Shell
+
+A 248px sidebar holds the brand, the project switcher, grouped navigation
+(Analyze: Overview, Findings, Inventory; Test: Red-team; Workspace: Scan
+history, Settings) and a footer with the local-workspace status and the
+appearance toggle. The project switcher shows an initial tile, the project
+name and its parent path. Navigation counts use Torph.
+
+A sticky 56px topbar beside the sidebar shows a breadcrumb (project or
+Workspace, then the page), when the open scan was taken, and the scan actions:
+Export JSON and Scan or Rescan project. These actions are available on every
+page. Page headings sit below with a title and one line of description.
+
+Below 1024px the sidebar becomes a header row (brand, project, appearance) and
+the navigation becomes a sticky, horizontally scrolling tab strip with an accent
+underline. The breadcrumb is hidden there; the scan actions stay at the top of
+the page.
 
 ## Components and layout
 
-All rounded surfaces and controls share the 8px `--ui-radius` token, including
-cards, dialogs, inputs, buttons, badges, menus and scrollbars. Flush surfaces
-inside a shared container remain square so adjacent edges join cleanly. Cards
-use a single black shadow halo. Compact actions use ghost surfaces. Primary actions use a dark
-fill in light mode and a white fill in dark mode, without a glow.
-Content shares a centered 1200px container. Keep the existing 20px section gaps
-and 16–24px card padding appropriate for a working dashboard.
+Cards, dialogs and drawers use the 12px `--panel-radius`; controls, inputs,
+badges and menus use the 8px `--ui-radius`. Flush surfaces inside a shared
+container remain square so adjacent edges join cleanly. Content shares a
+centered 1240px container with 16px gaps between cards and 20px card padding.
 
-The project topbar scrolls with the page. Workspace navigation stays at the top
-once reached, below dialogs and above page content. It remains horizontally
-scrollable on small screens through OverlayScrollbars. This sticky behavior and
-compact density follow the user's requirements rather than the reference's
-landing-page layout.
+Overview opens with a metadata line (project path, rule count, frameworks) and
+a single KPI strip of four metrics divided by hairlines. The findings metric
+adds a stacked severity meter. Charts, priority findings, frameworks and
+coverage follow as cards with a title and a one-line description; eyebrow
+labels are reserved for drawers and group labels.
+
+Data tables share one header treatment: a quiet band with small uppercase
+labels. Rows use a neutral hover; the row whose detail is open gets an accent
+tint and a 2px accent edge. Severity filters are a segmented control.
 
 Preserve keyboard focus, modal scroll locking, reduced motion and readable
 wrapping. Long technical disclosures use bounded scroll regions; hiding overflow
@@ -82,15 +101,16 @@ in its own column. Frameworks remain in an expandable summary above the browser.
 
 ## Findings
 
-Use a single compact page header with the finding count and scan timestamp.
+Use a single compact page header with the finding count; the topbar shows the
+scan timestamp.
 The full-width table groups severity, a short rule title with subject and rule ID,
 source filename/directory, and confidence. The toolbar combines search, severity
 filters and a Base UI sort select. Default to highest severity, then score; paginate
-at 20 findings. Hover and selected rows use neutral surfaces, with severity colors
-restricted to badges. On phones, rows stack source and confidence below the title,
+at 20 findings. Hover rows use a neutral surface and the open row an accent tint, with
+severity colors restricted to badges. On phones, rows stack source and confidence below the title,
 and a Base UI severity select replaces the filter buttons.
 
-Selecting a row opens a 640px Vaul drawer with the full finding title, source code,
+Selecting a row opens a 680px Vaul drawer with the full finding title, source code,
 numbered evidence trace with expandable code context, risk explanation, review
 notes and suggested remediation.
 Keep all source observations and reference mappings. Deep links open the matching
@@ -133,10 +153,11 @@ arrows for actions with a direction.
 | Red-team review | `Shield` |
 | Remaining preparation steps | `ListCheck` |
 | Switch to light / dark mode | `Sun` / `Moon` |
+| Project switcher | `ChevronsExpandVertical` |
 
 ## Settings
 
-The workspace navigation uses consistent 16px Gravity icons beside every label.
+The sidebar navigation uses consistent 16px Gravity icons beside every label.
 Settings lives at `/settings/providers`; the old `/providers` URL redirects there.
 Use a narrow category sidebar on the left, currently containing Providers, and
 a provider table on the right. The table shows named connections, provider/model,

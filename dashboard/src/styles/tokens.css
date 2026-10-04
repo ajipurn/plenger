@@ -1,85 +1,140 @@
+/* Design tokens: a monochrome neutral scale with one accent.
+ * Dark is the default; light overrides the same names. Components read only these
+ * tokens, so both appearances share layout, type and spacing.
+ */
 :root {
-  --ui-radius: 8px;
   color-scheme: dark;
-  --canvas: var(--surface-canvas);
-  --surface: var(--surface-card);
-  --paper: var(--surface-elevated);
-  --ink: var(--color-fey-white);
-  --ink-hover: var(--color-fey-pale);
-  --muted: var(--color-fey-graphite);
-  --line: #ffffff12;
-  --line-strong: var(--color-fey-smoke);
-  --accent: var(--color-fey-growth);
-  --accent-soft: #4ebe9612;
-  --navigation-accent: var(--color-fey-signal);
-  --focus: var(--color-fey-growth);
-  --critical: oklch(0.78 0.12 23);
-  --critical-soft: oklch(0.255 0.035 23);
-  --high: oklch(0.8 0.12 55);
-  --high-soft: oklch(0.27 0.032 55);
-  --medium: oklch(0.85 0.11 90);
-  --medium-soft: oklch(0.285 0.027 90);
-  --success: oklch(0.8 0.105 160);
-  --success-soft: oklch(0.26 0.028 160);
-  --code-bg: var(--color-fey-ink);
-  --code-fg: var(--color-fey-mist);
-  --scrollbar: var(--color-fey-smoke);
-  --scrollbar-hover: var(--color-fey-graphite);
-  --primary-bg: var(--color-fey-white);
-  --primary-fg: var(--color-fey-ink);
-  --primary-border: var(--color-fey-white);
-  --primary-hover: var(--color-fey-pale);
-  --primary-hover-border: var(--color-fey-pale);
-  --primary-shadow: none;
-  --navigation-height: 48px;
+
+  /* Neutral surfaces, from the page canvas up to floating layers. */
+  --canvas: #0b0b0b;
+  --sidebar: #0e0e0f;
+  --surface: #111112;
+  --paper: #18181a;
+  --raised: #141415;
+  --field: #0b0b0c;
+  --hover: #ffffff08;
+  --line: #ffffff0f;
+  --line-strong: #ffffff1c;
+
+  /* Text. */
+  --ink: #ededee;
+  --ink-hover: #ffffff;
+  --muted: #8e8e96;
+  --subtle: #64646c;
+
+  /* The single accent: navigation state, focus, selection and the primary chart series. */
+  --accent: #7ea4f7;
+  --accent-soft: #7ea4f71a;
+  --navigation-accent: var(--accent);
+  --focus: var(--accent);
+
+  /* Semantic colors carry severity and outcome only. */
+  --critical: oklch(0.74 0.14 24);
+  --critical-soft: oklch(0.74 0.14 24 / 0.11);
+  --high: oklch(0.78 0.12 55);
+  --high-soft: oklch(0.78 0.12 55 / 0.11);
+  --medium: oklch(0.85 0.1 92);
+  --medium-soft: oklch(0.85 0.1 92 / 0.1);
+  --low: #9a9aa3;
+  --low-soft: #ffffff0d;
+  --success: oklch(0.78 0.11 162);
+  --success-soft: oklch(0.78 0.11 162 / 0.11);
+
+  --code-bg: #0b0b0c;
+  --code-fg: #d4d4d8;
+  --scrollbar: #ffffff24;
+  --scrollbar-hover: #ffffff40;
+  --surface-overlay: #000000b3;
+
+  /* Primary actions are monochrome: a light fill on dark. */
+  --primary-bg: linear-gradient(180deg, #ffffff 0%, #e4e4e7 100%);
+  --primary-fg: #0b0b0b;
+  --primary-hover: linear-gradient(180deg, #ffffff 0%, #f1f1f3 100%);
+  --primary-border: #d4d4d8;
+  /* Shadows stay inside or below the box so primary and secondary sizes match. */
+  --primary-shadow: inset 0 1px 0 #ffffffcc, 0 1px 2px #00000080;
+
+  /* Depth: a hairline top highlight on cards, soft lift for floating layers. */
+  --highlight: inset 0 1px 0 #ffffff08;
+  --shadow-card: var(--highlight), 0 1px 2px #00000066;
+  --shadow-popover: 0 0 0 1px #ffffff12, 0 16px 40px -12px #000000cc, 0 4px 12px #00000066;
+  --shadow-drawer: -24px 0 64px #00000099;
+  --glow: radial-gradient(1200px 320px at 50% -120px, #7ea4f70d, transparent 70%);
+
+  /* Shape and rhythm. */
+  --ui-radius: 8px;
+  --panel-radius: 12px;
+  --sidebar-width: 248px;
+  --topbar-height: 56px;
+  --navigation-height: var(--topbar-height);
+  --content-width: 1240px;
+
+  /* Type scale. */
+  --text-body: 14px;
+  --leading-body: 1.5;
+  --text-heading-sm: 15px;
+  --leading-heading-sm: 1.4;
+  --text-heading-lg: 24px;
+  --leading-heading-lg: 1.25;
+  --tracking-heading-lg: -0.025em;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
   --canvas: #fafafa;
+  --sidebar: #f4f4f5;
   --surface: #ffffff;
-  --paper: #f4f5f6;
-  --ink: #17191c;
-  --ink-hover: #343940;
-  --muted: #626b73;
-  --line: #e3e5e8;
-  --line-strong: #b5bbc1;
-  --accent: #176c4d;
-  --accent-soft: #eaf7f0;
-  --navigation-accent: #256eb9;
-  --focus: #17815a;
-  --critical: oklch(0.46 0.18 23);
-  --critical-soft: oklch(0.966 0.017 23);
-  --high: oklch(0.48 0.12 55);
-  --high-soft: oklch(0.96 0.024 55);
-  --medium: oklch(0.47 0.1 90);
-  --medium-soft: oklch(0.975 0.038 90);
-  --success: oklch(0.42 0.1 160);
-  --success-soft: oklch(0.966 0.025 160);
-  --code-bg: #eef0f2;
-  --code-fg: #343940;
-  --scrollbar: #949ba3;
-  --scrollbar-hover: #626b73;
-  --primary-bg: #17191c;
+  --paper: #f4f4f5;
+  --raised: #ffffff;
+  --field: #ffffff;
+  --hover: #18181b08;
+  --line: #e9e9ec;
+  --line-strong: #d7d7dc;
+  --ink: #111113;
+  --ink-hover: #2b2b30;
+  --muted: #66666f;
+  --subtle: #9c9ca5;
+  --accent: #2f63d6;
+  --accent-soft: #2f63d614;
+  --critical: oklch(0.5 0.17 24);
+  --critical-soft: oklch(0.6 0.17 24 / 0.08);
+  --high: oklch(0.52 0.13 50);
+  --high-soft: oklch(0.65 0.13 55 / 0.1);
+  --medium: oklch(0.5 0.1 85);
+  --medium-soft: oklch(0.8 0.12 90 / 0.16);
+  --low: #6a6a73;
+  --low-soft: #18181b0a;
+  --success: oklch(0.47 0.1 162);
+  --success-soft: oklch(0.6 0.1 162 / 0.1);
+  --code-bg: #f6f6f7;
+  --code-fg: #2b2b30;
+  --scrollbar: #18181b2e;
+  --scrollbar-hover: #18181b59;
+  --surface-overlay: #18181b52;
+  --primary-bg: linear-gradient(180deg, #2c2c31 0%, #141416 100%);
   --primary-fg: #ffffff;
-  --primary-border: #17191c;
-  --primary-hover: #343940;
-  --primary-hover-border: #343940;
-  --primary-shadow: var(--shadow-subtle), var(--shadow-md);
-  --shadow-xl: 0 2px 10px #17191c06, 0 1px 2px #17191c0a;
-  --shadow-subtle: 0 1px 2px #17191c12;
-  --shadow-md: 0 0 0 0 transparent;
-  --shadow-xl-2: 0 12px 35px #17191c1f;
-  --surface-overlay: #17191c66;
+  --primary-hover: linear-gradient(180deg, #3a3a40 0%, #1d1d20 100%);
+  --primary-border: #111113;
+  --primary-shadow: inset 0 1px 0 #ffffff26, 0 1px 2px #1018282e;
+  --highlight: inset 0 1px 0 #ffffff;
+  --shadow-card: 0 0 0 0 transparent, 0 1px 2px #1018280a, 0 1px 3px #1018280a;
+  --shadow-popover: 0 0 0 1px #18181b14, 0 16px 40px -12px #1018282e, 0 4px 10px #1018280f;
+  --shadow-drawer: -16px 0 48px #10182824;
+  --glow: radial-gradient(1200px 320px at 50% -120px, #2f63d60a, transparent 70%);
 }
 
 @theme inline {
   --color-canvas: var(--canvas);
+  --color-sidebar: var(--sidebar);
   --color-surface: var(--surface);
   --color-paper: var(--paper);
+  --color-raised: var(--raised);
+  --color-field: var(--field);
+  --color-hover: var(--hover);
   --color-ink: var(--ink);
   --color-ink-hover: var(--ink-hover);
   --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-accent: var(--accent);
@@ -92,20 +147,22 @@
   --color-high-soft: var(--high-soft);
   --color-medium: var(--medium);
   --color-medium-soft: var(--medium-soft);
+  --color-low: var(--low);
+  --color-low-soft: var(--low-soft);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-code-bg: var(--code-bg);
   --color-code-fg: var(--code-fg);
   --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-brand: "Nanum Pen Script", cursive;
   --font-mono: "Geist Mono Variable", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --radius-ui: var(--ui-radius);
-  --text-brand: 1.875rem;
-  --text-brand--line-height: 1;
+  --radius-panel: var(--panel-radius);
   --text-ui: var(--text-body);
   --text-ui--line-height: var(--leading-body);
-  --text-label: 0.75rem;
+  --text-label: 0.8125rem;
   --text-label--line-height: 1.5;
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1.45;
   --text-section: var(--text-heading-sm);
   --text-section--line-height: var(--leading-heading-sm);
 }

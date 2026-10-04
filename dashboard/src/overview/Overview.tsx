@@ -1,10 +1,11 @@
 import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router";
 import type { DashboardScan, DashboardScanSummary } from "../../../src/dashboard/contract.ts";
+import { SEVERITIES } from "../../../src/rules/model.ts";
 import { OverviewChartSkeleton } from "../app/DashboardSkeleton.tsx";
 import { findingRoute, routes } from "../app/routes.ts";
 import { EmptyState } from "../shared/EmptyState.tsx";
-import { formatDateTime, plural } from "../shared/format.ts";
+import { capitalize, plural } from "../shared/format.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
@@ -27,6 +28,11 @@ export default function Overview({
     (finding) => finding.severity === "critical" || finding.severity === "high",
   ).length;
   const syntax = scan.files.filter((file) => file.syntaxErrors).length;
+  const analysisGaps = scan.skipped.length > 0 || syntax > 0 || scan.truncated;
+  const severityCounts = SEVERITIES.map((level) => ({
+    level,
+    count: scan.findings.filter((finding) => finding.severity === level).length,
+  }));
   const stats = [
     {
       label: "Findings to review",
@@ -56,28 +62,43 @@ export default function Overview({
   return (
     <div className="stack overview-stack">
       <div className="overview-snapshot">
-        <div className="overview-project-path">
+        <span className="overview-project-path" title={scan.root}>
           <Icon name="folder" />
-          <span className="break-path">{scan.root}</span>
-        </div>
-        <div className="overview-snapshot-meta">
-          <span className="tag tag-success">
-            <Icon name="check" /> Scan snapshot
-          </span>
-          <time dateTime={report.createdAt}>{formatDateTime(report.createdAt)}</time>
-        </div>
+          <code className="break-path">{scan.root}</code>
+        </span>
+        <span>
+          {report.rules.length.toLocaleString()} detection {plural(report.rules.length, "rule")}
+        </span>
+        <span>
+          {scan.inventory.frameworks.length.toLocaleString()}{" "}
+          {plural(scan.inventory.frameworks.length, "framework")}
+        </span>
       </div>
-      <div className="stats-grid">
-        {stats.map((stat) => (
+      <div className="stats-grid panel">
+        {stats.map((stat, index) => (
           <div className="stat-card" key={stat.label}>
-            <div>
-              <span>{stat.label}</span>
+            <div className="stat-label">
               <Icon name={stat.icon} />
+              <span>{stat.label}</span>
             </div>
-            <strong>
+            <strong className="stat-value">
               <MorphNumber value={stat.count} />
             </strong>
-            <p>{stat.note}</p>
+            {index === 0 && scan.findings.length > 0 && (
+              <div className="severity-meter" aria-hidden="true">
+                {severityCounts
+                  .filter((item) => item.count > 0)
+                  .map((item) => (
+                    <span
+                      key={item.level}
+                      className={`severity-meter-segment ${item.level}`}
+                      style={{ flexGrow: item.count }}
+                      title={`${capitalize(item.level)}: ${item.count}`}
+                    />
+                  ))}
+              </div>
+            )}
+            <p className="stat-note">{stat.note}</p>
           </div>
         ))}
       </div>
@@ -88,8 +109,8 @@ export default function Overview({
         <section className="panel priority-panel">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Start here</p>
               <h2>Priority findings</h2>
+              <p className="muted">Ranked by severity, confidence, and reachable exposure.</p>
             </div>
             <Link to={routes.findings} className="text-link">
               View all
@@ -127,15 +148,12 @@ export default function Overview({
               descriptionClassName="muted"
             />
           )}
-          <div className="panel-footnote">
-            Ranked by severity, confidence, and reachable exposure.
-          </div>
         </section>
         <section className="panel framework-panel">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Project composition</p>
               <h2>Frameworks & connections</h2>
+              <p className="muted">What the agent is built on and what it reaches.</p>
             </div>
             <span className="tag framework-count">{scan.inventory.frameworks.length}</span>
           </div>
@@ -194,12 +212,14 @@ export default function Overview({
         </section>
       </div>
       <section className="panel coverage-panel">
-        <div className="coverage-heading">
-          <Icon name="scan" />
+        <div className="section-heading coverage-heading">
           <div>
             <h2>Analysis coverage</h2>
             <p className="muted">Static observations from this scan’s scope.</p>
           </div>
+          <span className={`tag ${analysisGaps ? "attention-status" : "tag-success"}`}>
+            {analysisGaps ? "Gaps to review" : "No analysis gaps"}
+          </span>
         </div>
         <div className="coverage-counts">
           <div>
@@ -219,7 +239,7 @@ export default function Overview({
             <span>Source file limit</span>
           </div>
         </div>
-        {(scan.skipped.length > 0 || syntax > 0 || scan.truncated) && (
+        {analysisGaps && (
           <details className="coverage-details">
             <summary>
               <span>Review analysis gaps</span>

@@ -1,4 +1,5 @@
 import { CSPProvider } from "@base-ui/react/csp-provider";
+import { setNonce } from "get-nonce";
 import { OverlayScrollbars } from "overlayscrollbars";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -8,7 +9,6 @@ import { legacyHashTarget } from "./app/routes.ts";
 import { verticalScrollbars } from "./shared/scrollbars.ts";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
-import "@fontsource/nanum-pen-script/latin-400.css";
 import "./styles/styles.css";
 import "./styles/scrollbars.css";
 
@@ -19,6 +19,8 @@ if (window.location.pathname === "/" && legacy) {
 }
 const nonce = document.querySelector<HTMLMetaElement>('meta[name="plenger-style-nonce"]')?.content;
 OverlayScrollbars.nonce(nonce);
+// Vaul locks page scrolling through Radix, whose generated <style> reads its nonce here.
+if (nonce) setNonce(nonce);
 // Keep document scrolling and Base UI's modal scroll lock on the real viewport.
 OverlayScrollbars(
   { target: document.body, elements: { viewport: document.body }, cancel: { body: null } },

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { DashboardScan, FolderListing } from "../src/dashboard/contract.ts";
 import { startDashboard } from "../src/dashboard/server.ts";
+import { VAUL_STYLE_HASH } from "../src/dashboard/style-policy.ts";
 import type { ProjectPlan } from "../src/redteam/plan.ts";
 import { RULES } from "../src/rules/index.ts";
 import * as scanner from "../src/scan.ts";
@@ -206,6 +207,7 @@ describe("local dashboard transport", () => {
     expect(policy).toContain(`'nonce-${nonce}'`);
     expect(policy).toContain("script-src 'self';");
     expect(policy).not.toContain("'unsafe-inline'");
+    expect(policy).toContain(`'${VAUL_STYLE_HASH}'`);
     const second = await fetch(`${dashboard.url}/findings`);
     expect(await second.text()).not.toContain(`content="${nonce}"`);
     expect(second.headers.get("content-security-policy")).not.toContain(`'nonce-${nonce}'`);
