@@ -1,6 +1,7 @@
 name: npm package
 on:
   push:
+    branches: [main]
     paths-ignore:
       - 'docs/**'
       - '**.md'

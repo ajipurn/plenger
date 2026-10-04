@@ -21,7 +21,7 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | --- | --- | --- |
 | Static scan of Python, JavaScript and TypeScript | Available | Inventory, capabilities, 26 risk rules; never executes project code. [guide/scanning.md](guide/scanning.md) |
 | Reports: terminal, JSON v1, SARIF 2.1.0, Markdown | Available | Baselines, suppressions, `--fail-on` gate, exit codes. [guide/reports-ci.md](guide/reports-ci.md) |
-| GitHub Action (composite) | Available, unverified remotely | Tested locally and in the repository's own CI workflow; a hosted code-scanning upload has not run because this checkout has no remote |
+| GitHub Action (composite) | Available | Runs on GitHub-hosted runners in the repository's CI workflow and writes SARIF. Uploading that SARIF to code scanning is left to the calling workflow and has not been exercised |
 | Local dashboard (`plenger serve`) | Available | Scans, inventory, findings, history, providers, red-team runs, campaigns and comparisons. [guide/dashboard.md](guide/dashboard.md) |
 | npm package | Available locally | Compiled CLI, built dashboard, grammars, schemas and red-team recipes in one tarball. [guide/install.md](guide/install.md) |
 | `redteam discover` and `redteam plan` (offline) | Available | llmfy function/factory discovery; Python source and Next.js route preparation plans |

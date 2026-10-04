@@ -11,7 +11,6 @@ import {
   type FolderListing,
   type ProviderTestResult,
   type StartCampaignRequest,
-  type StartRunRequest,
   type ThemeResult,
   TOKEN_HEADER,
 } from "../../../src/dashboard/contract.ts";
@@ -35,7 +34,6 @@ export interface DashboardApi {
   saveProvider(input: ProviderInput): Promise<SavedProvider>;
   deleteProvider(id: string): Promise<DeleteResult>;
   testProvider(id: string): Promise<ProviderTestResult>;
-  startRun(config: StartRunRequest): Promise<RedteamRun>;
   getRun(id: string): Promise<RedteamRun>;
   startCampaign(config: StartCampaignRequest): Promise<CampaignReport>;
   getCampaign(id: string): Promise<CampaignReport>;
@@ -84,7 +82,6 @@ export async function connect(): Promise<DashboardApi> {
     saveProvider: (input) => request<SavedProvider>(API.providers, input),
     deleteProvider: (id) => request<DeleteResult>(API.deleteProvider, { id }),
     testProvider: (id) => request<ProviderTestResult>(API.testProvider, { id }),
-    startRun: (config) => request<RedteamRun>(API.startRun, config),
     getRun: (id) => request<RedteamRun>(withId(API.run, id)),
     startCampaign: (config) => request<CampaignReport>(API.startCampaign, config),
     getCampaign: (id) => request<CampaignReport>(withId(API.campaign, id)),
