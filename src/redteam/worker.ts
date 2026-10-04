@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { errorMessage } from "../shared/guards.ts";
 import { BudgetStoppedError } from "./budget.ts";
-import { IMAGE_ID, WORKER_TIMEOUT_MS } from "./constants.ts";
+import { IMAGE_ID, WORKER_PROTOCOL_VERSION, WORKER_TIMEOUT_MS } from "./constants.ts";
 import type { BudgetScenario } from "./qualification-broker.ts";
 
 /** Receives one worker frame and may return a reply frame to write back. */
@@ -102,8 +102,13 @@ export async function runWorker(image: string, options: WorkerLaunch): Promise<s
       args: containerArguments(engine, image, name, timeoutMs, options),
       input: JSON.stringify(
         options.projectRequest
-          ? { ...options.projectRequest, hostMarker }
-          : { hostMarker, mode: options.mode ?? "suite", scenario: options.scenario },
+          ? { ...options.projectRequest, protocolVersion: WORKER_PROTOCOL_VERSION, hostMarker }
+          : {
+              protocolVersion: WORKER_PROTOCOL_VERSION,
+              hostMarker,
+              mode: options.mode ?? "suite",
+              scenario: options.scenario,
+            },
       ),
       timeoutMs,
       maxOutputBytes: options.runtime === "vercel" ? 512 * 1024 : 64 * 1024,

@@ -15,6 +15,9 @@ from importlib.metadata import version
 from pathlib import Path
 from unittest.mock import patch
 
+# Frame version from docs/design/worker-protocol.md; matches WORKER_PROTOCOL_VERSION on the host.
+PROTOCOL_VERSION = 1
+
 
 def require(condition, message):
     if not condition:
@@ -238,6 +241,8 @@ def main():
     elif request.get("mode") == "flood":
         print("x" * 1048576)
     elif request.get("mode") == "budget":
+        require(request.get("protocolVersion") == PROTOCOL_VERSION, "unsupported protocol version")
+
         def emit(message):
             print(json.dumps(message), flush=True)
 
@@ -255,7 +260,8 @@ def main():
                     "invalid gateway correlation")
             return reply["value"]
 
-        emit({"type": "ready", "python": platform.python_version(), "llmfy": version("llmfy"),
+        emit({"type": "ready", "protocolVersion": PROTOCOL_VERSION,
+              "python": platform.python_version(), "llmfy": version("llmfy"),
               "os": platform.system(), "arch": platform.machine(), "isolationChecks": checks})
         qualify(gateway=gateway, observer=emit, scenario=request.get("scenario", "suite"))
         emit({"type": "finished"})

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { close, receive, send, state } from "./bridge.mjs";
+import { close, PROTOCOL_VERSION, receive, send, state } from "./bridge.mjs";
 import { build } from "./node_modules/esbuild/lib/main.js";
 
 async function isolation(hostMarker) {
@@ -51,14 +51,17 @@ async function isolation(hostMarker) {
   return checks;
 }
 
-let stage = "checking-isolation";
+let stage = "reading-request";
 try {
   // Worker-side backstop also covers a disconnected host when using Docker.
   setTimeout(() => process.exit(124), 130000).unref();
   const request = await receive();
+  if (request.protocolVersion !== PROTOCOL_VERSION) throw new Error("protocol version");
+  stage = "checking-isolation";
   const isolationChecks = await isolation(request.hostMarker);
   send({
     type: "ready",
+    protocolVersion: PROTOCOL_VERSION,
     node: process.versions.node,
     ai: "7.0.29",
     databaseObserver: "committed-snapshots-v1",

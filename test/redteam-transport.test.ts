@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock("node:child_process", () => ({ spawn }));
 
+import { WORKER_PROTOCOL_VERSION } from "../src/redteam/constants.ts";
 import { qualifyLlmfyBudget } from "../src/redteam/qualification.ts";
 import { WorkerError } from "../src/redteam/worker.ts";
 
@@ -12,6 +13,7 @@ const image = `sha256:${"a".repeat(64)}`;
 const limits = { maxModelCalls: 9, maxTokens: 1, timeoutMs: 30_000 };
 const ready = {
   type: "ready",
+  protocolVersion: WORKER_PROTOCOL_VERSION,
   python: "3.12.13",
   llmfy: "0.11.0",
   os: "Linux",
@@ -156,6 +158,10 @@ it("decodes fragmented frames and split UTF-8 before stopping a denied model req
   });
   expect(worker.kill).toHaveBeenCalledWith("SIGKILL");
   expect(worker.input.join("")).not.toContain("model_response");
+  expect(JSON.parse(worker.input.join("").split("\n")[0] ?? "")).toMatchObject({
+    protocolVersion: WORKER_PROTOCOL_VERSION,
+    mode: "budget",
+  });
   expect(spawn).toHaveBeenCalledTimes(2);
   expect(cleanup.stdin.writableEnded).toBe(true);
 });

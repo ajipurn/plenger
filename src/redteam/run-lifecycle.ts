@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { redactReport } from "../shared/secrets.ts";
 import { ModelBudget } from "./budget.ts";
+import { WORKER_PROTOCOL_VERSION } from "./constants.ts";
 import type { ProjectPlan } from "./plan-model.ts";
 import {
   ModelProviderHttpError,
@@ -120,6 +121,7 @@ export interface RuntimeSpec {
 /** Reject a worker whose `ready` frame does not prove the pinned, isolated runtime. */
 export function assertReadyFrame(frame: Record<string, unknown>, spec: RuntimeSpec): void {
   if (
+    frame.protocolVersion !== WORKER_PROTOCOL_VERSION ||
     Object.entries(spec.versions).some(([key, value]) => frame[key] !== value) ||
     !Array.isArray(frame.isolationChecks) ||
     !spec.checks.every((check) => (frame.isolationChecks as unknown[]).includes(check))

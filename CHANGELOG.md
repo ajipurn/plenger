@@ -7,8 +7,22 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ## Unreleased
 
+### Added
+
+- npm package `plenger-cli` with the `plenger` command: compiled CLI, built
+  dashboard, grammars, schemas and red-team recipes. `pnpm build:package` and
+  `pnpm test:package` build and check it; the npm package workflow runs the
+  check on Linux, macOS and Windows.
+- Apache License 2.0.
+- Versioned worker frames: requests and `ready` frames carry
+  `protocolVersion` 1, and the host and both runtimes refuse other values.
+
 ### Fixed
 
+- `plenger redteam compare --help` prints the compare options again instead of
+  the generic `redteam` usage.
+- The installed CLI reports an unsupported Node.js version instead of failing
+  on a missing built-in module.
 - `executeRun` forwards injected dependencies to the Next.js executor.
 - Both executors redact run snapshots; the llmfy executor previously did not.
 - Captured Next.js sources are hashed in code-unit order, so the source digest

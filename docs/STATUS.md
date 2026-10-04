@@ -34,7 +34,7 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | Attacker and judge model roles | Planned | Today's providers configure the target model only |
 | General HTTP and MCP adapters | Planned | M6b/M6c |
 | Indirect injection channels | Planned | M7 |
-| Worker protocol version field | Gap | Compatibility relies on runtime versions in the `ready` frame. [design/worker-protocol.md](design/worker-protocol.md) |
+| Worker protocol version | Available | Request and `ready` frames carry `protocolVersion` 1; the host and both runtimes refuse other values. [design/worker-protocol.md](design/worker-protocol.md#version) |
 
 ## npm distribution
 

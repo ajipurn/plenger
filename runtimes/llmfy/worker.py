@@ -34,10 +34,13 @@ def main():
         raise RuntimeError("invalid source frame")
     request = json.loads(line)
     qualification = load("plenger_qualification", "/opt/plenger/qualify.py")
+    if request.get("protocolVersion") != qualification.PROTOCOL_VERSION:
+        raise RuntimeError("unsupported protocol version")
     checks = qualification.preflight(request)
     if version("llmfy") != "0.11.0":
         raise RuntimeError("unsupported llmfy version")
-    emit({"type": "ready", "python": platform.python_version(), "llmfy": version("llmfy"),
+    emit({"type": "ready", "protocolVersion": qualification.PROTOCOL_VERSION,
+          "python": platform.python_version(), "llmfy": version("llmfy"),
           "isolationChecks": checks})
 
     # Stage validated snapshot bytes after preflight, with no host filesystem mount.

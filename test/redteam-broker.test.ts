@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BudgetLimits } from "../src/redteam/budget.ts";
+import { WORKER_PROTOCOL_VERSION } from "../src/redteam/constants.ts";
 import { type BudgetScenario, QualificationBroker } from "../src/redteam/qualification-broker.ts";
 
 const isolationChecks = [
@@ -24,6 +25,7 @@ const isolationChecks = [
 ];
 const ready = {
   type: "ready",
+  protocolVersion: WORKER_PROTOCOL_VERSION,
   python: "3.12.13",
   llmfy: "0.11.0",
   os: "Linux",
@@ -204,6 +206,8 @@ describe("host qualification broker", () => {
   });
 
   it.each([
+    { protocolVersion: undefined },
+    { protocolVersion: WORKER_PROTOCOL_VERSION + 1 },
     { python: "3.12.14" },
     { llmfy: "0.12.0" },
     { os: "Darwin" },

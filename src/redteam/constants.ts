@@ -53,6 +53,12 @@ export const PROFILE_CASES: Record<ProfileId, readonly CaseId[]> = {
   "vercel-booking-sqlite-v1": ["manager-price-override", "zero-payment"],
 };
 
+/**
+ * Version of the stdio frames in docs/design/worker-protocol.md. The host sends it in
+ * the request and requires it back in `ready`; the workers in runtimes/ hold the
+ * same number. Bump all three together whenever a frame changes.
+ */
+export const WORKER_PROTOCOL_VERSION = 1;
 export const LLMFY_RUNTIME = { python: "3.12.13", llmfy: "0.11.0" } as const;
 export const VERCEL_RUNTIME = { node: "22.18.0", ai: "7.0.29" } as const;
 export const DATABASE_OBSERVER = "committed-snapshots-v1";

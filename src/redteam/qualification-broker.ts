@@ -5,6 +5,7 @@ import {
   LLMFY_RUNTIME,
   MODEL_REQUEST_CAP,
   type RunOutcome,
+  WORKER_PROTOCOL_VERSION,
 } from "./constants.ts";
 
 /** Developer qualification of the bundled image, NOT an arbitrary-project runner. */
@@ -84,6 +85,7 @@ export class QualificationBroker {
       const checks = message.isolationChecks;
       check(
         !this.#runtime &&
+          message.protocolVersion === WORKER_PROTOCOL_VERSION &&
           message.python === LLMFY_RUNTIME.python &&
           message.llmfy === LLMFY_RUNTIME.llmfy &&
           message.os === "Linux" &&

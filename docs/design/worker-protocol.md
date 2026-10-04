@@ -6,13 +6,22 @@ exchange newline-delimited JSON over the container's stdin and stdout. This
 page is the message catalogue derived from that code. It documents direction,
 fields, limits, ordering and the differences between the two runtimes.
 
-**Known gap:** no frame carries a protocol version. Compatibility rests on the
-runtime versions reported in `ready` (Python and llmfy, or Node, AI SDK and
-observer id), which the host checks for exact values. The roadmap specified a
-versioned message protocol over a loopback socket or named pipe; the
-implementation is unversioned stdio. A worker revision that changes a frame
-without changing one of those versions would not be detected. Adding a
-`protocolVersion` field to the request and `ready` frames is open work.
+## Version
+
+The frames on this page are protocol version 1. The host holds the number in
+`WORKER_PROTOCOL_VERSION` (`src/redteam/constants.ts`). The workers hold it in
+`PROTOCOL_VERSION`: `runtimes/llmfy/qualify.py` (also used by `worker.py`) and
+`runtimes/vercel/bridge.mjs`. Bump all of them together when a frame changes.
+
+- The launcher adds `protocolVersion` to every request, next to `hostMarker`.
+- A worker refuses any other value before its isolation checks. The llmfy
+  worker and `qualify.py` in budget mode raise and exit non-zero without
+  `ready`. The Vercel worker sends `failure` with stage `reading-request`.
+- Every `ready` frame repeats `protocolVersion`. The host rejects a missing or
+  different value, like a wrong runtime version or isolation check list.
+
+The roadmap specified a loopback socket or named pipe. The transport is still
+container stdio.
 
 ## Transport
 
@@ -62,12 +71,14 @@ llmfy managed run (`worker.py`):
 | `input` | string | The trial prompt, containing the marker |
 | `marker` | string | `PLENGER_<32 hex>`; matched in canary files |
 | `policy` | string | Prepended as a system message to every model request |
+| `protocolVersion` | number | Added by the launcher; see [Version](#version) |
 | `hostMarker` | string | Added by the launcher |
 
-llmfy qualification (`qualify.py`): `{hostMarker, mode, scenario}` with `mode`
-one of `suite`, `wait`, `flood`, `budget` and `scenario` one of `suite`,
-`loop`, `violation-loop`, `violation-wait`. Modes other than `budget` print one
-report object or test the host's limits and are not part of this protocol.
+llmfy qualification (`qualify.py`): `{protocolVersion, hostMarker, mode,
+scenario}` with `mode` one of `suite`, `wait`, `flood`, `budget` and
+`scenario` one of `suite`, `loop`, `violation-loop`, `violation-wait`. Modes
+other than `budget` print one report object or test the host's limits and are
+not part of this protocol. Budget mode refuses a different `protocolVersion`.
 
 Vercel managed run (`worker.mjs`):
 
@@ -77,6 +88,7 @@ Vercel managed run (`worker.mjs`):
 | `route` | string | Path of the POST handler module; must be in `sources` |
 | `storeModule` | string | Path of the SQLite module exporting `store`, `SERVICES`, `SLOTS`; must be in `sources` |
 | `trial` | string | `backend-validation`, `clean-control`, `manager-price-override` or `zero-payment` |
+| `protocolVersion` | number | Added by the launcher; see [Version](#version) |
 | `hostMarker` | string | Added by the launcher |
 
 ## Frames (worker to host)
@@ -89,8 +101,8 @@ any version or check list that does not match exactly.
 
 | Runtime | Fields | Host requirements |
 | --- | --- | --- |
-| llmfy | `python`, `llmfy`, `isolationChecks[]` (`qualify.py` budget mode adds `os`, `arch`) | `python == "3.12.13"`, `llmfy == "0.11.0"`, all 18 check names below present; the broker also requires `os == "Linux"` and `arch == "aarch64"` |
-| Vercel | `node`, `ai`, `databaseObserver`, `isolationChecks[]` | `node == "22.18.0"`, `ai == "7.0.29"`, `databaseObserver == "committed-snapshots-v1"`, all 16 check names present |
+| llmfy | `protocolVersion`, `python`, `llmfy`, `isolationChecks[]` (`qualify.py` budget mode adds `os`, `arch`) | `protocolVersion == 1`, `python == "3.12.13"`, `llmfy == "0.11.0"`, all 18 check names below present; the broker also requires `os == "Linux"` and `arch == "aarch64"` |
+| Vercel | `protocolVersion`, `node`, `ai`, `databaseObserver`, `isolationChecks[]` | `protocolVersion == 1`, `node == "22.18.0"`, `ai == "7.0.29"`, `databaseObserver == "committed-snapshots-v1"`, all 16 check names present |
 
 Isolation check names:
 
@@ -182,7 +194,7 @@ declares `needsApproval` or threw. `backend_complete` follows the second
 check; the host requires both checks before it.
 
 `failure` `{type: "failure", stage, check | null, message}`: the Vercel
-worker's catch-all. `stage` names the phase (`checking-isolation`,
+worker's catch-all. `stage` names the phase (`reading-request`, `checking-isolation`,
 `capturing-source`, `compiling`, `importing`, `preparing-fixture`, `route`);
 `check` is the failed isolation check name when the stage is
 `checking-isolation`, otherwise `null`; `message` is a fixed sentence. The
@@ -238,7 +250,7 @@ out-of-sequence id or sequence number, and any unknown type end the worker.
 | Suppressing project output | `redirect_stdout`/`redirect_stderr` to `/dev/null` | `process.stdout.write` and `console.*` replaced after `ready` |
 | Isolation checks | 18 | 16 |
 
-Open gaps besides the missing version field: the llmfy worker has no
+Open gaps: the llmfy worker has no
 daemon-side lifetime cap on Docker, and abrupt host-process death is not
 covered by the integration tests. Both are listed in
 [../STATUS.md](../STATUS.md#qualified-versus-pending).

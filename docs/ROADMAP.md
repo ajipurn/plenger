@@ -178,7 +178,7 @@ the llmfy path blocks M6a; it is not deferred to M6b or made a user task.
 - M6a: qualify the llmfy journey with a live model on an unmodified project;
   qualify the provider's request bounds and charged-token accounting; broaden
   test-pack binding beyond the three file-canary cases; cover abrupt host
-  death and Docker cleanup; add a protocol version field. The rest of the
+  death and Docker cleanup. The rest of the
   checkpoint (discovery, setup, isolation before import, preserved approval,
   bounded model access, dashboard workflow, saved profiles, history) is
   delivered with synthetic qualification. See
@@ -192,11 +192,11 @@ the llmfy path blocks M6a; it is not deferred to M6b or made a user task.
   matrix; a CLI option for dynamic suppressions. Repetitions, statistics,
   reporters and CI gates are delivered.
 
-**Protocol gap.** The specification calls for a versioned JSON message protocol
-over a loopback socket or named pipe, portable to Windows for M8. The
-implementation uses unversioned newline-delimited JSON over container stdio
-and checks runtime versions in the `ready` frame instead. See
-[design/worker-protocol.md](design/worker-protocol.md). Worker reuse across
+**Protocol transport.** The specification calls for a versioned JSON message
+protocol over a loopback socket or named pipe, portable to Windows for M8. The
+implementation sends newline-delimited JSON over container stdio; the request
+and `ready` frames carry `protocolVersion`, so the host refuses a mismatched
+worker. See [design/worker-protocol.md](design/worker-protocol.md). Worker reuse across
 trials with a verified reset may become an explicit option later, never the
 default; a fresh worker per trial stays the rule.
 
@@ -326,8 +326,6 @@ dynamic testing is for targets the user owns or has permission to test.
   for anything else, authenticate events, bound size and rate, and never treat
   unauthenticated input as an observation. Event authenticity assumes trusted
   instrumentation and a token inaccessible to the tested tools.
-- **Unversioned worker protocol.** Until a version field exists, a frame change
-  must coincide with a runtime version change or the host will not notice it.
 
 ## Beyond the MVP
 

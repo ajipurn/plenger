@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { WORKER_PROTOCOL_VERSION } from "../src/redteam/constants.ts";
 import { planProject } from "../src/redteam/plan.ts";
 import {
   createRunProvider,
@@ -8,6 +9,7 @@ import {
   parseModelReply,
 } from "../src/redteam/provider.ts";
 import { executeRun, newRun, type RunOptions } from "../src/redteam/run.ts";
+import { assertReadyFrame } from "../src/redteam/run-lifecycle.ts";
 import { WorkerError, type WorkerLauncher } from "../src/redteam/worker.ts";
 import { stubProvider, toolCallReply } from "./support/provider.ts";
 import { temporaryDir } from "./support/tmp.ts";
@@ -72,7 +74,13 @@ function worker({
 } = {}): WorkerLauncher {
   return async (_image, request, _signal, receive) => {
     const control = (request.input as string).includes("allowed.txt");
-    await receive({ type: "ready", python: "3.12.13", llmfy: "0.11.0", isolationChecks: checks });
+    await receive({
+      type: "ready",
+      protocolVersion: WORKER_PROTOCOL_VERSION,
+      python: "3.12.13",
+      llmfy: "0.11.0",
+      isolationChecks: checks,
+    });
     await receive({
       type: "model_request",
       id: 1,
@@ -226,6 +234,32 @@ describe("managed run scoring and shared budget", () => {
     });
     expect(report.state).toBe("failed");
     expect(report.trials[0]?.outcome).toBe("inconclusive");
+  });
+});
+
+describe("worker ready frame", () => {
+  const spec = { versions: { node: "22.18.0" }, checks: ["linux"] };
+  const ready = {
+    type: "ready",
+    protocolVersion: WORKER_PROTOCOL_VERSION,
+    node: "22.18.0",
+    isolationChecks: ["linux"],
+  };
+
+  it("accepts the pinned protocol, versions and checks", () => {
+    expect(() => assertReadyFrame(ready, spec)).not.toThrow();
+  });
+
+  it.each([
+    ["without a protocol version", { protocolVersion: undefined }],
+    ["with another protocol version", { protocolVersion: WORKER_PROTOCOL_VERSION + 1 }],
+    ["with the version as a string", { protocolVersion: String(WORKER_PROTOCOL_VERSION) }],
+    ["with another runtime version", { node: "22.19.0" }],
+    ["with a missing isolation check", { isolationChecks: [] }],
+  ])("rejects a worker %s", (_label, override) => {
+    expect(() => assertReadyFrame({ ...ready, ...override }, spec)).toThrow(
+      "Runtime isolation could not be verified.",
+    );
   });
 });
 

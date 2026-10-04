@@ -175,6 +175,8 @@ secrets (`python-only-v1`), built-in cases bound to the file-canary contract,
 every model request admitted through the host broker with run-wide call and
 token limits, correlated and sequence-checked worker events, and the shared
 engine connected to planning, saved profiles and the dashboard workflow.
+Request and `ready` frames carry `protocolVersion`
+([worker-protocol.md](worker-protocol.md#version)).
 
 Still open before M6a is complete:
 
@@ -186,7 +188,6 @@ Still open before M6a is complete:
 - Broaden test-pack binding beyond the three file-canary cases, bound to
   verified semantics rather than tool names.
 - Cover abrupt host-process death and Docker cleanup after it.
-- Add a protocol version field (see [worker-protocol.md](worker-protocol.md)).
 
 Framework reference: [llmfy 0.11.0](https://pypi.org/project/llmfy/0.11.0/).
 Container controls follow the [Podman run options](https://docs.podman.io/en/latest/markdown/podman-run.1.html)

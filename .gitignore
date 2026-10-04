@@ -3,6 +3,7 @@ dist/
 coverage/
 *.log
 .DS_Store
+__pycache__/
 
 # plenger output written into scanned projects
 .plenger/
