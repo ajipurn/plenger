@@ -85,15 +85,17 @@ export async function main(argv: string[], io: Io = processIo()): Promise<number
     return 0;
   }
   if (early === "help") {
-    io.stdout(name === "redteam" && rest[0] === "run" ? await runUsage() : command.usage);
+    io.stdout((await subcommandUsage(name, rest)) ?? command.usage);
     return 0;
   }
   try {
     return await command.run(rest, io);
   } catch (error) {
-    io.stderr(
-      `plenger: ${describe(error)}${error instanceof UsageError ? `\n\n${command.usage}` : "\n"}`,
-    );
+    const usage =
+      error instanceof UsageError
+        ? `\n\n${(await subcommandUsage(name, rest)) ?? command.usage}`
+        : "\n";
+    io.stderr(`plenger: ${describe(error)}${usage}`);
     return exitCode(error);
   }
 }
@@ -108,9 +110,18 @@ function earlyOption(argv: string[]): "help" | "version" | undefined {
   return undefined;
 }
 
-async function runUsage(): Promise<string> {
-  const { REDTEAM_RUN_USAGE } = await import("./commands/redteam-run.ts");
-  return REDTEAM_RUN_USAGE;
+/** `redteam run` and `redteam compare` have their own options, loaded only when asked for. */
+async function subcommandUsage(name: string, rest: string[]): Promise<string | undefined> {
+  if (name !== "redteam") return undefined;
+  if (rest[0] === "run") {
+    const { REDTEAM_RUN_USAGE } = await import("./commands/redteam-run.ts");
+    return REDTEAM_RUN_USAGE;
+  }
+  if (rest[0] === "compare") {
+    const { REDTEAM_COMPARE_USAGE } = await import("./commands/redteam-compare.ts");
+    return REDTEAM_COMPARE_USAGE;
+  }
+  return undefined;
 }
 
 /** 2 for anything the user can fix on the command line or in a policy file, 1 otherwise. */

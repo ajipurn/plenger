@@ -48,7 +48,7 @@ Podman.
 | Package name | `plenger-cli` with the `plenger` command; the `plenger` name and `@plenger` scope belong to other npm accounts. The `@plenger-cli` organisation is registered |
 | Local npm tarball | Built and installed on macOS Apple Silicon with Node.js 22.23.2 and npm 10.9.8 |
 | Installed CLI and dashboard | Global install, npm exec, all four grammars, offline Next.js planning and authenticated dashboard scans checked locally |
-| Linux, macOS and Windows CI | Installed-package jobs configured in [package.yml](../.github/workflows/package.yml); remote runs not yet observed |
+| Linux, macOS and Windows CI | Installed-package jobs in [package.yml](../.github/workflows/package.yml) passed on Ubuntu 24.04, macOS 15 and Windows 2022 with Node.js 22.18.0 (commit `3f00c03`, 2026-10-04) |
 | Public npm registry release | Not published; `private: true` blocks publishing. A placeholder `plenger-cli@0.0.1` reserves the name; it contains no scanner |
 | Project licence | Apache-2.0, see [LICENSE](../LICENSE) |
 
@@ -60,7 +60,7 @@ npm installation.
 | Platform | State |
 | --- | --- |
 | macOS Apple Silicon (`darwin-arm64`) | Built and smoke-tested locally with Node.js 22.23.2 |
-| Ubuntu 24.04, macOS 15, Windows 2022 | Build, smoke-test and artifact jobs configured in [binary.yml](../.github/workflows/binary.yml); remote runs not yet observed |
+| Ubuntu 24.04, macOS 15, Windows 2022 | Jobs in [binary.yml](../.github/workflows/binary.yml) build on all three; the smoke test failed on `redteam compare --help` until the 2026-10-04 CLI fix. No passing remote run is recorded yet |
 | Public binary release download | Not available |
 | Publisher signing, notarization | Not done; macOS builds carry an ad-hoc signature |
 
@@ -79,7 +79,7 @@ Records live in [qualifications/](qualifications/).
 | Next.js booking profile, scripted model | [2026-10-04](qualifications/vercel-synthetic-2026-10-04.md) | Other models, backends and platforms |
 | Next.js booking profile, live model | [2026-10-03, Autocare, `gemma4:31b-cloud`](qualifications/autocare-live-2026-10-03.md) | Repetition-based success-rate estimates |
 | Binary smoke test | macOS Apple Silicon, local | Linux, Windows and Intel macOS evidence |
-| npm package smoke test | macOS Apple Silicon, local, Node.js 22.23.2 and npm 10.9.8 | Linux and Windows installed-package evidence |
+| npm package smoke test | macOS Apple Silicon locally (Node.js 22.23.2, npm 10.9.8); Ubuntu 24.04, macOS 15 and Windows 2022 in CI (Node.js 22.18.0) | Intel macOS and other Node.js versions |
 
 Every qualification used the bundled fixture or one user project. None
 establishes support for arbitrary projects, provider billing caps or protection

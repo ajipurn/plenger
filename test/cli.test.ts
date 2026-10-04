@@ -181,6 +181,17 @@ describe("command line", () => {
     expect(bare.stderr).toContain("Usage:");
   });
 
+  it.each([
+    [["redteam", "--help"], "plenger redteam discover [path]"],
+    [["redteam", "run", "--help"], "--provider <name|id>"],
+    [["redteam", "compare", "--help"], "--change <text>"],
+    [["redteam", "compare", "before.json", "-h"], "--change <text>"],
+  ])("prints the most specific usage for %j", async (argv, expected) => {
+    const result = await run(...argv);
+    expect(result).toMatchObject({ code: 0, stderr: "" });
+    expect(result.stdout).toContain(expected);
+  });
+
   it("rejects unknown commands and options", async () => {
     expect(await run("attack")).toMatchObject({ code: 2 });
     expect((await run("attack")).stderr).toContain("unknown command 'attack'");
