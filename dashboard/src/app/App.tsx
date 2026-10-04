@@ -125,12 +125,20 @@ export function App() {
         />
         <div className="app-main">
           <AppTopbar view={view} project={project} report={report} actions={scanActions} />
-          <main id="main-content" tabIndex={-1} aria-busy={isInitializing}>
+          <main
+            id="main-content"
+            className={
+              view === "inventory" && (isInitializing || report) ? "inventory-page" : undefined
+            }
+            tabIndex={-1}
+            aria-busy={isInitializing}
+          >
             {isInitializing ? (
               <DashboardSkeleton
                 overview={view === "overview"}
                 findings={view === "findings"}
                 settings={view === "settings"}
+                inventory={view === "inventory"}
               />
             ) : (
               <>

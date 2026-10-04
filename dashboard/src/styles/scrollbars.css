@@ -1,5 +1,16 @@
 @import "overlayscrollbars/overlayscrollbars.css";
 
+/* Lock the document viewport without making body a new sticky scroll container. */
+html:has(> body[data-scroll-locked]) {
+  /* biome-ignore lint/complexity/noImportantStyles: overrides OverlayScrollbars viewport overflow while Radix locks the document */
+  overflow: hidden !important;
+}
+
+html > body[data-scroll-locked] {
+  /* biome-ignore lint/complexity/noImportantStyles: Radix injects overflow hidden with important after this stylesheet */
+  overflow: clip !important;
+}
+
 .os-theme-plenger.os-scrollbar {
   --os-size: 12px;
   --os-padding-perpendicular: 3px;

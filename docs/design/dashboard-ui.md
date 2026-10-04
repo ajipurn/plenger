@@ -40,7 +40,8 @@ with -0.025em tracking. Body copy uses weight 400, navigation and controls 500,
 headings 600. Counts and metrics use tabular numbers.
 
 The brand pairs the outlined `n` monogram from `dashboard/public/mark.svg` with
-the Plenger wordmark in Geist. Light mode inverts the monogram tile.
+the Plenger wordmark in locally bundled Nanum Pen Script, 20px at weight 400
+with natural letter spacing. Light mode inverts the monogram tile.
 
 ## Shell
 
@@ -81,9 +82,12 @@ Preserve keyboard focus, modal scroll locking, reduced motion and readable
 wrapping. Long technical disclosures use bounded scroll regions; hiding overflow
 must not remove their content.
 
-Inventory uses a compact table beside a category sidebar. Base UI vertical tabs
-provide keyboard navigation; a synchronized Base UI Select dropdown replaces
-the sidebar on narrow screens. Category counts use Torph only for numbers.
+Inventory uses a full-width content area beside a fixed 192px category sidebar,
+directly after the workspace sidebar and below the topbar. The category column
+scrolls independently and uses a subtle accent for the active category. Base UI
+vertical tabs provide keyboard navigation; a synchronized Base UI Select dropdown
+replaces the sidebar below 1024px. Frameworks use a compact disclosure above the
+table. Category counts use Torph only for numbers.
 The toolbar groups the category title and filtered count, search by name,
 configuration or source file, and a framework filter using the shared Base UI Select. Paginate at 20 declarations;
 the footer puts the visible range on the left and Previous / Next on the right.

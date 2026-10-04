@@ -46,20 +46,53 @@ export function DashboardSkeleton({
   overview,
   findings = false,
   settings = false,
+  inventory = false,
 }: {
   overview: boolean;
   findings?: boolean;
   settings?: boolean;
+  inventory?: boolean;
 }) {
   return (
     <div role="status" aria-live="polite">
       <span className="sr-only">Loading dashboard…</span>
       <div aria-hidden="true">
+        {inventory && (
+          <div className="inventory-sidebar">
+            <div className="inventory-sidebar-scroll">
+              <p className="eyebrow">Categories</p>
+              <div className="inventory-tabs">
+                {[
+                  "models",
+                  "agents",
+                  "tools",
+                  "calls",
+                  "entries",
+                  "servers",
+                  "clients",
+                  "stores",
+                  "prompts",
+                ].map((category) => (
+                  <div className="inventory-tab" key={category}>
+                    <span className="skeleton-block skeleton-symbol" />
+                    <span className="skeleton-block skeleton-row-title" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="page-heading skeleton-heading">
           <span className="skeleton-block skeleton-title" />
           <span className="skeleton-block skeleton-description" />
         </div>
         <div className="stack">
+          {inventory && (
+            <div className="inventory-category-select">
+              <span className="eyebrow">Category</span>
+              <span className="skeleton-block skeleton-row-title" />
+            </div>
+          )}
           {overview && (
             <>
               <div className="scan-meta">

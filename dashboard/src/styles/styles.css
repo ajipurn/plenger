@@ -171,7 +171,7 @@ summary {
   @apply grid min-w-0;
 }
 .brand-name {
-  @apply text-[14px] font-semibold leading-[1.2] tracking-[-0.01em];
+  @apply font-brand text-[20px] font-normal leading-none tracking-normal;
 }
 .brand-tagline {
   @apply text-micro text-muted;
@@ -1310,31 +1310,40 @@ main:focus-visible {
 .category-count {
   @apply text-muted text-label tabular-nums;
 }
-/* Inventory navigation shares the table surface; details open alongside it. */
+/* Inventory categories form a second workspace column below the topbar. */
+main.inventory-page {
+  max-width: none;
+  padding-inline-start: calc(var(--inventory-sidebar-width) + 32px);
+}
 .inventory-browser {
-  @apply grid min-w-0 overflow-hidden;
-  grid-template-columns: 200px minmax(0, 1fr);
+  @apply min-w-0;
 }
 .inventory-sidebar {
-  @apply p-3 border-e border-line bg-paper/40;
+  @apply fixed z-20 border-e border-line bg-canvas;
+  inset-block: var(--topbar-height) 0;
+  inset-inline-start: var(--sidebar-width);
+  width: var(--inventory-sidebar-width);
 }
-.inventory-sidebar > .eyebrow {
+.inventory-sidebar-scroll {
+  @apply h-full p-3 pt-6 overflow-y-auto overscroll-contain;
+}
+.inventory-sidebar-scroll > .eyebrow {
   @apply px-2.5 mt-1.5 mb-2;
+}
+.inventory-sidebar-scroll .skeleton-symbol {
+  @apply size-4;
 }
 .inventory-tabs {
   @apply flex flex-col items-stretch gap-0.5;
 }
 .inventory-tab {
-  @apply flex items-center gap-2.5 min-h-8 px-2.5 py-1.5 rounded-[7px] text-label font-medium text-muted text-start;
+  @apply flex items-center gap-2.5 min-h-9 px-2.5 py-2 rounded-ui text-label font-medium text-muted text-start;
 }
 .inventory-tab:hover {
   @apply bg-hover text-ink;
 }
 .inventory-tab[data-active] {
-  @apply bg-surface text-ink;
-  box-shadow:
-    var(--highlight),
-    0 0 0 1px var(--line-strong);
+  @apply bg-accent-soft text-ink;
 }
 .inventory-tab[data-active] > .icon {
   @apply text-accent;
@@ -1357,6 +1366,9 @@ main:focus-visible {
 .inventory-tab-panel,
 .inventory-category {
   @apply min-w-0;
+}
+.inventory-tab-panel {
+  @apply overflow-hidden;
 }
 .inventory-category {
   scroll-margin-top: 64px;
@@ -1573,6 +1585,16 @@ main:focus-visible {
 .framework-overview {
   @apply px-4 py-1.5 bg-surface border border-line rounded-panel;
   box-shadow: var(--shadow-card);
+}
+.inventory-page .framework-overview {
+  @apply p-0 bg-transparent border-0 rounded-none;
+  box-shadow: none;
+}
+.inventory-page .framework-overview > summary {
+  @apply justify-start gap-2;
+}
+.inventory-page .framework-overview .category-heading-main {
+  @apply flex-none max-w-full;
 }
 .framework-overview > summary {
   @apply min-h-9 py-0 text-label;
@@ -2545,15 +2567,15 @@ main:focus-visible {
     @apply flex-1;
   }
 }
-@media (max-width: 760px) {
-  .inventory-browser {
-    @apply grid-cols-1;
+@media (max-width: 1023px) {
+  main.inventory-page {
+    padding-inline-start: 32px;
   }
   .inventory-sidebar {
     @apply hidden;
   }
   .inventory-category-select {
-    @apply grid gap-2 p-4 border-b border-line bg-paper/40;
+    @apply grid gap-2 mb-4;
   }
   .inventory-category-select .eyebrow {
     @apply m-0;
@@ -2561,6 +2583,8 @@ main:focus-visible {
   .inventory-category-select .ui-select-trigger {
     @apply w-full;
   }
+}
+@media (max-width: 760px) {
   .inventory-table-toolbar {
     @apply gap-2;
   }
@@ -2640,6 +2664,9 @@ main:focus-visible {
   }
   main {
     @apply px-4 pb-5;
+  }
+  main.inventory-page {
+    padding-inline-start: 16px;
   }
   .app-topbar {
     @apply px-4;
