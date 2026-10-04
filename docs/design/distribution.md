@@ -9,11 +9,11 @@ Release availability and platform evidence are in [../STATUS.md](../STATUS.md).
 
 ## npm package contents
 
-The package is named `@plenger/cli` because the unscoped `plenger` name belongs
-to an unrelated npm package. `package.json` maps the `plenger` command to
-`dist/bin.js`. Node.js 22.18 or newer runs the compiled JavaScript. npm only
-warns about `engines`, so `dist/bin.js` checks the Node.js version before it
-loads the CLI. The package contains:
+The package is named `plenger-cli` because the `plenger` package name and the
+`@plenger` scope belong to other npm accounts. `package.json` maps the
+`plenger` command to `dist/bin.js`. Node.js 22.18 or newer runs the compiled
+JavaScript. npm only warns about `engines`, so `dist/bin.js` checks the Node.js
+version before it loads the CLI. The package contains:
 
 - compiled CLI, scan engine, storage, dashboard service and red-team engine
 - the built frontend in `dashboard/dist`, including bundled fonts
@@ -55,7 +55,7 @@ installation uses the prepared files and runs no Plenger install scripts.
 The npm notices include the WASM grammars and dashboard dependency closure.
 They omit Node.js because the npm package uses the user's installed runtime.
 `private: true` in `package.json` makes `npm publish` refuse while `npm pack`
-still works. `publishConfig.access` is `public` for the scoped package.
+still works.
 
 ## Installed package check
 

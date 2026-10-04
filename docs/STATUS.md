@@ -45,11 +45,11 @@ Podman.
 
 | Package or platform | State |
 | --- | --- |
-| Package name | `@plenger/cli` with the `plenger` command; the unscoped `plenger` name belongs to an unrelated package |
+| Package name | `plenger-cli` with the `plenger` command; the `plenger` name and `@plenger` scope belong to other npm accounts. The `@plenger-cli` organisation is registered; the unscoped name is claimed only by the first publish |
 | Local npm tarball | Built and installed on macOS Apple Silicon with Node.js 22.23.2 and npm 10.9.8 |
 | Installed CLI and dashboard | Global install, npm exec, all four grammars, offline Next.js planning and authenticated dashboard scans checked locally |
 | Linux, macOS and Windows CI | Installed-package jobs configured in [package.yml](../.github/workflows/package.yml); remote runs not yet observed |
-| Public npm registry release | Not published; `private: true` blocks publishing and the npm `plenger` organisation is not yet created |
+| Public npm registry release | Not published; `private: true` blocks publishing |
 | Project licence | Not chosen |
 
 ## Binary per platform

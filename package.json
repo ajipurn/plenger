@@ -1,5 +1,5 @@
 {
-  "name": "@plenger/cli",
+  "name": "plenger-cli",
   "version": "0.1.0",
   "description": "Red-teaming and static triage for agentic AI projects written in Python, JavaScript and TypeScript",
   "private": true,
@@ -59,8 +59,5 @@
     "!runtimes/llmfy/.dockerignore",
     "!runtimes/llmfy/requirements.in",
     "schemas"
-  ],
-  "publishConfig": {
-    "access": "public"
-  }
+  ]
 }
