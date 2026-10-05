@@ -1,9 +1,14 @@
 import {
   ArrowDownToLine,
+  ArrowRight,
+  ArrowRightArrowLeft,
   ArrowRightToSquare,
   Check,
   ChevronRight,
   ChevronsExpandVertical,
+  CircleExclamation,
+  CircleInfo,
+  CircleXmark,
   Clock,
   ClockArrowRotateLeft,
   Comments,
@@ -13,6 +18,7 @@ import {
   FaceRobot,
   FileCode,
   FileText,
+  Flag,
   Folder,
   FolderArrowUp,
   Gear,
@@ -46,6 +52,12 @@ export type IconName =
   | "chevron"
   | "selector"
   | "clock"
+  | "info"
+  | "alert"
+  | "error"
+  | "arrow-right"
+  | "gate"
+  | "compare"
   | "parent-folder"
   | "models"
   | "agents"
@@ -81,6 +93,12 @@ const glyphs: Record<IconName, typeof Folder> = {
   chevron: ChevronRight,
   selector: ChevronsExpandVertical,
   clock: Clock,
+  info: CircleInfo,
+  alert: CircleExclamation,
+  error: CircleXmark,
+  "arrow-right": ArrowRight,
+  gate: Flag,
+  compare: ArrowRightArrowLeft,
   "parent-folder": FolderArrowUp,
   models: Cpu,
   agents: FaceRobot,

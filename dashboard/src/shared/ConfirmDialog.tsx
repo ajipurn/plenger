@@ -1,5 +1,6 @@
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { type ReactNode, type RefObject, useRef } from "react";
+import { usePopupContainer } from "./PopupLayer.tsx";
 import { useElementScrollbars } from "./ScrollArea.tsx";
 import { Button } from "./ui.tsx";
 
@@ -38,6 +39,7 @@ export function ConfirmDialog({
 }) {
   const cancel = useRef<HTMLButtonElement>(null);
   const scrollbars = useElementScrollbars<HTMLDivElement>();
+  const container = usePopupContainer();
   return (
     <AlertDialog.Root
       open={open}
@@ -45,7 +47,7 @@ export function ConfirmDialog({
         if (!next && !busy) onClose();
       }}
     >
-      <AlertDialog.Portal>
+      <AlertDialog.Portal container={container ?? undefined}>
         <AlertDialog.Backdrop className={backdropClassName} />
         <AlertDialog.Viewport className={viewportClassName}>
           <AlertDialog.Popup

@@ -78,19 +78,27 @@ Data tables share one header treatment: a quiet band with small uppercase
 labels. Rows use a neutral hover; the row whose detail is open gets an accent
 tint and a 2px accent edge. Severity filters are a segmented control.
 
+Vaul drawers are Radix modal dialogs that disable pointer events outside
+themselves. While a drawer is open, Base UI selects and confirmation dialogs
+mount inside it (`dashboard/src/shared/PopupLayer.tsx`), and Escape closes the
+open popup before the drawer.
+
 Preserve keyboard focus, modal scroll locking, reduced motion and readable
 wrapping. Long technical disclosures use bounded scroll regions; hiding overflow
 must not remove their content.
 
-Inventory uses a full-width content area beside a fixed 192px category sidebar,
-directly after the workspace sidebar and below the topbar. The category column
-scrolls independently and uses a subtle accent for the active category. Base UI
+Inventory uses the same sub-navigation layout as Settings: a narrow category
+list on the left and a headed content column on the right. The list starts with
+Frameworks, followed by the declaration categories, and stays in view while the
+table scrolls. The active item uses the same raised style as Settings. Base UI
 vertical tabs provide keyboard navigation; a synchronized Base UI Select dropdown
-replaces the sidebar below 1024px. Frameworks use a compact disclosure above the
-table. Category counts use Torph only for numbers.
-The toolbar groups the category title and filtered count, search by name,
-configuration or source file, and a framework filter using the shared Base UI Select. Paginate at 20 declarations;
-the footer puts the visible range on the left and Previous / Next on the right.
+replaces the list below 700px. Category counts use Torph only for numbers.
+Each category has a heading with its name, total count and a one-line
+description. The table panel opens with a toolbar: search by name, configuration
+or source file on the left, and a framework filter using the shared Base UI
+Select on the right. Paginate at 20 declarations; the footer puts the visible
+range on the left and Previous / Next on the right. Frameworks list each detected
+framework with its files, and a second table lists unrecognized AI imports.
 
 Align declarations, configuration and source locations in shared columns. Keep
 frameworks under the declaration name, use compact chips for configuration and
@@ -121,6 +129,31 @@ Keep all source observations and reference mappings. Deep links open the matchin
 finding, Escape dismisses the drawer and returns focus to its row, and the panel
 fills the viewport on phones. Use the table-shaped skeleton while loading and Torph
 only for numeric counters.
+
+## Red-team results
+
+A saved-test switcher sits above the result: the caption with the number of
+saved tests, the test select, then Export result and Export test profile. A
+result is one panel of flush sections divided by hairlines:
+
+1. Verdict: tone icon, title and explanation, with pills on the right for the
+   process state and, once finished, whether the CI gate passed. Issue and
+   warning verdicts get a faint tinted band. The process state never stands in
+   for the security result.
+2. Key figures: model and provider, repetitions, normal tasks, model calls and
+   tokens, each with a small usage bar where a limit applies.
+3. Notices: findings (critical tint), errors with a link to the fix, stale
+   results (warning) and context (info). Each has an icon and full text.
+4. Attacks through the model: a table with violation counts as tinted chips,
+   usable tests with a bar, and the observed rate with its interval. The method
+   note sits below it as a footnote.
+5. Discovered surfaces exercised, as a ratio with a bar.
+6. Collapsible blocks (CI gate, evidence by repetition, technical evidence)
+   with an icon tile, one line of description and a value on the right.
+
+A single run uses the same parts: attack checks replace the table, and the
+normal task and coverage notes sit side by side. Comparison, run setup and
+test setup below the result use the same collapsible summary.
 
 ## Project picker
 
@@ -158,6 +191,9 @@ arrows for actions with a direction.
 | Remaining preparation steps | `ListCheck` |
 | Switch to light / dark mode | `Sun` / `Moon` |
 | Project switcher | `ChevronsExpandVertical` |
+| CI gate | `Flag` |
+| Compare tests | `ArrowRightArrowLeft` |
+| Error / warning / context notice | `CircleXmark` / `CircleExclamation` / `CircleInfo` |
 
 ## Settings
 

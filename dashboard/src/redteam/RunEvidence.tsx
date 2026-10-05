@@ -1,16 +1,18 @@
 import type { RedteamRun } from "../../../src/redteam/run.ts";
 import { Icon } from "../shared/icons.tsx";
 import { ScrollArea } from "../shared/ScrollArea.tsx";
+import { SectionSummary } from "../shared/SectionSummary.tsx";
 import { trialTitle } from "./run-summary.ts";
 
 /** Raw conversation, database, and event evidence behind a run's verdict. */
 export function RunEvidence({ report }: { report: RedteamRun }) {
   return (
-    <details className="technical-disclosure">
-      <summary className="disclosure-heading">
-        Technical evidence
-        <Icon name="chevron" />
-      </summary>
+    <details className="technical-disclosure run-disclosure">
+      <SectionSummary
+        icon="prompts"
+        title="Technical evidence"
+        description="Conversations, tool events, database snapshots and runtime details."
+      />
       <ScrollArea className="run-evidence-scroll" role="region" aria-label="Technical run evidence">
         <div className="technical-content">
           {!!report.backendChecks?.length && (

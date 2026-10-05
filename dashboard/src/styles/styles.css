@@ -250,13 +250,6 @@ summary {
 .sidebar-footer {
   @apply flex items-center justify-between gap-2 flex-none px-4 py-3 border-t border-line;
 }
-.local-label {
-  @apply flex items-center gap-2 text-[12px] text-muted whitespace-nowrap;
-}
-.local-dot {
-  @apply size-1.5 flex-none rounded-full bg-success;
-  box-shadow: 0 0 0 3px var(--success-soft);
-}
 .theme-toggle > .icon {
   @apply size-4;
 }
@@ -834,9 +827,6 @@ main:focus-visible {
 .quiet-note .icon {
   @apply mt-0.5 size-4;
 }
-.page-footer {
-  @apply flex items-center justify-between flex-wrap gap-3 mt-10 pt-4 border-t border-line text-subtle text-[12px];
-}
 .empty-state {
   @apply py-12 px-5 flex flex-col items-center gap-2 text-center;
 }
@@ -1310,84 +1300,25 @@ main:focus-visible {
 .category-count {
   @apply text-muted text-label tabular-nums;
 }
-/* Inventory categories form a second workspace column below the topbar. */
-main.inventory-page {
-  max-width: none;
-  padding-inline-start: calc(var(--inventory-sidebar-width) + 32px);
-}
-.inventory-browser {
-  @apply min-w-0;
-}
-.inventory-sidebar {
-  @apply fixed z-20 border-e border-line bg-canvas;
-  inset-block: var(--topbar-height) 0;
-  inset-inline-start: var(--sidebar-width);
-  width: var(--inventory-sidebar-width);
-}
-.inventory-sidebar-scroll {
-  @apply h-full p-3 pt-6 overflow-y-auto overscroll-contain;
-}
-.inventory-sidebar-scroll > .eyebrow {
-  @apply px-2.5 mt-1.5 mb-2;
-}
-.inventory-sidebar-scroll .skeleton-symbol {
-  @apply size-4;
-}
-.inventory-tabs {
-  @apply flex flex-col items-stretch gap-0.5;
-}
-.inventory-tab {
-  @apply flex items-center gap-2.5 min-h-9 px-2.5 py-2 rounded-ui text-label font-medium text-muted text-start;
-}
-.inventory-tab:hover {
-  @apply bg-hover text-ink;
-}
-.inventory-tab[data-active] {
-  @apply bg-accent-soft text-ink;
-}
-.inventory-tab[data-active] > .icon {
-  @apply text-accent;
-}
-.inventory-tab:focus-visible {
-  outline-offset: -2px;
-}
-.inventory-tab .icon {
-  @apply size-4 flex-none;
-}
-.inventory-tab-count {
-  @apply text-subtle text-[12px] tabular-nums ms-auto;
-}
-.inventory-tab[data-active] .inventory-tab-count {
-  @apply text-muted;
-}
+/* Inventory uses the settings sub-navigation layout; narrow screens pick a category from a select. */
 .inventory-category-select {
   @apply hidden;
 }
-.inventory-tab-panel,
 .inventory-category {
   @apply min-w-0;
+  scroll-margin-top: calc(var(--topbar-height) + 24px);
 }
-.inventory-tab-panel {
+.inventory-secondary-heading {
+  @apply mt-8;
+}
+.inventory-panel {
   @apply overflow-hidden;
 }
-.inventory-category {
-  scroll-margin-top: 64px;
-}
-.inventory-table-toolbar {
-  @apply flex items-center gap-2.5 px-4 pt-4;
-}
-.inventory-category-title {
-  @apply flex items-center gap-2 min-w-0 me-auto;
-}
-.inventory-category-title h3 {
-  @apply text-section;
-}
-.inventory-category-total {
-  @apply bg-paper text-muted text-[12px] font-medium tabular-nums rounded-[6px] px-1.5 py-0.5;
-  box-shadow: inset 0 0 0 1px var(--line);
+.inventory-toolbar {
+  @apply flex items-center justify-between gap-3 px-4 py-3;
 }
 .inventory-search {
-  @apply min-w-0 w-[260px] text-label text-muted;
+  @apply min-w-0 w-full max-w-[300px] text-label text-muted;
 }
 .inventory-search .search-field {
   @apply min-w-0 min-h-8 h-8;
@@ -1400,9 +1331,6 @@ main.inventory-page {
 }
 .inventory-framework-filter .ui-select-trigger {
   @apply w-full text-label min-h-8 h-8 py-1 px-2.5;
-}
-.inventory-category-description {
-  @apply text-label px-4 mt-1 mb-4;
 }
 .inventory-table {
   @apply text-start;
@@ -1419,8 +1347,19 @@ main.inventory-page {
 .inventory-table td {
   @apply px-4 py-2.5 align-middle min-w-0;
 }
-.inventory-data-row + .inventory-data-row {
+.inventory-data-row + .inventory-data-row,
+.inventory-framework-table tbody tr + tr {
   @apply border-t border-line;
+}
+.inventory-framework-table td {
+  @apply py-3;
+}
+/* Without a toolbar above it, the header band meets the panel border directly. */
+.inventory-panel > .inventory-table:first-child th {
+  @apply border-t-0;
+}
+.inventory-file-count {
+  @apply block text-label;
 }
 .inventory-data-row {
   @apply cursor-pointer;
@@ -1555,21 +1494,6 @@ main.inventory-page {
 .previous-page-icon {
   rotate: 180deg;
 }
-.inventory-empty {
-  @apply text-center px-5 py-14;
-}
-.inventory-empty .category-icon {
-  @apply mx-auto text-muted;
-}
-.inventory-empty h4 {
-  @apply mt-4 text-label;
-}
-.inventory-empty p {
-  @apply mt-1 text-label text-muted;
-}
-.inventory-empty .button {
-  @apply mt-4;
-}
 .inventory-card .capabilities {
   @apply mt-3;
 }
@@ -1581,48 +1505,6 @@ main.inventory-page {
 }
 .capability-guards {
   @apply text-label;
-}
-.framework-overview {
-  @apply px-4 py-1.5 bg-surface border border-line rounded-panel;
-  box-shadow: var(--shadow-card);
-}
-.inventory-page .framework-overview {
-  @apply p-0 bg-transparent border-0 rounded-none;
-  box-shadow: none;
-}
-.inventory-page .framework-overview > summary {
-  @apply justify-start gap-2;
-}
-.inventory-page .framework-overview .category-heading-main {
-  @apply flex-none max-w-full;
-}
-.framework-overview > summary {
-  @apply min-h-9 py-0 text-label;
-}
-.framework-overview > summary:hover {
-  @apply text-ink;
-}
-.framework-overview .category-heading-main {
-  @apply flex-1 min-w-0 gap-2.5;
-}
-.framework-overview .category-icon {
-  @apply size-6 flex-none bg-transparent;
-  box-shadow: none;
-}
-.framework-overview .category-count {
-  @apply text-ink font-semibold;
-}
-.framework-summary {
-  @apply truncate min-w-0 font-normal text-muted;
-}
-.framework-content {
-  @apply pt-2 pb-3;
-}
-.framework-chips {
-  @apply gap-1.5;
-}
-.framework-chips .tag {
-  @apply text-ink;
 }
 .count-label {
   @apply text-[12px] text-muted;
@@ -1673,10 +1555,239 @@ main.inventory-page {
   @apply p-5;
 }
 .run-panel {
-  @apply p-5 grid gap-4;
+  @apply grid gap-4;
+}
+.run-panel .section-heading {
+  @apply p-0;
+}
+/* Saved-test switcher above a result. */
+.run-report-toolbar {
+  @apply flex items-center justify-between gap-4 flex-wrap;
 }
 .campaign-history {
-  @apply border-t-0 pt-0 mb-4;
+  @apply mb-0;
+}
+.run-history-label {
+  @apply grid gap-2 min-w-0 text-label font-medium;
+}
+.run-report-toolbar .run-history-label {
+  @apply flex items-center gap-3 flex-1 max-w-[560px];
+}
+.run-history-caption {
+  @apply inline-flex items-center gap-2 flex-none text-label font-medium text-muted;
+}
+.run-report-toolbar .ui-select-trigger {
+  @apply flex-1 min-h-8 py-1;
+}
+.run-actions {
+  @apply flex flex-none items-center flex-wrap gap-2;
+}
+.run-actions .button {
+  @apply whitespace-nowrap;
+}
+
+/* Result panels are stacked flush sections divided by hairlines. */
+.run-results {
+  @apply grid min-w-0 overflow-hidden;
+}
+.run-results > * + * {
+  @apply border-t border-line;
+}
+.run-verdict {
+  @apply grid items-start gap-x-4 gap-y-3 px-6 py-5;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.run-verdict.run-tone-issue {
+  background-image: linear-gradient(180deg, var(--critical-soft), transparent);
+}
+.run-verdict.run-tone-warning {
+  background-image: linear-gradient(180deg, var(--medium-soft), transparent);
+}
+.run-verdict h3 {
+  @apply text-[19px] leading-[1.35] font-semibold tracking-[-0.022em];
+}
+.run-verdict .eyebrow {
+  @apply mb-1;
+}
+.run-verdict p:not(.eyebrow) {
+  @apply mt-1.5 text-label text-muted max-w-[76ch] leading-relaxed;
+}
+.run-verdict-icon {
+  @apply size-10 grid place-items-center rounded-[10px] bg-paper text-muted;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.run-verdict-icon .icon {
+  @apply size-[18px];
+}
+.run-verdict.run-tone-issue .run-verdict-icon {
+  @apply bg-critical-soft text-critical;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--critical) 28%, transparent);
+}
+.run-verdict.run-tone-warning .run-verdict-icon {
+  @apply bg-medium-soft text-medium;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--medium) 26%, transparent);
+}
+.run-verdict-status {
+  @apply flex items-center justify-end flex-wrap gap-2 pt-0.5;
+}
+.state-pill {
+  @apply inline-flex items-center gap-1.5 h-6 px-2 rounded-full text-[12px] font-medium whitespace-nowrap bg-hover text-muted;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.state-pill .icon {
+  @apply size-3;
+}
+.state-dot {
+  @apply size-1.5 rounded-full bg-current;
+}
+.state-active {
+  @apply text-accent bg-accent-soft;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent);
+}
+.state-success {
+  @apply text-success bg-success-soft;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--success) 26%, transparent);
+}
+.state-warning {
+  @apply text-medium bg-medium-soft;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--medium) 26%, transparent);
+}
+.state-error {
+  @apply text-critical bg-critical-soft;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--critical) 28%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .state-active .state-dot {
+    animation: state-pulse 1.6s ease-in-out infinite;
+  }
+}
+@keyframes state-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Key figures; the clipped negative margin hides the outer cell borders. */
+.run-stats {
+  @apply overflow-hidden;
+}
+.run-stats dl {
+  @apply grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 0 0 -1px -1px;
+}
+.run-stats dl > div {
+  @apply min-w-0 px-5 py-3.5 border-s border-b border-line;
+}
+.run-stats dt {
+  @apply text-micro uppercase tracking-[0.06em] font-medium text-subtle;
+}
+.run-stats dd {
+  @apply grid gap-0.5 m-0 mt-1.5 min-w-0;
+}
+.run-stats dd > strong {
+  @apply block truncate text-[15px] font-semibold tabular-nums tracking-[-0.01em];
+}
+.run-stats dd > span:not(.run-stat-meter) {
+  @apply block truncate text-[12px] text-muted;
+}
+.run-stat-meter {
+  @apply block h-1 mt-1.5 rounded-full bg-paper overflow-hidden;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.run-stat-meter > span {
+  @apply block h-full rounded-full bg-accent;
+}
+
+/* Notices */
+.run-alerts {
+  @apply grid gap-2 px-6 py-4;
+}
+.run-alert {
+  @apply flex items-start gap-3 rounded-[10px] px-3.5 py-3 text-label leading-[1.6] bg-paper/60 text-muted;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.run-alert > .icon {
+  @apply mt-0.5 size-4 flex-none;
+}
+.run-alert > div {
+  @apply min-w-0 wrap-anywhere;
+}
+.run-alert strong {
+  @apply text-ink font-semibold;
+}
+.run-alert-issue {
+  @apply bg-critical-soft;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--critical) 24%, transparent);
+}
+.run-alert-issue > .icon,
+.run-alert-error > .icon {
+  @apply text-critical;
+}
+.run-alert-error {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--critical) 24%, transparent);
+}
+.run-alert-warning {
+  @apply bg-medium-soft;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--medium) 22%, transparent);
+}
+.run-alert-warning > .icon {
+  @apply text-medium;
+}
+.run-alert-info > .icon {
+  @apply text-accent;
+}
+.run-alert-link {
+  @apply inline-flex items-center gap-1 font-medium text-ink whitespace-nowrap underline decoration-line-strong underline-offset-4;
+}
+.run-alert-link:hover {
+  @apply decoration-ink;
+}
+.run-alert-link .icon {
+  @apply size-3.5;
+}
+
+/* Sections */
+.run-section {
+  @apply grid gap-3 px-6 py-5 min-w-0;
+}
+.run-section-heading {
+  @apply flex items-center justify-between gap-3 min-w-0;
+}
+.run-section-heading h4 {
+  @apply text-[14px];
+}
+.run-footnote {
+  @apply flex items-start gap-2 text-[12px] leading-[1.6] text-muted max-w-[110ch];
+}
+.run-footnote > .icon {
+  @apply mt-0.5 size-3.5 flex-none text-subtle;
+}
+.run-surfaces > p {
+  @apply text-label leading-[1.6] max-w-[100ch];
+}
+.run-ratio {
+  @apply inline-grid gap-0 min-w-[72px] tabular-nums;
+}
+.run-ratio .run-stat-meter {
+  @apply w-16;
+}
+.run-surface-ratio {
+  @apply text-[12px] text-muted;
+}
+.run-surface-ratio strong {
+  @apply text-ink font-semibold;
+}
+.run-surface-ratio .run-stat-meter {
+  @apply w-full;
+}
+.run-count {
+  @apply inline-grid place-items-center min-w-6 h-6 px-1.5 rounded-[6px] text-[12px] font-semibold tabular-nums bg-hover text-muted;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.run-count.run-tone-issue {
+  @apply bg-critical-soft text-critical;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--critical) 26%, transparent);
 }
 .campaign-table {
   @apply min-w-0 rounded-[10px] border border-line overflow-x-auto;
@@ -1685,124 +1796,93 @@ main.inventory-page {
   @apply w-full border-collapse text-label;
   min-width: 690px;
 }
-.campaign-table caption {
+.campaign-table caption:not(.sr-only) {
   @apply px-4 py-3 text-left font-semibold text-ink;
 }
 .campaign-table th,
 .campaign-table td {
-  @apply px-4 py-3 text-left align-top border-t border-line;
+  @apply px-4 py-3 text-left align-middle border-t border-line;
 }
 .campaign-table thead th {
-  @apply bg-paper/60 text-subtle font-medium text-micro uppercase tracking-[0.06em] py-2.5;
+  @apply h-9 py-0 border-t-0 bg-paper/60 text-subtle font-medium text-micro uppercase tracking-[0.06em];
+}
+.campaign-table tbody tr:hover {
+  @apply bg-hover;
 }
 .campaign-table tbody th {
   @apply font-medium;
-  width: 30%;
+  width: 32%;
 }
 .campaign-cell-note {
-  @apply block text-muted mt-1 tabular-nums;
+  @apply block text-[12px] text-muted mt-0.5 tabular-nums;
 }
-.campaign-explanation {
-  @apply text-label leading-relaxed;
+.run-context-note {
+  @apply bg-paper/60 rounded-[10px] px-3.5 py-3 text-muted text-label leading-[1.6];
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.run-context-note strong {
+  @apply text-ink;
 }
 .campaign-gate,
 .campaign-policy {
-  @apply pt-4;
+  @apply pt-1 pb-4;
+}
+.campaign-gate > p + p {
+  @apply mt-3;
 }
 .campaign-gate ul {
   @apply my-3 pl-5 list-disc text-muted;
 }
 .campaign-gate .campaign-scope-list {
-  @apply pl-0 list-none;
+  @apply pl-0 list-none rounded-[10px] border border-line overflow-hidden;
 }
 .campaign-scope-list li {
-  @apply grid gap-1 py-2 border-t border-line break-words;
+  @apply grid gap-0.5 px-3.5 py-2.5 break-words;
+}
+.campaign-scope-list li + li {
+  @apply border-t border-line;
+}
+.campaign-scope-list strong {
+  @apply font-medium text-ink;
+}
+.campaign-scope-list span {
+  @apply text-[12px] text-muted;
 }
 .campaign-evidence > .run-history-label {
-  @apply mt-4 mb-2;
+  @apply mb-3;
 }
-.campaign-repetition-evidence {
-  @apply border-0 shadow-none px-0 pb-0;
-}
-.run-panel .section-heading {
-  @apply p-0;
-}
-.run-fields {
-  @apply m-0 p-0 border-0 min-w-0 grid gap-4;
-}
-.run-form {
-  @apply grid grid-cols-3 items-start gap-4;
-}
-.run-form label,
-.run-history-label {
-  @apply grid gap-2 min-w-0 text-label font-medium;
-}
-.run-form input,
-.run-form .ui-select-trigger,
-.run-history-label .ui-select-trigger {
-  @apply w-full min-w-0;
-}
-.run-fields > .button {
-  @apply justify-self-start;
-}
-.run-actions {
-  @apply flex flex-none items-center flex-wrap gap-2;
-}
-.run-actions .button {
-  @apply whitespace-nowrap;
-}
-.run-history-label {
+.campaign-evidence > .run-history-label .ui-select-trigger {
   @apply max-w-md;
 }
-.run-results {
-  @apply p-5 grid gap-4 min-w-0;
+.campaign-repetition-evidence {
+  @apply mb-5 rounded-[10px] border border-line bg-surface;
 }
-.run-verdict {
-  @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3;
+.campaign-repetition-evidence .run-verdict,
+.campaign-repetition-evidence .run-alerts,
+.campaign-repetition-evidence .run-section,
+.campaign-repetition-evidence .run-context,
+.campaign-repetition-evidence .run-disclosures > details {
+  @apply px-5;
 }
-.run-verdict h3 {
-  @apply text-[20px] font-semibold tracking-[-0.025em];
+.campaign-repetition-evidence .run-verdict h3 {
+  @apply text-[16px];
 }
-.run-verdict .eyebrow {
-  @apply mb-1;
+
+/* Collapsible blocks at the end of a result. */
+.run-disclosures > details {
+  @apply px-6;
 }
-.run-verdict p:not(.eyebrow) {
-  @apply mt-2 text-muted max-w-[76ch] leading-relaxed;
+.run-disclosures > details + details {
+  @apply border-t border-line;
 }
-.run-verdict-icon {
-  @apply size-9 grid place-items-center rounded-[10px] bg-paper mt-1;
-  box-shadow: inset 0 0 0 1px var(--line);
+.run-disclosure > .section-summary {
+  @apply py-3.5;
 }
-.run-verdict.run-tone-issue .run-verdict-icon,
-.run-outcome.run-tone-issue {
-  @apply bg-high-soft text-high;
+.run-disclosure[open] > .section-summary {
+  @apply pb-3;
 }
-.run-verdict.run-tone-warning .run-verdict-icon,
-.run-outcome.run-tone-warning {
-  @apply bg-medium-soft text-medium;
-}
-.run-outcome {
-  @apply inline-flex items-center w-fit rounded-[6px] px-2 py-1 text-[12px] font-medium bg-paper text-ink;
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.run-verdict > .run-outcome {
-  @apply mt-1 whitespace-nowrap;
-}
-.run-report-toolbar {
-  @apply flex items-end justify-between gap-4 border-t border-line pt-4;
-}
-.run-report-toolbar .run-history-label {
-  @apply flex-1;
-}
-.run-metadata {
-  @apply flex flex-wrap gap-x-4 gap-y-1 text-muted text-label;
-}
-.run-metadata :where(strong) {
-  @apply font-medium;
-}
-.run-context-note {
-  @apply bg-paper/60 border border-line rounded-[10px] p-3 text-muted text-label;
-}
+
+/* Attack checks of one run */
 .run-checks {
   @apply list-none p-0 m-0 border border-line rounded-[10px] overflow-hidden;
 }
@@ -1810,7 +1890,7 @@ main.inventory-page {
   @apply border-t border-line;
 }
 .run-check-heading {
-  @apply flex items-center gap-2 px-4 pt-4;
+  @apply flex items-center gap-2.5 px-4 pt-4;
 }
 .run-check-number {
   @apply size-5 grid place-items-center rounded-full bg-paper text-muted text-[11px] tabular-nums flex-none;
@@ -1822,17 +1902,32 @@ main.inventory-page {
 .run-comparison.has-backend {
   @apply grid-cols-2;
 }
+.run-comparison.has-backend > div + div {
+  @apply border-s border-line;
+}
 .run-check-result {
-  @apply min-w-0 p-4 grid gap-2 content-start;
+  @apply min-w-0 px-4 py-3.5 grid gap-2 content-start;
 }
 .run-channel {
-  @apply flex items-center gap-2 text-label text-muted font-medium;
+  @apply flex items-center gap-2 text-micro uppercase tracking-[0.06em] text-subtle font-medium;
 }
 .run-channel :where(.icon) {
   @apply size-3.5;
 }
 .run-check-result > p:last-child {
-  @apply text-ui leading-relaxed;
+  @apply text-label leading-relaxed;
+}
+.run-outcome {
+  @apply inline-flex items-center w-fit rounded-[6px] px-2 py-0.5 text-[12px] font-medium bg-hover text-ink;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.run-outcome.run-tone-issue {
+  @apply bg-critical-soft text-critical;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--critical) 26%, transparent);
+}
+.run-outcome.run-tone-warning {
+  @apply bg-medium-soft text-medium;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--medium) 22%, transparent);
 }
 .run-check-action {
   @apply mx-4 mb-4 bg-paper/60 rounded-ui px-3 py-2.5 text-label leading-relaxed grid gap-1;
@@ -1841,32 +1936,33 @@ main.inventory-page {
 .run-check-action :where(strong) {
   @apply inline-block me-2;
 }
-.run-control-note {
-  @apply flex gap-3 items-start text-muted;
+.run-context {
+  @apply grid grid-cols-2;
 }
-.run-control-note > :where(.icon) {
-  @apply mt-0.5;
-}
-.run-control-note :where(h4) {
-  @apply text-ink text-label;
-}
-.run-control-note :where(p) {
-  @apply text-label mt-1 max-w-[95ch];
+.run-control-note,
+.run-scope {
+  @apply flex gap-3 items-start px-6 py-5 text-muted min-w-0;
 }
 .run-scope {
-  @apply border-t border-line pt-4 grid gap-2;
+  @apply border-s border-line;
 }
+.run-control-note > :where(.icon),
+.run-scope > :where(.icon) {
+  @apply mt-0.5 text-subtle;
+}
+.run-control-note :where(h4),
 .run-scope :where(h4) {
-  @apply text-label;
+  @apply text-ink text-label;
 }
+.run-control-note :where(p),
 .run-scope :where(p) {
-  @apply text-muted text-label max-w-[100ch] leading-relaxed;
+  @apply text-label mt-1 leading-relaxed;
 }
 .run-scope :where(strong) {
   @apply text-ink font-medium;
 }
 .run-evidence-scroll {
-  @apply max-h-[520px] min-w-0;
+  @apply max-h-[520px] min-w-0 mb-4;
 }
 .run-evidence-scroll :where(.technical-content) {
   @apply pe-3;
@@ -1874,52 +1970,121 @@ main.inventory-page {
 .run-evidence-scroll :where(.technical-content > div + div) {
   @apply mt-4;
 }
+
+/* Collapsible page sections: run setup, comparison and preparation. */
+.section-summary {
+  @apply gap-3 py-0 text-ink;
+}
+.section-summary-icon {
+  @apply size-8 grid place-items-center flex-none rounded-[8px] bg-paper text-muted;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.section-summary-icon .icon {
+  @apply size-4;
+}
+.section-summary-text {
+  @apply grid flex-1 min-w-0 gap-px;
+}
+.section-summary-text strong {
+  @apply text-label font-semibold text-ink;
+}
+.section-summary-text span {
+  @apply text-[12px] font-normal text-muted truncate;
+}
+.section-summary-meta {
+  @apply flex-none text-[12px] font-medium text-muted tabular-nums;
+}
+.section-summary > .icon {
+  @apply size-3.5 text-subtle;
+}
 .run-setup {
   @apply block p-0;
 }
 .run-setup > .run-setup-heading {
-  @apply px-5 py-3 text-ink font-medium;
+  @apply px-5 py-3.5;
 }
 .run-setup-content {
-  @apply grid gap-4 px-5 pb-5 pt-4;
+  @apply grid gap-4 px-5 pb-5 pt-4 border-t border-line;
 }
 .redteam-preparation {
   @apply min-w-0;
 }
 .redteam-preparation > summary {
-  @apply bg-surface border border-line rounded-panel px-5 py-3 text-ink font-medium;
+  @apply bg-surface border border-line rounded-panel px-5 py-3.5;
   box-shadow: var(--shadow-card);
 }
 .redteam-preparation > .stack {
   @apply mt-4;
 }
 .redteam-preparation:where([open]) > :where(summary) > :where(.icon),
-.run-setup:where([open]) > :where(summary) > :where(.icon) {
+.run-setup:where([open]) > :where(summary) > :where(.icon),
+.run-disclosure:where([open]) > :where(summary) > :where(.icon) {
   rotate: 90deg;
+}
+.run-fields {
+  @apply m-0 p-0 border-0 min-w-0 grid gap-4;
+}
+.run-form {
+  @apply grid grid-cols-3 items-start gap-4;
+}
+.run-form label {
+  @apply grid gap-2 min-w-0 text-label font-medium;
+}
+.run-form input,
+.run-form .ui-select-trigger,
+.run-history-label .ui-select-trigger {
+  @apply w-full min-w-0;
+}
+.run-fields > .button {
+  @apply justify-self-start;
+}
+@media (max-width: 900px) {
+  .run-context {
+    @apply grid-cols-1;
+  }
+  .run-scope {
+    @apply border-s-0 border-t;
+  }
 }
 @media (max-width: 700px) {
   .run-verdict {
-    @apply grid-cols-[auto_minmax(0,1fr)];
+    @apply px-4;
+    grid-template-columns: auto minmax(0, 1fr);
   }
-  .run-verdict > .run-outcome {
-    @apply col-start-2 mt-0;
+  .run-verdict-status {
+    @apply col-start-2 justify-start pt-0;
   }
+  .run-stats dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .run-stats dl > div {
+    @apply px-4;
+  }
+  .run-alerts,
+  .run-section,
+  .run-control-note,
+  .run-scope,
+  .run-disclosures > details {
+    @apply px-4;
+  }
+  /* A wrapping column sizes its line to the widest item; keep one line. */
   .run-report-toolbar {
-    @apply flex-col items-stretch;
+    @apply flex-col flex-nowrap items-stretch;
   }
   .run-report-toolbar .run-history-label {
-    @apply max-w-none;
+    @apply flex-col items-stretch gap-2 max-w-none;
   }
   .run-comparison.has-backend {
     @apply grid-cols-1;
   }
   .run-comparison.has-backend > div + div {
-    @apply border-t border-line mx-4 px-0;
+    @apply border-s-0 border-t border-line mx-4 px-0;
   }
-}
-@media (max-width: 700px) {
   .run-form {
     @apply grid-cols-1;
+  }
+  .section-summary-text span {
+    @apply whitespace-normal;
   }
 }
 .snapshot-details {
@@ -2048,8 +2213,7 @@ main.inventory-page {
 .technical-disclosure[open] > .disclosure-heading {
   @apply text-ink;
 }
-.technical-disclosure:where([open]) > :where(.disclosure-heading) > .icon,
-.framework-overview:where([open]) > :where(summary) > .icon {
+.technical-disclosure:where([open]) > :where(.disclosure-heading) > .icon {
   rotate: 90deg;
 }
 .technical-content {
@@ -2371,7 +2535,7 @@ main.inventory-page {
   }
   .button,
   .nav-item,
-  .inventory-tab,
+  .subnav-item,
   .icon-button,
   .finding-table-row,
   .inventory-data-row,
@@ -2452,9 +2616,6 @@ main.inventory-page {
   .sidebar-footer {
     grid-area: tools;
     @apply py-0 ps-2 pe-4;
-  }
-  .local-label {
-    @apply hidden;
   }
   .sidebar-nav-shell {
     grid-area: nav;
@@ -2556,36 +2717,8 @@ main.inventory-page {
     @apply grid-cols-3;
   }
 }
-@media (max-width: 1050px) {
-  .inventory-table-toolbar {
-    @apply flex-wrap;
-  }
-  .inventory-category-title {
-    @apply w-full;
-  }
-  .inventory-search {
-    @apply flex-1;
-  }
-}
-@media (max-width: 1023px) {
-  main.inventory-page {
-    padding-inline-start: 32px;
-  }
-  .inventory-sidebar {
-    @apply hidden;
-  }
-  .inventory-category-select {
-    @apply grid gap-2 mb-4;
-  }
-  .inventory-category-select .eyebrow {
-    @apply m-0;
-  }
-  .inventory-category-select .ui-select-trigger {
-    @apply w-full;
-  }
-}
 @media (max-width: 760px) {
-  .inventory-table-toolbar {
+  .inventory-toolbar {
     @apply gap-2;
   }
   .inventory-table-controls {
@@ -2604,13 +2737,13 @@ main.inventory-page {
   .inventory-framework-filter .ui-select-trigger {
     @apply text-[16px];
   }
-  .framework-summary {
-    @apply hidden;
-  }
 }
 @media (max-width: 600px) {
+  .inventory-toolbar {
+    @apply flex-wrap p-3;
+  }
   .inventory-search {
-    @apply w-full flex-auto;
+    @apply w-full max-w-none flex-auto;
     flex-basis: 100%;
   }
   .inventory-framework-filter {
@@ -2664,9 +2797,6 @@ main.inventory-page {
   }
   main {
     @apply px-4 pb-5;
-  }
-  main.inventory-page {
-    padding-inline-start: 16px;
   }
   .app-topbar {
     @apply px-4;
@@ -2859,9 +2989,6 @@ main.inventory-page {
   .history-date {
     @apply w-full ms-[46px];
   }
-  .page-footer {
-    @apply leading-[1.8];
-  }
 }
 @media (forced-colors: active) {
   :focus-visible {
@@ -2871,7 +2998,7 @@ main.inventory-page {
   .tag,
   .button,
   .nav-item.active,
-  .inventory-tab[data-active],
+  .subnav-item:is(.active, [data-active]),
   .severity-filters button[aria-pressed="true"] {
     border: 1px solid ButtonText;
   }
@@ -3010,43 +3137,72 @@ main.inventory-page {
   }
 }
 
-/* Settings and shared model connections */
-.settings-layout {
+/* Sub-navigation pages (Settings, Inventory): a section list beside a headed content column. */
+.subnav-layout {
   @apply grid items-start gap-8;
   grid-template-columns: 200px minmax(0, 1fr);
 }
-.settings-sidebar {
-  @apply min-w-0;
+.subnav {
+  @apply sticky min-w-0;
+  top: calc(var(--topbar-height) + 28px);
 }
-.settings-sidebar .eyebrow {
+.subnav .eyebrow {
   @apply px-2.5 mb-2;
 }
-.settings-nav-item {
-  @apply flex items-center gap-2.5 min-h-8 px-2.5 py-1.5 rounded-[7px] text-label text-ink bg-paper font-medium;
+.subnav-list {
+  @apply flex flex-col items-stretch gap-0.5;
+}
+.subnav-item {
+  @apply flex items-center gap-2.5 min-h-8 px-2.5 py-1.5 rounded-[7px] text-label text-muted font-medium text-start;
+}
+.subnav-item:hover {
+  @apply bg-hover text-ink;
+}
+.subnav-item:is(.active, [data-active]) {
+  @apply bg-paper text-ink;
   box-shadow:
     var(--highlight),
     0 0 0 1px var(--line);
 }
-.settings-nav-item > .icon {
-  @apply size-4 text-accent;
+.subnav-item:focus-visible {
+  outline-offset: -2px;
 }
-.settings-content {
+.subnav-item > .icon,
+.subnav-item > .skeleton-symbol {
+  @apply size-4 flex-none;
+}
+.subnav-item:is(.active, [data-active]) > .icon {
+  @apply text-accent;
+}
+.subnav-count {
+  @apply ms-auto text-subtle text-[12px] tabular-nums;
+}
+.subnav-item:is(.active, [data-active]) .subnav-count {
+  @apply text-muted;
+}
+.subnav-content {
   @apply min-w-0;
 }
-.settings-content-heading {
+.subnav-content-heading {
   @apply flex items-start justify-between gap-4 mb-5;
 }
-.settings-content-heading h2 {
+.subnav-content-heading :is(h2, h3) {
   @apply flex items-center gap-2 text-section;
 }
-.settings-content-heading h2 .tag {
+.subnav-content-heading .tag {
   @apply py-0.5 px-1.5;
 }
-.settings-content-heading p {
+.subnav-content-heading p {
   @apply text-label mt-1 max-w-[60ch];
 }
-.settings-content-heading > .button {
+.subnav-content-heading > .button {
   @apply flex-none;
+}
+@media (max-width: 1023px) {
+  /* The topbar scrolls away at this width, so the section list does too. */
+  .subnav {
+    @apply static;
+  }
 }
 .providers-table-panel {
   @apply overflow-hidden;
@@ -3136,16 +3292,21 @@ main.inventory-page {
 .provider-menu-item .icon {
   @apply size-4;
 }
-.providers-empty {
+.providers-empty,
+.inventory-empty {
   @apply flex flex-col items-center text-center px-5 py-12 gap-2;
 }
-.providers-empty h3 {
+:is(.providers-empty, .inventory-empty) h3 {
   @apply text-ui font-medium mt-2;
 }
-.providers-empty p {
+:is(.providers-empty, .inventory-empty) p {
   @apply text-label max-w-[42ch];
 }
-.providers-empty-symbol {
+:is(.providers-empty, .inventory-empty) .button {
+  @apply mt-2;
+}
+.providers-empty-symbol,
+.inventory-empty-symbol {
   @apply inline-grid place-items-center size-10 bg-paper rounded-[10px] text-muted;
   box-shadow: inset 0 0 0 1px var(--line);
 }
@@ -3267,8 +3428,8 @@ main.inventory-page {
 }
 
 @media (max-width: 1000px) {
-  .settings-layout {
-    grid-template-columns: 150px minmax(0, 1fr);
+  .subnav-layout {
+    grid-template-columns: 160px minmax(0, 1fr);
     @apply gap-5;
   }
   .provider-endpoint-column {
@@ -3292,19 +3453,28 @@ main.inventory-page {
   }
 }
 @media (max-width: 700px) {
-  .settings-layout {
+  .subnav-layout {
     @apply grid-cols-1 gap-5;
   }
-  .settings-sidebar .eyebrow {
+  .subnav .eyebrow {
     @apply hidden;
   }
-  .settings-sidebar {
+  .subnav {
     @apply pb-4 border-b border-line;
   }
-  .settings-nav-item {
+  .subnav-item {
     @apply w-fit;
   }
-  .settings-content-heading {
+  .inventory-layout .subnav-list {
+    @apply hidden;
+  }
+  .inventory-category-select {
+    @apply block;
+  }
+  .inventory-category-select .ui-select-trigger {
+    @apply w-full;
+  }
+  .subnav-content-heading {
     @apply flex-wrap;
   }
   .providers-toolbar {

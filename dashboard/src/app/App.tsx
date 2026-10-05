@@ -125,14 +125,7 @@ export function App() {
         />
         <div className="app-main">
           <AppTopbar view={view} project={project} report={report} actions={scanActions} />
-          <main
-            id="main-content"
-            className={
-              view === "inventory" && (isInitializing || report) ? "inventory-page" : undefined
-            }
-            tabIndex={-1}
-            aria-busy={isInitializing}
-          >
+          <main id="main-content" tabIndex={-1} aria-busy={isInitializing}>
             {isInitializing ? (
               <DashboardSkeleton
                 overview={view === "overview"}
@@ -255,10 +248,6 @@ export function App() {
                   />
                   <Route path="*" element={<Navigate to={routes.overview} replace />} />
                 </Routes>
-                <footer className="page-footer">
-                  <span>Static findings are review hypotheses, not verified exploits.</span>
-                  <span>Built for agentic systems.</span>
-                </footer>
               </>
             )}
           </main>

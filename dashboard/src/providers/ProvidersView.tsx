@@ -122,17 +122,17 @@ export function ProvidersView({
     setPendingDelete(value);
   }
   return (
-    <div className="settings-layout">
-      <aside className="settings-sidebar">
+    <div className="subnav-layout">
+      <aside className="subnav">
         <p className="eyebrow">Workspace settings</p>
-        <nav aria-label="Settings categories">
-          <NavLink to={routes.providers} className="settings-nav-item">
+        <nav className="subnav-list" aria-label="Settings categories">
+          <NavLink to={routes.providers} className="subnav-item">
             <Icon name="providers" /> Providers
           </NavLink>
         </nav>
       </aside>
-      <section className="settings-content" aria-labelledby={`${id}-list`}>
-        <div className="settings-content-heading">
+      <section className="subnav-content" aria-labelledby={`${id}-list`}>
+        <div className="subnav-content-heading">
           <div>
             <h2 id={`${id}-list`}>
               Providers{" "}

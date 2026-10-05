@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import { App } from "./app/App.tsx";
 import { legacyHashTarget } from "./app/routes.ts";
+import { PopupLayerProvider } from "./shared/PopupLayer.tsx";
 import { verticalScrollbars } from "./shared/scrollbars.ts";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
@@ -34,7 +35,9 @@ createRoot(element).render(
   <StrictMode>
     <CSPProvider nonce={nonce}>
       <BrowserRouter>
-        <App />
+        <PopupLayerProvider>
+          <App />
+        </PopupLayerProvider>
       </BrowserRouter>
     </CSPProvider>
   </StrictMode>,

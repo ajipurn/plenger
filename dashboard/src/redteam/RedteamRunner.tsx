@@ -12,6 +12,7 @@ import { downloadJson } from "../shared/download.ts";
 import { formatDateTime } from "../shared/format.ts";
 import { Icon } from "../shared/icons.tsx";
 import { isActiveRunState } from "../shared/runs.ts";
+import { SectionSummary } from "../shared/SectionSummary.tsx";
 import { Button, Select } from "../shared/ui.tsx";
 import { RedteamResults } from "./RedteamResults.tsx";
 import { type CampaignStartConfig, RunSetupForm } from "./RunSetupForm.tsx";
@@ -68,7 +69,10 @@ export function RedteamRunner({
       {report && (
         <div className="run-report-toolbar campaign-history">
           <label htmlFor={`${id}-history`} className="run-history-label">
-            Viewing saved test
+            <span className="run-history-caption">
+              Saved test
+              <span className="tag">{savedTests.length}</span>
+            </span>
             <Select
               id={`${id}-history`}
               value={report.id}
@@ -115,10 +119,12 @@ export function RedteamRunner({
         open={!report}
         key={report ? "repeat" : "initial"}
       >
-        <summary className="disclosure-heading run-setup-heading">
-          <span>{report ? "Configure another test" : "Run a security test"}</span>
-          <Icon name="chevron" />
-        </summary>
+        <SectionSummary
+          className="run-setup-heading"
+          icon="settings"
+          title={report ? "Configure another test" : "Run a security test"}
+          description="Choose a provider, model, limits and repetitions."
+        />
         <RunSetupForm
           plan={plan}
           profile={profile}

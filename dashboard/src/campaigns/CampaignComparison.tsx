@@ -5,6 +5,7 @@ import { downloadJson } from "../shared/download.ts";
 import { formatDateTime, percent as formatPercent } from "../shared/format.ts";
 import { Icon } from "../shared/icons.tsx";
 import { useElementScrollbars } from "../shared/ScrollArea.tsx";
+import { SectionSummary } from "../shared/SectionSummary.tsx";
 import { Button, Input, Select } from "../shared/ui.tsx";
 
 const percent = (value: number | null) =>
@@ -33,9 +34,12 @@ export function CampaignComparison({
   if (!candidates.length || !after.finishedAt) return null;
   return (
     <details className="panel campaign-comparison">
-      <summary className="disclosure-heading">
-        Compare with a previous test <Icon name="chevron" />
-      </summary>
+      <SectionSummary
+        icon="compare"
+        title="Compare with a previous test"
+        description="Set an earlier campaign beside this one after a change."
+        meta={`${candidates.length} ${candidates.length === 1 ? "candidate" : "candidates"}`}
+      />
       <div className="technical-content">
         <p className="muted">
           Choose an explicit before campaign and describe your change. Cases, model settings, scope

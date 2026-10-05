@@ -57,42 +57,11 @@ export function DashboardSkeleton({
     <div role="status" aria-live="polite">
       <span className="sr-only">Loading dashboard…</span>
       <div aria-hidden="true">
-        {inventory && (
-          <div className="inventory-sidebar">
-            <div className="inventory-sidebar-scroll">
-              <p className="eyebrow">Categories</p>
-              <div className="inventory-tabs">
-                {[
-                  "models",
-                  "agents",
-                  "tools",
-                  "calls",
-                  "entries",
-                  "servers",
-                  "clients",
-                  "stores",
-                  "prompts",
-                ].map((category) => (
-                  <div className="inventory-tab" key={category}>
-                    <span className="skeleton-block skeleton-symbol" />
-                    <span className="skeleton-block skeleton-row-title" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
         <div className="page-heading skeleton-heading">
           <span className="skeleton-block skeleton-title" />
           <span className="skeleton-block skeleton-description" />
         </div>
         <div className="stack">
-          {inventory && (
-            <div className="inventory-category-select">
-              <span className="eyebrow">Category</span>
-              <span className="skeleton-block skeleton-row-title" />
-            </div>
-          )}
           {overview && (
             <>
               <div className="scan-meta">
@@ -110,15 +79,49 @@ export function DashboardSkeleton({
               <OverviewChartSkeleton />
             </>
           )}
-          <div className={overview ? "overview-columns" : settings ? "settings-layout" : undefined}>
+          <div
+            className={
+              overview
+                ? "overview-columns"
+                : inventory
+                  ? "subnav-layout inventory-layout"
+                  : settings
+                    ? "subnav-layout"
+                    : undefined
+            }
+          >
             {settings && (
-              <aside className="settings-sidebar">
+              <aside className="subnav">
                 <span className="skeleton-block skeleton-panel-title" />
               </aside>
             )}
-            {settings ? (
-              <div className="settings-content">
-                <div className="settings-content-heading">
+            {inventory && (
+              <aside className="subnav">
+                <p className="eyebrow">Categories</p>
+                <div className="subnav-list">
+                  {[
+                    "frameworks",
+                    "models",
+                    "agents",
+                    "tools",
+                    "calls",
+                    "entries",
+                    "servers",
+                    "clients",
+                    "stores",
+                    "prompts",
+                  ].map((category) => (
+                    <div className="subnav-item" key={category}>
+                      <span className="skeleton-block skeleton-symbol" />
+                      <span className="skeleton-block skeleton-row-title" />
+                    </div>
+                  ))}
+                </div>
+              </aside>
+            )}
+            {settings || inventory ? (
+              <div className="subnav-content">
+                <div className="subnav-content-heading">
                   <div className="skeleton-heading">
                     <span className="skeleton-block skeleton-panel-title" />
                     <span className="skeleton-block skeleton-description" />

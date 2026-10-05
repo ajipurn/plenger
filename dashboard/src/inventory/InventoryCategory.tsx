@@ -22,15 +22,15 @@ export const icons: Record<string, IconName> = {
   Prompts: "prompts",
 };
 const descriptions: Record<string, string> = {
-  Models: "Provider clients and model configuration",
-  Agents: "Agent declarations and their linked tools",
-  Tools: "Functions available to agents",
-  "LLM calls": "Model invocations observed in source",
-  "Entry points": "HTTP and MCP request handlers",
-  "MCP servers": "Tools and resources exposed through MCP",
-  "MCP clients": "Connections to external MCP servers",
-  "Data stores": "Storage and retrieval integrations",
-  Prompts: "System, user, and template instructions",
+  Models: "Provider clients and model configuration.",
+  Agents: "Agent declarations and their linked tools.",
+  Tools: "Functions available to agents.",
+  "LLM calls": "Model invocations observed in source.",
+  "Entry points": "HTTP and MCP request handlers.",
+  "MCP servers": "Tools and resources exposed through MCP.",
+  "MCP clients": "Connections to external MCP servers.",
+  "Data stores": "Storage and retrieval integrations.",
+  Prompts: "System, user, and template instructions.",
 };
 
 function Configuration({ item }: { item: InventoryItem }) {
@@ -94,166 +94,172 @@ export function InventoryCategory({ title, items }: { title: string; items: Inve
 
   return (
     <div className="inventory-category" ref={categoryRef}>
-      <div className="inventory-table-toolbar">
-        <div className="inventory-category-title">
-          <h3>{title}</h3>
-          <span className="inventory-category-total">
-            <MorphNumber value={filtered.length} />
-          </span>
+      <div className="subnav-content-heading">
+        <div>
+          <h2>
+            {title}{" "}
+            <span className="tag">
+              <MorphNumber value={items.length} />
+            </span>
+          </h2>
+          <p className="muted">{descriptions[title]}</p>
         </div>
-        <label className="inventory-search" htmlFor={searchId}>
-          <span className="sr-only">Search {title.toLowerCase()}</span>
-          <SearchField
-            as="span"
-            id={searchId}
-            value={query}
-            placeholder="Name, configuration, or file…"
-            onChange={(value) => {
-              setQuery(value);
-              pagination.reset();
-            }}
-          />
-        </label>
-        <label className="inventory-framework-filter" htmlFor={frameworkId}>
-          <span className="sr-only">Filter {title.toLowerCase()} by framework</span>
-          <Select
-            id={frameworkId}
-            value={framework}
-            onValueChange={(value) => {
-              setFramework(value);
-              pagination.reset();
-            }}
-            items={[
-              { value: "", label: "All frameworks" },
-              ...frameworks.map((value) => ({ value, label: value })),
-            ]}
-          />
-        </label>
       </div>
-      <p className="inventory-category-description muted">{descriptions[title]}</p>
-      {filtered.length === 0 ? (
-        <EmptyState
-          className="inventory-empty"
-          icon={hasFilters ? "search" : (icons[title] ?? "inventory")}
-          iconClassName="category-icon"
-          title={hasFilters ? "No matching declarations" : `No ${title.toLowerCase()} observed`}
-          titleLevel="h4"
-          description={
-            hasFilters
-              ? "Try another search or framework."
-              : "None found in the scanned source files."
-          }
-          descriptionClassName="muted"
-        >
-          {hasFilters && (
-            <Button
-              className="button button-secondary"
-              onClick={() => {
-                setQuery("");
-                setFramework("");
+      <div className="panel inventory-panel">
+        <div className="inventory-toolbar">
+          <label className="inventory-search" htmlFor={searchId}>
+            <span className="sr-only">Search {title.toLowerCase()}</span>
+            <SearchField
+              as="span"
+              id={searchId}
+              value={query}
+              placeholder="Name, configuration, or file…"
+              onChange={(value) => {
+                setQuery(value);
                 pagination.reset();
               }}
-            >
-              Clear filters
-            </Button>
-          )}
-        </EmptyState>
-      ) : (
-        <table className="inventory-table" aria-label={`${title} declarations`}>
-          <colgroup>
-            <col className="inventory-name-column" />
-            <col className="inventory-config-column" />
-            <col className="inventory-source-column" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th scope="col">Declaration</th>
-              <th scope="col" className="inventory-config-cell">
-                Configuration
-              </th>
-              <th scope="col">Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagination.visible.map((item) => {
-              const filenameStart = item.location.path.lastIndexOf("/") + 1;
-              const openDetails = (button: HTMLButtonElement | null) => {
-                returnFocus.current = button;
-                setSelected(item);
-                setDrawerOpen(true);
-              };
-              return (
-                <tr
-                  className="inventory-data-row"
-                  data-selected={(drawerOpen && selected?.id === item.id) || undefined}
-                  key={item.id}
-                  onClick={(event) => {
-                    openDetails(event.currentTarget.querySelector("button"));
-                  }}
-                >
-                  <td className="inventory-name-cell">
-                    <Button
-                      className="inventory-row-trigger"
-                      aria-haspopup="dialog"
-                      aria-label={`View details for ${item.name}, ${item.location.path}:${item.location.line}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openDetails(event.currentTarget);
-                      }}
-                    >
-                      <span className="inventory-name-content">
-                        <span className="inventory-item-name" title={item.name}>
-                          {item.name}
-                        </span>
-                        {item.framework && (
-                          <span className="inventory-framework">{item.framework}</span>
-                        )}
-                      </span>
-                      <Icon name="chevron" />
-                    </Button>
-                    <div className="inventory-mobile-preview">
-                      <Configuration item={item} />
-                    </div>
-                  </td>
-                  <td className="inventory-config-cell">
-                    <Configuration item={item} />
-                  </td>
-                  <td
-                    className="inventory-source-cell"
-                    title={`${item.location.path}:${item.location.line}:${item.location.column}`}
+            />
+          </label>
+          <label className="inventory-framework-filter" htmlFor={frameworkId}>
+            <span className="sr-only">Filter {title.toLowerCase()} by framework</span>
+            <Select
+              id={frameworkId}
+              value={framework}
+              onValueChange={(value) => {
+                setFramework(value);
+                pagination.reset();
+              }}
+              items={[
+                { value: "", label: "All frameworks" },
+                ...frameworks.map((value) => ({ value, label: value })),
+              ]}
+            />
+          </label>
+        </div>
+        {filtered.length === 0 ? (
+          <EmptyState
+            className="inventory-empty"
+            icon={hasFilters ? "search" : (icons[title] ?? "inventory")}
+            iconClassName="inventory-empty-symbol"
+            title={hasFilters ? "No matching declarations" : `No ${title.toLowerCase()} observed`}
+            titleLevel="h3"
+            description={
+              hasFilters
+                ? "Try another search or framework."
+                : "None found in the scanned source files."
+            }
+            descriptionClassName="muted"
+          >
+            {hasFilters && (
+              <Button
+                className="button button-secondary"
+                onClick={() => {
+                  setQuery("");
+                  setFramework("");
+                  pagination.reset();
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </EmptyState>
+        ) : (
+          <table className="inventory-table" aria-label={`${title} declarations`}>
+            <colgroup>
+              <col className="inventory-name-column" />
+              <col className="inventory-config-column" />
+              <col className="inventory-source-column" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">Declaration</th>
+                <th scope="col" className="inventory-config-cell">
+                  Configuration
+                </th>
+                <th scope="col">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pagination.visible.map((item) => {
+                const filenameStart = item.location.path.lastIndexOf("/") + 1;
+                const openDetails = (button: HTMLButtonElement | null) => {
+                  returnFocus.current = button;
+                  setSelected(item);
+                  setDrawerOpen(true);
+                };
+                return (
+                  <tr
+                    className="inventory-data-row"
+                    data-selected={(drawerOpen && selected?.id === item.id) || undefined}
+                    key={item.id}
+                    onClick={(event) => {
+                      openDetails(event.currentTarget.querySelector("button"));
+                    }}
                   >
-                    <code className="inventory-source-file">
-                      {item.location.path.slice(filenameStart)}:{item.location.line}
-                    </code>
-                    {filenameStart > 0 && (
-                      <code className="inventory-source-directory">
-                        {item.location.path.slice(0, filenameStart)}
+                    <td className="inventory-name-cell">
+                      <Button
+                        className="inventory-row-trigger"
+                        aria-haspopup="dialog"
+                        aria-label={`View details for ${item.name}, ${item.location.path}:${item.location.line}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openDetails(event.currentTarget);
+                        }}
+                      >
+                        <span className="inventory-name-content">
+                          <span className="inventory-item-name" title={item.name}>
+                            {item.name}
+                          </span>
+                          {item.framework && (
+                            <span className="inventory-framework">{item.framework}</span>
+                          )}
+                        </span>
+                        <Icon name="chevron" />
+                      </Button>
+                      <div className="inventory-mobile-preview">
+                        <Configuration item={item} />
+                      </div>
+                    </td>
+                    <td className="inventory-config-cell">
+                      <Configuration item={item} />
+                    </td>
+                    <td
+                      className="inventory-source-cell"
+                      title={`${item.location.path}:${item.location.line}:${item.location.column}`}
+                    >
+                      <code className="inventory-source-file">
+                        {item.location.path.slice(filenameStart)}:{item.location.line}
                       </code>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-      <div className="inventory-table-controls">
-        <p className="count-label" role="status">
-          {filtered.length === 0 ? (
-            "0 declarations"
-          ) : (
-            <>
-              <MorphNumber value={pagination.start + 1} />–<MorphNumber value={pagination.end} /> of{" "}
-              <MorphNumber value={filtered.length} /> {plural(filtered.length, "declaration")}
-            </>
-          )}
-        </p>
-        <Pagination
-          page={pagination.page}
-          pageCount={pagination.pageCount}
-          label={`${title} pages`}
-          onPageChange={changePage}
-        />
+                      {filenameStart > 0 && (
+                        <code className="inventory-source-directory">
+                          {item.location.path.slice(0, filenameStart)}
+                        </code>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        <div className="inventory-table-controls">
+          <p className="count-label" role="status">
+            {filtered.length === 0 ? (
+              "0 declarations"
+            ) : (
+              <>
+                <MorphNumber value={pagination.start + 1} />–<MorphNumber value={pagination.end} />{" "}
+                of <MorphNumber value={filtered.length} /> {plural(filtered.length, "declaration")}
+              </>
+            )}
+          </p>
+          <Pagination
+            page={pagination.page}
+            pageCount={pagination.pageCount}
+            label={`${title} pages`}
+            onPageChange={changePage}
+          />
+        </div>
       </div>
       <DetailDrawer
         open={drawerOpen}

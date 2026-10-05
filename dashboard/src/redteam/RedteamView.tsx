@@ -5,6 +5,7 @@ import type { SavedProvider } from "../../../src/redteam/provider-config.ts";
 import type { RedteamRun } from "../../../src/redteam/run.ts";
 import { EmptyState } from "../shared/EmptyState.tsx";
 import { Icon } from "../shared/icons.tsx";
+import { SectionSummary } from "../shared/SectionSummary.tsx";
 import { TechnicalDisclosure } from "../shared/TechnicalDisclosure.tsx";
 import { Button } from "../shared/ui.tsx";
 import { DependencyReview } from "./DependencyReview.tsx";
@@ -113,10 +114,12 @@ export function RedteamView({
             open={!hasResults}
             key={`${plan.root}-${!hasResults ? "first" : "results"}`}
           >
-            <summary className="disclosure-heading">
-              <span>Test setup and supported targets</span>
-              <Icon name="chevron" />
-            </summary>
+            <SectionSummary
+              icon="checklist"
+              title="Test setup and supported targets"
+              description="Preparation summary, discovered targets, source coverage and dependencies."
+              meta={`${plan.targets.length} ${plan.targets.length === 1 ? "target" : "targets"}`}
+            />
             <div className="stack">
               {runs.length > 0 && (
                 <div className="section-heading">

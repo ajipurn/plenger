@@ -122,10 +122,6 @@ export function AppSidebar({
         </nav>
       </div>
       <div className="sidebar-footer">
-        <span className="local-label">
-          <span className="local-dot" aria-hidden="true" />
-          Local workspace
-        </span>
         <Button
           className="icon-button theme-toggle"
           disabled={themeDisabled}

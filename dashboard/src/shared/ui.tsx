@@ -3,6 +3,7 @@ import { Input as BaseInput } from "@base-ui/react/input";
 import { Select as BaseSelect } from "@base-ui/react/select";
 import type { ComponentPropsWithRef } from "react";
 import { Icon } from "./icons.tsx";
+import { usePopupContainer } from "./PopupLayer.tsx";
 
 export function Button({ type = "button", ...props }: ComponentPropsWithRef<"button">) {
   return <BaseButton type={type} {...props} />;
@@ -25,6 +26,7 @@ export function Select<Value extends string>({
   onValueChange: (value: Value) => void;
   disabled?: boolean;
 }) {
+  const container = usePopupContainer();
   return (
     <BaseSelect.Root
       items={items}
@@ -40,7 +42,7 @@ export function Select<Value extends string>({
           <Icon name="chevron" />
         </BaseSelect.Icon>
       </BaseSelect.Trigger>
-      <BaseSelect.Portal>
+      <BaseSelect.Portal container={container ?? undefined}>
         <BaseSelect.Positioner
           className="ui-select-positioner"
           sideOffset={6}

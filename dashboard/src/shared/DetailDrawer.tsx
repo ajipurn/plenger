@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Drawer } from "vaul";
 import { Icon } from "./icons.tsx";
+import { usePopupContainerRef } from "./PopupLayer.tsx";
 import { useElementScrollbars } from "./ScrollArea.tsx";
 import { Button } from "./ui.tsx";
 
@@ -38,6 +39,7 @@ export function DetailDrawer({
   children: ReactNode;
 }) {
   const scrollbars = useElementScrollbars<HTMLDivElement>();
+  const popupContainer = usePopupContainerRef();
   return (
     <Drawer.Root
       direction="right"
@@ -50,7 +52,13 @@ export function DetailDrawer({
       <Drawer.Portal>
         <Drawer.Overlay className="inventory-drawer-overlay" />
         <Drawer.Content
+          ref={popupContainer}
           className={className}
+          onEscapeKeyDown={(event) => {
+            // Radix sees Escape first; leave it to an open select, menu or confirmation.
+            if (event.target instanceof Element && event.target.closest("[data-base-ui-portal]"))
+              event.preventDefault();
+          }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             returnFocus()?.focus({ preventScroll: true });
