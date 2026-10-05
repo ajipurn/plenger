@@ -243,15 +243,16 @@ describe("redteam discover command", () => {
     expect(terminal.stdout).toContain("candidate  function  chat");
   });
 
+  // One string per case: array rows would be spread and only their first word titled.
   it.each([
-    ["redteam"],
-    ["redteam", "run"],
-    ["redteam", "discover", ".", "extra"],
-    ["redteam", "discover", "--format", "sarif"],
-    ["redteam", "discover", "--fail-on", "high"],
-    ["redteam", "discover", "--baseline", "missing.json"],
-  ])("rejects unavailable commands and incompatible flags: %j", async (...args) => {
-    expect((await cli(...args)).code).toBe(2);
+    "redteam",
+    "redteam attack",
+    "redteam discover . extra",
+    "redteam discover --format sarif",
+    "redteam discover --fail-on high",
+    "redteam discover --baseline missing.json",
+  ])("rejects unavailable commands and incompatible flags: %s", async (line) => {
+    expect((await cli(...line.split(" "))).code).toBe(2);
   });
 
   it("reports I/O failure separately from a completed discovery with no candidates", async () => {

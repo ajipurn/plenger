@@ -223,6 +223,12 @@ def chat(message: str):
     expect(report.plan.sourceDigest).not.toBe(old.sourceDigest);
     expect(report.plan.requiredScope).toEqual(old.requiredScope);
   });
+  it("asks for a saved provider when the data directory has none", async () => {
+    const result = await command("redteam", "run", project, "--data-dir", join(root, "empty"));
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("Choose a saved provider");
+    expect(dispatched).toBe(0);
+  });
   it("refuses a project-supplied symlink as the default evidence directory before execution", async () => {
     const elsewhere = await temporaryDir("plenger-no-overwrite-");
     await symlink(elsewhere, join(project, ".plenger"));
