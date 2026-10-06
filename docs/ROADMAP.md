@@ -186,6 +186,9 @@ the llmfy path blocks M6a; it is not deferred to M6b or made a user task.
   and platforms; broaden HTTP profiles beyond the booking contract; measure
   and document worker start-up cost; qualify each OS/backend combination
   independently.
+  The first new profile is the FastAPI project profile designed in
+  [design/fastapi-profile.md](design/fastapi-profile.md), with the Dayatech
+  assessment-center project as its acceptance target.
 - M6c: the MCP SDK go/no-go spike and adapter; qualified tool, web and
   retrieval delivery for surfaces that today stay unsupported in the scope
   matrix; a CLI option for dynamic suppressions. Repetitions, statistics,
