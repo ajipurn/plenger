@@ -9,6 +9,19 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- FastAPI project profile, preparation stage (M6b checkpoint 1):
+  `plenger redteam prepare` builds an image from the project's `requirements.txt`
+  with wheels only, retrying for `linux/amd64` on Apple Silicon when a wheel
+  exists only there, starts disposable MySQL and Redis on an internal network,
+  imports the application in an isolated worker with llmfy 0.6.0 model classes
+  routed to the host broker, probes `GET /` and reports packages, routes and
+  import errors. Plans choose the profile for FastAPI projects whose llmfy
+  entry points the file canary cannot bind; dependencies without an exact pin
+  are resolved and recorded instead of blocking.
+- Live progress in the dashboard's red-team results: the current repetition
+  and check, model calls, the last worker event, elapsed time against the
+  deadline, a repetition-by-check matrix that opens the evidence of a
+  repetition, and the latest worker events while a test runs.
 - Experimental ChatGPT subscription provider: Sign in with ChatGPT from the
   dashboard or `plenger redteam login`, OAuth credentials encrypted in the
   provider store with automatic refresh, and the public Responses API as the
@@ -33,6 +46,11 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- The credential detector no longer treats ORM column definitions
+  (`password = Column(...)`), model-API object ids (`call_…`, `tooluse_…`),
+  compound identifiers (`SW-Chat-22-…`) or `key=value` expressions in quoted
+  text as secrets. Such files were excluded from runtime snapshots as
+  `embedded-credential`.
 - Tool definitions from llmfy 0.11 (`{name, description, strict, parameters}`
   without a `function` wrapper) are normalised to function tools before any
   transport sends them. The ChatGPT transport rejected them before the first

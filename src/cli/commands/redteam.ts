@@ -11,6 +11,7 @@ export const REDTEAM_USAGE = `Usage:
   plenger redteam run [path]       Run managed security tests using a saved provider
   plenger redteam compare          Compare exported fixed security campaigns
   plenger redteam login            Connect a ChatGPT subscription provider
+  plenger redteam prepare [path]   Build and import a FastAPI project (FastAPI profile)
 
 Options for discover and plan:
   --json                 Print the full result as JSON
@@ -48,8 +49,14 @@ export async function redteamCommand(argv: string[], io: Io): Promise<number> {
       const { redteamLoginCommand } = await import("./redteam-login.ts");
       return redteamLoginCommand(rest, io);
     }
+    case "prepare": {
+      const { redteamPrepareCommand } = await import("./redteam-prepare.ts");
+      return redteamPrepareCommand(rest, io);
+    }
     case undefined:
-      throw new UsageError("redteam needs a subcommand: discover, plan, run, compare or login");
+      throw new UsageError(
+        "redteam needs a subcommand: discover, plan, run, compare, login or prepare",
+      );
     default:
       throw new UsageError(`unknown redteam subcommand '${subcommand}'`);
   }

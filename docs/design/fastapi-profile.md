@@ -1,7 +1,8 @@
 # FastAPI project profile (design, M6b)
 
-Status: design only. Nothing in this page is implemented. Current capabilities
-are in [../STATUS.md](../STATUS.md).
+Status: checkpoint 1 (build pipeline and import) is implemented as
+`plenger redteam prepare`; checkpoints 2 to 4 are design only. Current
+capabilities are in [../STATUS.md](../STATUS.md).
 
 ## Why
 
@@ -35,7 +36,8 @@ protocol. It adds four things the llmfy profile lacks.
 
 1. A **dependency build stage** that installs the project's declared packages.
 2. A **model adapter per llmfy version**, starting with 0.6.0, that routes every
-   model class the project uses (`BedrockModel`, `OpenAIChatModel`) to the host
+   model class the project uses (`BedrockModel`, `OpenAIModel`, `GoogleAIModel`
+  in 0.6.0; `OpenAIChatModel` in 0.11) to the host
    broker.
 3. **Disposable backing services** for MySQL and Redis, and **recording doubles**
    for outbound services the test must not reach (S3, email, LiveKit).
@@ -50,20 +52,25 @@ and runs third-party code (wheel installation is inert, but `pip` would run
 `setup.py` for source distributions). The profile keeps both rules by
 splitting the image build:
 
-- **Resolve.** Read `requirements.txt`, `pyproject.toml`, `uv.lock` or
-  `poetry.lock` with the existing dependency review. Accept only exact pins
-  (`==`) or a lockfile with hashes. Unpinned entries (`websocket-client`,
-  `pytz>=2025.1`, `llama-index>=0.10.22` in the target project) block
-  preparation with the entry named; the fix is a pin in the project, which is
-  ordinary hygiene rather than a plenger adapter.
-- **Build.** A build container with network installs the resolved set with
-  `pip install --only-binary=:all: --require-hashes` where hashes exist, and
-  `--only-binary=:all:` otherwise, into a prefix. No source distributions, so
-  no project-selected code runs during the build. The supply-chain minimum
-  release age used for plenger's own dependencies is reported, not enforced,
-  for project packages: the project chose them. The result is an image layer
-  keyed by the digest of the resolved set, so a rebuild happens only when the
-  pins change.
+- **Resolve and record.** Read `requirements.txt` with the existing
+  dependency review. Entries without an exact pin (`websocket-client`,
+  `pytz>=2025.1`, `llama-index>=0.10.22` in the target project) are listed in
+  the plan as `unpinned` and resolved by pip inside the build; the preparation
+  report records every installed package and version. This was the user's
+  decision on 2026-10-06: blocking on pins would have made the first
+  acceptance target unusable without a project change. `pyproject.toml`-only
+  projects are blocked (`requirements-file-required`) until a lockfile path
+  exists.
+- **Build.** A build container with network installs the declared set with
+  `pip install --only-binary=:all:`. No source distributions, so no
+  project-selected code runs during the build. The result is an image keyed by
+  the digest of the recipe, the requirements text and the platform, so a
+  rebuild happens only when one of them changes. The build runs for the host
+  platform first; on an arm64 host a missing wheel is retried for
+  `linux/amd64` and the report records the platform. The target project needs
+  this: `html-to-markdown` 2.8.3 publishes a Linux wheel for x86-64 only. The
+  base image is pinned by its multi-arch index digest for that reason; the
+  llmfy recipe pins an arm64-only digest.
 - **Run.** The worker image is the pinned Python base plus that layer, with
   the same isolation checks as today (no network, read-only root, no
   capabilities, memory, process and CPU limits, private `/tmp`), plus the
@@ -71,8 +78,8 @@ splitting the image build:
   has no route out.
 
 System packages the wheels need (`libgomp1` for FAISS and scikit-learn in the
-target project) come from a short allow-list in the recipe, never from the
-project's Dockerfile. The project's Dockerfile, `compose` files and Makefile
+target project) are installed by the recipe, never from the project's
+Dockerfile. The project's Dockerfile, `compose` files and Makefile
 are read for the review only, as presence and declared ports, and never
 executed.
 
@@ -124,10 +131,15 @@ these by what the test needs from them.
   effect, which is the contract's distinction between dispatch and completed
   effect. The list of patched boundaries is part of the profile's published
   observable scope.
-- **Nothing else reaches out.** The private network has no route to the host
-  or the internet, and the isolation check `loopback-only` becomes
-  `private-network-only` with the allowed service addresses listed in the
-  `ready` frame.
+- **Nothing else reaches out.** The private network is created with
+  `--internal`: no route to the host or the internet. The worker's isolation
+  checks replace `loopback-only` with `private-network-only` (loopback plus
+  one interface) and `no-default-route`. The service containers run with every
+  capability dropped: MySQL gets back only the five its entrypoint needs to
+  prepare its data directory and switch to its own user (`CHOWN`,
+  `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID`); Redis starts directly as its
+  own user and persists nothing. Both are pinned by image digest, publish no
+  ports and are removed with the network when the preparation ends.
 
 ### HTTP delivery
 
@@ -172,8 +184,18 @@ written against the running fixture, not here.
 Choose the project, review the plan (dependencies, adapter, services,
 guarded routes, bound cases), add test access for the guarded route, choose a
 provider and budget, press Start. No files are added to the project. A
-blocked preparation names the one thing to change, and only pins fall on the
-project side.
+blocked preparation names the one thing to change.
+
+Settings are the one input the import itself may need. Applications validate
+their configuration at import (the target project refuses to start without
+`KNOWLEDGE_S3_BUCKET`, `KNOWLEDGE_PREFIX` and the Bedrock region). The
+preparation therefore layers three sources, later ones winning: placeholders
+for standard SDK credentials (`FASTAPI_PLACEHOLDER_SETTINGS`: AWS, OpenAI,
+Google and Anthropic keys and regions, which can never be used because the
+worker has no route out and every model class is replaced), the user's own
+settings (`--env`, `--env-file`, later the profile in the dashboard), and the
+disposable services' connection settings, which no user value can override.
+Reports and plans carry setting names only.
 
 ## Checkpoints
 
@@ -183,7 +205,15 @@ recorded under `docs/qualifications/`.
 1. **Build pipeline.** Resolve and build the target project's dependency set
    into a layer; worker starts with all isolation checks on Docker and Podman;
    the project imports under the 0.6.0 adapter with the disposable services
-   up. No model call yet.
+   up. No model call yet. Implemented as `plenger redteam prepare`
+   (`src/redteam/fastapi-prepare.ts`, `services.ts`, `runtimes/fastapi/`);
+   the Docker qualification on the target project is
+   [fastapi-prepare-dayatech-2026-10-06](../qualifications/fastapi-prepare-dayatech-2026-10-06.md).
+   Podman is pending. Two findings from the first
+   run shaped it: the credential detector had excluded ORM models and test
+   files over false positives, and the application requires the MySQL
+   settings at import, so the services and their settings are part of the
+   import, not only of the later cases.
 2. **Broker and tools.** The adapter routes `BedrockModel` to the host; a
    synthetic model drives one chat turn end to end through `/chat` with test
    access; tool entry and return are observed; token accounting matches the
@@ -202,8 +232,16 @@ recorded under `docs/qualifications/`.
   SQLite URL through its settings. The target project builds its engine from
   `MYSQL_*` settings, so the pod is the no-code route.
 - How much of the application's start-up to run. `main.py` starts a scheduler
-  and a Socket.IO app; the profile should import the FastAPI app object only,
-  with scheduler flags off through settings, and report what it skipped.
+  and a Socket.IO app; the profile imports the FastAPI app object, which in
+  this project starts the scheduler against the disposable Redis. The import
+  runs inside a running event loop because `AsyncIOScheduler.start()` needs
+  one, exactly as under uvicorn. Whether to turn such side effects off through
+  settings is open.
+- Resources at import. The first import failed on a prompt file the agent
+  reads at module level, so the snapshot policy `python-resources-v1` now
+  captures text resources (`FASTAPI_RESOURCE_EXTENSIONS`) under captured
+  Python packages, with the code's credential and size rules. Binary assets
+  and data outside the packages are still not captured.
 - Worker start-up cost with a large dependency set; M6b asks for it to be
   measured and published.
 - Whether the first live qualification needs the Bedrock-shaped request

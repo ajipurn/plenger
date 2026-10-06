@@ -45,11 +45,13 @@ export function ReadinessCard({ plan }: { plan: ProjectPlan }) {
         <div className="readiness-fact">
           <dt>Dynamic testing</dt>
           <dd className="readiness-value readiness-unavailable">
-            {runBlocker(plan)
-              ? "Runtime profile unavailable"
-              : plan.nextProfile
-                ? "Booking-test preview"
-                : "File-test preview"}
+            {plan.fastapiProfile
+              ? "FastAPI profile: preparation only"
+              : runBlocker(plan)
+                ? "Runtime profile unavailable"
+                : plan.nextProfile
+                  ? "Booking-test preview"
+                  : "File-test preview"}
           </dd>
         </div>
       </dl>

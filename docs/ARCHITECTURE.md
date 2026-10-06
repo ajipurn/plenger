@@ -93,6 +93,11 @@ explicit start.
   flow (PKCE, loopback callback, id-token verification, refresh, model
   catalog) and `chatgpt-provider.ts` is its streaming Responses API transport,
   which reports observed token thresholds instead of an enforced output cap.
+- **FastAPI preparation.** `fastapi-prepare.ts` builds a FastAPI project's image,
+  starts the disposable MySQL and Redis services from `services.ts` on a private
+  network and imports the application in a worker; it is the M6b profile's first
+  stage and makes no model calls. `runtimes/fastapi/` holds its recipe, preflight,
+  worker and the llmfy version adapters.
 - **Runs.** `run-model.ts` defines a run and its trials. `run.ts` executes the
   llmfy file-canary profile and dispatches `vercel-booking-sqlite-v1` to
   `vercel-run.ts`. `run-lifecycle.ts` holds the shared executor core (budget,
@@ -114,7 +119,7 @@ explicit start.
 
 The host to container protocol is specified in
 [design/worker-protocol.md](design/worker-protocol.md); the workers live in
-`runtimes/llmfy/` and `runtimes/vercel/`.
+`runtimes/llmfy/`, `runtimes/vercel/` and `runtimes/fastapi/`.
 
 Modules the browser bundles must stay free of `node:` imports: `constants.ts`,
 `campaign-model.ts`, `campaign-evidence.ts`, `comparison.ts`, `profile.ts`,
@@ -143,8 +148,9 @@ errors to exit codes: `UsageError`, `PolicyError`, `SourceRootError` and
 Each command parses only its own options with `parseCommandArgs` (`args.ts`), so an
 option of another command is reported as unsupported. `io.ts` abstracts stdout and
 stderr so tests can call `main()` directly. `redteam-run.ts`,
-`redteam-compare.ts` and `redteam-login.ts` (the ChatGPT sign-in) are the
-heavier commands and are loaded on demand.
+`redteam-compare.ts`, `redteam-login.ts` (the ChatGPT sign-in) and
+`redteam-prepare.ts` (the FastAPI profile's build and import) are the heavier
+commands and are loaded on demand.
 `github-action.ts` is the entry of the composite GitHub Action.
 
 ## The dashboard

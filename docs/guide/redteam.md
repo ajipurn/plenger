@@ -7,9 +7,10 @@ a model connection and a budget, then press Start in the dashboard or run
 image, installs its observation hooks, runs a clean control and then the
 attacks, and reports observed effects with evidence.
 
-Two managed profiles exist: `llmfy-file-canary-v1` and
+Two managed profiles run tests: `llmfy-file-canary-v1` and
 `vercel-booking-sqlite-v1`. Both use fixed attack prompts and deterministic
-oracles. The provider you choose configures the target model; there is no
+oracles. A third, the FastAPI project profile, has its preparation stage only;
+see [fastapi-llmfy-v1](#fastapi-llmfy-v1-preparation). The provider you choose configures the target model; there is no
 separate attacker or judge model yet. What is qualified for each profile is
 recorded in [../STATUS.md](../STATUS.md#qualified-versus-pending). The
 contracts behind this page are in
@@ -156,6 +157,46 @@ Reports keep three evidence levels apart: static indication, backend handler
 validation and model trial effect. A refused model attack does not override an
 observed backend weakness.
 
+### fastapi-llmfy-v1 (preparation)
+
+Scope: a project that declares `llmfy` and assigns a FastAPI application at
+module level (`app = FastAPI()`), with its dependencies in `requirements.txt`.
+plenger chooses this profile when the file-canary profile cannot bind any
+llmfy entry point, or when you select an `fastapi:` target. Today the profile
+prepares; it does not test. `plenger redteam prepare` does four things:
+
+1. Builds an image from the pinned Python base and the project's
+   `requirements.txt`, wheels only, so no package setup script runs. Entries
+   without an exact pin are resolved by pip and the installed versions are
+   recorded in the report. On an Apple Silicon host the build is retried for
+   `linux/amd64` when a wheel exists only for that platform; the report records
+   the platform.
+2. Starts disposable MySQL 8.4 and Redis 7.4 containers on a private network
+   with no route out, with credentials that exist for this run only, and
+   passes them to the application as `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`,
+   `MYSQL_PASSWORD`, `MYSQL_DATABASE`, `REDIS_HOST`, `REDIS_PORT` and
+   `REDIS_DB`. The containers publish no ports, drop every capability except
+   the five MySQL needs to prepare its data directory, and are removed with
+   the network when the command ends.
+3. Imports the application in a worker on that network, after replacing the
+   llmfy model classes (`BedrockModel`, `OpenAIModel`, `GoogleAIModel` in
+   0.6.0) with the host broker and wrapping `register_tool` for observation. A
+   version of llmfy without an adapter blocks the plan; 0.6.0 has one.
+4. Sends one in-process `GET /` through the application's own routing and
+   reports the status. A model request during preparation is a failure: no
+   model is served here yet.
+
+The report lists the packages installed, the isolation checks, the routes the
+application exposes, the import time and any import error with its exception
+type, redacted. The snapshot (`python-resources-v1`) holds the Python sources
+and the text files an application reads at import: `.md`, `.txt`, `.json`,
+`.yaml`, `.yml`, `.jinja`, `.j2`, `.html`, `.csv` and `.sql` files that sit
+under a directory holding captured Python, with the same credential, hidden
+path and size rules as the code. Project `.env` files are never read, and files
+outside the application's packages, such as a frontend checkout beside it,
+stay out. Attack cases for this profile are the next checkpoints in
+[../design/fastapi-profile.md](../design/fastapi-profile.md).
+
 ## Providers
 
 Settings → Providers stores named OpenAI, Gemini, Ollama or ChatGPT connections with
@@ -283,6 +324,25 @@ and intervals but are marked not qualified. The comparison shows absolute
 changes in observed rate and task completion in percentage points, not
 statistical significance. Reports lacking generation settings or runtime
 provenance cannot qualify. `--format` is `terminal`, `json` or `markdown`.
+
+### prepare
+
+```sh
+plenger redteam prepare ./project [--target <id>] [--env NAME=value]... [--env-file <file>] [--json] [--output <file>]
+```
+
+Builds and imports a FastAPI project as described under
+[fastapi-llmfy-v1](#fastapi-llmfy-v1-preparation). An application that
+validates its own settings at import gets them from `--env` or `--env-file`
+(`NAME=value` lines; the project's `.env` is never read). `MYSQL_*` and
+`REDIS_*` always point at the disposable services, and standard SDK
+credentials (`AWS_ACCESS_KEY_ID`, `OPENAI_API_KEY` and the like) receive
+placeholders unless supplied, because the worker cannot reach any provider.
+Reports list setting names, never values. Exit 0 when the application
+imported and answered the probe, 1 when the build, a service or the import
+failed, 2 when the project does not use the FastAPI profile, its plan is
+blocked or a setting is invalid. Network access is needed for the build and
+the first pull of the service images.
 
 ## Gates and exit codes
 

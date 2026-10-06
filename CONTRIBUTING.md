@@ -129,10 +129,12 @@ install scripts never run.
 ## Container runtimes
 
 The red-team profiles run project code in containers built from
-`runtimes/llmfy/` and `runtimes/vercel/`. The launcher
+`runtimes/llmfy/`, `runtimes/vercel/` and `runtimes/fastapi/`. The launcher
 (`src/redteam/runtime.ts`) uses Docker when `docker info` succeeds and falls
 back to Podman. Both need a running Linux backend. Regular `pnpm check` never
-touches them.
+touches them. The FastAPI image is built per project by `plenger redteam
+prepare`, from the recipe plus the project's `requirements.txt`; there is no
+fixture image to qualify separately yet.
 
 ```sh
 pnpm qualify:llmfy    # builds the llmfy image, runs the synthetic suite and the container tests

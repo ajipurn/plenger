@@ -427,6 +427,10 @@ describe("secrets", () => {
     'OpenAI().chat.completions.create(model="gpt-4o-2024-08-06")',
     'os.environ["LANGCHAIN_TRACING_V2"]',
     'assertSafeKeyComponent("thread_id", "checkpoint_2024_10_02_v3")',
+    "password = Column(String(255), nullable=True)",
+    '"tool_call_id": "call_0Zy3k9Qx8RvT2mN7pL4sW6yB"',
+    'activity_id="SW-Chat-22-Chia-fu-threat"',
+    "Filter by composite code (`category=code`, e.g. `category=KBTheme2024Alpha7Zx`).",
   ])("leaves identifiers, model names and variable names in source text alone: %s", (text) => {
     expect(redact(text)).toBe(text);
   });

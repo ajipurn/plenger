@@ -21,6 +21,7 @@ export const USAGE = `Usage:
   plenger redteam run [path]      Run managed security tests using a saved provider
   plenger redteam compare        Compare exported fixed security campaigns
   plenger redteam login          Connect a ChatGPT subscription provider
+  plenger redteam prepare [path] Build and import a FastAPI project (FastAPI profile)
   plenger --version
   plenger --help
 
@@ -117,6 +118,10 @@ async function subcommandUsage(name: string, rest: string[]): Promise<string | u
   if (rest[0] === "login") {
     const { REDTEAM_LOGIN_USAGE } = await import("./commands/redteam-login.ts");
     return REDTEAM_LOGIN_USAGE;
+  }
+  if (rest[0] === "prepare") {
+    const { REDTEAM_PREPARE_USAGE } = await import("./commands/redteam-prepare.ts");
+    return REDTEAM_PREPARE_USAGE;
   }
   if (rest[0] === "run") {
     const { REDTEAM_RUN_USAGE } = await import("./commands/redteam-run.ts");

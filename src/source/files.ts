@@ -68,6 +68,18 @@ export interface CollectOptions {
   maxFiles?: number;
   /** Leave out what the project's `.gitignore` files ignore (default true). */
   gitignore?: boolean;
+  /**
+   * Lowercase extensions (`.md`) of non-source files to list in `resources`, under the
+   * same ignore, symlink and size rules. Nothing is listed when absent.
+   */
+  resources?: readonly string[];
+}
+
+/** A non-source file a runtime profile may capture beside the code (prompts, templates). */
+export interface ResourceFile {
+  path: string;
+  absolutePath: string;
+  bytes: number;
 }
 
 export interface ExcludedDir {
@@ -80,6 +92,8 @@ interface CollectResult {
   /** The scan root with symlinks resolved. */
   root: string;
   files: SourceFile[];
+  /** Files matching `options.resources`, sorted by path; empty unless asked for. */
+  resources: ResourceFile[];
   skipped: SkippedFile[];
   /** Directories not walked into, and why. */
   excludedDirs: ExcludedDir[];
@@ -106,10 +120,12 @@ export async function collectSourceFiles(
   const result: CollectResult = {
     root: absoluteRoot,
     files: [],
+    resources: [],
     skipped: [],
     excludedDirs: [],
     truncated: false,
   };
+  const resourceExtensions = new Set(options.resources ?? []);
   const pending: { dir: string; rules: GitignoreRules[] }[] = [{ dir: "", rules: [] }];
 
   walk: while (pending.length > 0) {
@@ -163,12 +179,28 @@ export async function collectSourceFiles(
           }
           if (bytes > maxFileBytes) result.skipped.push({ path, reason: "too_large" });
           else result.files.push({ path, absolutePath, grammar: classification.grammar, bytes });
+        } else if (resourceExtensions.has(extensionOf(entry.name))) {
+          if (result.files.length + result.resources.length >= maxFiles) {
+            result.truncated = true;
+            break walk;
+          }
+          const absolutePath = join(absoluteRoot, path);
+          let bytes: number;
+          try {
+            bytes = (await lstat(absolutePath)).size;
+          } catch {
+            result.skipped.push({ path, reason: "unreadable" });
+            continue;
+          }
+          if (bytes > maxFileBytes) result.skipped.push({ path, reason: "too_large" });
+          else result.resources.push({ path, absolutePath, bytes });
         }
       }
     }
   }
 
   result.files.sort((a, b) => compareStrings(a.path, b.path));
+  result.resources.sort((a, b) => compareStrings(a.path, b.path));
   result.skipped.sort((a, b) => compareStrings(a.path, b.path));
   result.excludedDirs.sort((a, b) => compareStrings(a.path, b.path));
   return result;
@@ -204,6 +236,12 @@ function isGitignored(rules: GitignoreRules[], path: string, isDirectory: boolea
   return false;
 }
 
+/** `.md` for `notes.md`; the empty string for a name without an extension. */
+function extensionOf(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(dot).toLowerCase() : "";
+}
+
 function collectSingleFile(
   absolutePath: string,
   bytes: number,
@@ -213,6 +251,7 @@ function collectSingleFile(
   const result: CollectResult = {
     root: dirname(absolutePath),
     files: [],
+    resources: [],
     skipped: [],
     excludedDirs: [],
     truncated: false,

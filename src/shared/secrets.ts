@@ -81,7 +81,7 @@ export function findSecret(text: string): { name: string; match: string } | null
 
 /** `password: hunter2xyz`, `api key is ...`: a credential written out in prose. */
 const CREDENTIAL_PHRASE =
-  /\b(?:password|passwd|passphrase|api[_ -]?key|secret|access[_ -]?token|token)\s*(?:is|=|:)\s*["'`]?([^\s"'`{}]{8,})/gi;
+  /\b(?:password|passwd|passphrase|api[_ -]?key|secret|access[_ -]?token|token)\s*(?:is|=|:)\s*["'`]?([^\s"'`{}()]{8,})/gi;
 /** A quoted string in source code. */
 const QUOTED = /(["'`])([^"'`\s]{20,})\1/g;
 const PRIVATE_KEY_BLOCK =
@@ -104,9 +104,29 @@ export function secretIn(text: string): string | null {
  */
 function looksRandom(text: string): boolean {
   if (text.length < 20 || /[\s/.:]/.test(text) || PLACEHOLDER.test(text)) return false;
+  // `category=KB-Theme-2024-Alpha7` is a key=value expression; base64 padding stays at the end.
+  if (/=[^=]/.test(text)) return false;
   if (!/[a-z]/.test(text) || !/[A-Z]/.test(text)) return false;
   if ((text.match(/\d/g)?.length ?? 0) < 2) return false;
+  if (GENERATED_ID.test(text) || isCompoundIdentifier(text)) return false;
   return entropy(text) >= 3.5;
+}
+
+/** Ids that model APIs generate for calls, messages, runs and files; they are not credentials. */
+const GENERATED_ID =
+  /^(?:call|chatcmpl|msg|req|resp|run|thread|asst|toolu|tooluse|fc|rs|file)[_-]/i;
+
+/**
+ * `SW-Chat-22-Chia-fu-threat`, `bars-behaviour-2024-second`: several separator-joined parts
+ * of which at least one is a plain word. Generated keys do not contain words.
+ */
+function isCompoundIdentifier(text: string): boolean {
+  const parts = text.split(/[-_]/);
+  return (
+    parts.length >= 4 &&
+    parts.every((part) => /^[A-Za-z0-9]+$/.test(part)) &&
+    parts.some((part) => /^[A-Za-z]{3,}$/.test(part))
+  );
 }
 
 /**

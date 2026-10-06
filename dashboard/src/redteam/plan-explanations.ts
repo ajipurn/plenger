@@ -12,6 +12,10 @@ const planExplanations: Record<string, string> = {
     "Some source files could not be captured. Review the omitted files below.",
   "no-callable-entry-point":
     "An agent was found, but its callable entry point could not be identified.",
+  "requirements-file-required":
+    "The FastAPI profile installs dependencies from requirements.txt; the project has none.",
+  "app-source-not-captured":
+    "The module that defines the application object was not captured, so it cannot be imported.",
   "not-a-module-function":
     "Automatic preparation currently supports functions defined at the module's top level.",
   "not-a-public-function": "Automatic preparation currently supports public functions only.",
@@ -75,6 +79,8 @@ const planExplanations: Record<string, string> = {
 };
 
 export function explainPlanValue(value: string): string {
+  if (value.startsWith("llmfy-adapter-missing:"))
+    return `llmfy ${value.slice("llmfy-adapter-missing:".length)} has no FastAPI profile adapter yet.`;
   if (value.startsWith("conflicting-dependency:")) {
     return `Different constraints were declared for ${value.slice("conflicting-dependency:".length)}; compatibility has not been resolved.`;
   }

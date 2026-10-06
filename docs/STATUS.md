@@ -10,7 +10,7 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | --- | --- | --- |
 | M0 to M5: static triage, reports and CI | Done | See [history/m0-m5.md](history/m0-m5.md) |
 | M6a: click-to-run llmfy | In progress | Managed `llmfy-file-canary-v1` profile runs with one live-model record on the bundled fixture; a live run on a team project and billed-token accounting pending |
-| M6b: HTTP and project expansion | In progress | Managed `vercel-booking-sqlite-v1` profile runs with one live-model record; broader profiles pending |
+| M6b: HTTP and project expansion | In progress | Managed `vercel-booking-sqlite-v1` profile runs with one live-model record. The FastAPI project profile has its preparation stage (`plenger redteam prepare`); its case packs are pending. See [design/fastapi-profile.md](design/fastapi-profile.md) |
 | M6c: MCP and CI | Partly delivered | Campaigns, statistics, gates, comparisons and CLI reports exist; MCP adapter pending |
 | M7: indirect prompt injection | Planned | See [ROADMAP.md](ROADMAP.md#m7-red-team-indirect-prompt-injection-planned) |
 | M8: distribution | In progress | npm package and standalone binary checks pass in CI on Linux, macOS and Windows; public release pending |
@@ -27,6 +27,7 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | `redteam discover` and `redteam plan` (offline) | Available | llmfy function/factory discovery; Python source and Next.js route preparation plans |
 | Red-team profile `llmfy-file-canary-v1` | Available, one live-model record | A clean control and four fixed file-canary probes, bound to targets by observed file-write semantics. One live run on the bundled fixture; see qualification records below |
 | Red-team profile `vercel-booking-sqlite-v1` | Available, one live-model record | Backend checks plus three model trials against a disposable SQLite database |
+| FastAPI project profile `fastapi-llmfy-v1` | Preparation stage only, one record | Builds the project's declared dependencies from wheels, starts disposable MySQL and Redis on a private network, imports the application with llmfy 0.6.0 model classes routed to the broker and probes `GET /`. No cases, no model calls. Qualified once on the Dayatech assessment center; see below |
 | `redteam run` (CLI campaigns) | Available | Fixed repetitions, shared budget, Wilson intervals, severity/coverage/scope gates, profile export. [guide/redteam.md](guide/redteam.md) |
 | `redteam compare` (before/after) | Available | Fixed-configuration checks, 20 usable trials per case per build |
 | Saved providers (OpenAI, Gemini, Ollama) | Available | Keys encrypted at rest in SQLite; never sent to workers or included in reports |
@@ -80,6 +81,7 @@ Records live in [qualifications/](qualifications/).
 | llmfy file canary, live model | [2026-10-06, bundled fixture, ChatGPT `gpt-6.1-sol`](qualifications/llmfy-chatgpt-live-2026-10-06.md) | Live run on an unmodified team project (the candidate project is outside the profile); enforced token accounting against a billed provider; repetition-based estimates |
 | Next.js booking profile, scripted model | [2026-10-04](qualifications/vercel-synthetic-2026-10-04.md) | Other models, backends and platforms |
 | Next.js booking profile, live model | [2026-10-03, Autocare, `gemma4:31b-cloud`](qualifications/autocare-live-2026-10-03.md) | Repetition-based success-rate estimates |
+| FastAPI profile, build and import (checkpoint 1) | [2026-10-06, Dayatech assessment center, Docker, `linux/amd64`](qualifications/fastapi-prepare-dayatech-2026-10-06.md) | Podman; case packs, broker calls and oracles (checkpoints 2 to 4) |
 | Binary smoke test | macOS Apple Silicon locally; Ubuntu 24.04 x64, macOS 15 ARM64 and Windows 2022 x64 in CI (Node.js 22.18.0) | Intel macOS and Linux ARM64 |
 | npm package smoke test | macOS Apple Silicon locally (Node.js 22.23.2, npm 10.9.8); Ubuntu 24.04, macOS 15 and Windows 2022 in CI (Node.js 22.18.0) | Intel macOS and other Node.js versions |
 

@@ -125,6 +125,90 @@ export const LLMFY_ISOLATION_CHECKS: readonly string[] = [
   "image-write-denied",
   "temporary-write",
 ];
+/**
+ * The FastAPI project profile (M6b, docs/design/fastapi-profile.md). Preparation only:
+ * it builds the project's dependencies, imports the application beside disposable
+ * services and probes one route. It joins `PROFILES` when its first case pack runs.
+ */
+export const FASTAPI_PROFILE = "fastapi-llmfy-v1" as const;
+export const FASTAPI_RUNTIME = { python: "3.12.13" } as const;
+/** llmfy versions with a broker adapter under runtimes/fastapi/adapters/. */
+export const FASTAPI_LLMFY_ADAPTERS: readonly string[] = ["0.6.0"];
+/** Disposable services started beside a FastAPI worker; multi-arch index digests as of 2026-10-06. */
+export const FASTAPI_SERVICES = {
+  mysql: {
+    image:
+      "docker.io/library/mysql:8.4@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242",
+    port: 3306,
+  },
+  redis: {
+    image:
+      "docker.io/library/redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+    port: 6379,
+  },
+} as const;
+export type FastapiService = keyof typeof FASTAPI_SERVICES;
+/**
+ * Text resources the FastAPI profile captures beside Python sources when they sit under
+ * a captured Python package: prompts, templates and small data files read at import.
+ * The worker accepts exactly these suffixes (`SOURCE_SUFFIXES` in runtimes/fastapi/worker.py).
+ */
+export const FASTAPI_RESOURCE_EXTENSIONS: readonly string[] = [
+  ".md",
+  ".txt",
+  ".json",
+  ".yaml",
+  ".yml",
+  ".jinja",
+  ".j2",
+  ".html",
+  ".csv",
+  ".sql",
+];
+/**
+ * Credentials SDK clients demand at construction. The worker has no route to any
+ * provider and every llmfy model class is replaced, so these values can never be used;
+ * they only let an application import. Project-specific settings come from the user.
+ */
+export const FASTAPI_PLACEHOLDER_SETTINGS: Readonly<Record<string, string>> = {
+  AWS_ACCESS_KEY_ID: "plenger-placeholder",
+  AWS_SECRET_ACCESS_KEY: "plenger-placeholder",
+  AWS_DEFAULT_REGION: "us-east-1",
+  AWS_REGION: "us-east-1",
+  /** llmfy's own name for the Bedrock region; its model class is replaced, the setting still must exist. */
+  AWS_BEDROCK_REGION: "us-east-1",
+  OPENAI_API_KEY: "plenger-placeholder",
+  GOOGLE_API_KEY: "plenger-placeholder",
+  GEMINI_API_KEY: "plenger-placeholder",
+  ANTHROPIC_API_KEY: "plenger-placeholder",
+};
+/** Limits of a FastAPI worker; its preflight checks these exact values. */
+export const FASTAPI_WORKER = {
+  memoryBytes: 1024 * 1024 * 1024,
+  pids: 128,
+  tmpfsMiB: 64,
+  /** Transport deadline: a full application import under emulation is slow. */
+  timeoutMs: 300_000,
+  /** Resolving and installing a project's wheels, including a possible platform retry. */
+  buildTimeoutMs: 1_800_000,
+} as const;
+/** Every check a `ready` frame from the FastAPI worker must report. */
+export const FASTAPI_ISOLATION_CHECKS: readonly string[] = [
+  "linux",
+  "python-version",
+  "non-root",
+  "no-capabilities",
+  "no-new-privileges",
+  "seccomp-filter",
+  "private-network-only",
+  "no-default-route",
+  "read-only-root",
+  "private-temporary-files",
+  ...RESOURCE_ISOLATION_CHECKS,
+  "image-write-denied",
+  "temporary-write",
+];
+
 /** Every check a `ready` frame from the Vercel worker must report. */
 export const VERCEL_ISOLATION_CHECKS: readonly string[] = [
   "linux",
