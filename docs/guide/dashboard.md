@@ -107,9 +107,11 @@ contacting a model. The scanner's exclusions and `.gitignore` handling apply.
   counts and the source file and line, so repeated constructors can be told
   apart. Selecting a row opens a drawer with full metadata, the captured prompt
   and capabilities. Frameworks sit in an expandable summary above the table.
-- **Scan history** lists saved completed scans across projects and launches.
-  Reopening a scan shows its captured result and persists the selection;
-  **Rescan project** reads current source.
+- **Scan history** lists saved completed scans across projects and launches
+  in a table: project, scan time, source files and findings. Search filters by
+  project name or path; pages hold 20 scans. The scan open in the workspace is
+  marked. Reopening a scan shows its captured result and persists the
+  selection; **Rescan project** reads current source.
 
 **Export JSON** downloads the selected scan's results, including inventory,
 findings and evidence. The export contains `id`, `createdAt`, `scan` and

@@ -142,8 +142,8 @@ result is one panel of flush sections divided by hairlines:
    for the security result.
 2. Key figures: model and provider, repetitions, normal tasks, model calls and
    tokens, each with a small usage bar where a limit applies.
-3. Notices: errors with a link to the fix, stale results (warning) and context
-   (info). Each has an icon and full text. A missing safeguard is not a notice;
+3. Notices: a CI gate minimum below the estimation threshold (warning), errors
+   with a link to the fix, stale results (warning) and context (info). Each has an icon and full text. A missing safeguard is not a notice;
    it gets its own section below.
 4. Direct tool checks: one card per handler called without the model, with the
    outcome chip, the observed change, the arguments sent and the recommended
@@ -155,13 +155,26 @@ result is one panel of flush sections divided by hairlines:
    comparison minimum the cell reads "Too few tests to estimate" with the count
    needed and the interval in the note, never a bold percentage. The method
    note sits below it as a footnote.
-6. Discovered surfaces exercised, as a ratio with a bar.
+6. Discovered surfaces exercised, as a ratio with a bar. Handlers exercised by
+   direct tool checks count, and the text says how many.
 7. Collapsible blocks (CI gate, evidence by repetition, technical evidence)
    with an icon tile, one line of description and a value on the right.
 
 A single run uses the same parts: attack checks replace the table, and the
 normal task and coverage notes sit side by side. Comparison, run setup and
 test setup below the result use the same collapsible summary.
+
+## Scan history
+
+The page opens with a heading that carries the saved-scan count and one line
+with the number of projects, and the Clear saved data action on the right. The
+table uses the shared header treatment: project name with its directory in
+mono and an icon tile, scan time with a relative time under it, source files,
+findings as a count chip, and a chevron. The scan open in the workspace gets
+the accent tint, the 2px accent edge and an Open now tag. A search field
+filters by project name or path, and the footer shows the visible range with
+Previous / Next at 20 scans per page. Below 1000px the source file column is
+hidden; on phones the scan time moves under the project name.
 
 ## Project picker
 

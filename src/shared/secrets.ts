@@ -110,6 +110,16 @@ function looksRandom(text: string): boolean {
 }
 
 /**
+ * Masks an account identity for display: `semlakune.dev@gmail.com` becomes
+ * `s•••@gmail.com`. Non-email identifiers keep their first two characters.
+ */
+export function maskAccount(account: string): string {
+  const at = account.indexOf("@");
+  if (at > 0) return `${account.slice(0, 1)}•••${account.slice(at)}`;
+  return `${account.slice(0, 2)}•••`;
+}
+
+/**
  * Replaces what is known to be secret: private key blocks, known key formats,
  * credentials written out, and the given literal credentials found in the code.
  * Safe for any text, including plenger's own titles and messages.

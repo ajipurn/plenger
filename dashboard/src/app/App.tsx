@@ -238,6 +238,7 @@ export function App() {
                     element={
                       <HistoryView
                         history={history}
+                        currentId={report?.id ?? null}
                         available={available}
                         clearTrigger={clearTrigger}
                         onScan={scan}

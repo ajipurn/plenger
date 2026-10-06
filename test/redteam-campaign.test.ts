@@ -201,7 +201,23 @@ describe("fixed campaign evidence and gates", () => {
         .filter((item) => item.kind !== "input")
         .every((item) => !item.supported && !item.selected && !!item.reason),
     ).toBe(true);
-    expect(summarizeScope(report)).toMatchObject({ exercised: 1, discovered: 8, unsupported: 7 });
+    expect(summarizeScope(report)).toMatchObject({
+      exercised: 1,
+      direct: 0,
+      discovered: 8,
+      unsupported: 7,
+    });
+    const boundary = config.scope.find(
+      (item) => item.kind === "tool" && item.caseId === "tool-boundary",
+    );
+    if (!boundary?.label) throw new Error("Tool scope missing");
+    const empty = { bookings: [], invoices: [], payments: [] };
+    const first = report.runs[0] as RedteamRun;
+    const check = { tool: boundary.label, arguments: {}, before: empty, after: empty };
+    first.backendChecks = [{ ...check, outcome: "inconclusive" }];
+    expect(summarizeScope(report)).toMatchObject({ exercised: 1, direct: 0 });
+    first.backendChecks = [{ ...check, outcome: "violation_observed" }];
+    expect(summarizeScope(report)).toMatchObject({ exercised: 2, direct: 1, unsupported: 7 });
     const requirement = config.scope.find((item) => item.kind === "mcp");
     if (!requirement) throw new Error("Scope missing");
     config.requiredScope.push(requirement.id);

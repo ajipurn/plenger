@@ -38,7 +38,7 @@ export function formatCampaign(report: CampaignReport, format: CampaignFormat): 
     `Source: ${report.plan.sourceDigest}`,
     `Repetitions: ${report.runs.length}/${report.plan.repetitions} · clean task passed: ${report.runs.filter((run) => run.cleanControlPassed).length}/${report.plan.repetitions}`,
     `Gate: ${gate.exitCode === 0 ? "passed" : "failed"} · exit ${gate.exitCode}`,
-    `Discovered scope: ${scope.exercised}/${scope.discovered} surfaces exercised · ${scope.unsupported} unsupported${scope.incomplete ? " · discovery incomplete/unknown; omitted surfaces are not covered" : " · unknown surfaces outside discovery are not covered"}`,
+    `Discovered scope: ${scope.exercised}/${scope.discovered} surfaces exercised${scope.direct ? ` (${scope.direct} by direct tool checks)` : ""} · ${scope.unsupported} unsupported${scope.incomplete ? " · discovery incomplete/unknown; omitted surfaces are not covered" : " · unknown surfaces outside discovery are not covered"}`,
     "",
   ];
   const rows = statistics.map((item) => {

@@ -10,6 +10,7 @@ import {
   type SavedProvider,
   validateProviderInput,
 } from "../redteam/provider-config.ts";
+import { maskAccount } from "../shared/secrets.ts";
 import { parsePayload, Storage, textColumn } from "./database.ts";
 import { StoreValidationError } from "./errors.ts";
 import {
@@ -72,12 +73,19 @@ export class ProviderRepository {
         "SELECT id, is_default, payload, credential IS NOT NULL AS has_key FROM model_providers ORDER BY is_default DESC, name",
       )
       .all()
-      .map((row) => ({
-        ...parsePayload<ProviderPayload>(row),
-        id: textColumn(row, "id"),
-        isDefault: row.is_default === 1,
-        hasApiKey: parsePayload<ProviderPayload>(row).provider !== "chatgpt" && row.has_key === 1,
-      }));
+      .map((row) => {
+        const payload = parsePayload<ProviderPayload>(row);
+        return {
+          ...payload,
+          // Rows written before masking still hold the full address.
+          ...(payload.chatgptAccount
+            ? { chatgptAccount: maskAccount(payload.chatgptAccount) }
+            : {}),
+          id: textColumn(row, "id"),
+          isDefault: row.is_default === 1,
+          hasApiKey: payload.provider !== "chatgpt" && row.has_key === 1,
+        };
+      });
   }
 
   /**
@@ -190,7 +198,9 @@ export class ProviderRepository {
   saveChatgptSession(id: string, session: ChatgptSession, expected: string | null): string {
     this.readChatgptSession(id);
     const sealed = sealProviderKey(this.#key, id, JSON.stringify(session));
-    const account = session.credentials ? (session.email ?? session.subject) : undefined;
+    const identity = session.credentials ? (session.email ?? session.subject) : undefined;
+    // Only the masked identity is stored; the full address stays in the sealed session.
+    const account = identity === undefined ? undefined : maskAccount(identity);
     const changed = this.#storage.database
       .prepare(
         "UPDATE model_providers SET credential = ?, payload = json_patch(payload, ?) WHERE id = ? AND credential IS ? AND json_extract(payload, '$.provider') = 'chatgpt'",

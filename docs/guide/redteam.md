@@ -342,9 +342,11 @@ The dashboard stores runs, campaigns and settings in SQLite per project.
 Campaign plans retain the discovered input, tool, MCP, web and retrieval
 surfaces, including separate content-only and index-backed retrieval
 scenarios. A surface without a qualified adapter stays unsupported with a
-reason. Only the selected input scenarios obtain usable evidence today;
-completing them does not mark other discovered tools as exercised. Reports show
-discovered scope separately from per-case execution coverage. A required
+reason. Only the selected input scenarios obtain usable model evidence today;
+completing them does not mark other discovered tools as exercised. A concluded
+direct tool check marks the checked handler's tool-boundary scenario as
+exercised without a model. Reports show discovered scope separately from
+per-case execution coverage. A required
 scenario that disappears or loses support fails the scope gate independently
 of execution coverage.
 

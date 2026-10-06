@@ -10,6 +10,27 @@ export function formatDateTime(value: string, style: "medium" | "locale" = "medi
   );
 }
 
+/** "3 hours ago", "yesterday", "2 weeks ago"; dates far back fall back to the medium date. */
+export function formatRelativeTime(value: string, now = Date.now()): string {
+  const seconds = Math.round((new Date(value).getTime() - now) / 1000);
+  const units: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["minute", 60],
+    ["hour", 3600],
+    ["day", 86_400],
+    ["week", 604_800],
+  ];
+  if (Math.abs(seconds) < 60) return "just now";
+  const format = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  for (const [unit, size] of units) {
+    if (
+      Math.abs(seconds) <
+      size * (unit === "week" ? 5 : unit === "day" ? 7 : unit === "hour" ? 24 : 60)
+    )
+      return format.format(Math.round(seconds / size), unit);
+  }
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
+}
+
 export function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }

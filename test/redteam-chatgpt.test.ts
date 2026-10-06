@@ -222,7 +222,7 @@ describe("ChatGPT subscription login", () => {
       });
       expect(result.provider).toMatchObject({
         model: "test-model",
-        chatgptAccount: "test@example.com",
+        chatgptAccount: "t•••@example.com",
       });
       expect(result.models).toEqual([{ id: "test-model", name: "Test model" }]);
       expect(result.authorizationUrl).toBeUndefined();
@@ -306,7 +306,7 @@ describe("ChatGPT subscription login", () => {
       provider: "chatgpt",
       model: "test-model",
       hasApiKey: false,
-      chatgptAccount: "test@example.com",
+      chatgptAccount: "t•••@example.com",
     });
     const access = store.providers.resolveProvider(saved.id).access;
     store.close();

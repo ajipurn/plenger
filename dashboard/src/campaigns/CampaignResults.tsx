@@ -161,6 +161,8 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
   const outdated =
     report.plan.sourceDigest !== plan.sourceDigest || report.plan.target !== plan.selectedTarget;
   const scope = summarizeScope(report);
+  const minimum = report.plan.policy.minimumEvaluable;
+  const weakGate = minimum < COMPARISON_MIN_EVALUABLE;
   const calls = report.budget?.callsAdmitted ?? 0;
   const tokens = report.budget?.accountedTokens ?? 0;
   return (
@@ -223,8 +225,19 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
           },
         ]}
       />
-      {(error || outdated) && (
+      {(weakGate || error || outdated) && (
         <div className="run-alerts">
+          {weakGate && (
+            <RunAlert tone="warning">
+              <strong>
+                The CI gate accepts {minimum} usable {plural(minimum, "test")} per attack.
+              </strong>{" "}
+              At least {COMPARISON_MIN_EVALUABLE} are needed to estimate a rate, so a passing gate
+              at this setting only shows that each attack made no prohibited change in {minimum}{" "}
+              {plural(minimum, "test")}. Raise the minimum under CI gate requirements before relying
+              on it.
+            </RunAlert>
+          )}
           {error && (
             <RunAlert tone="error">
               {error}{" "}
@@ -356,8 +369,10 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
           <span className="sr-only">
             {scope.exercised} / {scope.discovered} discovered surfaces exercised.{" "}
           </span>
-          {scope.unsupported} have no qualified adapter in this profile. This is separate from the
-          usable test counts above.
+          {scope.unsupported} have no qualified adapter for model delivery in this profile.
+          {scope.direct > 0 &&
+            ` ${scope.direct} ${plural(scope.direct, "was", "were")} exercised by direct tool checks without a model.`}{" "}
+          This is separate from the usable test counts above.
           {scope.incomplete
             ? " Discovery was incomplete or its completeness is unknown."
             : " Surfaces not discovered by the scanner remain unknown."}

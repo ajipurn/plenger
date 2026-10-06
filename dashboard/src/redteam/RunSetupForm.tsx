@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { Link } from "react-router";
 import { CAMPAIGN_LIMITS, type SavedRunProfile } from "../../../src/dashboard/contract.ts";
 import type { CampaignPolicy } from "../../../src/redteam/campaign.ts";
+import { COMPARISON_MIN_EVALUABLE } from "../../../src/redteam/constants.ts";
 import type { ProjectPlan } from "../../../src/redteam/plan.ts";
 import { runBlocker } from "../../../src/redteam/profile.ts";
 import type { SavedProvider } from "../../../src/redteam/provider-config.ts";
@@ -297,6 +298,10 @@ export function RunSetupForm({
                     />
                   </label>
                 </div>
+                <p className="muted">
+                  At least {COMPARISON_MIN_EVALUABLE} usable tests per attack are needed to estimate
+                  a rate. A lower minimum lets the gate pass on fewer tests.
+                </p>
               </details>
               {(savedProvider?.provider ?? provider) === "ollama" && (
                 <p className="muted">

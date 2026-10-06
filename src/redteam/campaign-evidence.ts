@@ -82,19 +82,35 @@ export function summarizeCampaign(report: CampaignReport): CaseStatistics[] {
 /** Count discovered surfaces separately from per-case execution coverage. */
 export function summarizeScope(report: CampaignReport) {
   const statistics = summarizeCampaign(report);
-  const surfaces = new Map<string, { exercised: boolean; supported: boolean; selected: boolean }>();
+  // A concluded direct tool check exercises that handler's tool boundary without a model.
+  const checkedTools = new Set<string>();
+  for (const run of report.runs)
+    for (const check of run.backendChecks ?? [])
+      if (check.outcome === "violation_observed" || check.outcome === "not_observed")
+        checkedTools.add(check.tool);
+  const surfaces = new Map<
+    string,
+    { exercised: boolean; direct: boolean; supported: boolean; selected: boolean }
+  >();
   for (const item of report.plan.scope) {
     const evidence =
       item.selected &&
       item.supported &&
       item.target === report.plan.target &&
       (statistics.find((stats) => stats.caseId === item.caseId)?.evaluable ?? 0) > 0;
+    const direct =
+      item.kind === "tool" &&
+      item.caseId === "tool-boundary" &&
+      item.label !== undefined &&
+      checkedTools.has(item.label);
     const surface = surfaces.get(item.target) ?? {
       exercised: false,
+      direct: false,
       supported: false,
       selected: false,
     };
-    surface.exercised ||= evidence;
+    surface.exercised ||= evidence || direct;
+    surface.direct ||= direct;
     surface.supported ||= item.supported;
     surface.selected ||= item.selected;
     surfaces.set(item.target, surface);
@@ -102,6 +118,8 @@ export function summarizeScope(report: CampaignReport) {
   return {
     discovered: surfaces.size,
     exercised: [...surfaces.values()].filter((item) => item.exercised).length,
+    /** Surfaces exercised by a direct tool check, with no model delivery adapter needed. */
+    direct: [...surfaces.values()].filter((item) => item.direct).length,
     unsupported: [...surfaces.values()].filter((item) => !item.supported).length,
     unselected: [...surfaces.values()].filter((item) => item.supported && !item.selected).length,
     incomplete: report.plan.scopeIncomplete !== false,

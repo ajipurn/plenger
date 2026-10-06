@@ -2345,14 +2345,11 @@ main:focus-visible {
   @apply size-3.5 mt-[3px] rounded-full flex-none border border-dashed border-subtle;
 }
 
+.history-stack > .view-section-intro {
+  @apply items-start;
+}
 .history-panel {
   @apply overflow-hidden;
-}
-.history-list {
-  @apply border-t border-line;
-}
-.history-actions {
-  @apply flex items-center gap-2.5 flex-none;
 }
 .clear-dialog {
   @apply max-w-[440px];
@@ -2360,42 +2357,115 @@ main:focus-visible {
 .clear-dialog-actions {
   @apply flex justify-end flex-wrap gap-2 mt-6;
 }
+.history-toolbar {
+  @apply flex items-center justify-between gap-3 px-4 py-3 text-label;
+}
+.history-toolbar .search-field {
+  @apply min-w-0 w-full max-w-[320px];
+}
+.history-toolbar > span {
+  @apply text-[12px] text-subtle whitespace-nowrap;
+}
+.history-table {
+  @apply w-full text-label;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.history-table th {
+  @apply h-9 px-4 py-0 text-start align-middle font-medium text-subtle bg-paper/60 border-y border-line text-micro uppercase tracking-[0.06em];
+}
+.history-table td {
+  @apply px-4 py-3 align-middle;
+}
+.history-project-column {
+  width: 48%;
+}
+.history-date-column {
+  width: 22%;
+}
+.history-files-column,
+.history-findings-column {
+  width: 12%;
+}
+.history-open-column {
+  width: 6%;
+}
 .history-row {
-  @apply flex items-center gap-3.5 w-full text-start px-5 py-3 bg-transparent text-ink;
+  @apply cursor-pointer;
 }
 .history-row + .history-row {
   @apply border-t border-line;
 }
-.history-row:hover:not(:disabled) {
+.history-row:hover,
+.history-row:focus-within {
   @apply bg-hover;
 }
-.history-row:focus-visible {
-  outline-offset: -2px;
+.history-row.is-selected {
+  @apply bg-accent-soft;
+  box-shadow: inset 2px 0 0 var(--accent);
 }
-.history-row > span:nth-child(2) {
-  @apply flex-1 min-w-0;
-}
-.history-row strong {
-  @apply block text-ui font-medium wrap-anywhere;
-}
-.history-row .break-path {
-  @apply block text-[12px] font-mono text-subtle mt-0.5;
-}
-.history-row > .icon {
-  @apply size-3.5 text-subtle;
+.history-project-cell {
+  @apply flex items-center gap-3.5 min-w-0;
 }
 .history-icon {
   @apply size-8 grid place-items-center flex-none bg-paper rounded-[8px] text-muted;
   box-shadow: inset 0 0 0 1px var(--line);
 }
-.history-date {
-  @apply text-muted text-[12px] tabular-nums whitespace-nowrap;
+.history-row.is-selected .history-icon {
+  @apply text-accent;
 }
-.history-summary {
-  @apply text-[12px] text-muted;
+.history-project {
+  @apply grid gap-0.5 min-w-0 flex-1;
 }
-.history-panel .empty-state {
-  @apply border-0 rounded-none shadow-none;
+.history-open {
+  @apply w-fit max-w-full text-start text-ui font-medium text-ink rounded-[4px] wrap-anywhere;
+}
+.history-open:hover:not(:disabled) {
+  @apply text-ink-hover underline decoration-line-strong underline-offset-4;
+}
+.history-open:focus-visible {
+  outline-offset: 3px;
+}
+.history-path {
+  @apply block text-[12px] font-mono text-subtle truncate;
+}
+.history-mobile-date {
+  @apply hidden;
+}
+.history-current-tag {
+  @apply mt-1 text-[10px] px-1.5 py-0.5 text-accent bg-accent-soft;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent);
+}
+.history-date-cell {
+  @apply tabular-nums;
+}
+.history-date-cell > time,
+.history-date-cell > span {
+  @apply block whitespace-nowrap;
+}
+.history-date-cell > span {
+  @apply text-[12px] mt-0.5;
+}
+.history-table .history-number-cell {
+  @apply text-end tabular-nums;
+}
+.run-count.is-zero {
+  @apply text-subtle bg-transparent;
+}
+.history-open-cell {
+  @apply text-end;
+}
+.history-open-cell .icon {
+  @apply size-3.5 text-subtle;
+}
+.history-row:hover .history-open-cell .icon {
+  @apply text-ink;
+}
+.history-footer {
+  @apply flex items-center justify-between gap-3 flex-wrap px-4 py-2.5 border-t border-line min-h-11;
+}
+.history-empty {
+  @apply border-0 rounded-none shadow-none border-t border-line;
 }
 
 .project-dialog {
@@ -2757,9 +2827,6 @@ main:focus-visible {
   .target-actions {
     @apply justify-start flex-wrap;
   }
-  .history-row {
-    @apply flex-wrap;
-  }
   .readiness-summary {
     @apply grid-cols-3;
   }
@@ -3024,17 +3091,42 @@ main:focus-visible {
   .picker-selected-folder {
     @apply w-full;
   }
-  .history-row {
-    @apply px-4;
+  .history-toolbar > span {
+    @apply hidden;
   }
-  .history-panel > .section-heading {
+  .history-toolbar .search-field {
+    @apply max-w-none;
+  }
+  .history-table th,
+  .history-table td {
+    @apply px-3;
+  }
+  .history-files-column,
+  .history-table .history-number-cell:nth-child(3) {
+    @apply hidden;
+  }
+  .history-date-column,
+  .history-table th:nth-child(2),
+  .history-date-cell {
+    @apply hidden;
+  }
+  .history-mobile-date {
+    @apply block text-[12px] text-muted mt-0.5 tabular-nums;
+  }
+  .history-project-column {
+    width: 72%;
+  }
+  .history-findings-column {
+    width: 18%;
+  }
+  .history-open-column {
+    width: 10%;
+  }
+  .history-icon {
+    @apply hidden;
+  }
+  .history-stack > .view-section-intro {
     @apply flex-col;
-  }
-  .history-actions {
-    @apply w-full justify-between flex-wrap;
-  }
-  .history-date {
-    @apply w-full ms-[46px];
   }
 }
 @media (forced-colors: active) {
