@@ -9,7 +9,7 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | Milestone | State | Summary |
 | --- | --- | --- |
 | M0 to M5: static triage, reports and CI | Done | See [history/m0-m5.md](history/m0-m5.md) |
-| M6a: click-to-run llmfy | In progress | Managed `llmfy-file-canary-v1` profile runs; live-model qualification pending |
+| M6a: click-to-run llmfy | In progress | Managed `llmfy-file-canary-v1` profile runs with one live-model record on the bundled fixture; a live run on a team project and billed-token accounting pending |
 | M6b: HTTP and project expansion | In progress | Managed `vercel-booking-sqlite-v1` profile runs with one live-model record; broader profiles pending |
 | M6c: MCP and CI | Partly delivered | Campaigns, statistics, gates, comparisons and CLI reports exist; MCP adapter pending |
 | M7: indirect prompt injection | Planned | See [ROADMAP.md](ROADMAP.md#m7-red-team-indirect-prompt-injection-planned) |
@@ -25,12 +25,12 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | Local dashboard (`plenger serve`) | Available | Scans, inventory, findings, history, providers, red-team runs, campaigns and comparisons. [guide/dashboard.md](guide/dashboard.md) |
 | npm package | Available locally | Compiled CLI, built dashboard, grammars, schemas and red-team recipes in one tarball. [guide/install.md](guide/install.md) |
 | `redteam discover` and `redteam plan` (offline) | Available | llmfy function/factory discovery; Python source and Next.js route preparation plans |
-| Red-team profile `llmfy-file-canary-v1` | Available, synthetic qualification only | A clean control and four fixed file-canary probes, bound to targets by observed file-write semantics; the two newest probes have run against stub workers only. See qualification records below |
+| Red-team profile `llmfy-file-canary-v1` | Available, one live-model record | A clean control and four fixed file-canary probes, bound to targets by observed file-write semantics. One live run on the bundled fixture; see qualification records below |
 | Red-team profile `vercel-booking-sqlite-v1` | Available, one live-model record | Backend checks plus three model trials against a disposable SQLite database |
 | `redteam run` (CLI campaigns) | Available | Fixed repetitions, shared budget, Wilson intervals, severity/coverage/scope gates, profile export. [guide/redteam.md](guide/redteam.md) |
 | `redteam compare` (before/after) | Available | Fixed-configuration checks, 20 usable trials per case per build |
 | Saved providers (OpenAI, Gemini, Ollama) | Available | Keys encrypted at rest in SQLite; never sent to workers or included in reports |
-| ChatGPT subscription provider | Experimental | Native Sign in with ChatGPT, encrypted OAuth storage, text/function Responses transport and observed token thresholds. Offline protocol tests cover authentication and accounting. Live account and container qualification pending. |
+| ChatGPT subscription provider | Experimental | Native Sign in with ChatGPT, encrypted OAuth storage, text/function Responses transport and observed token thresholds. Offline protocol tests cover authentication and accounting; one live llmfy run recorded on 2026-10-06. Live qualification on a team project pending. |
 | Container runtime | Available | Docker preferred, Podman fallback; networkless, non-root workers. [design/llmfy-runtime.md](design/llmfy-runtime.md) |
 | Attacker and judge model roles | Planned | Today's providers configure the target model only |
 | General HTTP and MCP adapters | Planned | M6b/M6c |
@@ -76,7 +76,8 @@ Records live in [qualifications/](qualifications/).
 | Profile or path | Qualified | Pending |
 | --- | --- | --- |
 | llmfy runtime, synthetic model (Podman) | [2026-10-02](qualifications/llmfy-synthetic-2026-10-02.md) | Live-model run on an unmodified project |
-| llmfy runtime, synthetic model (Docker) | [2026-10-04](qualifications/llmfy-docker-2026-10-04.md); protocol version and host-death cleanup [2026-10-04](qualifications/worker-lifecycle-docker-2026-10-04.md) | Live-model run on an unmodified project; host-death check on Podman |
+| llmfy runtime, synthetic model (Docker) | [2026-10-04](qualifications/llmfy-docker-2026-10-04.md); protocol version and host-death cleanup [2026-10-04](qualifications/worker-lifecycle-docker-2026-10-04.md) | Host-death check on Podman |
+| llmfy file canary, live model | [2026-10-06, bundled fixture, ChatGPT `gpt-6.1-sol`](qualifications/llmfy-chatgpt-live-2026-10-06.md) | Live run on an unmodified team project (the candidate project is outside the profile); enforced token accounting against a billed provider; repetition-based estimates |
 | Next.js booking profile, scripted model | [2026-10-04](qualifications/vercel-synthetic-2026-10-04.md) | Other models, backends and platforms |
 | Next.js booking profile, live model | [2026-10-03, Autocare, `gemma4:31b-cloud`](qualifications/autocare-live-2026-10-03.md) | Repetition-based success-rate estimates |
 | Binary smoke test | macOS Apple Silicon locally; Ubuntu 24.04 x64, macOS 15 ARM64 and Windows 2022 x64 in CI (Node.js 22.18.0) | Intel macOS and Linux ARM64 |

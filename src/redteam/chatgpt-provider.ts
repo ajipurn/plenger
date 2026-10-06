@@ -2,6 +2,7 @@ import { CHATGPT, MODEL_REQUEST_CAP, MODEL_RESPONSE_CAP, MODEL_STREAM_CAP } from
 import {
   ModelProviderHttpError,
   type ModelRequest,
+  normalizeTools,
   type ProviderAccess,
   parseModelReply,
   type RunProvider,
@@ -65,11 +66,8 @@ export function createChatgptProvider(access: ProviderAccess, dispatch: typeof f
         }
       } else throw new Error("Unsupported ChatGPT message role.");
     }
-    const functions = (request.tools ?? []).map((value) => {
-      const tool = record(value),
-        fn = record(tool.function);
-      if (tool.type !== "function" || typeof fn.name !== "string")
-        throw new Error("Unsupported ChatGPT tool.");
+    const functions = normalizeTools(request.tools).map((value) => {
+      const fn = record(record(value).function);
       return {
         type: "function",
         name: fn.name,

@@ -142,7 +142,8 @@ describe("dashboard repeated security tests", () => {
     expect(saved.statistics[0]).toMatchObject({ planned: 3, evaluable: 0, rate: null });
     expect((await request("/api/state/clear", {})).status).toBe(200);
     expect(await state()).toMatchObject({ campaigns: [], runProfile: null });
-    expect(await (await request("/api/providers")).json()).toEqual([]);
+    // Providers are settings, not saved data: clearing keeps them.
+    expect(await (await request("/api/providers")).json()).toHaveLength(1);
   });
 
   it("does not recover active dashboard work when the CLI opens the provider store", async () => {

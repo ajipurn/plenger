@@ -189,13 +189,14 @@ that died stops at its own deadline and is swept at the next preparation.
 
 Still open before M6a is complete:
 
-- Qualify a live model on an unmodified representative llmfy project with
-  access and budgets selected by the user, including cancellation and partial
-  reporting. Only synthetic models have run through this runtime.
+- Qualify a live model on an unmodified representative team project,
+  including cancellation and partial reporting. The bundled fixture has one
+  live record ([llmfy-chatgpt-live-2026-10-06](../qualifications/llmfy-chatgpt-live-2026-10-06.md));
+  the candidate team project is outside this profile.
 - Qualify the managed provider's request bounds, output allowances and
-  charged-token accounting against a live provider.
-- Run the four probes against a live model and record which spellings and
-  embedded instructions the model and the tool handler accept.
+  charged-token accounting against a billed provider; the ChatGPT transport
+  can only observe usage.
+- Repeat the four probes across models and repetitions.
 
 Framework reference: [llmfy 0.11.0](https://pypi.org/project/llmfy/0.11.0/).
 Container controls follow the [Podman run options](https://docs.podman.io/en/latest/markdown/podman-run.1.html)

@@ -174,8 +174,8 @@ API keys are encrypted with AES-256-GCM in SQLite. The 32-byte `provider-key`
 file in the same data directory has owner-only permissions. This is local
 encryption at rest, not an OS keychain: someone with both files can decrypt
 saved keys. Keys are never returned to the browser or included in exports.
-Deleting a provider removes that connection and its key; **Clear saved data**
-removes all providers (see [below](#saved-data-and-clearing)).
+Deleting a provider removes that connection and its key. **Clear saved data**
+keeps providers (see [below](#saved-data-and-clearing)).
 
 ## Local service and session
 
@@ -217,9 +217,9 @@ installed Node.js runtime; its Node 22 experimental warning may appear when
 
 **Clear saved data** is in **Scan history**. After confirmation it removes, for
 the whole data directory: all saved scans and history, preparation plans,
-red-team runs and campaigns with their evidence, run settings, project
-selections and every saved provider including its encrypted key. The theme
-preference and the `provider-key` file remain. Project source files and
+red-team runs and campaigns with their evidence, run settings and project
+selections. Saved providers and their encrypted keys remain, as do the theme
+preference and the `provider-key` file. Project source files and
 downloaded exports are unchanged. Clearing is unavailable while a project
 operation or run is active, and the service rejects conflicting requests. The
 dashboard returns to the launch workspace and stays empty after a restart; a

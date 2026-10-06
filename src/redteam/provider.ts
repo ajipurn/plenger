@@ -46,6 +46,31 @@ export class ModelProviderHttpError extends Error {
   }
 }
 
+/**
+ * Tool definitions as chat-completions function tools. Workers forward what the
+ * framework hands its model class: the Vercel worker sends `{type: "function",
+ * function: {...}}`, llmfy 0.11 sends the flat `{name, description, parameters,
+ * strict}` shape. Both become the wrapped form the transports send.
+ */
+export function normalizeTools(tools: unknown[] | null): unknown[] {
+  return (tools ?? []).map((value) => {
+    const tool = record(value);
+    const fn =
+      tool.type === "function" && tool.function !== undefined ? record(tool.function) : tool;
+    if (typeof fn.name !== "string" || !/^[\w-]{1,128}$/.test(fn.name))
+      throw new Error("Invalid model tool definition.");
+    return {
+      type: "function",
+      function: {
+        name: fn.name,
+        ...(typeof fn.description === "string" ? { description: fn.description } : {}),
+        parameters: isRecord(fn.parameters) ? fn.parameters : { type: "object", properties: {} },
+        ...(typeof fn.strict === "boolean" ? { strict: fn.strict } : {}),
+      },
+    };
+  });
+}
+
 /** No SDK retries, redirects, credential discovery, or worker-selected destinations. */
 export function createRunProvider(
   access: ProviderAccess,
@@ -78,7 +103,7 @@ export function createRunProvider(
         }),
       };
     }),
-    ...(request.tools?.length ? { tools: request.tools } : {}),
+    ...(request.tools?.length ? { tools: normalizeTools(request.tools) } : {}),
     stream: false,
     ...(access.temperature == null ? {} : { temperature: access.temperature }),
     ...(access.provider === "openai"

@@ -119,13 +119,13 @@ export class ScanRepository {
   /**
    * Forget every project. Scans, the workspace selection, red-team runs, campaigns and
    * run profiles all reference `projects(path) ON DELETE CASCADE`, so deleting projects
-   * removes them too (`foreign_keys` is ON for this connection); saved providers are
-   * deleted explicitly because they are global. The theme preference is kept.
+   * removes them too (`foreign_keys` is ON for this connection). Saved providers are
+   * global settings and are kept; each is deleted from Settings. The theme is kept.
    */
   clear(): void {
     this.#storage.transaction(() => {
       this.#storage.database.exec(
-        "DELETE FROM workspace; DELETE FROM projects; DELETE FROM scans; DELETE FROM model_providers;",
+        "DELETE FROM workspace; DELETE FROM projects; DELETE FROM scans;",
       );
     });
     // Deleted rows must not linger in the write-ahead log.

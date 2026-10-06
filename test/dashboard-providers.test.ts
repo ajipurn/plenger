@@ -299,15 +299,13 @@ describe("saved provider settings", () => {
     expect((await request("/api/providers", { ...settings, id: saved.id })).status).toBe(400);
   });
 
-  it("clears providers and keys with the rest of saved data and stays clear after restart", async () => {
-    const saved = await save({ ...settings, apiKey: "clear-this-key" });
+  it("keeps providers and their keys when the rest of saved data is cleared", async () => {
+    const saved = await save({ ...settings, apiKey: "keep-this-key" });
     expect((await request("/api/state/clear", {})).status).toBe(200);
-    expect(await providers()).toEqual([]);
+    expect((await providers()).map((item) => item.id)).toEqual([saved.id]);
     await dashboard.close();
     await start();
-    expect(await providers()).toEqual([]);
-    expect((await request("/api/providers/test", { id: saved.id })).status).toBe(400);
-    expect((await save()).hasApiKey).toBe(false);
+    expect(await providers()).toMatchObject([{ id: saved.id, hasApiKey: true }]);
   });
 
   it("fails closed on credential tampering and unsafe encryption-key permissions", async () => {

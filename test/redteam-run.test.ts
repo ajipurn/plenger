@@ -6,6 +6,7 @@ import { planProject } from "../src/redteam/plan.ts";
 import {
   createRunProvider,
   ModelProviderHttpError,
+  normalizeTools,
   parseModelReply,
 } from "../src/redteam/provider.ts";
 import { executeRun, newRun, type RunOptions } from "../src/redteam/run.ts";
@@ -338,6 +339,38 @@ describe("bounded provider transport", () => {
       usage: { inputTokens: 4, outputTokens: 2, additionalTokens: 0 },
     });
     expect(calls).toBe(1);
+  });
+  it("wraps llmfy's flat tool definitions as function tools for every transport", async () => {
+    const flat = {
+      name: "save_note",
+      description: "",
+      strict: true,
+      parameters: { type: "object", properties: { path: { type: "string" } } },
+    };
+    const wrapped = {
+      type: "function",
+      function: { name: "lookup", parameters: { type: "object" } },
+    };
+    expect(normalizeTools([flat, wrapped])).toEqual([
+      { type: "function", function: { ...flat } },
+      wrapped,
+    ]);
+    expect(() => normalizeTools([{ description: "no name" }])).toThrow("tool definition");
+    let sent: Record<string, unknown> = {};
+    const provider = createRunProvider(
+      { provider: "openai", model: "test-model", apiKey: "test-private-key" },
+      async (_url, init) => {
+        sent = JSON.parse(init?.body as string);
+        return Response.json({
+          choices: [{ finish_reason: "stop", message: { content: "ok" } }],
+        });
+      },
+    );
+    await provider.generate(
+      { messages: [{ role: "user", content: "hi" }], tools: [flat] },
+      { signal: new AbortController().signal, maxOutputTokens: 16 },
+    );
+    expect(sent.tools).toEqual([{ type: "function", function: { ...flat } }]);
   });
   it("does not export provider error bodies or access credentials", async () => {
     const provider = createRunProvider(

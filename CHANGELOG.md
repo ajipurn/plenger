@@ -33,6 +33,13 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- Tool definitions from llmfy 0.11 (`{name, description, strict, parameters}`
+  without a `function` wrapper) are normalised to function tools before any
+  transport sends them. The ChatGPT transport rejected them before the first
+  dispatch and the OpenAI-compatible transport forwarded them unchanged.
+- **Clear saved data** in Scan history no longer deletes saved providers and
+  their keys. Providers are workspace settings and are removed one by one in
+  Settings → Providers.
 - `plenger redteam compare --help` prints the compare options again instead of
   the generic `redteam` usage.
 - The installed CLI reports an unsupported Node.js version instead of failing
