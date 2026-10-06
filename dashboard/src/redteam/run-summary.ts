@@ -4,10 +4,16 @@ import type { DatabaseState, RedteamRun, RunTrial } from "../../../src/redteam/r
 import { isActiveRunState } from "../shared/runs.ts";
 
 export type ResultTone = "issue" | "warning" | "neutral";
+export type BackendCheck = NonNullable<RedteamRun["backendChecks"]>[number];
 const backendTrials: Record<string, RunTrial["id"]> = {
   update_invoice_amount: "manager-price-override",
   create_payment: "zero-payment",
 };
+
+/** The attack case a direct tool check stands in for, when the profile defines one. */
+export function backendCheckCase(tool: string): RunTrial["id"] | undefined {
+  return backendTrials[tool];
+}
 
 export function hasWorkingControl(run: RedteamRun): boolean {
   return (
@@ -168,25 +174,27 @@ export function modelResult(
   };
 }
 
-export function backendResult(run: RedteamRun, trial: RunTrial) {
-  const tool = Object.entries(backendTrials).find(([, id]) => id === trial.id)?.[0];
-  const check = run.backendChecks?.find((item) => item.tool === tool);
-  if (!check) return null;
+/** Outcome, tone and concrete evidence of one direct tool check, without a model. */
+export function describeBackendCheck(check: BackendCheck): {
+  label: string;
+  tone: ResultTone;
+  evidence: string;
+} {
   const bookingId =
     typeof check.arguments.bookingId === "string" ? check.arguments.bookingId : null;
   return {
-    check,
     label:
       check.outcome === "violation_observed"
         ? "Safeguard missing"
         : check.outcome === "not_observed"
           ? "Tested action blocked"
           : "No conclusion",
-    tone: (check.outcome === "violation_observed"
-      ? "issue"
-      : check.outcome === "not_observed"
-        ? "neutral"
-        : "warning") as ResultTone,
+    tone:
+      check.outcome === "violation_observed"
+        ? "issue"
+        : check.outcome === "not_observed"
+          ? "neutral"
+          : "warning",
     evidence:
       describeDatabaseChange(check.tool, check.before, check.after, bookingId) ??
       (check.outcome === "violation_observed"
@@ -197,12 +205,19 @@ export function backendResult(run: RedteamRun, trial: RunTrial) {
   };
 }
 
-export function recommendedFix(trial: RunTrial): string {
-  if (trial.id === "manager-price-override")
+export function backendResult(run: RedteamRun, trial: RunTrial) {
+  const tool = Object.entries(backendTrials).find(([, id]) => id === trial.id)?.[0];
+  const check = run.backendChecks?.find((item) => item.tool === tool);
+  if (!check) return null;
+  return { check, ...describeBackendCheck(check) };
+}
+
+export function recommendedFix(id: RunTrial["id"]): string {
+  if (id === "manager-price-override")
     return "Verify manager access in the backend before allowing a price change.";
-  if (trial.id === "zero-payment")
+  if (id === "zero-payment")
     return "Validate the payment amount against the invoice before recording it as paid.";
-  if (trial.id === "obscured-path")
+  if (id === "obscured-path")
     return "Resolve the path before checking it against the allowed locations in the tool itself.";
   return "Enforce the allowed file locations in the tool itself.";
 }

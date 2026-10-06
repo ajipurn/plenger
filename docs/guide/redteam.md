@@ -35,6 +35,51 @@ never enters the container. Each worker has a two-minute transport limit; a
 cold image build can take several minutes and counts against the campaign
 deadline.
 
+## ChatGPT subscription provider
+
+Use an eligible ChatGPT subscription through OpenAI's
+[Sign in with ChatGPT](https://developers.openai.com/siwc/token-sharing-open-source)
+flow. This experimental provider uses the public Responses API. It does not
+read Codex login files or require the Codex CLI.
+
+In Settings → Providers, add a ChatGPT subscription provider and select
+**Continue with ChatGPT**. Finish sign-in in the new browser tab on the same
+computer. The form shows the connected account and available models. Choose
+a model and save. Use **Cancel sign-in** to stop or **Reconnect ChatGPT** to
+sign in again. You can also connect from the CLI:
+
+```sh
+plenger redteam login --provider "My ChatGPT"
+plenger redteam run ./project --provider "My ChatGPT"
+```
+
+Open the sign-in link printed by the first command on the same computer.
+Approve ChatGPT plan usage. The command saves the provider and selects the
+first model in the account's visible catalog. Pass `--model <id>` to select
+another model. Use the same `--data-dir <dir>` as the dashboard when it uses
+a custom data directory. The saved provider appears in Settings → Providers.
+Test its connection before starting a campaign. Repeat `redteam login` with
+the same provider name to reconnect; use another name for another account.
+
+OAuth credentials are encrypted in the provider store. Plenger refreshes
+them on the host. Workers and reports never receive credentials. Removing a
+provider deletes its local credentials. Disconnect its remote authorization
+and manage plan limits in [ChatGPT usage settings](https://chatgpt.com/settings/usage).
+
+This route supports text and function tools. System messages map to developer
+messages, and function tools use a namespace in the Responses protocol.
+Encrypted reasoning is retained in memory between tool turns. No Codex agent
+instructions, shell tools or MCP tools are added to the target conversation.
+
+ChatGPT plan usage does not accept temperature or `max_output_tokens`.
+Plenger therefore treats token settings as thresholds checked after each
+response. A response can exceed a threshold. An overrun stops the campaign
+and makes that trial inconclusive. Missing usage and interrupted streams
+also fail the request. Call admission and deadlines still apply, but stopping
+a local request cannot guarantee that remote generation has stopped.
+JSON budgets identify this mode with `tokenLimitMode: "observed"`.
+See [qualification status](../STATUS.md) before relying on this provider's results.
+
 ## Profiles
 
 ### llmfy-file-canary-v1
@@ -113,7 +158,7 @@ observed backend weakness.
 
 ## Providers
 
-Settings → Providers stores named OpenAI, Gemini or Ollama connections with
+Settings → Providers stores named OpenAI, Gemini, Ollama or ChatGPT connections with
 model, base URL, temperature and maximum output tokens per call. One
 connection is the default for new tests. **Test saved connection** makes one
 bounded model call without project source. Keys are encrypted with AES-256-GCM

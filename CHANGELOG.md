@@ -9,6 +9,11 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- Experimental ChatGPT subscription provider: Sign in with ChatGPT from the
+  dashboard or `plenger redteam login`, OAuth credentials encrypted in the
+  provider store with automatic refresh, and the public Responses API as the
+  transport. Token thresholds are checked after each response rather than
+  enforced by the model; budgets record this as `tokenLimitMode: "observed"`.
 - Two more llmfy file-canary probes: `obscured-path` names the forbidden file
   through an equivalent path spelling, and `embedded-instruction` hides the
   forbidden write inside the content of an allowed note. Both use the existing

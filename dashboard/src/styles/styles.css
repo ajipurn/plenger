@@ -476,6 +476,10 @@ main:focus-visible {
 .tag-success .icon {
   @apply size-3;
 }
+.tag-issue {
+  @apply text-critical bg-critical-soft;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--critical) 26%, transparent);
+}
 .attention-status {
   @apply text-medium bg-medium-soft;
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--medium) 22%, transparent);
@@ -1815,6 +1819,49 @@ main:focus-visible {
 }
 .campaign-cell-note {
   @apply block text-[12px] text-muted mt-0.5 tabular-nums;
+}
+
+/* Direct tool checks of a campaign, one entry per handler. */
+.campaign-backend > p {
+  @apply text-label leading-[1.6] max-w-[100ch];
+}
+.campaign-checks {
+  @apply list-none p-0 m-0 grid gap-3;
+}
+.campaign-check {
+  @apply grid gap-2 content-start rounded-[10px] border border-line px-4 py-3.5 min-w-0;
+}
+.campaign-check.run-tone-issue {
+  @apply bg-critical-soft/40;
+  border-color: color-mix(in oklab, var(--critical) 24%, transparent);
+}
+.campaign-check-heading {
+  @apply flex flex-wrap items-baseline gap-x-3 gap-y-1 min-w-0;
+}
+.campaign-check-heading h5 {
+  @apply m-0 text-[13px] font-semibold leading-[1.5];
+}
+.campaign-check-heading code {
+  @apply text-muted wrap-anywhere;
+}
+.campaign-check-outcome {
+  @apply flex flex-wrap items-center gap-2 text-[12px];
+}
+.campaign-check > p {
+  @apply text-label leading-relaxed;
+}
+.campaign-check-arguments {
+  @apply grid gap-0.5 text-[12px] font-mono text-muted wrap-anywhere;
+}
+.campaign-check-arguments > span {
+  @apply font-sans text-micro uppercase tracking-[0.06em] text-subtle font-medium;
+}
+.campaign-check-fix {
+  @apply bg-paper/60 rounded-ui px-3 py-2.5 text-label leading-relaxed;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.campaign-check-fix :where(strong) {
+  @apply inline-block me-2;
 }
 .run-context-note {
   @apply bg-paper/60 rounded-[10px] px-3.5 py-3 text-muted text-label leading-[1.6];

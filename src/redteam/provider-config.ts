@@ -1,6 +1,7 @@
 import { isRecord } from "../shared/guards.ts";
 import {
   API_KEY_MAX_LENGTH,
+  CHATGPT,
   MAX_OUTPUT_TOKENS,
   MODEL_ID,
   PROVIDERS,
@@ -13,6 +14,7 @@ export const PROVIDER_URLS: Record<ProviderId, string> = {
   ollama: "http://127.0.0.1:11434/v1",
   openai: "https://api.openai.com/v1",
   gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
+  chatgpt: CHATGPT.resource,
 };
 
 export interface ProviderSettings {
@@ -27,6 +29,8 @@ export interface SavedProvider extends ProviderSettings {
   id: string;
   isDefault: boolean;
   hasApiKey: boolean;
+  /** Display identity from a verified ChatGPT sign-in. Never a credential. */
+  chatgptAccount?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -93,9 +97,19 @@ export function validateProviderSettings(settings: {
   apiKey?: unknown;
   temperature?: unknown;
   maxOutputTokens?: unknown;
+  baseUrl?: unknown;
 }): void {
   if (!isProviderId(settings.provider) || !isModelId(settings.model))
     throw new Error("Choose a supported provider and enter a model ID.");
+  if (
+    settings.provider === "chatgpt" &&
+    (settings.apiKey ||
+      settings.temperature != null ||
+      (settings.baseUrl !== undefined && settings.baseUrl !== CHATGPT.resource))
+  )
+    throw new Error(
+      "ChatGPT uses browser sign-in, its fixed endpoint and the model's default temperature.",
+    );
   if (
     settings.apiKey !== undefined &&
     (typeof settings.apiKey !== "string" || !isPrintable(settings.apiKey, API_KEY_MAX_LENGTH))
@@ -154,6 +168,7 @@ export function validateProviderInput(value: unknown): ProviderInput {
     apiKey: input.apiKey,
     temperature: input.temperature,
     maxOutputTokens: input.maxOutputTokens,
+    baseUrl: input.baseUrl,
   });
   return {
     name: input.name.trim(),

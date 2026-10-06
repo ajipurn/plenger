@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { Link } from "react-router";
 import type { CampaignReport } from "../../../src/redteam/campaign.ts";
 import { summarizeScope } from "../../../src/redteam/campaign-evidence.ts";
+import { COMPARISON_MIN_EVALUABLE } from "../../../src/redteam/constants.ts";
 import type { ProjectPlan } from "../../../src/redteam/plan.ts";
 import { routes } from "../app/routes.ts";
 import { RedteamResults } from "../redteam/RedteamResults.tsx";
@@ -13,13 +14,123 @@ import {
   RunVerdict,
   StatePill,
 } from "../redteam/RunLayout.tsx";
-import { hasWorkingControl } from "../redteam/run-summary.ts";
+import {
+  type BackendCheck,
+  backendCheckCase,
+  describeBackendCheck,
+  hasWorkingControl,
+  recommendedFix,
+} from "../redteam/run-summary.ts";
 import { percent, plural } from "../shared/format.ts";
 import { Icon } from "../shared/icons.tsx";
 import { isActiveRunState } from "../shared/runs.ts";
 import { useElementScrollbars } from "../shared/ScrollArea.tsx";
 import { SectionSummary } from "../shared/SectionSummary.tsx";
 import { Select } from "../shared/ui.tsx";
+
+interface BackendCheckGroup {
+  tool: string;
+  title: string;
+  caseId: ReturnType<typeof backendCheckCase>;
+  /** Repetitions in which the handler accepted the prohibited arguments. */
+  accepted: number;
+  checks: BackendCheck[];
+  /** The check shown as evidence: an accepted one when any exists. */
+  example: BackendCheck;
+}
+
+/** One entry per tool, so a missing safeguard reads the same for 1 or 20 repetitions. */
+function groupBackendChecks(report: CampaignReport): BackendCheckGroup[] {
+  const groups = new Map<string, BackendCheckGroup>();
+  for (const run of report.runs)
+    for (const check of run.backendChecks ?? []) {
+      const caseId = backendCheckCase(check.tool);
+      const group = groups.get(check.tool) ?? {
+        tool: check.tool,
+        title: report.plan.cases.find((item) => item.id === caseId)?.title ?? check.tool,
+        caseId,
+        accepted: 0,
+        checks: [],
+        example: check,
+      };
+      group.checks.push(check);
+      if (check.outcome === "violation_observed") {
+        if (!group.accepted) group.example = check;
+        group.accepted++;
+      }
+      groups.set(check.tool, group);
+    }
+  return [...groups.values()];
+}
+
+function formatArguments(args: Record<string, unknown>): string {
+  return Object.entries(args)
+    .map(([key, value]) => `${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`)
+    .join(" · ");
+}
+
+/** Handlers called with prohibited arguments and no model. Shown first when one accepted them. */
+function DirectToolChecks({
+  groups,
+  repetitions,
+}: {
+  groups: BackendCheckGroup[];
+  repetitions: number;
+}) {
+  const missing = groups.filter((group) => group.accepted > 0).length;
+  return (
+    <RunSection
+      title="Direct tool checks"
+      className="campaign-backend"
+      aside={
+        <span className={`tag ${missing ? "tag-issue" : ""}`}>
+          {missing
+            ? `${missing} ${plural(missing, "safeguard")} missing`
+            : "Tested actions blocked"}
+        </span>
+      }
+    >
+      <p className="muted">
+        Each original handler was called with prohibited arguments in disposable data, without the
+        model. A safeguard missing here stays missing however the model responds. These checks are
+        excluded from the model attack rates.
+      </p>
+      <ol className="campaign-checks" aria-label="Direct tool check results">
+        {groups.map((group) => {
+          const result = describeBackendCheck(group.example);
+          return (
+            <li className={`campaign-check run-tone-${result.tone}`} key={group.tool}>
+              <div className="campaign-check-heading">
+                <h5>{group.title}</h5>
+                <code>{group.tool}</code>
+              </div>
+              <div className="campaign-check-outcome">
+                <span className={`run-outcome run-tone-${result.tone}`}>{result.label}</span>
+                {repetitions > 1 && (
+                  <span className="muted">
+                    accepted in {group.accepted} of {group.checks.length}{" "}
+                    {plural(group.checks.length, "repetition")}
+                  </span>
+                )}
+              </div>
+              <p>{result.evidence}</p>
+              <p className="campaign-check-arguments">
+                <span>Arguments sent</span>
+                {formatArguments(group.example.arguments)}
+              </p>
+              {group.accepted > 0 && group.caseId && (
+                <p className="campaign-check-fix">
+                  <strong>Recommended fix</strong>
+                  {recommendedFix(group.caseId)}
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </RunSection>
+  );
+}
 
 /** Campaign totals stay separate from the evidence for each model invocation. */
 export function CampaignResults({ report, plan }: { report: CampaignReport; plan: ProjectPlan }) {
@@ -32,9 +143,8 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
     (sum, item) => sum + item.counts.violation_observed,
     0,
   );
-  const backendViolations = report.runs
-    .flatMap((item) => item.backendChecks ?? [])
-    .filter((item) => item.outcome === "violation_observed").length;
+  const backendGroups = groupBackendChecks(report);
+  const backendViolations = backendGroups.filter((group) => group.accepted > 0).length;
   const issue = modelViolations + backendViolations > 0;
   const incomplete = report.gate.reasons.some((item) => item.kind !== "finding");
   const title = issue
@@ -62,7 +172,11 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
         titleId={`${id}-heading`}
         description={
           issue
-            ? `${modelViolations} ${plural(modelViolations, "model attack")} and ${backendViolations} ${plural(backendViolations, "direct tool check")} produced a prohibited change. Review the evidence below.`
+            ? modelViolations && backendViolations
+              ? `${modelViolations} ${plural(modelViolations, "model attack")} produced a prohibited change and ${backendViolations} ${plural(backendViolations, "tool handler")} accepted one without the model. Review the evidence below.`
+              : modelViolations
+                ? `${modelViolations} ${plural(modelViolations, "model attack")} produced a prohibited change. Review the evidence below.`
+                : `${backendViolations} ${plural(backendViolations, "tool handler")} accepted a prohibited change when called directly. The model made no prohibited change in these tests, so the policy is enforced only by the prompt. Review the evidence below.`
             : active
               ? "Each repetition starts with a normal task, followed by the selected attacks. The call, token and time limits cover the entire campaign."
               : incomplete
@@ -109,15 +223,8 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
           },
         ]}
       />
-      {(backendViolations > 0 || error || outdated) && (
+      {(error || outdated) && (
         <div className="run-alerts">
-          {backendViolations > 0 && (
-            <RunAlert tone="issue">
-              <strong>Direct tool checks found a missing policy boundary.</strong> Original handlers
-              accepted prohibited test arguments in disposable data, independently of the model.
-              These checks are excluded from the model attack rates.
-            </RunAlert>
-          )}
           {error && (
             <RunAlert tone="error">
               {error}{" "}
@@ -133,6 +240,9 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
             </RunAlert>
           )}
         </div>
+      )}
+      {backendViolations > 0 && (
+        <DirectToolChecks groups={backendGroups} repetitions={report.plan.repetitions} />
       )}
       <RunSection
         title="Attacks through the model"
@@ -187,6 +297,14 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
                     <td>
                       {item.rate === null || !item.interval ? (
                         <span className="muted">Not established</span>
+                      ) : !item.comparisonEligible ? (
+                        <>
+                          <span className="muted">Too few tests to estimate</span>
+                          <span className="campaign-cell-note">
+                            {item.evaluable} of {COMPARISON_MIN_EVALUABLE} needed ·{" "}
+                            {percent(item.interval.low)}–{percent(item.interval.high)}
+                          </span>
+                        </>
                       ) : (
                         <>
                           <strong>{percent(item.rate)}</strong>
@@ -207,11 +325,14 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
           <span>
             Negative results require a completed attack and successful normal task. Observed changes
             remain evidence even if a test stops. Missing evidence includes inconclusive, failed and
-            unstarted tests. Intervals use the Wilson method; at least 20 usable tests per attack
-            are needed for comparison.
+            unstarted tests. Intervals use the Wilson method; at least {COMPARISON_MIN_EVALUABLE}{" "}
+            usable tests per attack are needed to estimate a rate.
           </span>
         </p>
       </RunSection>
+      {backendGroups.length > 0 && backendViolations === 0 && (
+        <DirectToolChecks groups={backendGroups} repetitions={report.plan.repetitions} />
+      )}
       <RunSection
         title="Discovered surfaces"
         className="run-surfaces"

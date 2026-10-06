@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { executeCampaign } from "../redteam/campaign.ts";
 import { executeRun } from "../redteam/run.ts";
 import { DashboardStore } from "../storage/store.ts";
+import { ChatgptLogin } from "./chatgpt-login.ts";
 import { chooseNativeFolder, type FolderPicker } from "./folder-picker.ts";
 import { HttpError, INTERNAL_ERROR_MESSAGE, json, requireMethod } from "./http.ts";
 import { OperationSupervisor } from "./operations.ts";
@@ -47,11 +48,13 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
   const store = await DashboardStore.open(options.dataDir);
   const token = newSessionToken();
   const supervisor = new OperationSupervisor();
+  const chatgptLogin = new ChatgptLogin(store.providers);
   const services: Services = {
     workspace,
     token,
     store,
     supervisor,
+    chatgptLogin,
     folderPicker: options.folderPicker ?? chooseNativeFolder,
     runExecutor: options.runExecutor ?? executeRun,
     campaignExecutor: options.campaignExecutor ?? executeCampaign,
@@ -125,6 +128,7 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
           // In-flight handlers and the active run must finish writing before SQLite closes.
           await Promise.allSettled(requests);
           await supervisor.settled();
+          await chatgptLogin.close();
           store.close();
         }
       })();

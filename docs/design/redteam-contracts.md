@@ -60,6 +60,13 @@ categories it charges. Unused reservations are released only with confirmed
 usage; a conservative bound is kept when usage is missing. A profile that
 cannot bound its calls cannot advertise enforced token limits.
 
+The experimental ChatGPT subscription transport declares observed token
+thresholds in setup, reports and `budget.tokenLimitMode`. Its API does not
+accept an output-token limit. It admits calls using reservations, reconciles
+completed usage and stops on an overrun. Those reservations are estimates,
+not guaranteed bounds on subscription consumption. It never retries model
+requests. OAuth refresh is serialized separately and makes no inference call.
+
 Reports record configured limits, calls admitted, observed usage, outstanding
 reservations and the reason execution stopped. When the budget prevents
 required work, admission stops, managed workers are cancelled and partial

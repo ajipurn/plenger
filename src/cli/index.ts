@@ -20,6 +20,7 @@ export const USAGE = `Usage:
   plenger redteam plan [path]     Review supported runtime preparation offline (no execution)
   plenger redteam run [path]      Run managed security tests using a saved provider
   plenger redteam compare        Compare exported fixed security campaigns
+  plenger redteam login          Connect a ChatGPT subscription provider
   plenger --version
   plenger --help
 
@@ -113,6 +114,10 @@ function earlyOption(argv: string[]): "help" | "version" | undefined {
 /** `redteam run` and `redteam compare` have their own options, loaded only when asked for. */
 async function subcommandUsage(name: string, rest: string[]): Promise<string | undefined> {
   if (name !== "redteam") return undefined;
+  if (rest[0] === "login") {
+    const { REDTEAM_LOGIN_USAGE } = await import("./commands/redteam-login.ts");
+    return REDTEAM_LOGIN_USAGE;
+  }
   if (rest[0] === "run") {
     const { REDTEAM_RUN_USAGE } = await import("./commands/redteam-run.ts");
     return REDTEAM_RUN_USAGE;

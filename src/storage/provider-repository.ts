@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { setTimeout } from "node:timers/promises";
+import { type ChatgptSession, refreshChatgpt } from "../redteam/chatgpt-auth.ts";
+import { CHATGPT } from "../redteam/constants.ts";
 import type { ProviderAccess } from "../redteam/provider.ts";
 import {
   accessFromProviderConfig,
@@ -9,10 +12,19 @@ import {
 } from "../redteam/provider-config.ts";
 import { parsePayload, Storage, textColumn } from "./database.ts";
 import { StoreValidationError } from "./errors.ts";
-import { openProviderKey, providerEncryptionKey, sealProviderKey } from "./provider-secrets.ts";
+import {
+  chatgptHostId,
+  openProviderKey,
+  providerEncryptionKey,
+  sealProviderKey,
+} from "./provider-secrets.ts";
 
 /** What `model_providers.payload` holds: the settings minus the columns stored beside it. */
-type ProviderPayload = ProviderSettings & { createdAt: string; updatedAt: string };
+type ProviderPayload = ProviderSettings & {
+  createdAt: string;
+  updatedAt: string;
+  chatgptAccount?: string;
+};
 
 /** A saved connection together with the access the engine needs to call it. */
 export interface ResolvedProvider {
@@ -49,6 +61,10 @@ export class ProviderRepository {
     }
   }
 
+  chatgptHostId(): Promise<string> {
+    return chatgptHostId(this.#storage.directory);
+  }
+
   /** Every connection without its key, the default first then by name. */
   readProviders(): SavedProvider[] {
     return this.#storage.database
@@ -60,7 +76,7 @@ export class ProviderRepository {
         ...parsePayload<ProviderPayload>(row),
         id: textColumn(row, "id"),
         isDefault: row.is_default === 1,
-        hasApiKey: row.has_key === 1,
+        hasApiKey: parsePayload<ProviderPayload>(row).provider !== "chatgpt" && row.has_key === 1,
       }));
   }
 
@@ -90,7 +106,7 @@ export class ProviderRepository {
         : sameDestination
           ? this.#credential(id)
           : null;
-    if (input.provider !== "ollama" && !credential)
+    if (input.provider !== "ollama" && input.provider !== "chatgpt" && !credential)
       throw new StoreValidationError("Enter an API key for this provider.");
     const isDefault = input.isDefault ?? old?.isDefault ?? providers.length === 0;
     const now = new Date().toISOString();
@@ -103,6 +119,9 @@ export class ProviderRepository {
       maxOutputTokens: input.maxOutputTokens,
       createdAt: old?.createdAt ?? now,
       updatedAt: now,
+      ...(input.provider === "chatgpt" && sameDestination && credential && old?.chatgptAccount
+        ? { chatgptAccount: old.chatgptAccount }
+        : {}),
     };
     this.#storage.transaction(() => {
       if (isDefault) this.#storage.database.exec("UPDATE model_providers SET is_default = 0");
@@ -112,7 +131,12 @@ export class ProviderRepository {
         )
         .run(id, input.name, isDefault ? 1 : 0, JSON.stringify(payload), credential);
     });
-    return { ...payload, id, isDefault, hasApiKey: credential !== null };
+    return {
+      ...payload,
+      id,
+      isDefault,
+      hasApiKey: input.provider !== "chatgpt" && credential !== null,
+    };
   }
 
   deleteProvider(id: string): boolean {
@@ -127,6 +151,16 @@ export class ProviderRepository {
     const saved = this.readProviders().find((item) => item.id === id);
     if (!saved) throw new StoreValidationError("Choose a saved provider in Providers.");
     const credential = this.#credential(id);
+    if (saved.provider === "chatgpt") {
+      const directory = this.#storage.directory;
+      return {
+        saved,
+        access: {
+          ...accessFromProviderConfig(saved),
+          accessToken: (signal) => chatgptAccessToken(directory, id, signal),
+        },
+      };
+    }
     return {
       saved,
       access: accessFromProviderConfig(
@@ -136,11 +170,102 @@ export class ProviderRepository {
     };
   }
 
+  /** Internal OAuth state. This is never returned by dashboard routes or exported. */
+  readChatgptSession(id: string): {
+    session: ChatgptSession & { refreshLease?: { id: string; until: number } };
+    sealed: string | null;
+  } {
+    if (this.readProviders().find((item) => item.id === id)?.provider !== "chatgpt")
+      throw new StoreValidationError("Choose a saved ChatGPT provider.");
+    const sealed = this.#credential(id);
+    return {
+      session: sealed
+        ? JSON.parse(openProviderKey(this.#key, id, sealed))
+        : { clientId: CHATGPT.dynamicClient },
+      sealed,
+    };
+  }
+
+  /** Compare-and-swap prevents account replacement or concurrent refresh from overwriting tokens. */
+  saveChatgptSession(id: string, session: ChatgptSession, expected: string | null): string {
+    this.readChatgptSession(id);
+    const sealed = sealProviderKey(this.#key, id, JSON.stringify(session));
+    const account = session.credentials ? (session.email ?? session.subject) : undefined;
+    const changed = this.#storage.database
+      .prepare(
+        "UPDATE model_providers SET credential = ?, payload = json_patch(payload, ?) WHERE id = ? AND credential IS ? AND json_extract(payload, '$.provider') = 'chatgpt'",
+      )
+      .run(sealed, JSON.stringify({ chatgptAccount: account ?? null }), id, expected).changes;
+    if (!changed)
+      throw new StoreValidationError(
+        "ChatGPT connection changed. Retry after the current sign-in or refresh finishes.",
+      );
+    return sealed;
+  }
+
   #credential(id: string): string | null {
     const row = this.#storage.database
       .prepare("SELECT credential FROM model_providers WHERE id = ?")
       .get(id);
     const credential = row?.credential;
     return typeof credential === "string" ? credential : null;
+  }
+}
+
+/** Cross-process refresh lease. No SQLite transaction stays open across a network await. */
+async function chatgptAccessToken(
+  directory: string,
+  id: string,
+  signal: AbortSignal,
+): Promise<string> {
+  const deadline = Date.now() + CHATGPT.requestTimeoutMs;
+  for (;;) {
+    signal.throwIfAborted();
+    const store = await ProviderRepository.open(directory);
+    let claimed: string | undefined;
+    let previous: ChatgptSession | undefined;
+    try {
+      const { session, sealed } = store.providers.readChatgptSession(id);
+      if (!session.credentials)
+        throw new Error("Sign in with plenger redteam login --provider <name> first.");
+      if (session.credentials.expiresAt > Date.now() + 60_000)
+        return session.credentials.accessToken;
+      if (!session.refreshLease || session.refreshLease.until <= Date.now()) {
+        const { refreshLease: _lease, ...saved } = session;
+        previous = saved;
+        const leased = {
+          ...saved,
+          refreshLease: { id: randomUUID(), until: Date.now() + CHATGPT.requestTimeoutMs * 3 },
+        };
+        claimed = store.providers.saveChatgptSession(id, leased, sealed);
+      }
+    } finally {
+      store.close();
+    }
+    if (claimed && previous) {
+      let refreshed: ChatgptSession;
+      try {
+        refreshed = await refreshChatgpt(previous, signal);
+      } catch (error) {
+        const store = await ProviderRepository.open(directory);
+        try {
+          store.providers.saveChatgptSession(id, previous, claimed);
+        } finally {
+          store.close();
+        }
+        throw error;
+      }
+      const store = await ProviderRepository.open(directory);
+      try {
+        store.providers.saveChatgptSession(id, refreshed, claimed);
+      } finally {
+        store.close();
+      }
+      if (!refreshed.credentials) throw new Error("ChatGPT refresh did not provide model access.");
+      return refreshed.credentials.accessToken;
+    }
+    if (Date.now() >= deadline)
+      throw new Error("ChatGPT refresh is already running. Try again shortly.");
+    await setTimeout(50, undefined, { signal });
   }
 }

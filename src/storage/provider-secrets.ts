@@ -1,9 +1,23 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { open } from "node:fs/promises";
+import { open, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isErrno } from "../shared/guards.ts";
 import { StoreValidationError } from "./errors.ts";
+
+/** One non-secret installation identity, reused across ChatGPT account registrations. */
+export async function chatgptHostId(directory: string): Promise<string> {
+  const path = join(directory, "chatgpt-host");
+  try {
+    await writeFile(path, `urn:uuid:${randomUUID()}`, { flag: "wx", mode: 0o600 });
+  } catch (error) {
+    if (!isErrno(error, "EEXIST")) throw error;
+  }
+  const value = await readFile(path, "utf8");
+  if (!/^urn:uuid:[a-f0-9-]{36}$/.test(value))
+    throw new Error("Invalid ChatGPT host identity in the data directory.");
+  return value;
+}
 
 /** Local encryption at rest. The key belongs to this user's data directory, not exports or SQLite. */
 export async function providerEncryptionKey(directory: string): Promise<Buffer> {

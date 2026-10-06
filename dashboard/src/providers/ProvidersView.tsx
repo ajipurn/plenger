@@ -1,5 +1,6 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { NavLink } from "react-router";
+import { CHATGPT_LOGIN_POLL_MS, type ChatgptLoginResult } from "../../../src/dashboard/contract.ts";
 import { PROVIDER_URLS, type SavedProvider } from "../../../src/redteam/provider-config.ts";
 import { useApi } from "../app/DashboardContext.tsx";
 import { routes } from "../app/routes.ts";
@@ -38,8 +39,13 @@ export function ProvidersView({
   const { busy, error, setError, run } = useAsyncAction();
   const [notice, setNotice] = useState("");
   const [pendingDelete, setPendingDelete] = useState<SavedProvider | null>(null);
+  const [login, setLogin] = useState<ChatgptLoginResult | null>(null);
+  const activeLogin = useRef<string | null>(null);
+  const mounted = useRef(true);
+  const signingIn = login?.state === "pending";
   const update = (patch: Partial<ProviderForm>) => setForm((current) => ({ ...current, ...patch }));
   function edit(value: SavedProvider | null, trigger?: HTMLButtonElement) {
+    setLogin(null);
     returnFocus.current = trigger ?? addButton.current;
     setEditorOpen(true);
     setSelected(value);
@@ -58,6 +64,10 @@ export function ProvidersView({
   }
   function save() {
     if (!api) return;
+    if (form.provider === "chatgpt" && !selected?.chatgptAccount) {
+      connectChatgpt();
+      return;
+    }
     setNotice("");
     void run(async () => {
       const saved = await api.saveProvider({
@@ -78,6 +88,104 @@ export function ProvidersView({
       setNotice("Provider saved. Select it in Red-team when starting a test.");
     }, "Could not save the provider.");
   }
+  function connectChatgpt() {
+    if (!api || busy || signingIn) return;
+    // Open during the click, before the API await, so browsers allow the new tab.
+    const tab = window.open("about:blank", "_blank");
+    if (tab) tab.opener = null;
+    setNotice("");
+    void run(async () => {
+      try {
+        const result = await api.startChatgptLogin({
+          name: form.name,
+          provider: "chatgpt",
+          model: form.model || "pending-sign-in",
+          baseUrl: PROVIDER_URLS.chatgpt,
+          temperature: null,
+          maxOutputTokens: form.output,
+          isDefault: form.isDefault,
+          ...(selected ? { id: selected.id } : {}),
+        });
+        activeLogin.current = result.state === "pending" ? result.id : null;
+        if (!mounted.current) {
+          if (activeLogin.current) await api.cancelChatgptLogin(activeLogin.current);
+          activeLogin.current = null;
+          tab?.close();
+          return;
+        }
+        setSelected(result.provider);
+        setLogin(result);
+        if (result.state === "failed") throw new Error(result.error);
+        if (result.authorizationUrl && tab) tab.location.replace(result.authorizationUrl);
+        else tab?.close();
+        onChange(await api.providers());
+      } catch (error) {
+        tab?.close();
+        if (activeLogin.current) await api.cancelChatgptLogin(activeLogin.current).catch(() => {});
+        activeLogin.current = null;
+        setLogin(null);
+        throw error;
+      }
+    }, "Could not start ChatGPT sign-in.");
+  }
+  function cancelLogin() {
+    if (!api || !login) return;
+    void run(async () => {
+      const result = await api.cancelChatgptLogin(login.id);
+      activeLogin.current = null;
+      setLogin(result);
+      if (result.state === "connected") {
+        setSelected(result.provider);
+        update({ model: result.provider.model });
+      }
+      setNotice(
+        result.state === "connected"
+          ? "ChatGPT connected."
+          : "Sign-in cancelled. You can try again.",
+      );
+      onChange(await api.providers());
+    }, "Could not cancel sign-in.");
+  }
+  useEffect(() => {
+    if (!api || login?.state !== "pending") return;
+    let stopped = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await api.chatgptLoginStatus(login.id);
+        if (stopped) return;
+        if (result.state !== "pending") activeLogin.current = null;
+        setLogin(result);
+        if (result.state === "connected") {
+          setSelected(result.provider);
+          setForm((current) => ({ ...current, model: result.provider.model }));
+          setNotice(
+            `Connected to ChatGPT${result.provider.chatgptAccount ? ` as ${result.provider.chatgptAccount}` : ""}. Choose a model, then save.`,
+          );
+          onChange(await api.providers());
+        } else if (result.state === "failed")
+          setError(result.error ?? "ChatGPT sign-in failed. Try again.");
+      } catch {
+        if (!stopped) {
+          void api.cancelChatgptLogin(login.id).catch(() => {});
+          activeLogin.current = null;
+          setLogin(null);
+          setError("Lost the connection while signing in. Reload the dashboard and try again.");
+        }
+      }
+    }, CHATGPT_LOGIN_POLL_MS);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
+  }, [api, login, onChange, setError]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (api && activeLogin.current)
+        void api.cancelChatgptLogin(activeLogin.current).catch(() => {});
+    };
+  }, [api]);
   function remove(value: SavedProvider) {
     if (!api) return;
     void run(async () => {
@@ -86,7 +194,7 @@ export function ProvidersView({
       setSelected(null);
       setPendingDelete(null);
       setEditorOpen(false);
-      setNotice("Provider deleted, including its saved API key.");
+      setNotice("Provider deleted, including its saved credentials.");
     }, "Could not delete the provider.");
   }
   function test(value: SavedProvider) {
@@ -147,7 +255,7 @@ export function ProvidersView({
           <Button
             ref={addButton}
             className="button button-primary"
-            disabled={busy || !api}
+            disabled={busy || signingIn || !api}
             onClick={(event) => edit(null, event.currentTarget)}
           >
             <Icon name="plus" /> Add provider
@@ -168,7 +276,7 @@ export function ProvidersView({
           providers={providers}
           query={query}
           onQueryChange={setQuery}
-          busy={busy}
+          busy={busy || signingIn}
           onEdit={edit}
           onTest={test}
           onMakeDefault={makeDefault}
@@ -179,12 +287,15 @@ export function ProvidersView({
         id={id}
         open={editorOpen}
         onOpenChange={(next) => {
-          if (!busy) {
+          if (!busy && !signingIn) {
             setEditorOpen(next);
             if (!next) update({ apiKey: "" });
           }
         }}
         busy={busy}
+        login={login}
+        onConnect={connectChatgpt}
+        onCancelLogin={cancelLogin}
         apiAvailable={!!api}
         selected={selected}
         form={form}

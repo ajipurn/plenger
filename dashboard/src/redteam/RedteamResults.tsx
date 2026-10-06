@@ -80,7 +80,7 @@ export function RedteamResults({
           {
             label: "Tokens",
             value: report.budget?.accountedTokens.toLocaleString() ?? 0,
-            note: "accounted",
+            note: report.provider === "chatgpt" ? "observed; no hard token cap" : "accounted",
           },
         ]}
       />
@@ -174,7 +174,7 @@ export function RedteamResults({
                         )}
                       <p>
                         <strong>Recommended fix</strong>
-                        {recommendedFix(trial)}
+                        {recommendedFix(trial.id)}
                       </p>
                     </div>
                   )}

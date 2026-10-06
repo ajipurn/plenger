@@ -8,7 +8,7 @@ import type { Route } from "../router.ts";
 import type { Services } from "../services.ts";
 
 /** Saved model connections. Keys go in; they never come back out through these routes. */
-export function providerRoutes({ store }: Services): Route[] {
+export function providerRoutes({ store, chatgptLogin }: Services): Route[] {
   async function selectedId(request: Parameters<typeof jsonRequest>[0]): Promise<string> {
     const body = await jsonRequest(request);
     const message = "Choose a saved provider.";
@@ -16,6 +16,32 @@ export function providerRoutes({ store }: Services): Route[] {
     return requireString(body.id, message);
   }
   return [
+    {
+      method: "POST",
+      path: API.chatgptLogin,
+      handler: async ({ request }) => ({
+        status: 200,
+        body: await chatgptLogin.start(await jsonRequest(request)),
+      }),
+    },
+    {
+      method: "GET",
+      path: API.chatgptLoginStatus,
+      handler: ({ url }) => ({
+        status: 200,
+        body: chatgptLogin.status(
+          requireString(url.searchParams.get("id"), "Choose a ChatGPT sign-in."),
+        ),
+      }),
+    },
+    {
+      method: "POST",
+      path: API.cancelChatgptLogin,
+      handler: async ({ request }) => ({
+        status: 200,
+        body: await chatgptLogin.cancel(await selectedId(request)),
+      }),
+    },
     {
       method: "GET",
       path: API.providers,

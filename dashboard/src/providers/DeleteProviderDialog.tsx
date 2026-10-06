@@ -26,8 +26,8 @@ export function DeleteProviderDialog({
       title="Delete provider?"
       description={
         <>
-          Delete {provider?.name} and its saved API key? Existing test results stay saved. Select
-          another provider before running new tests.
+          Delete {provider?.name} and its saved credentials? Existing test results stay saved.
+          Select another provider before running new tests.
         </>
       }
       confirmLabel="Delete provider"

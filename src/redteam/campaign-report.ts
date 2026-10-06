@@ -80,6 +80,10 @@ export function formatCampaign(report: CampaignReport, format: CampaignFormat): 
     lines.push(
       `Model calls: ${report.budget.callsAdmitted}/${report.plan.limits.maxModelCalls} · accounted tokens: ${report.budget.accountedTokens}/${report.plan.limits.maxTokens}`,
     );
+  if (report.plan.provider === "chatgpt")
+    lines.push(
+      "ChatGPT subscription: token thresholds are checked after each response, not enforced by the model. A response can exceed the configured threshold.",
+    );
   for (const item of report.plan.cases) {
     const count = backendObservations(report, item.id);
     if (count)

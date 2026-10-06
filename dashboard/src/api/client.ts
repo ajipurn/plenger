@@ -1,6 +1,7 @@
 import {
   API,
   type CancelResult,
+  type ChatgptLoginResult,
   type ChooseFolderResult,
   type DashboardScan,
   type DashboardSession,
@@ -34,6 +35,9 @@ export interface DashboardApi {
   saveProvider(input: ProviderInput): Promise<SavedProvider>;
   deleteProvider(id: string): Promise<DeleteResult>;
   testProvider(id: string): Promise<ProviderTestResult>;
+  startChatgptLogin(input: ProviderInput): Promise<ChatgptLoginResult>;
+  chatgptLoginStatus(id: string): Promise<ChatgptLoginResult>;
+  cancelChatgptLogin(id: string): Promise<ChatgptLoginResult>;
   getRun(id: string): Promise<RedteamRun>;
   startCampaign(config: StartCampaignRequest): Promise<CampaignReport>;
   getCampaign(id: string): Promise<CampaignReport>;
@@ -82,6 +86,9 @@ export async function connect(): Promise<DashboardApi> {
     saveProvider: (input) => request<SavedProvider>(API.providers, input),
     deleteProvider: (id) => request<DeleteResult>(API.deleteProvider, { id }),
     testProvider: (id) => request<ProviderTestResult>(API.testProvider, { id }),
+    startChatgptLogin: (input) => request<ChatgptLoginResult>(API.chatgptLogin, input),
+    chatgptLoginStatus: (id) => request<ChatgptLoginResult>(withId(API.chatgptLoginStatus, id)),
+    cancelChatgptLogin: (id) => request<ChatgptLoginResult>(API.cancelChatgptLogin, { id }),
     getRun: (id) => request<RedteamRun>(withId(API.run, id)),
     startCampaign: (config) => request<CampaignReport>(API.startCampaign, config),
     getCampaign: (id) => request<CampaignReport>(withId(API.campaign, id)),

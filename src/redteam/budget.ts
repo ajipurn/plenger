@@ -12,10 +12,12 @@ export interface TokenUsage {
 }
 
 export interface ModelReservation {
+  /** Observed transports cannot enforce an output cap at the remote model. */
+  tokenLimitMode?: "observed";
   purpose: "setup" | "control" | "probe" | "retry";
   /** Computed by a trusted provider profile from the complete outgoing request. */
   inputTokensUpperBound: number;
-  /** The transport must enforce this allowance on the actual provider request. */
+  /** Enforced by the transport, or checked after completion when tokenLimitMode is observed. */
   maxOutputTokens: number;
   additionalTokensUpperBound: number;
 }
@@ -41,6 +43,8 @@ export interface BudgetCall {
 }
 
 export interface BudgetSnapshot {
+  /** Absent on older reports and transports with an enforced output allowance. */
+  tokenLimitMode?: "observed";
   schemaVersion: 1;
   kind: "redteam-model-budget";
   /** A ledger for submitted dispatches; not proof of a worker's network isolation. */
@@ -73,8 +77,8 @@ export class BudgetStoppedError extends Error {
  * admitted call. Provider errors/missing usage retain the full token reservation.
  *
  * Callers are trusted engine code, not workers supplying their own token counts.
- * A qualified transport must enforce the supplied output allowance and cannot
- * contain hidden provider retries. This class itself does not restrict networking.
+ * Transports cannot contain hidden provider retries. Observed transports label
+ * their soft thresholds and must report usage. This class does not restrict networking.
  */
 export class ModelBudget {
   readonly #limits: BudgetLimits;
@@ -88,6 +92,7 @@ export class ModelBudget {
   #timer: ReturnType<typeof setTimeout> | undefined;
   #state: BudgetSnapshot["state"] = "open";
   #accountedTokens = 0;
+  #observedTokens = false;
 
   constructor(limits: BudgetLimits, options: { signal?: AbortSignal } = {}) {
     validateBudgetLimits(limits);
@@ -126,6 +131,7 @@ export class ModelBudget {
     if (!["setup", "control", "probe", "retry"].includes(request.purpose))
       throw new Error("Invalid model call purpose.");
     validateTokens(reservation);
+    if (request.tokenLimitMode === "observed") this.#observedTokens = true;
     integer(reservation.outputTokens, "maxOutputTokens", 1);
     const reserved = total(reservation);
     if (this.#calls.length >= this.#limits.maxModelCalls) this.#stop("model-call-limit");
@@ -211,7 +217,13 @@ export class ModelBudget {
                 this.#stop("provider-usage-exceeded-reservation");
                 return;
               }
-            } else call.accounting = "unknown";
+            } else {
+              call.accounting = "unknown";
+              if (request.tokenLimitMode === "observed") {
+                this.#stop("invalid-provider-usage");
+                return;
+              }
+            }
             this.#interrupts.delete(call.id);
             if (call.state === "in-flight") {
               call.state = "succeeded";
@@ -248,6 +260,7 @@ export class ModelBudget {
       schemaVersion: 1,
       kind: "redteam-model-budget",
       enforcementScope: "submitted-dispatches",
+      ...(this.#observedTokens ? { tokenLimitMode: "observed" as const } : {}),
       state: this.#state,
       limits: { ...this.#limits },
       stopReasons: [...this.#stopReasons],

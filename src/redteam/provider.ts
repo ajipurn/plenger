@@ -5,6 +5,7 @@ import {
   type ModelReservation,
   type TokenUsage,
 } from "./budget.ts";
+import { createChatgptProvider } from "./chatgpt-provider.ts";
 import { MODEL_REQUEST_CAP, MODEL_RESPONSE_CAP, type ProviderId } from "./constants.ts";
 import { PROVIDER_URLS, providerBaseUrl, validateProviderSettings } from "./provider-config.ts";
 
@@ -32,6 +33,8 @@ export interface ProviderAccess {
   baseUrl?: string;
   temperature?: number | null;
   maxOutputTokens?: number;
+  /** Host-only credential resolver. Never accepted from JSON or exported. */
+  accessToken?: (signal: AbortSignal) => Promise<string>;
 }
 
 /** Only the status is surfaced; provider error bodies may contain request data. */
@@ -49,6 +52,7 @@ export function createRunProvider(
   dispatch: typeof fetch = fetch,
 ): RunProvider {
   validateProviderSettings(access);
+  if (access.provider === "chatgpt") return createChatgptProvider(access, dispatch);
   if (access.provider !== "ollama" && !access.apiKey)
     throw new Error("Enter your selected provider's API key for this run.");
   const url = `${providerBaseUrl(access.baseUrl ?? PROVIDER_URLS[access.provider])}/chat/completions`;
@@ -186,7 +190,12 @@ export async function testProviderConnection(
     );
     return { model: provider.model, durationMs: Math.round(performance.now() - started) };
   } catch (error) {
-    throw new Error(connectionTestFailure(error), { cause: error });
+    throw new Error(
+      access.provider === "chatgpt"
+        ? "ChatGPT connection test failed. Sign in with plenger redteam login --provider <name>, then check the model and ChatGPT usage limits."
+        : connectionTestFailure(error),
+      { cause: error },
+    );
   } finally {
     budget.finish();
   }

@@ -88,11 +88,15 @@ export function ProviderTable({
               <td className="provider-endpoint-cell">
                 <span title={item.baseUrl}>{item.baseUrl}</span>
                 <span className="muted">
-                  {item.hasApiKey
-                    ? "API key saved"
-                    : item.provider === "ollama"
-                      ? "No API key"
-                      : "API key missing"}
+                  {item.provider === "chatgpt"
+                    ? item.chatgptAccount
+                      ? `ChatGPT: ${item.chatgptAccount}`
+                      : "ChatGPT sign-in needed"
+                    : item.hasApiKey
+                      ? "API key saved"
+                      : item.provider === "ollama"
+                        ? "No API key"
+                        : "API key missing"}
                 </span>
               </td>
               <td className="provider-actions-cell">

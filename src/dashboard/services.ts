@@ -1,6 +1,7 @@
 import type { executeCampaign } from "../redteam/campaign.ts";
 import type { executeRun } from "../redteam/run.ts";
 import type { DashboardStore } from "../storage/store.ts";
+import type { ChatgptLogin } from "./chatgpt-login.ts";
 import type { FolderPicker } from "./folder-picker.ts";
 import type { OperationSupervisor } from "./operations.ts";
 
@@ -12,6 +13,7 @@ export interface Services {
   token: string;
   store: DashboardStore;
   supervisor: OperationSupervisor;
+  chatgptLogin: ChatgptLogin;
   folderPicker: FolderPicker;
   runExecutor: typeof executeRun;
   campaignExecutor: typeof executeCampaign;

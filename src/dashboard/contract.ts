@@ -26,6 +26,9 @@ export const API = {
   providers: "/api/providers",
   deleteProvider: "/api/providers/delete",
   testProvider: "/api/providers/test",
+  chatgptLogin: "/api/providers/chatgpt/login",
+  chatgptLoginStatus: "/api/providers/chatgpt/login/status",
+  cancelChatgptLogin: "/api/providers/chatgpt/login/cancel",
   startRun: "/api/redteam/start",
   run: "/api/redteam/run",
   cancel: "/api/redteam/cancel",
@@ -97,6 +100,16 @@ export interface ProviderTestResult {
   connected: true;
   model: string;
   durationMs: number;
+}
+
+export const CHATGPT_LOGIN_POLL_MS = 1000;
+export interface ChatgptLoginResult {
+  id: string;
+  state: "pending" | "connected" | "failed" | "cancelled";
+  authorizationUrl?: string;
+  provider: import("../redteam/provider-config.ts").SavedProvider;
+  models: { id: string; name: string }[];
+  error?: string;
 }
 
 /** Either a saved connection by id, or ad-hoc access whose key is used once and never stored. */

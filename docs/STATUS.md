@@ -30,6 +30,7 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | `redteam run` (CLI campaigns) | Available | Fixed repetitions, shared budget, Wilson intervals, severity/coverage/scope gates, profile export. [guide/redteam.md](guide/redteam.md) |
 | `redteam compare` (before/after) | Available | Fixed-configuration checks, 20 usable trials per case per build |
 | Saved providers (OpenAI, Gemini, Ollama) | Available | Keys encrypted at rest in SQLite; never sent to workers or included in reports |
+| ChatGPT subscription provider | Experimental | Native Sign in with ChatGPT, encrypted OAuth storage, text/function Responses transport and observed token thresholds. Offline protocol tests cover authentication and accounting. Live account and container qualification pending. |
 | Container runtime | Available | Docker preferred, Podman fallback; networkless, non-root workers. [design/llmfy-runtime.md](design/llmfy-runtime.md) |
 | Attacker and judge model roles | Planned | Today's providers configure the target model only |
 | General HTTP and MCP adapters | Planned | M6b/M6c |

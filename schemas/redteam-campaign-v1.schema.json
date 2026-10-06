@@ -193,6 +193,9 @@
             }
           },
           "maxItems": 1200
+        },
+        "tokenLimitMode": {
+          "const": "observed"
         }
       }
     },
@@ -389,7 +392,7 @@
         },
         "provider": {
           "type": "string",
-          "enum": ["openai", "gemini", "ollama"]
+          "enum": ["openai", "gemini", "ollama", "chatgpt"]
         },
         "model": {
           "type": "string"

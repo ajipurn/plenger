@@ -4,8 +4,24 @@
  */
 
 /** Order matters: it is the enum order in the published campaign plan schema. */
-export const PROVIDERS = ["openai", "gemini", "ollama"] as const;
+export const PROVIDERS = ["openai", "gemini", "ollama", "chatgpt"] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
+
+export const CHATGPT = {
+  issuer: "https://auth.openai.com",
+  authorize: "https://auth.openai.com/api/accounts/authorize",
+  token: "https://auth.openai.com/api/accounts/oauth/token",
+  jwks: "https://auth.openai.com/.well-known/jwks.json",
+  resource: "https://api.openai.com/v1",
+  usageUrl: "https://chatgpt.com/settings/usage",
+  scope: "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct",
+  dynamicClient: "dynamic_agent_client",
+  callbackPath: "/auth/callback",
+  loginTimeoutMs: 300_000,
+  requestTimeoutMs: 20_000,
+  /** Catalogs include capabilities and metadata for many models. */
+  modelCatalogByteCap: 4 * 1024 * 1024,
+} as const;
 
 /** Model identifiers never carry a URL; `://` is rejected separately. */
 export const MODEL_ID = /^[\w./:-]{1,128}$/;
@@ -20,6 +36,8 @@ export const SOURCE_BYTE_CAP = 4 * 1024 * 1024;
 /** Serialised model request/response sizes the bounded transport accepts. */
 export const MODEL_REQUEST_CAP = 48 * 1024;
 export const MODEL_RESPONSE_CAP = 64 * 1024;
+/** SSE deltas repeat metadata and the final response, so wire bytes have a separate cap. */
+export const MODEL_STREAM_CAP = 4 * 1024 * 1024;
 export const WORKER_TIMEOUT_MS = 120_000;
 /** Observations a single live trial may record. */
 export const RUN_EVENT_LIMIT = 128;

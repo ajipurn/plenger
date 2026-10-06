@@ -165,7 +165,7 @@ export function RunSetupForm({
                         value={provider}
                         onValueChange={setProvider}
                         disabled={locked}
-                        items={PROVIDER_OPTIONS}
+                        items={PROVIDER_OPTIONS.filter((item) => item.value !== "chatgpt")}
                       />
                     </label>
                     <label htmlFor={`${id}-model`}>
@@ -209,7 +209,7 @@ export function RunSetupForm({
                   />
                 </label>
                 <label htmlFor={`${id}-tokens`}>
-                  Token budget
+                  {savedProvider?.provider === "chatgpt" ? "Token threshold" : "Token budget"}
                   <Input
                     id={`${id}-tokens`}
                     type="number"
@@ -249,6 +249,12 @@ export function RunSetupForm({
                 The budget covers every normal task and attack across all {repetitions} repetitions.
                 Increasing repetitions does not increase these limits.
               </p>
+              {savedProvider?.provider === "chatgpt" && (
+                <p className="muted">
+                  Uses your ChatGPT subscription. Token usage is checked after each response. A
+                  response can exceed the token threshold. Call limits and the deadline still apply.
+                </p>
+              )}
               <details className="technical-disclosure">
                 <summary className="disclosure-heading">
                   CI gate requirements <Icon name="chevron" />
