@@ -72,6 +72,8 @@ export async function captureNextProject(
       reasons: [],
       agentIds: [],
       evidence: [],
+      // The booking profile binds to the route's store module in `nextProfile`, not to a pack.
+      packs: [],
     }));
     const selected = options.target
       ? targets.find((item) => item.id === options.target)

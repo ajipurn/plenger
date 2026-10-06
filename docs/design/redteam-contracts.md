@@ -34,11 +34,15 @@ verifies its clean control. A failed control blocks claims of task completion
 and valid comparison; an independently confirmed violation backed by the
 case's required evidence is retained.
 
-Implemented packs: the llmfy file canary (three cases) and the Next.js booking
-checks (two backend checks, three model trials), both with fixed versions in
-`src/redteam/`. **Gap:** packs are built in; there is no pack format for
-additional cases, and M7 delivery evidence and paired controls are not yet
-part of the contract.
+Implemented packs: the llmfy file canary (a clean control and four probes)
+and the Next.js booking checks (two backend checks, three model trials), both
+with fixed versions in `src/redteam/`. The file canary binds through
+`DiscoveryTarget.packs`: a target qualifies when one of its agents' tools has a
+`file_write` capability that stores content (`write_text`, `write_bytes`,
+`open`) at a path derived from a tool parameter, with a synchronous handler.
+The reason for a failed binding is reported on the target and blocks the run.
+**Gap:** packs are built in; there is no pack format for additional cases, and
+M7 delivery evidence and paired controls are not yet part of the contract.
 
 ## Model-usage budget
 

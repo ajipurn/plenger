@@ -221,7 +221,7 @@ describe("dashboard managed runs", () => {
       id: run.id,
       state: "stopped",
       cleanupConfirmed: false,
-      trials: [{ started: true, outcome: "violation_observed" }, {}, {}],
+      trials: [{ started: true, outcome: "violation_observed" }, {}, {}, {}, {}],
     });
     expect((await state()).runs[0]?.error).toContain("restarted");
   });

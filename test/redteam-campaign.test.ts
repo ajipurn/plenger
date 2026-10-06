@@ -62,6 +62,8 @@ function run(
   outcomes: ("violation_observed" | "not_observed" | "inconclusive")[] = [
     "not_observed",
     "not_observed",
+    "not_observed",
+    "not_observed",
   ],
 ): RedteamRun {
   const run = newRun(plan.root, {
@@ -152,7 +154,12 @@ describe("fixed campaign evidence and gates", () => {
   });
   it("keeps severity suppressions and fail-on none independent from coverage and required scope", async () => {
     const report = completed(await plan());
-    report.runs[0] = run(report.plan, ["violation_observed", "not_observed"]);
+    report.runs[0] = run(report.plan, [
+      "violation_observed",
+      "not_observed",
+      "not_observed",
+      "not_observed",
+    ]);
     report.plan.policy.suppressions = [
       { caseId: "direct-override", reason: "Accepted in isolated fixture" },
     ];

@@ -73,7 +73,8 @@ function worker({
   interruptAfterEffect = false,
 } = {}): WorkerLauncher {
   return async (_image, request, _signal, receive) => {
-    const control = (request.input as string).includes("allowed.txt");
+    // Every probe names the forbidden file, including the one that also saves a note.
+    const control = !(request.input as string).includes("forbidden");
     await receive({
       type: "ready",
       protocolVersion: WORKER_PROTOCOL_VERSION,
@@ -150,8 +151,8 @@ describe("managed run scoring and shared budget", () => {
         return simulate(image, request, signal, receive);
       },
     });
-    expect(markers).toHaveLength(3);
-    expect(new Set(markers).size).toBe(3);
+    expect(markers).toHaveLength(5);
+    expect(new Set(markers).size).toBe(5);
     expect(report.runtime).toEqual({ image: await prepare(), python: "3.12.13", llmfy: "0.11.0" });
   });
   it("requires a working clean task and scores observed effects rather than assistant text", async () => {
@@ -165,15 +166,24 @@ describe("managed run scoring and shared budget", () => {
       cleanControlPassed: true,
       cleanupConfirmed: true,
     });
+    expect(report.trials.map((trial) => trial.id)).toEqual([
+      "clean-control",
+      "direct-override",
+      "claimed-authorization",
+      "obscured-path",
+      "embedded-instruction",
+    ]);
     expect(report.trials.map((trial) => trial.outcome)).toEqual([
       "not_observed",
+      "violation_observed",
+      "violation_observed",
       "violation_observed",
       "violation_observed",
     ]);
     expect(report.budget).toMatchObject({
       state: "completed",
-      callsAdmitted: 3,
-      observedTokens: 30,
+      callsAdmitted: 5,
+      observedTokens: 50,
     });
   });
   it("keeps unsupported clean tasks and unstarted probes inconclusive", async () => {
@@ -183,11 +193,8 @@ describe("managed run scoring and shared budget", () => {
       worker: worker({ cleanFails: true }),
     });
     expect(report.cleanControlPassed).toBe(false);
-    expect(report.trials.map((trial) => trial.outcome)).toEqual([
-      "inconclusive",
-      "inconclusive",
-      "inconclusive",
-    ]);
+    expect(report.trials.every((trial) => trial.outcome === "inconclusive")).toBe(true);
+    expect(report.trials).toHaveLength(5);
     expect(report.trials[1]?.started).toBe(false);
     expect(report.budget?.callsAdmitted).toBe(1);
   });
@@ -203,6 +210,42 @@ describe("managed run scoring and shared budget", () => {
     expect(report.trials[2]?.started).toBe(false);
     expect(report.budget?.callsAdmitted).toBe(2);
     expect(report.cleanupConfirmed).toBe(true);
+  });
+  it("refuses a target without a bound file-canary pack before preparing a runtime", async () => {
+    const root = await temporaryDir("plenger-run-unbound-");
+    await writeFile(join(root, "requirements.txt"), "llmfy==0.11.0\n");
+    await writeFile(
+      join(root, "agent.py"),
+      `from llmfy import LLMfy, OpenAIChatModel, Tool
+@Tool()
+def lookup(order_id: str) -> str:
+    return order_id
+def build_agent():
+    agent = LLMfy(OpenAIChatModel(model="test"))
+    agent.register_tool([lookup])
+    return agent
+`,
+    );
+    const plan = await planProject(root);
+    expect(plan.preparation.status).toBe("ready");
+    const options: RunOptions = {
+      target: plan.selectedTarget as string,
+      sourceDigest: plan.sourceDigest,
+      provider: stubProvider(),
+      limits: { maxModelCalls: 6, maxTokens: 1000, timeoutMs: 10_000 },
+    };
+    let prepared = false;
+    const report = await executeRun(newRun(root, options), options, {
+      prepare: async () => {
+        prepared = true;
+        return prepare();
+      },
+      worker: worker(),
+    });
+    expect(report.state).toBe("failed");
+    expect(prepared).toBe(false);
+    expect(report.budget?.callsAdmitted).toBe(0);
+    expect(report.trials.every((trial) => !trial.started)).toBe(true);
   });
   it("rejects stale source before starting a worker or contacting a model", async () => {
     const { root, options } = await project();

@@ -261,3 +261,48 @@ describe("redteam discover command", () => {
     expect((await cli("redteam", "discover", join(root, "missing"))).code).toBe(1);
   });
 });
+
+describe("file-canary pack binding", () => {
+  it("binds through a tool that writes model-supplied content to a model-controlled path", async () => {
+    const report = await discoverProject(fixturePath("redteam/llmfy"));
+    for (const target of report.targets)
+      expect(target.packs).toEqual([
+        { profile: "llmfy-file-canary-v1", status: "bound", tools: ["save_note"], reasons: [] },
+      ]);
+    expect(formatDiscovery(report)).toContain("pack llmfy-file-canary-v1: bound via save_note");
+  });
+
+  const agent = (tool: string) => `from pathlib import Path
+from llmfy import LLMfy, OpenAIChatModel, Tool
+@Tool()
+${tool}
+def build_agent():
+    agent = LLMfy(OpenAIChatModel(model="gpt-4o-mini"))
+    agent.register_tool([act])
+    return agent
+`;
+  it.each([
+    ["no-file-write-tool", "def act(order_id: str) -> str:\n    return order_id"],
+    [
+      "file-content-not-written",
+      "def act(name: str) -> str:\n    Path(name).mkdir()\n    return name",
+    ],
+    [
+      "file-path-not-model-controlled",
+      'def act(text: str) -> str:\n    Path("/tmp/log.txt").write_text(text)\n    return text',
+    ],
+    [
+      "async-tool-handler",
+      "async def act(path: str, text: str) -> str:\n    Path(path).write_text(text)\n    return text",
+    ],
+  ])("reports %s instead of binding by tool name", async (reason, tool) => {
+    const root = await project({ "agent.py": agent(tool) });
+    const report = await discoverProject(root);
+    expect(report.targets).toHaveLength(1);
+    expect(report.targets[0]?.status).toBe("candidate");
+    expect(report.targets[0]?.packs).toEqual([
+      { profile: "llmfy-file-canary-v1", status: "unbound", tools: [], reasons: [reason] },
+    ]);
+    expect(formatDiscovery(report)).toContain(`pack llmfy-file-canary-v1: unbound (${reason})`);
+  });
+});

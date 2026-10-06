@@ -1,7 +1,7 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import type { DefinitionFact, FileFacts, Value } from "../facts/model.ts";
-import type { Agent, Location } from "../inventory/model.ts";
+import type { Agent, Location, Tool } from "../inventory/model.ts";
 import { type ScannedFile, type ScanResult, scan } from "../scan.ts";
 import { compareStrings as compare } from "../shared/compare.ts";
 import { isErrno } from "../shared/guards.ts";
@@ -24,6 +24,67 @@ export interface DiscoveryTarget {
   reasons: string[];
   agentIds: string[];
   evidence: { kind: "invocation" | "factory-return" | "construction"; location: Location }[];
+  /** Built-in test packs checked against the target's tools by observed effect, never by tool name. */
+  packs: PackBinding[];
+}
+
+export type PackBindingReason =
+  | "no-file-write-tool"
+  | "file-content-not-written"
+  | "file-path-not-model-controlled"
+  | "async-tool-handler";
+
+/**
+ * Whether a built-in pack's clean task and oracle apply to a target. The file canary
+ * needs a synchronous tool whose handler writes model-supplied content to a
+ * model-controlled path; the worker's final audit reads the canary files it names.
+ */
+export interface PackBinding {
+  profile: "llmfy-file-canary-v1";
+  status: "bound" | "unbound";
+  /** Tools that satisfy the pack's contract, by name. */
+  tools: string[];
+  reasons: PackBindingReason[];
+}
+
+/** File APIs that store model-supplied content at a path; directory, rename and mode changes do not. */
+const CONTENT_WRITE = /(?:^|\.)(?:write_text|write_bytes|open)$/;
+
+function bindFileCanary(tools: Tool[], files: Map<string, ScannedFile>): PackBinding {
+  const bound: string[] = [];
+  const reasons = new Set<PackBindingReason>();
+  for (const tool of tools) {
+    const writes = tool.capabilities.filter((capability) => capability.kind === "file_write");
+    if (writes.length === 0) continue;
+    const content = writes.filter((capability) => CONTENT_WRITE.test(capability.target));
+    if (content.length === 0) {
+      reasons.add("file-content-not-written");
+      continue;
+    }
+    if (
+      !content.some((capability) =>
+        capability.inputs.some((input) => input.source === "param" || input.from?.length),
+      )
+    ) {
+      reasons.add("file-path-not-model-controlled");
+      continue;
+    }
+    const handler = files
+      .get(tool.handlerPath ?? tool.location.path)
+      ?.facts?.definitions.find((definition) => definition.id === tool.handler);
+    if (handler?.async) {
+      reasons.add("async-tool-handler");
+      continue;
+    }
+    bound.push(tool.name);
+  }
+  if (bound.length === 0 && reasons.size === 0) reasons.add("no-file-write-tool");
+  return {
+    profile: "llmfy-file-canary-v1",
+    status: bound.length ? "bound" : "unbound",
+    tools: [...new Set(bound)].sort(compare),
+    reasons: bound.length ? [] : [...reasons].sort(compare),
+  };
 }
 
 /** Discovery data only: this is deliberately not an executable plan or a run result. */
@@ -183,6 +244,7 @@ export async function discoverProject(
         reasons,
         agentIds: [],
         evidence: [],
+        packs: [],
       };
       targets.set(id, target);
     }
@@ -252,6 +314,18 @@ export async function discoverProject(
         kind: "construction",
         location: agent.location,
       });
+  }
+
+  for (const target of targets.values()) {
+    const toolIds = new Set(
+      agents.filter((agent) => target.agentIds.includes(agent.id)).flatMap((agent) => agent.tools),
+    );
+    target.packs = [
+      bindFileCanary(
+        result.inventory.tools.filter((tool) => toolIds.has(tool.id)),
+        files,
+      ),
+    ];
   }
 
   const manifests: DiscoveryReport["manifests"] = [];

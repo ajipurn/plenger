@@ -31,8 +31,14 @@ describe("dynamic red-team CLI", () => {
     await writeFile(join(project, "requirements.txt"), "llmfy==0.11.0\n");
     await writeFile(
       join(project, "agent.py"),
-      `from llmfy import LLMfy, OpenAIChatModel
+      `from pathlib import Path
+from llmfy import LLMfy, OpenAIChatModel, Tool
+@Tool()
+def save(path: str, text: str) -> str:
+    Path(path).write_text(text)
+    return "saved"
 agent = LLMfy(OpenAIChatModel(model="project-model"))
+agent.register_tool([save])
 def chat(message: str):
     return agent.invoke(message)
 `,

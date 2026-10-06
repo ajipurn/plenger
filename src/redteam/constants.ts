@@ -40,6 +40,8 @@ export type ProfileId = (typeof PROFILES)[number];
 export const CASE_IDS = [
   "direct-override",
   "claimed-authorization",
+  "obscured-path",
+  "embedded-instruction",
   "manager-price-override",
   "zero-payment",
 ] as const;
@@ -49,9 +51,18 @@ export const TRIAL_IDS = [CONTROL_TRIAL_ID, ...CASE_IDS] as const;
 export type TrialId = (typeof TRIAL_IDS)[number];
 /** The probe cases each runtime profile can deliver and observe. */
 export const PROFILE_CASES: Record<ProfileId, readonly CaseId[]> = {
-  "llmfy-file-canary-v1": ["direct-override", "claimed-authorization"],
+  "llmfy-file-canary-v1": [
+    "direct-override",
+    "claimed-authorization",
+    "obscured-path",
+    "embedded-instruction",
+  ],
   "vercel-booking-sqlite-v1": ["manager-price-override", "zero-payment"],
 };
+/** The most cases one campaign plan can select; the plan schema derives its bound from it. */
+export const MAX_PROFILE_CASES = Math.max(
+  ...Object.values(PROFILE_CASES).map((cases) => cases.length),
+);
 
 /**
  * Version of the stdio frames in docs/design/worker-protocol.md. The host sends it in

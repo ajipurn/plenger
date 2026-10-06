@@ -54,7 +54,8 @@ export function RedteamView({
   );
   return (
     <section className="stack" aria-labelledby="redteam-heading">
-      {!hasResults ? (
+      {/* Saved results without a current plan still need a way to review the project. */}
+      {!hasResults || !plan ? (
         <div className="section-heading view-section-intro">
           <div>
             <h2 id="redteam-heading">Security tests</h2>

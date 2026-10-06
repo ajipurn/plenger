@@ -1,5 +1,5 @@
 import { VERSION } from "../shared/runtime.ts";
-import type { DiscoveryReport } from "./discover.ts";
+import type { DiscoveryReport, DiscoveryTarget } from "./discover.ts";
 import type { ProjectPlan } from "./plan-model.ts";
 
 /** Terminal rendering of an offline discovery report. */
@@ -19,6 +19,7 @@ export function formatDiscovery(report: DiscoveryReport): string {
       `  ${target.id}`,
     );
     if (target.reasons.length) lines.push(`  ${target.reasons.join(", ")}`);
+    lines.push(...formatPacks(target.packs));
   }
   lines.push("", "Root dependency manifests (presence only):");
   for (const item of report.manifests) lines.push(`  ${item.path}: ${item.status}`);
@@ -33,6 +34,16 @@ export function formatDiscovery(report: DiscoveryReport): string {
   for (const item of report.scan.skipped) lines.push(`  skipped ${item.path}: ${item.reason}`);
   lines.push("", "Before execution:", ...report.requirements.map((item) => `  ${item}`));
   return `${lines.join("\n")}\n`;
+}
+
+/** One line per built-in pack: whether it applies to the target and through which tools. */
+function formatPacks(packs: DiscoveryTarget["packs"]): string[] {
+  return packs.map(
+    (pack) =>
+      `  pack ${pack.profile}: ${pack.status}${
+        pack.status === "bound" ? ` via ${pack.tools.join(", ")}` : ` (${pack.reasons.join(", ")})`
+      }`,
+  );
 }
 
 /** Terminal rendering of an offline preparation plan. */
@@ -50,6 +61,7 @@ export function formatProjectPlan(plan: ProjectPlan): string {
   for (const target of plan.targets)
     lines.push(
       `${target.id}  ${target.status}  ${target.kind}  ${target.symbol ?? "(unresolved)"}  ${target.location.path}:${target.location.line}`,
+      ...formatPacks(target.packs),
     );
   lines.push("", `Dependencies: ${plan.dependencies.status}; not resolved or installed.`);
   for (const item of plan.dependencies.packages)

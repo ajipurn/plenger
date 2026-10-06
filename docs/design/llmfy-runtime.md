@@ -177,7 +177,12 @@ Delivered since this recipe was written: source snapshots without ambient
 secrets (`python-only-v1`), built-in cases bound to the file-canary contract,
 every model request admitted through the host broker with run-wide call and
 token limits, correlated and sequence-checked worker events, and the shared
-engine connected to planning, saved profiles and the dashboard workflow.
+engine connected to planning, saved profiles and the dashboard workflow. The
+pack binds to a target through the static inventory rather than tool names: a
+synchronous tool must write model-supplied content to a model-controlled path.
+Two further probes (an equivalent spelling of the forbidden path and an
+instruction embedded in content to save) join the direct override and the
+claimed authorization; they have run against stub workers only.
 Request and `ready` frames carry `protocolVersion`
 ([worker-protocol.md](worker-protocol.md#version)), and a worker left by a host
 that died stops at its own deadline and is swept at the next preparation.
@@ -189,8 +194,8 @@ Still open before M6a is complete:
   reporting. Only synthetic models have run through this runtime.
 - Qualify the managed provider's request bounds, output allowances and
   charged-token accounting against a live provider.
-- Broaden test-pack binding beyond the three file-canary cases, bound to
-  verified semantics rather than tool names.
+- Run the four probes against a live model and record which spellings and
+  embedded instructions the model and the tool handler accept.
 
 Framework reference: [llmfy 0.11.0](https://pypi.org/project/llmfy/0.11.0/).
 Container controls follow the [Podman run options](https://docs.podman.io/en/latest/markdown/podman-run.1.html)

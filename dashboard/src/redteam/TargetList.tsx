@@ -68,6 +68,27 @@ export function TargetList({
                     ))}
                   </ul>
                 )}
+                {target.status === "candidate" &&
+                  target.packs.map((pack) =>
+                    pack.status === "bound" ? (
+                      <p className="muted candidate-kind" key={pack.profile}>
+                        File-canary tests apply through{" "}
+                        {pack.tools.map((tool, index) => (
+                          <span key={tool}>
+                            {index > 0 && ", "}
+                            <code>{tool}</code>
+                          </span>
+                        ))}
+                        .
+                      </p>
+                    ) : (
+                      <ul className="notice-list candidate-notices" key={pack.profile}>
+                        {pack.reasons.map((reason) => (
+                          <li key={reason}>{explainPlanValue(reason)}</li>
+                        ))}
+                      </ul>
+                    ),
+                  )}
               </div>
               <div className="target-actions">
                 <span

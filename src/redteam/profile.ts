@@ -15,6 +15,13 @@ function fileCanaryBlocker(plan: ProjectPlan): string | null {
     plan.dependencies.requiresPython !== null
   )
     return "Additional dependencies and Python version constraints need another runtime profile.";
+  const target = plan.targets.find((item) => item.id === plan.selectedTarget);
+  if (
+    !target?.packs.some(
+      (pack) => pack.profile === "llmfy-file-canary-v1" && pack.status === "bound",
+    )
+  )
+    return "The file-canary tests need a synchronous tool that writes model-supplied content to a model-chosen path. This target's tools do not provide one, so the tests do not apply.";
   return null;
 }
 

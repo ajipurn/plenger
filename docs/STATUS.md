@@ -25,7 +25,7 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | Local dashboard (`plenger serve`) | Available | Scans, inventory, findings, history, providers, red-team runs, campaigns and comparisons. [guide/dashboard.md](guide/dashboard.md) |
 | npm package | Available locally | Compiled CLI, built dashboard, grammars, schemas and red-team recipes in one tarball. [guide/install.md](guide/install.md) |
 | `redteam discover` and `redteam plan` (offline) | Available | llmfy function/factory discovery; Python source and Next.js route preparation plans |
-| Red-team profile `llmfy-file-canary-v1` | Available, synthetic qualification only | Three fixed file-canary checks; see qualification records below |
+| Red-team profile `llmfy-file-canary-v1` | Available, synthetic qualification only | A clean control and four fixed file-canary probes, bound to targets by observed file-write semantics; the two newest probes have run against stub workers only. See qualification records below |
 | Red-team profile `vercel-booking-sqlite-v1` | Available, one live-model record | Backend checks plus three model trials against a disposable SQLite database |
 | `redteam run` (CLI campaigns) | Available | Fixed repetitions, shared budget, Wilson intervals, severity/coverage/scope gates, profile export. [guide/redteam.md](guide/redteam.md) |
 | `redteam compare` (before/after) | Available | Fixed-configuration checks, 20 usable trials per case per build |

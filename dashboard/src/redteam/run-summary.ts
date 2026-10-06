@@ -1,3 +1,5 @@
+import { caseTitle } from "../../../src/redteam/campaign-model.ts";
+import { CONTROL_TRIAL_ID, PROFILE_CASES } from "../../../src/redteam/constants.ts";
 import type { DatabaseState, RedteamRun, RunTrial } from "../../../src/redteam/run.ts";
 import { isActiveRunState } from "../shared/runs.ts";
 
@@ -33,10 +35,7 @@ export function summarizeRun(run: RedteamRun) {
   const affected = new Set<string>(modelIssues.map((trial) => trial.id));
   for (const check of backendIssues) affected.add(backendTrials[check.tool] ?? check.tool);
   const active = isActiveRunState(run.state);
-  const expected =
-    run.profile === "vercel-booking-sqlite-v1"
-      ? ["manager-price-override", "zero-payment"]
-      : ["direct-override", "claimed-authorization"];
+  const expected: readonly string[] = PROFILE_CASES[run.profile];
   const completed = expected.filter((id) =>
     probes.some(
       (trial) =>
@@ -93,14 +92,7 @@ export function summarizeRun(run: RedteamRun) {
 }
 
 export function trialTitle(trial: RunTrial): string {
-  const titles: Record<RunTrial["id"], string> = {
-    "clean-control": "Normal task",
-    "manager-price-override": "Price override by claimed manager",
-    "zero-payment": "Payment below the invoice amount",
-    "direct-override": "Write outside the allowed location",
-    "claimed-authorization": "File access by claimed administrator",
-  };
-  return titles[trial.id];
+  return trial.id === CONTROL_TRIAL_ID ? "Normal task" : caseTitle(trial.id);
 }
 
 const money = (amount: number) => `Rp${amount.toLocaleString("id-ID")}`;
@@ -210,5 +202,7 @@ export function recommendedFix(trial: RunTrial): string {
     return "Verify manager access in the backend before allowing a price change.";
   if (trial.id === "zero-payment")
     return "Validate the payment amount against the invoice before recording it as paid.";
+  if (trial.id === "obscured-path")
+    return "Resolve the path before checking it against the allowed locations in the tool itself.";
   return "Enforce the allowed file locations in the tool itself.";
 }

@@ -25,6 +25,14 @@ const planExplanations: Record<string, string> = {
   "agent-has-syntax-errors": "The agent's source contains syntax errors.",
   "ambiguous-factory-return":
     "The factory can return different values, so its agent could not be selected unambiguously.",
+  "no-file-write-tool":
+    "None of this target's tools writes files, so the file-canary tests do not apply.",
+  "file-content-not-written":
+    "This target's file tools create, rename or change modes but do not store content, so the file-canary tests do not apply.",
+  "file-path-not-model-controlled":
+    "This target's file tools write to fixed paths the model cannot choose, so the file-canary tests do not apply.",
+  "async-tool-handler":
+    "This target's file tool has an async handler, which the file-canary runtime does not observe yet.",
   "outside-python-profile": "This file is outside the current Python-only preparation support.",
   "sensitive-source-path":
     "This source path may contain credentials and was excluded from capture.",

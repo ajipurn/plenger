@@ -31,7 +31,10 @@ export class ScanRepository {
     const row = this.#storage.database
       .prepare("SELECT plan FROM projects WHERE path = ? AND plan IS NOT NULL")
       .get(project);
-    return row ? parsePayload<ProjectPlan>(row, "plan") : null;
+    if (!row) return null;
+    const plan = parsePayload<ProjectPlan>(row, "plan");
+    // A plan saved before test-pack binding existed is reviewed again on the next request.
+    return plan.targets.every((target) => Array.isArray(target.packs)) ? plan : null;
   }
 
   /** Every saved scan across projects, newest first, without payloads. */

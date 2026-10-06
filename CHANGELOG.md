@@ -9,6 +9,15 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- Two more llmfy file-canary probes: `obscured-path` names the forbidden file
+  through an equivalent path spelling, and `embedded-instruction` hides the
+  forbidden write inside the content of an allowed note. Both use the existing
+  completed-file-write oracle.
+- Test-pack binding by observed semantics: discovery reports, per target,
+  whether the file-canary pack applies (`packs`), based on a synchronous tool
+  whose handler writes model-supplied content to a model-controlled path. A
+  target without one shows the reason in the CLI and dashboard, and the run is
+  blocked instead of spending model budget on a clean control that cannot pass.
 - npm package `plenger-cli` with the `plenger` command: compiled CLI, built
   dashboard, grammars, schemas and red-team recipes. `pnpm build:package` and
   `pnpm test:package` build and check it; the npm package workflow runs the

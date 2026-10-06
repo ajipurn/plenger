@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { SEVERITIES } from "../rules/model.ts";
+import { sha256Hex } from "../shared/hash.ts";
 import { type BudgetLimits, ModelBudget, validateBudgetLimits } from "./budget.ts";
 import { evaluateCampaignGate, summarizeCampaign } from "./campaign-evidence.ts";
 import {
@@ -9,9 +10,8 @@ import {
   type CampaignScope,
   managedCases,
   type SecurityCase,
-  scopeId,
 } from "./campaign-model.ts";
-import { MODEL_ID, type ProviderId, REPETITION_RANGE } from "./constants.ts";
+import { MAX_PROFILE_CASES, MODEL_ID, type ProviderId, REPETITION_RANGE } from "./constants.ts";
 import type { ProjectPlan } from "./plan-model.ts";
 import type { RunProvider } from "./provider.ts";
 import { isProviderId, type ProviderConfig, validateProviderConfig } from "./provider-config.ts";
@@ -34,7 +34,10 @@ export type {
   SecurityCase,
   TrialResult,
 } from "./campaign-model.ts";
-export { scopeId } from "./campaign-model.ts";
+
+export function scopeId(target: string, caseId: string): string {
+  return `scope:${sha256Hex(JSON.stringify([target, caseId]), 24)}`;
+}
 
 const PLAN_KEYS = [
   "schemaVersion",
@@ -205,7 +208,7 @@ export function validateCampaignPlan(plan: CampaignPlan): void {
     plan.repetitions > REPETITION_RANGE.max ||
     !Array.isArray(plan.cases) ||
     !plan.cases.length ||
-    plan.cases.length > 2
+    plan.cases.length > MAX_PROFILE_CASES
   )
     throw new Error("Invalid campaign target, model or case selection.");
   if (Object.keys(plan).some((key) => !PLAN_KEYS.includes(key)))
