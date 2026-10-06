@@ -25,6 +25,7 @@ repeating milestone status.
 | [design/worker-protocol.md](design/worker-protocol.md) | The host to container message protocol of both runtimes |
 | [design/redteam-engine.md](design/redteam-engine.md) | Engine internals: budget controller, project preparation, qualification broker |
 | [design/llmfy-runtime.md](design/llmfy-runtime.md) | The llmfy container image, isolation checks and the synthetic qualification suite |
+| [design/generated-attacks.md](design/generated-attacks.md) | Attacker-generated, frozen attack corpora; checkpoint 1 (host templates) is implemented |
 | [design/dashboard-ui.md](design/dashboard-ui.md) | Visual design rules for the dashboard |
 | [design/distribution.md](design/distribution.md) | How the npm package and optional binary are built and checked |
 | [qualifications/](qualifications/) | Dated qualification records |

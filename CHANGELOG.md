@@ -80,6 +80,14 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- Trial input is now a host template (generated-attacks checkpoint 1, brought
+  forward from after M7). The built-in control and probe prompts live in
+  `src/redteam/attack-model.ts` with `{{name}}` placeholders and fill to the
+  same text as before. The Next.js worker receives its template in the request,
+  fills the booking it seeds and reports the values; the host rejects a fixture
+  whose text is not the filled template. Worker protocol version 2: the
+  runtime recipes changed, so images are rebuilt on the next run, and a
+  version 1 worker is refused.
 - Campaign results in the dashboard: direct tool checks that accepted a
   prohibited change now appear as their own section with the observed change,
   arguments and recommended fix, placed before the model table instead of a

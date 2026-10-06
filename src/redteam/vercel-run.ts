@@ -1,4 +1,10 @@
 import {
+  assertProfileTemplate,
+  fillTemplate,
+  PROFILE_PLACEHOLDERS,
+  trialTemplate,
+} from "./attack-model.ts";
+import {
   DATABASE_OBSERVER,
   RUN_EVENT_LIMIT,
   SOURCE_BYTE_CAP,
@@ -167,6 +173,8 @@ export async function executeVercelRun(
 function launch(
   session: VercelSession,
   trial: string,
+  /** The trial's input template; the backend-validation step has none. */
+  input: string | null,
   onMessage: (frame: Record<string, unknown>) => Promise<unknown>,
   onLaunch: (name: string) => void,
 ) {
@@ -177,6 +185,7 @@ function launch(
       route: session.profile.route,
       storeModule: session.profile.storeModule,
       trial,
+      ...(input === null ? {} : { input }),
     },
     session.context.budget.signal,
     (raw) => onMessage(record(raw)),
@@ -201,6 +210,7 @@ async function runBackendValidation(session: VercelSession): Promise<void> {
     await launch(
       session,
       "backend-validation",
+      null,
       (frame) => handleBackendFrame(session, state, frame),
       (name) => {
         report.backendWorkerName = name;
@@ -290,6 +300,8 @@ async function handleBackendFrame(
 }
 
 interface TrialState {
+  /** The input template sent to the worker; the fixture must report it filled. */
+  template: string;
   ready: boolean;
   finished: boolean;
   nextRequest: number;
@@ -304,10 +316,13 @@ interface TrialState {
 /** One fresh worker and database per trial; verdicts come from committed rows. */
 async function runTrial(session: VercelSession, trial: RunTrial): Promise<void> {
   const { report, context } = session;
+  const template = trialTemplate(session.profile.id, trial.id);
+  assertProfileTemplate(session.profile.id, template);
   trial.started = true;
   report.cleanupConfirmed = false;
   context.update();
   const state: TrialState = {
+    template,
     ready: false,
     finished: false,
     nextRequest: 1,
@@ -321,6 +336,7 @@ async function runTrial(session: VercelSession, trial: RunTrial): Promise<void> 
     await launch(
       session,
       trial.id,
+      template,
       (frame) => handleTrialFrame(session, trial, state, frame),
       (name) => {
         trial.workerName = name;
@@ -355,7 +371,7 @@ async function handleTrialFrame(
     throw new Error("Observation after final snapshot.");
   switch (frame.type) {
     case "fixture":
-      return handleFixture(session, trial, frame);
+      return handleFixture(session, trial, state, frame);
     case "model_request":
       return handleModelRequest(session, trial, state, frame);
     case "event":
@@ -373,9 +389,23 @@ async function handleTrialFrame(
   }
 }
 
+/** The placeholder values a fixture reports; only names the profile fills, as short strings. */
+function fixtureValues(session: VercelSession, raw: unknown): Record<string, string> {
+  const values = record(raw);
+  for (const [name, value] of Object.entries(values))
+    if (
+      !PROFILE_PLACEHOLDERS[session.profile.id].includes(name) ||
+      typeof value !== "string" ||
+      value.length > 256
+    )
+      throw new Error("Invalid fixture.");
+  return values as Record<string, string>;
+}
+
 function handleFixture(
   session: VercelSession,
   trial: RunTrial,
+  state: TrialState,
   frame: Record<string, unknown>,
 ): undefined {
   if (
@@ -388,6 +418,14 @@ function handleFixture(
     (frame.bookingId !== null && typeof frame.bookingId !== "string")
   )
     throw new Error("Invalid fixture.");
+  // The delivered input must be the host's template filled with the seeded values.
+  const values = fixtureValues(session, frame.values);
+  if (
+    values.expectedAmount !== String(frame.expectedAmount) ||
+    (values.bookingId ?? null) !== frame.bookingId ||
+    fillTemplate(state.template, values) !== frame.input
+  )
+    throw new Error("Fixture input does not match the trial template.");
   const before = databaseState(frame.before);
   if (
     trial.purpose === "probe" &&

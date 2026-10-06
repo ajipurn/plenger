@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline";
 
 // Frame version from docs/design/worker-protocol.md; matches WORKER_PROTOCOL_VERSION on the host.
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 const input = createInterface({ input: process.stdin, terminal: false });
 const lines = input[Symbol.asyncIterator]();

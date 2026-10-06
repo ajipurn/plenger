@@ -17,7 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 # Frame version from docs/design/worker-protocol.md; matches WORKER_PROTOCOL_VERSION on the host.
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 # A live host stops its worker at 120 s; exiting at 130 s covers a host that died.
 WORKER_DEADLINE_SECONDS = 130
 

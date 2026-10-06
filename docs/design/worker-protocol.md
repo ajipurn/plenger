@@ -11,10 +11,17 @@ request yet.
 
 ## Version
 
-The frames on this page are protocol version 1. The host holds the number in
+The frames on this page are protocol version 2. The host holds the number in
 `WORKER_PROTOCOL_VERSION` (`src/redteam/constants.ts`). The workers hold it in
-`PROTOCOL_VERSION`: `runtimes/llmfy/qualify.py` (also used by `worker.py`) and
-`runtimes/vercel/bridge.mjs`. Bump all of them together when a frame changes.
+`PROTOCOL_VERSION`: `runtimes/llmfy/qualify.py` (also used by `worker.py`),
+`runtimes/vercel/bridge.mjs` and `runtimes/fastapi/preflight.py`. Bump all of
+them together when a frame changes.
+
+Version 2 moved trial input to the host
+([generated-attacks.md](generated-attacks.md#attack-templates)): the Vercel
+request carries `input` as a template and its `fixture` frame reports the
+placeholder `values` the worker filled in. Version 1 workers had the prompts
+built in.
 
 - The launcher adds `protocolVersion` to every request, next to `hostMarker`.
 - A worker refuses any other value before its isolation checks. The llmfy
@@ -76,7 +83,7 @@ llmfy managed run (`worker.py`):
 | --- | --- | --- |
 | `sources` | `[{path, content}]` | Relative `.py` paths without empty, `.` or `..` segments; written read-only under `/tmp/project` |
 | `target` | `{path, symbol, kind}` | `kind` is `"factory"` or a function kind; a factory's result receives `invoke_with_tools(input)` |
-| `input` | string | The trial prompt, containing the marker |
+| `input` | string | The trial prompt, filled on the host from its template in `attack-model.ts`; contains the marker |
 | `marker` | string | `PLENGER_<32 hex>`; matched in canary files |
 | `policy` | string | Prepended as a system message to every model request |
 | `protocolVersion` | number | Added by the launcher; see [Version](#version) |
@@ -112,6 +119,7 @@ Vercel managed run (`worker.mjs`):
 | `route` | string | Path of the POST handler module; must be in `sources` |
 | `storeModule` | string | Path of the SQLite module exporting `store`, `SERVICES`, `SLOTS`; must be in `sources` |
 | `trial` | string | `backend-validation`, `clean-control`, `manager-price-override` or `zero-payment` |
+| `input` | string | The trial's input template, at most 4096 characters; absent for `backend-validation`, whose input is built in. The worker replaces each `{{name}}` with the value it seeded and fails at `preparing-fixture` on a name it has no value for |
 | `protocolVersion` | number | Added by the launcher; see [Version](#version) |
 | `hostMarker` | string | Added by the launcher |
 
@@ -125,9 +133,9 @@ any version or check list that does not match exactly.
 
 | Runtime | Fields | Host requirements |
 | --- | --- | --- |
-| llmfy | `protocolVersion`, `python`, `llmfy`, `isolationChecks[]` (`qualify.py` budget mode adds `os`, `arch`) | `protocolVersion == 1`, `python == "3.12.13"`, `llmfy == "0.11.0"`, all 18 check names below present; the broker also requires `os == "Linux"` and `arch == "aarch64"` |
-| Vercel | `protocolVersion`, `node`, `ai`, `databaseObserver`, `isolationChecks[]` | `protocolVersion == 1`, `node == "22.18.0"`, `ai == "7.0.29"`, `databaseObserver == "committed-snapshots-v1"`, all 16 check names present |
-| FastAPI | `protocolVersion`, `python`, `llmfy`, `packages[]`, `isolationChecks[]` | `protocolVersion == 1`, `python == "3.12.13"`, `llmfy` equal to the plan's declared version, all 19 check names present; `packages` is `[{name, version}]` from the build's `pip list`, at most 2000 |
+| llmfy | `protocolVersion`, `python`, `llmfy`, `isolationChecks[]` (`qualify.py` budget mode adds `os`, `arch`) | `protocolVersion == 2`, `python == "3.12.13"`, `llmfy == "0.11.0"`, all 18 check names below present; the broker also requires `os == "Linux"` and `arch == "aarch64"` |
+| Vercel | `protocolVersion`, `node`, `ai`, `databaseObserver`, `isolationChecks[]` | `protocolVersion == 2`, `node == "22.18.0"`, `ai == "7.0.29"`, `databaseObserver == "committed-snapshots-v1"`, all 16 check names present |
+| FastAPI | `protocolVersion`, `python`, `llmfy`, `packages[]`, `isolationChecks[]` | `protocolVersion == 2`, `python == "3.12.13"`, `llmfy` equal to the plan's declared version, all 19 check names present; `packages` is `[{name, version}]` from the build's `pip list`, at most 2000 |
 
 Isolation check names:
 
@@ -195,10 +203,15 @@ of entry and return at most once per call. The worker does not send
 
 ### Vercel-only frames
 
-`fixture` `{type, service, expectedAmount, bookingId | null, before, input}`:
+`fixture` `{type, service, expectedAmount, bookingId | null, before, input, values}`:
 sent once after `ready` and before the first `model_request`. `expectedAmount`
-is a positive safe integer; `input` is the trial prompt, at most 4096
-characters; `before` is a database snapshot. For probes the host requires one
+is a positive safe integer; `input` is the filled trial prompt, at most 4096
+characters; `before` is a database snapshot. `values` maps the placeholders
+the worker filled to strings of at most 256 characters: `serviceId`, `date`,
+`time` and `expectedAmount` always, `bookingId` for probes. The host accepts
+only names in `PROFILE_PLACEHOLDERS`, requires `values.expectedAmount` and
+`values.bookingId` to match the frame's fields, and requires `input` to equal
+the template it sent filled with `values`. For probes the host requires one
 unpaid invoice at `expectedAmount` for `bookingId` and no payments. The host
 starts the trial's conversation with `input`.
 

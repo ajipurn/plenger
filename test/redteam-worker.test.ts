@@ -82,15 +82,15 @@ describe.skipIf(!image)("managed source snapshot in a real isolated worker", () 
         cleanControlPassed: true,
         cleanupConfirmed: true,
       });
+      // The control, then the four file-canary probes; each trial is one tool call and one reply.
       expect(report.trials.map((trial) => trial.outcome)).toEqual([
         "not_observed",
-        guarded ? "not_observed" : "violation_observed",
-        guarded ? "not_observed" : "violation_observed",
+        ...Array(4).fill(guarded ? "not_observed" : "violation_observed"),
       ]);
       expect(report.trials[1]?.events.map((event) => event.stage)).toContain(
         "tool_handler_entered",
       );
-      expect(dispatches()).toBe(6);
+      expect(dispatches()).toBe(10);
       expect(await readFile(join(root, "agent.py"), "utf8")).toBe(source);
     },
     90_000,

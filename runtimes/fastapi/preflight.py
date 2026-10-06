@@ -11,7 +11,7 @@ import threading
 from pathlib import Path
 
 # Frame version from docs/design/worker-protocol.md; matches WORKER_PROTOCOL_VERSION on the host.
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 # The host stops this worker at 300 s; exiting at 310 s covers a host that died.
 WORKER_DEADLINE_SECONDS = 310
 # FASTAPI_WORKER in src/redteam/constants.ts; the host launches with exactly these limits.

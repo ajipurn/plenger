@@ -33,10 +33,11 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | Saved providers (OpenAI, Gemini, Ollama) | Available | Keys encrypted at rest in SQLite; never sent to workers or included in reports |
 | ChatGPT subscription provider | Experimental | Native Sign in with ChatGPT, encrypted OAuth storage, text/function Responses transport and observed token thresholds. Offline protocol tests cover authentication and accounting; one live llmfy run recorded on 2026-10-06. Live qualification on a team project pending. |
 | Container runtime | Available | Docker preferred, Podman fallback; networkless, non-root workers. [design/llmfy-runtime.md](design/llmfy-runtime.md) |
-| Attacker and judge model roles | Planned | Today's providers configure the target model only |
+| Trial input templates | Available | Generated-attacks checkpoint 1: built-in controls and probes are host templates in `attack-model.ts`, filled per trial; the Vercel worker fills the booking it seeds and the host checks the delivered text. Same text as before; synthetic container suites rerun on Docker on 2026-10-06. [design/generated-attacks.md](design/generated-attacks.md) |
+| Attacker and judge model roles | Planned | Today's providers configure the target model only; generated attacks are designed in [design/generated-attacks.md](design/generated-attacks.md) |
 | General HTTP and MCP adapters | Planned | M6b/M6c |
 | Indirect injection channels | Planned | M7 |
-| Worker protocol version | Available | Request and `ready` frames carry `protocolVersion` 1; the host and both runtimes refuse other values. [design/worker-protocol.md](design/worker-protocol.md#version) |
+| Worker protocol version | Available | Request and `ready` frames carry `protocolVersion` 2; the host and all three runtimes refuse other values. [design/worker-protocol.md](design/worker-protocol.md#version) |
 
 ## npm distribution
 

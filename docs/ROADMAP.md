@@ -80,7 +80,10 @@ Start → inspect outcomes and evidence → save cases and retest a fix.
 Target, attacker and judge models are distinct roles; choosing a provider
 today configures the target model only. The sequence is: qualify M6a, broaden
 M6b, complete M6c, then M7, then the generated, adaptive, multi-turn and
-grading work as explicit checkpoints.
+grading work as explicit checkpoints. One step was brought forward on
+2026-10-06: checkpoint 1 of [design/generated-attacks.md](design/generated-attacks.md),
+attack templates on the host, ships during M6 because it changes no case text
+or result and M7 reuses it.
 
 ## Principles
 
@@ -201,6 +204,13 @@ and `ready` frames carry `protocolVersion`, so the host refuses a mismatched
 worker. See [design/worker-protocol.md](design/worker-protocol.md). Worker reuse across
 trials with a verified reset may become an explicit option later, never the
 default; a fresh worker per trial stays the rule.
+
+**Attack templates (done, brought forward).** Checkpoint 1 of
+[design/generated-attacks.md](design/generated-attacks.md) moved the built-in
+control and probe text into host templates (`attack-model.ts`) and raised the
+worker protocol to version 2. Every filled prompt equals the version 1 text,
+so cases, statistics and comparisons are unchanged. The attack corpus, the
+attacker role and per-attack campaigns (checkpoints 2 to 4) stay after M7.
 
 **Done when:** all three checkpoints pass. Deterministic local HTTP, direct
 Python and Node function, and MCP fixtures demonstrate both enforced and
@@ -339,6 +349,9 @@ claim of parity:
   unauthorised tool use, access controls and application policy.
 - **Generated and adaptive attacks:** an attacker LLM creates context-specific
   cases and refines attempts from target feedback within explicit budgets.
+  The non-adaptive first step is designed in
+  [design/generated-attacks.md](design/generated-attacks.md); its first
+  checkpoint, attack templates on the host, is done.
 - **Multi-turn campaigns:** session-aware conversations, reset and replay,
   bounded adaptive strategies, evidence retained across turns.
 - **Hybrid grading:** deterministic assertions and tool evidence complemented

@@ -98,6 +98,10 @@ explicit start.
   network and imports the application in a worker; it is the M6b profile's first
   stage and makes no model calls. `runtimes/fastapi/` holds its recipe, preflight,
   worker and the llmfy version adapters.
+- **Trial input.** `attack-model.ts` holds the built-in control and probe
+  input as templates with `{{name}}` placeholders, the placeholders each
+  profile's runner fills, and the fill and validation helpers. It has no
+  `node:` imports, so the dashboard can render templates.
 - **Runs.** `run-model.ts` defines a run and its trials. `run.ts` executes the
   llmfy file-canary profile and dispatches `vercel-booking-sqlite-v1` to
   `vercel-run.ts`. `run-lifecycle.ts` holds the shared executor core (budget,
