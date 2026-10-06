@@ -142,13 +142,21 @@ result is one panel of flush sections divided by hairlines:
    for the security result.
 2. Key figures: model and provider, repetitions, normal tasks, model calls and
    tokens, each with a small usage bar where a limit applies.
-3. Notices: findings (critical tint), errors with a link to the fix, stale
-   results (warning) and context (info). Each has an icon and full text.
-4. Attacks through the model: a table with violation counts as tinted chips,
-   usable tests with a bar, and the observed rate with its interval. The method
+3. Notices: errors with a link to the fix, stale results (warning) and context
+   (info). Each has an icon and full text. A missing safeguard is not a notice;
+   it gets its own section below.
+4. Direct tool checks: one card per handler called without the model, with the
+   outcome chip, the observed change, the arguments sent and the recommended
+   fix. The section sits directly under the key figures when a handler accepted
+   the prohibited arguments, so the failing evidence comes first, and after the
+   model table otherwise. The verdict text leads with the channel that failed.
+5. Attacks through the model: a table with violation counts as tinted chips,
+   usable tests with a bar, and the observed rate with its interval. Below the
+   comparison minimum the cell reads "Too few tests to estimate" with the count
+   needed and the interval in the note, never a bold percentage. The method
    note sits below it as a footnote.
-5. Discovered surfaces exercised, as a ratio with a bar.
-6. Collapsible blocks (CI gate, evidence by repetition, technical evidence)
+6. Discovered surfaces exercised, as a ratio with a bar.
+7. Collapsible blocks (CI gate, evidence by repetition, technical evidence)
    with an icon tile, one line of description and a value on the right.
 
 A single run uses the same parts: attack checks replace the table, and the

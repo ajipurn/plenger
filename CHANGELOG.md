@@ -55,6 +55,12 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- Campaign results in the dashboard: direct tool checks that accepted a
+  prohibited change now appear as their own section with the observed change,
+  arguments and recommended fix, placed before the model table instead of a
+  notice that repeated the verdict. The verdict leads with the channel that
+  failed, and rate cells below the comparison minimum read "Too few tests to
+  estimate" instead of a bold percentage.
 - CLI split into per-command modules under `src/cli/commands/`. Each command
   accepts only its own options; `plenger <command> --help` shows them, and
   `--version`/`--help` work after a command name. `plenger redteam` has the
@@ -85,6 +91,7 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   `SECURITY.md`.
 - `package.json` scripts `bench`, `docs:rules`, `schemas` and `generate` wrap
   the generator scripts.
+
 
 ## M6a/M6b/M6c preview and M8 preview (2026-10-04, f4e2242)
 

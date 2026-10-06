@@ -88,7 +88,11 @@ explicit start.
 - **Model access.** `provider-config.ts` validates saved provider settings and
   converts them to `ProviderAccess`; `provider.ts` is the HTTP transport for
   OpenAI, Gemini and Ollama and the connection test; `budget.ts` enforces one
-  shared call, token and time budget.
+  shared call, token and time budget. The experimental ChatGPT subscription
+  provider has two modules: `chatgpt-auth.ts` runs the Sign in with ChatGPT
+  flow (PKCE, loopback callback, id-token verification, refresh, model
+  catalog) and `chatgpt-provider.ts` is its streaming Responses API transport,
+  which reports observed token thresholds instead of an enforced output cap.
 - **Runs.** `run-model.ts` defines a run and its trials. `run.ts` executes the
   llmfy file-canary profile and dispatches `vercel-booking-sqlite-v1` to
   `vercel-run.ts`. `run-lifecycle.ts` holds the shared executor core (budget,
@@ -125,7 +129,9 @@ applies `migrations.ts` (an ordered list keyed by `user_version`).
 `scan-repository.ts` keeps projects, scans, plans, the selected workspace and the
 theme; `redteam-repository.ts` keeps runs, campaigns and run profiles and
 recovers interrupted ones on open; `provider-repository.ts` keeps provider
-connections and their sealed keys (`provider-secrets.ts`). `store.ts` is the
+connections and their sealed keys (`provider-secrets.ts`), including the sealed
+ChatGPT OAuth session and the lease that serialises its refresh across
+processes. `store.ts` is the
 facade the dashboard uses; `records.ts` defines the persisted shapes that the
 dashboard contract re-exports.
 
@@ -136,8 +142,9 @@ errors to exit codes: `UsageError`, `PolicyError`, `SourceRootError` and
 `PreparationError` exit 2, anything else exits 1, and a failed finding gate exits 3.
 Each command parses only its own options with `parseCommandArgs` (`args.ts`), so an
 option of another command is reported as unsupported. `io.ts` abstracts stdout and
-stderr so tests can call `main()` directly. `redteam-run.ts` and
-`redteam-compare.ts` are the two heavier commands and are loaded on demand.
+stderr so tests can call `main()` directly. `redteam-run.ts`,
+`redteam-compare.ts` and `redteam-login.ts` (the ChatGPT sign-in) are the
+heavier commands and are loaded on demand.
 `github-action.ts` is the entry of the composite GitHub Action.
 
 ## The dashboard
@@ -150,7 +157,8 @@ the embedded assets in the optional binary).
 scan, history, folders, providers, red-team, theme). `http.ts` holds the request
 validators and `HttpError`, `security.ts` the headers and CSP, `operations.ts` the
 supervisor that serialises long operations and cancellation, `static-assets.ts`
-the asset serving.
+the asset serving, and `chatgpt-login.ts` the one browser sign-in a dashboard
+runs at a time, exposing only its public progress through the provider routes.
 
 `contract.ts` is the single contract between the service and the page: the `API`
 route map, request and response types, the limits both sides enforce and the
