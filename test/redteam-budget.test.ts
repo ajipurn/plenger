@@ -2,10 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type BudgetLimits,
   BudgetStoppedError,
+  describeBudgetStop,
   ModelBudget,
   type ModelReservation,
   type TokenUsage,
 } from "../src/redteam/budget.ts";
+import { withRunLifecycle } from "../src/redteam/run-lifecycle.ts";
+import { newRun } from "../src/redteam/run-model.ts";
+import { stubProvider } from "./support/provider.ts";
 
 const budgets: ModelBudget[] = [];
 function budget(limits: Partial<BudgetLimits> = {}, signal?: AbortSignal) {
@@ -454,5 +458,41 @@ describe("run-wide model budget", () => {
     ).rejects.toThrow();
     expect(provider).not.toHaveBeenCalled();
     expect(run.snapshot()).toMatchObject({ state: "open", callsAdmitted: 0, accountedTokens: 0 });
+  });
+});
+
+describe("stop messages", () => {
+  const limits = { maxModelCalls: 12, maxTokens: 200_000, timeoutMs: 600_000 };
+  it.each([
+    ["model-call-limit", "Stopped at the model call limit of 12 calls."],
+    ["token-limit", "Stopped at the token budget of 200,000 tokens."],
+    ["deadline", "Stopped when the 600-second deadline passed."],
+    ["cancelled", "Stopped because the test was cancelled."],
+    [
+      "invalid-provider-response",
+      "Stopped because the model provider returned an invalid response.",
+    ],
+  ] as const)("names the cause of a %s stop", (reason, message) => {
+    expect(describeBudgetStop(reason, limits)).toBe(message);
+  });
+
+  it("records the limit that stopped a run instead of a generic message", async () => {
+    const provider = stubProvider();
+    const options = {
+      target: "agent.py:build_agent",
+      sourceDigest: "digest",
+      limits: { maxModelCalls: 1, maxTokens: 1_000, timeoutMs: 5_000 },
+      provider,
+    };
+    const report = newRun("/project", options);
+    await withRunLifecycle(report, options, "failed", async ({ budget }) => {
+      await budget.execute(reservation(), async () => ({ value: "first" }));
+      await budget.execute(reservation(), async () => ({ value: "never admitted" }));
+    });
+    expect(report).toMatchObject({
+      state: "stopped",
+      error: "Stopped at the model call limit of 1 call.",
+      budget: { stopReasons: ["model-call-limit"] },
+    });
   });
 });

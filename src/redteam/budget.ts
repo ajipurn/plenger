@@ -31,6 +31,26 @@ export type BudgetStopReason =
   | "invalid-provider-usage"
   | "provider-usage-exceeded-reservation";
 
+/** Why a run stopped, in one sentence, for run errors in reports, the CLI and the dashboard. */
+export function describeBudgetStop(reason: BudgetStopReason, limits: BudgetLimits): string {
+  switch (reason) {
+    case "model-call-limit":
+      return `Stopped at the model call limit of ${limits.maxModelCalls} ${limits.maxModelCalls === 1 ? "call" : "calls"}.`;
+    case "token-limit":
+      return `Stopped at the token budget of ${limits.maxTokens.toLocaleString("en-US")} tokens.`;
+    case "deadline":
+      return `Stopped when the ${(limits.timeoutMs / 1000).toLocaleString("en-US")}-second deadline passed.`;
+    case "cancelled":
+      return "Stopped because the test was cancelled.";
+    case "invalid-provider-response":
+      return "Stopped because the model provider returned an invalid response.";
+    case "invalid-provider-usage":
+      return "Stopped because the model provider reported invalid token usage.";
+    case "provider-usage-exceeded-reservation":
+      return "Stopped because a model response used more tokens than were reserved for it.";
+  }
+}
+
 export interface BudgetCall {
   id: number;
   purpose: ModelReservation["purpose"];

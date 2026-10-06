@@ -1,9 +1,53 @@
+import { type BudgetStopReason, describeBudgetStop } from "../../../src/redteam/budget.ts";
 import { caseTitle } from "../../../src/redteam/campaign-model.ts";
 import { CONTROL_TRIAL_ID, PROFILE_CASES } from "../../../src/redteam/constants.ts";
 import type { DatabaseState, RedteamRun, RunTrial } from "../../../src/redteam/run.ts";
 import { isActiveRunState } from "../shared/runs.ts";
 
 export type ResultTone = "issue" | "warning" | "neutral";
+
+/** A limit field in the run setup form, as named by its `data-limit` attribute. */
+export type LimitField = "calls" | "tokens" | "seconds";
+
+export type RunErrorAction =
+  | { kind: "limit"; field: LimitField; label: string }
+  | { kind: "provider" };
+
+const LIMIT_ACTIONS: Partial<Record<BudgetStopReason, { field: LimitField; label: string }>> = {
+  "model-call-limit": { field: "calls", label: "Raise the model call limit" },
+  "token-limit": { field: "tokens", label: "Raise the token budget" },
+  deadline: { field: "seconds", label: "Extend the deadline" },
+};
+
+/**
+ * Why a run stopped or failed, and where to fix it. A budget stop is explained from
+ * the recorded reason, so results saved with the older generic message read the same.
+ * Provider problems point to Providers; a cancellation or an interrupted service has
+ * no action.
+ */
+export function explainRunError(
+  run: RedteamRun,
+): { message: string; reason: BudgetStopReason | null; action: RunErrorAction | null } | null {
+  const reason = run.state === "stopped" ? run.budget?.stopReasons[0] : undefined;
+  if (reason && run.budget) {
+    const limit = LIMIT_ACTIONS[reason];
+    return {
+      message: describeBudgetStop(reason, run.budget.limits),
+      reason,
+      action: limit
+        ? { kind: "limit", ...limit }
+        : reason === "cancelled"
+          ? null
+          : { kind: "provider" },
+    };
+  }
+  if (!run.error) return null;
+  return {
+    message: run.error,
+    reason: null,
+    action: run.state === "failed" ? { kind: "provider" } : null,
+  };
+}
 export type BackendCheck = NonNullable<RedteamRun["backendChecks"]>[number];
 const backendTrials: Record<string, RunTrial["id"]> = {
   update_invoice_amount: "manager-price-override",

@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { CampaignReport } from "../../../src/redteam/campaign.ts";
 import { summarizeScope } from "../../../src/redteam/campaign-evidence.ts";
@@ -18,7 +18,9 @@ import {
   type BackendCheck,
   backendCheckCase,
   describeBackendCheck,
+  explainRunError,
   hasWorkingControl,
+  type LimitField,
   recommendedFix,
 } from "../redteam/run-summary.ts";
 import { percent, plural } from "../shared/format.ts";
@@ -26,7 +28,8 @@ import { Icon } from "../shared/icons.tsx";
 import { isActiveRunState } from "../shared/runs.ts";
 import { useElementScrollbars } from "../shared/ScrollArea.tsx";
 import { SectionSummary } from "../shared/SectionSummary.tsx";
-import { Select } from "../shared/ui.tsx";
+import { Button, Select } from "../shared/ui.tsx";
+import { CampaignProgress } from "./CampaignProgress.tsx";
 
 interface BackendCheckGroup {
   tool: string;
@@ -133,11 +136,33 @@ function DirectToolChecks({
 }
 
 /** Campaign totals stay separate from the evidence for each model invocation. */
-export function CampaignResults({ report, plan }: { report: CampaignReport; plan: ProjectPlan }) {
+export function CampaignResults({
+  report,
+  plan,
+  onAdjustLimit,
+}: {
+  report: CampaignReport;
+  plan: ProjectPlan;
+  /** Open the run setup at the limit that stopped this campaign. */
+  onAdjustLimit?: (field: LimitField) => void;
+}) {
   const id = useId();
   const [selected, setSelected] = useState("");
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const evidence = useRef<HTMLDetailsElement>(null);
   const tableScrollbars = useElementScrollbars<HTMLDivElement>("x");
   const run = report.runs.find((item) => item.id === selected) ?? report.runs.at(-1);
+  /** A matrix cell opens the evidence of its repetition and brings it into view. */
+  function showRepetition(runId: string) {
+    setSelected(runId);
+    setEvidenceOpen(true);
+    requestAnimationFrame(() =>
+      evidence.current?.scrollIntoView({
+        block: "start",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      }),
+    );
+  }
   const active = isActiveRunState(report.state);
   const modelViolations = report.statistics.reduce(
     (sum, item) => sum + item.counts.violation_observed,
@@ -157,7 +182,11 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
   const tone = issue ? "issue" : active || incomplete ? "warning" : "neutral";
   const finished = report.runs.filter((item) => !!item.finishedAt).length;
   const controls = report.runs.filter(hasWorkingControl).length;
-  const error = report.runs.find((item) => item.error)?.error;
+  const failure = report.runs.map(explainRunError).find((item) => item !== null);
+  const sharedLimit =
+    failure?.action?.kind === "limit" && report.plan.repetitions > 1
+      ? ` The limit is shared by all ${report.plan.repetitions} repetitions.`
+      : "";
   const outdated =
     report.plan.sourceDigest !== plan.sourceDigest || report.plan.target !== plan.selectedTarget;
   const scope = summarizeScope(report);
@@ -225,7 +254,7 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
           },
         ]}
       />
-      {(weakGate || error || outdated) && (
+      {(weakGate || failure || outdated) && (
         <div className="run-alerts">
           {weakGate && (
             <RunAlert tone="warning">
@@ -238,12 +267,25 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
               on it.
             </RunAlert>
           )}
-          {error && (
-            <RunAlert tone="error">
-              {error}{" "}
-              <Link className="run-alert-link" to={routes.providers}>
-                Check the saved model connection <Icon name="arrow-right" />
-              </Link>
+          {failure && (
+            <RunAlert tone={failure.reason === "cancelled" ? "info" : "error"}>
+              <strong>{failure.message}</strong>
+              {sharedLimit}{" "}
+              {failure.action?.kind === "limit" && onAdjustLimit && (
+                <Button
+                  className="run-alert-link"
+                  onClick={() => {
+                    if (failure.action?.kind === "limit") onAdjustLimit(failure.action.field);
+                  }}
+                >
+                  {failure.action.label} <Icon name="arrow-right" />
+                </Button>
+              )}
+              {failure.action?.kind === "provider" && (
+                <Link className="run-alert-link" to={routes.providers}>
+                  Check the saved model connection <Icon name="arrow-right" />
+                </Link>
+              )}
             </RunAlert>
           )}
           {outdated && (
@@ -254,6 +296,11 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
           )}
         </div>
       )}
+      <CampaignProgress
+        report={report}
+        selectedRunId={evidenceOpen ? run?.id : undefined}
+        onSelectRepetition={showRepetition}
+      />
       {backendViolations > 0 && (
         <DirectToolChecks groups={backendGroups} repetitions={report.plan.repetitions} />
       )}
@@ -437,7 +484,12 @@ export function CampaignResults({ report, plan }: { report: CampaignReport; plan
           </div>
         </details>
         {run && (
-          <details className="technical-disclosure run-disclosure campaign-evidence">
+          <details
+            ref={evidence}
+            className="technical-disclosure run-disclosure campaign-evidence"
+            open={evidenceOpen}
+            onToggle={(event) => setEvidenceOpen(event.currentTarget.open)}
+          >
             <SectionSummary
               icon="source-files"
               title="Evidence by repetition"

@@ -14,6 +14,7 @@ import {
 } from "./RunLayout.tsx";
 import {
   backendResult,
+  explainRunError,
   hasWorkingControl,
   modelResult,
   recommendedFix,
@@ -33,6 +34,7 @@ export function RedteamResults({
 }) {
   const id = useId();
   const summary = summarizeRun(report);
+  const failure = explainRunError(report);
   const booking = report.evidenceScope === "isolated-route-sqlite";
   const outdated =
     report.sourceDigest !== plan.sourceDigest || report.target !== plan.selectedTarget;
@@ -86,12 +88,12 @@ export function RedteamResults({
       />
       {(summary.synthetic ||
         outdated ||
-        report.error ||
+        failure ||
         (report.finishedAt && !report.cleanupConfirmed)) && (
         <div className="run-alerts">
-          {report.error && (
-            <RunAlert tone="error" role="status">
-              {report.error}
+          {failure && (
+            <RunAlert tone={failure.reason === "cancelled" ? "info" : "error"} role="status">
+              {failure.message}
             </RunAlert>
           )}
           {report.finishedAt && !report.cleanupConfirmed && (

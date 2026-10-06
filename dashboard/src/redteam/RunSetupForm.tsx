@@ -201,6 +201,7 @@ export function RunSetupForm({
                   Model call limit
                   <Input
                     id={`${id}-calls`}
+                    data-limit="calls"
                     type="number"
                     min={CAMPAIGN_LIMITS.maxModelCalls.min}
                     max={CAMPAIGN_LIMITS.maxModelCalls.max}
@@ -213,6 +214,7 @@ export function RunSetupForm({
                   {savedProvider?.provider === "chatgpt" ? "Token threshold" : "Token budget"}
                   <Input
                     id={`${id}-tokens`}
+                    data-limit="tokens"
                     type="number"
                     min={CAMPAIGN_LIMITS.maxTokens.min}
                     max={CAMPAIGN_LIMITS.maxTokens.max}
@@ -225,6 +227,7 @@ export function RunSetupForm({
                   Deadline (seconds)
                   <Input
                     id={`${id}-seconds`}
+                    data-limit="seconds"
                     type="number"
                     min={CAMPAIGN_LIMITS.timeoutMs.min / 1000}
                     max={CAMPAIGN_LIMITS.timeoutMs.max / 1000}

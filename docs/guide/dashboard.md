@@ -143,7 +143,13 @@ and managed dependency versions. Keys entered only for a run stay in memory.
 Settings are remembered per project, and results, including partial results,
 are stored in SQLite. Refresh reconnects to an active run.
 
-Results appear above the configuration. The headline distinguishes observed
+Results appear above the configuration. While a test runs, **Progress** shows
+the current repetition and check, the model calls made, the last worker event,
+the elapsed time against the deadline and a matrix with one square per check
+and repetition: not started, running, completed without violation, violation
+observed or no conclusion. The latest worker events of the current check are
+listed below it. Select a square to open that repetition under **Evidence by
+repetition**. The headline distinguishes observed
 weaknesses, incomplete testing and a scoped negative result; finishing a run
 is not a safety verdict. Each attack shows the model outcome, any direct
 backend check, the observed effect and a recommended fix. A refused model

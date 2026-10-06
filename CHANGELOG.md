@@ -46,6 +46,13 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- A stopped run now names its cause, such as "Stopped at the model call limit
+  of 12 calls.", instead of "Run stopped by its budget, deadline or
+  cancellation." The dashboard derives the same message from the recorded stop
+  reason, so saved results read correctly too. Its notice offers the matching
+  fix: a limit stop opens Configure another test at that limit and says the
+  limit is shared by every repetition, provider problems link to Providers, and
+  a cancellation has no action.
 - The credential detector no longer treats ORM column definitions
   (`password = Column(...)`), model-API object ids (`call_…`, `tooluse_…`),
   compound identifiers (`SW-Chat-22-…`) or `key=value` expressions in quoted

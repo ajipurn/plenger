@@ -50,3 +50,14 @@ export function known(value: string | null): string {
 export function observedList(values: string[]): string {
   return values.length > 0 ? values.join(", ") : "None observed";
 }
+
+/** "48 s", "2 min 14 s", "10 min", "1 h 05 min"; negative or invalid input reads as zero. */
+export function formatDuration(ms: number): string {
+  const total = Number.isFinite(ms) ? Math.max(0, Math.round(ms / 1000)) : 0;
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours) return `${hours} h ${String(minutes).padStart(2, "0")} min`;
+  if (minutes) return seconds ? `${minutes} min ${seconds} s` : `${minutes} min`;
+  return `${seconds} s`;
+}

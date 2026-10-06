@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { redactReport } from "../shared/secrets.ts";
-import { ModelBudget } from "./budget.ts";
+import { describeBudgetStop, ModelBudget } from "./budget.ts";
 import { WORKER_PROTOCOL_VERSION } from "./constants.ts";
 import type { ProjectPlan } from "./plan-model.ts";
 import {
@@ -51,9 +51,14 @@ export async function withRunLifecycle(
     report.state = budget.signal.aborted ? "stopped" : "completed";
   } catch {
     report.state = budget.signal.aborted ? "stopped" : "failed";
+    // The first stop reason is the cause; later ones (a cancel after the cap) follow from it.
+    const { stopReasons, limits } = budget.snapshot();
+    const reason = stopReasons[0];
     report.error =
       report.state === "stopped"
-        ? "Run stopped by its budget, deadline or cancellation."
+        ? reason
+          ? describeBudgetStop(reason, limits)
+          : "Run stopped by its budget, deadline or cancellation."
         : (report.error ?? failureMessage);
   } finally {
     if (!options.sharedBudget) budget.finish();

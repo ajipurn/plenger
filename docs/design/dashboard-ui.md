@@ -143,21 +143,40 @@ result is one panel of flush sections divided by hairlines:
 2. Key figures: model and provider, repetitions, normal tasks, model calls and
    tokens, each with a small usage bar where a limit applies.
 3. Notices: a CI gate minimum below the estimation threshold (warning), errors
-   with a link to the fix, stale results (warning) and context (info). Each has an icon and full text. A missing safeguard is not a notice;
+   with the action that fixes their cause, stale results (warning) and context
+   (info). A stop at a limit names the limit, says every repetition shares it
+   and offers to raise it: the action opens Configure another test and focuses
+   that field. Provider problems link to Providers; a cancellation is context
+   with no action. Each has an icon and full text. A missing safeguard is not a notice;
    it gets its own section below.
-4. Direct tool checks: one card per handler called without the model, with the
+4. Progress: what the campaign is doing now (repetition, normal task or attack,
+   model calls, last worker event) beside the elapsed time against the
+   deadline, then a matrix with one row per check (direct tool checks, normal
+   task, each attack) and one square per repetition. Squares read: hairline
+   for not started, accent and pulsing for running, neutral fill for completed
+   without violation, critical for an observed violation, medium for no
+   conclusion, dashed for not run. The matrix sits in a bordered table with
+   the shared header band, hairline rows and the legend as its footer. Row
+   labels stay in view while many repetitions scroll sideways, and a summary
+   column on the right gives finished checks and a critical chip for
+   violations. On phones the summary column gives way and labels wrap.
+   Selecting a square opens that repetition under Evidence by repetition. While a test runs, the latest worker events of
+   the current check follow as a short list. After it ends, the line reads
+   Completed, Stopped or Failed with the total duration and the matrix stays as
+   the map of the result. The elapsed time is outside the live region.
+5. Direct tool checks: one card per handler called without the model, with the
    outcome chip, the observed change, the arguments sent and the recommended
    fix. The section sits directly under the key figures when a handler accepted
    the prohibited arguments, so the failing evidence comes first, and after the
    model table otherwise. The verdict text leads with the channel that failed.
-5. Attacks through the model: a table with violation counts as tinted chips,
+6. Attacks through the model: a table with violation counts as tinted chips,
    usable tests with a bar, and the observed rate with its interval. Below the
    comparison minimum the cell reads "Too few tests to estimate" with the count
    needed and the interval in the note, never a bold percentage. The method
    note sits below it as a footnote.
-6. Discovered surfaces exercised, as a ratio with a bar. Handlers exercised by
+7. Discovered surfaces exercised, as a ratio with a bar. Handlers exercised by
    direct tool checks count, and the text says how many.
-7. Collapsible blocks (CI gate, evidence by repetition, technical evidence)
+8. Collapsible blocks (CI gate, evidence by repetition, technical evidence)
    with an icon tile, one line of description and a value on the right.
 
 A single run uses the same parts: attack checks replace the table, and the

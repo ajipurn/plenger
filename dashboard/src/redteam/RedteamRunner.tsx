@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { SavedRunProfile } from "../../../src/dashboard/contract.ts";
 import type { CampaignReport } from "../../../src/redteam/campaign.ts";
 import type { ProjectPlan } from "../../../src/redteam/plan.ts";
@@ -16,6 +16,7 @@ import { SectionSummary } from "../shared/SectionSummary.tsx";
 import { Button, Select } from "../shared/ui.tsx";
 import { RedteamResults } from "./RedteamResults.tsx";
 import { type CampaignStartConfig, RunSetupForm } from "./RunSetupForm.tsx";
+import type { LimitField } from "./run-summary.ts";
 
 export function RedteamRunner({
   plan,
@@ -37,6 +38,7 @@ export function RedteamRunner({
   const api = useApi();
   const id = useId();
   const [selected, setSelected] = useState<string | null>(null);
+  const setup = useRef<HTMLDetailsElement>(null);
   const { busy: pending, error, run } = useAsyncAction();
   const savedTests = [...campaigns, ...runs].sort(
     (a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
@@ -57,6 +59,18 @@ export function RedteamRunner({
     void run(async () => {
       await api.cancelRun(active.id);
     }, "Could not cancel the run.");
+  }
+  /** Open the setup form and put the cursor in the limit that stopped the test. */
+  function adjustLimit(field: LimitField) {
+    const details = setup.current;
+    if (!details) return;
+    details.open = true;
+    const input = details.querySelector<HTMLInputElement>(`[data-limit="${field}"]`);
+    if (!input) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    input.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    input.focus({ preventScroll: true });
+    input.select();
   }
   function download(run: RedteamRun | CampaignReport, profileOnly = false) {
     downloadJson(
@@ -104,7 +118,12 @@ export function RedteamRunner({
       {report &&
         (report.kind === "redteam-campaign" ? (
           <>
-            <CampaignResults key={report.id} report={report} plan={plan} />
+            <CampaignResults
+              key={report.id}
+              report={report}
+              plan={plan}
+              onAdjustLimit={adjustLimit}
+            />
             <CampaignComparison
               key={`comparison-${report.id}`}
               after={report}
@@ -115,6 +134,7 @@ export function RedteamRunner({
           <RedteamResults report={report} plan={plan} />
         ))}
       <details
+        ref={setup}
         className="panel run-panel run-setup"
         open={!report}
         key={report ? "repeat" : "initial"}
