@@ -11,7 +11,10 @@ export class ProjectFileError extends Error {
   }
 }
 
-/** Read a bounded regular file; reject links and changes during the read. */
+/**
+ * Read a bounded regular file; reject links and changes during the read. `root` must
+ * be a real path (a plan's `root`): any other form fails every file as `linked-path`.
+ */
 export async function readProjectFile(root: string, path: string, limit: number): Promise<Buffer> {
   const absolute = join(root, path);
   const local = relative(root, absolute);

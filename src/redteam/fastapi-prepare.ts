@@ -164,9 +164,11 @@ export async function prepareFastapiProject(
           throw new PreparationError(
             `llmfy ${profile.llmfy.version} has no FastAPI profile adapter.`,
           );
+        // The plan's root is the resolved real path; a relative or linked argument is not.
+        report.root = plan.root;
         report.target = plan.selectedTarget;
         report.sourceDigest = plan.sourceDigest;
-        const requirements = await requirementsFor(root, plan);
+        const requirements = await requirementsFor(plan);
         const sources = await readWorkspaceSources(workspace, plan);
         report.stage = "build";
         update();
@@ -257,11 +259,11 @@ export async function prepareFastapiProject(
 }
 
 /** The manifest the build installs from; its bytes must still match the reviewed digest. */
-async function requirementsFor(root: string, plan: ProjectPlan): Promise<string> {
+async function requirementsFor(plan: ProjectPlan): Promise<string> {
   const reviewed = plan.dependencies.manifests.find((item) => item.path === "requirements.txt");
   if (!reviewed || reviewed.sha256 === null)
     throw new PreparationError("The FastAPI profile installs dependencies from requirements.txt.");
-  const bytes = await readProjectFile(root, "requirements.txt", 256 * 1024);
+  const bytes = await readProjectFile(plan.root, "requirements.txt", 256 * 1024);
   const { sha256Hex } = await import("../shared/hash.ts");
   if (sha256Hex(bytes) !== reviewed.sha256)
     throw new PreparationError("requirements.txt changed since planning; create a new plan.");

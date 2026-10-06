@@ -1,5 +1,5 @@
-import { cp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { cp, realpath, rm, writeFile } from "node:fs/promises";
+import { isAbsolute, join, relative } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { main } from "../src/cli/index.ts";
 import {
@@ -248,6 +248,20 @@ describe("FastAPI preparation", () => {
     });
     expect((await prepareFastapiProject(fixture, {}, wrong.dependencies)).state).toBe("failed");
     expect(wrong.disposed()).toBe(1);
+  });
+
+  it("prepares a project given as a relative path and reports its real path", async () => {
+    const { dependencies } = stubs(async (_image, _request, _signal, receive) => {
+      await receive(ready);
+      await receive({ type: "adapter", llmfy: "0.6.0", patched: [] });
+      await receive({ type: "imported", durationMs: 1, application: "FastAPI", routes: [] });
+      await receive({ type: "finished", completed: true });
+    });
+    const path = relative(process.cwd(), fixture);
+    expect(isAbsolute(path)).toBe(false);
+    const report = await prepareFastapiProject(path, {}, dependencies);
+    expect(report).toMatchObject({ state: "completed", stage: "done", error: null });
+    expect(report.root).toBe(await realpath(fixture));
   });
 
   it("refuses projects outside the profile before building anything", async () => {
