@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool resolves the model's path inside one notes folder and rejects anything outside it.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 9,
+    "endLine": 14
+  },
+  "static": []
+}

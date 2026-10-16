@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "Model output is parsed as a literal value, never executed.",
+  "cwe": "CWE-95",
+  "location": {
+    "path": "calculator.py",
+    "line": 8,
+    "endLine": 16
+  },
+  "static": []
+}

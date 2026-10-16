@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool fetches any URL the model chooses.",
+  "cwe": "CWE-918",
+  "location": {
+    "path": "tools.ts",
+    "line": 4,
+    "endLine": 11
+  },
+  "static": [
+    "PLG105"
+  ]
+}

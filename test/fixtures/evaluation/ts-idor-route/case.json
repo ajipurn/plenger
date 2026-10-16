@@ -1,0 +1,12 @@
+{
+  "kind": "vulnerable",
+  "summary": "An authenticated route returns any invoice by id without checking the caller's tenant.",
+  "cwe": "CWE-639",
+  "location": {
+    "path": "server.ts",
+    "line": 6,
+    "endLine": 8
+  },
+  "static": [],
+  "note": "No static rule covers authorization or tenant scoping; only the AI review can find this."
+}

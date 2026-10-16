@@ -16,6 +16,7 @@ pnpm dev <command> ...               # run the CLI from source, no build step
 pnpm dashboard                       # Vite dev server + local API with hot reload
 pnpm generate                        # regenerate docs/RULES.md and schemas/*.json
 pnpm bench -- --write                # regenerate test/fixtures/*/expected-*.json
+pnpm evaluate                        # static detection on test/fixtures/evaluation; see CONTRIBUTING.md
 ```
 
 ## Rules

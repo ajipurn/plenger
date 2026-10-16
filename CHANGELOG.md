@@ -12,6 +12,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - AI reviews and `plenger assess` reports record what produced them: the
   SHA-256 of the instructions with their schemas, and each request's model,
   temperature, output ceiling and use of structured output. Outputs show them.
+- `pnpm evaluate` measures detection on a labeled corpus of 16 cases, pairs of
+  a vulnerable case and a safe near-miss, for the static rules and for the AI
+  review of saved connections over repeated runs.
 - Static scans report handler traces that stop short. Tools and entry points
   carry a `trace` entry in the JSON inventory with the calls past the depth
   limit and the calls through a callback, subscript or call result; every report

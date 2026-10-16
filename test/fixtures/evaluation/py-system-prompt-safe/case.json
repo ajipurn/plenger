@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "An HTTP route keeps the system prompt constant and sends caller text only as the user message.",
+  "cwe": "CWE-1427",
+  "location": {
+    "path": "app.py",
+    "line": 14,
+    "endLine": 23
+  },
+  "static": []
+}

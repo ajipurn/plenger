@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A LangChain tool runs the model's command through a shell.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "tools.py",
+    "line": 7,
+    "endLine": 10
+  },
+  "static": [
+    "PLG101"
+  ]
+}

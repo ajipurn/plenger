@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A model API key comes from the environment.",
+  "cwe": "CWE-798",
+  "location": {
+    "path": "client.py",
+    "line": 5,
+    "endLine": 5
+  },
+  "static": []
+}

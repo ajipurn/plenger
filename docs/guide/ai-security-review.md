@@ -151,6 +151,14 @@ two requests, 400,000 accounted tokens and 120 seconds. A deep scan makes at
 most six requests and stops further batches after a failed or refused review. Output is capped at the
 smaller of the provider setting and 8,192 tokens per request.
 
+## Measuring detection
+
+Contributors measure the review with `pnpm evaluate` on the labeled corpus in
+`test/fixtures/evaluation/`; see [CONTRIBUTING.md](../../CONTRIBUTING.md#detection-evaluation).
+Records are in [../qualifications/](../qualifications/), and
+[../STATUS.md](../STATUS.md) states what has been measured. Compare records
+only when their prompt digests match.
+
 ## Review results and prepare a fix
 
 Results and failures are saved per scan and survive navigation, refresh and

@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool interpolates the model's input into a SQL statement.",
+  "cwe": "CWE-89",
+  "location": {
+    "path": "tools.py",
+    "line": 9,
+    "endLine": 12
+  },
+  "static": [
+    "PLG106"
+  ]
+}

@@ -100,6 +100,24 @@ pnpm bench -- --write
 git diff test/fixtures/*/expected-*.json
 ```
 
+## Detection evaluation
+
+`pnpm evaluate` (`scripts/evaluate.ts`) measures detection on the labeled corpus in
+`test/fixtures/evaluation/`: pairs of a vulnerable case and a safe near-miss per
+weakness, described in its README. Without options it scores the static rules
+offline. `--provider <saved name>` also runs the AI review of that connection
+`--runs` times (default 3) and reports precision, recall and their spread per
+run; `--validator` adds a separate second-review connection. A live run sends
+the redacted corpus to the provider and needs `--yes`; it makes at most two model
+requests per case and run. Write records with `--output
+docs/qualifications/<name>.md`. `test/evaluation.test.ts` fails when the static
+results drift from the labels.
+
+```sh
+pnpm evaluate
+pnpm evaluate -- --provider "Claude review" --runs 3 --yes --output docs/qualifications/detection-claude-2026-10-16.md
+```
+
 `--write` replaces the expected files with the current output. Review every
 changed line against the source before committing; the expected files are the
 accuracy record, not a cache.

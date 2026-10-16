@@ -1,0 +1,14 @@
+{
+  "kind": "safe",
+  "summary": "A tool only fetches HTTPS pages from an allowlisted documentation host.",
+  "cwe": "CWE-918",
+  "location": {
+    "path": "tools.ts",
+    "line": 6,
+    "endLine": 12
+  },
+  "static": [
+    "PLG105"
+  ],
+  "note": "PLG105 fires at medium confidence: the host check lowers confidence but does not prove the URL safe."
+}

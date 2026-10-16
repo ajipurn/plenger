@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool reads any path the model names.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 5,
+    "endLine": 8
+  },
+  "static": [
+    "PLG104"
+  ]
+}

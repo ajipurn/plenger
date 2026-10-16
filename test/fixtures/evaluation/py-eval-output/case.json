@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "Model output is evaluated as Python code.",
+  "cwe": "CWE-95",
+  "location": {
+    "path": "calculator.py",
+    "line": 6,
+    "endLine": 12
+  },
+  "static": [
+    "PLG401"
+  ]
+}

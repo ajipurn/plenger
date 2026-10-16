@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool passes the model's input to SQL as a bound parameter.",
+  "cwe": "CWE-89",
+  "location": {
+    "path": "tools.py",
+    "line": 9,
+    "endLine": 12
+  },
+  "static": []
+}

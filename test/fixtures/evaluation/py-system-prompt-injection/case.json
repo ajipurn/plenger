@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "An HTTP route places caller-supplied text in the system prompt.",
+  "cwe": "CWE-1427",
+  "location": {
+    "path": "app.py",
+    "line": 14,
+    "endLine": 23
+  },
+  "static": [
+    "PLG302"
+  ]
+}

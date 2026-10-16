@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "An authenticated route only returns invoices of the caller's tenant.",
+  "cwe": "CWE-639",
+  "location": {
+    "path": "server.ts",
+    "line": 6,
+    "endLine": 10
+  },
+  "static": []
+}

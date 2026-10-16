@@ -33,6 +33,7 @@
     "qualify:vercel": "node scripts/qualify-vercel.ts",
     "grammars": "node scripts/update-grammars.ts",
     "bench": "node scripts/benchmark.ts",
+    "evaluate": "node scripts/evaluate.ts",
     "docs:rules": "node scripts/rules-doc.ts",
     "schemas": "node scripts/report-schemas.ts",
     "generate": "pnpm docs:rules && pnpm schemas"
