@@ -2,6 +2,7 @@ import { PreparationError } from "../redteam/plan.ts";
 import { SourceRootError } from "../report/format.ts";
 import { PolicyError } from "../report/policy.ts";
 import { VERSION } from "../shared/runtime.ts";
+import { ASSESS_USAGE, assessCommand } from "./commands/assess.ts";
 import { REDTEAM_USAGE, redteamCommand } from "./commands/redteam.ts";
 import { rulesCommand } from "./commands/rules.ts";
 import { factsCommand, scanCommand } from "./commands/scan.ts";
@@ -13,6 +14,7 @@ export { VERSION };
 
 export const USAGE = `Usage:
   plenger scan [path]            Triage the agentic AI code under path (default: .): inventory, capabilities, findings
+  plenger assess [path]          Review redacted scan evidence with Claude (read-only)
   plenger rules                  List the risk rules
   plenger serve [path]           Serve the local dashboard (default: .)
   plenger facts [path]           Print the imports, definitions, assignments and calls in path as JSON
@@ -55,6 +57,7 @@ interface Command {
 
 const COMMANDS: Record<string, Command> = {
   scan: { run: scanCommand, usage: USAGE },
+  assess: { run: assessCommand, usage: ASSESS_USAGE },
   facts: { run: factsCommand, usage: USAGE },
   rules: { run: rulesCommand, usage: USAGE },
   serve: { run: serveCommand, usage: SERVE_USAGE },
