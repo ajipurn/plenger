@@ -20,7 +20,7 @@ plenger serve --data-dir path/to/dashboard-data
 For a published release, npx can launch the same dashboard:
 
 ```sh
-npx plenger-cli@latest serve --port 4180
+npx plenger@latest serve --port 4180
 ```
 
 See [install.md](install.md) for npm installation and local tarballs.

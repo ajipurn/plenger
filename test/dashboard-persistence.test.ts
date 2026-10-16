@@ -145,9 +145,9 @@ describe("SQLite dashboard persistence", () => {
 
   it("validates and authenticates theme changes without replacing the last saved preference", async () => {
     await request("/api/theme", { theme: "light" });
-    expect((await request("/api/theme", { theme: "dark" }, { "X-Plenger-Token": "" })).status).toBe(
-      403,
-    );
+    expect(
+      (await request("/api/theme", { theme: "dark" }, { "X-Plenger-Token": "" })).status,
+    ).toBe(403);
     expect(
       (await request("/api/theme", { theme: "dark" }, { Origin: "https://evil.example" })).status,
     ).toBe(403);

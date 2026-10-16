@@ -31,15 +31,15 @@ See [docs/STATUS.md](docs/STATUS.md) for release availability. For a published
 release, install the CLI globally:
 
 ```sh
-npm install -g plenger-cli
+npm install -g plenger
 plenger --version
 ```
 
 Or run it with npx:
 
 ```sh
-npx plenger-cli@latest scan path/to/project
-npx plenger-cli@latest serve --port 4180
+npx plenger@latest scan path/to/project
+npx plenger@latest serve --port 4180
 ```
 
 The package includes the CLI, built dashboard, tree-sitter grammars and

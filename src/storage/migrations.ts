@@ -84,7 +84,9 @@ export function migrate(database: DatabaseSync): void {
   const recorded = database.prepare("PRAGMA user_version").get()?.user_version;
   const version = typeof recorded === "number" ? recorded : Number.NaN;
   if (!Number.isInteger(version) || version < 0 || version > SCHEMA_VERSION)
-    throw new Error("Dashboard database version is unsupported. Use a compatible Plenger version.");
+    throw new Error(
+      "Dashboard database version is unsupported. Use a compatible Plenger version.",
+    );
   for (const [index, step] of MIGRATIONS.entries()) {
     if (index < version) continue;
     step(database);

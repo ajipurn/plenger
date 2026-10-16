@@ -243,7 +243,10 @@ export function containerArguments(
       ? ["/opt/plenger/worker.mjs"]
       : fastapi
         ? ["-I", "/opt/plenger/worker.py"]
-        : ["-I", options.projectRequest ? "/opt/plenger/worker.py" : "/opt/plenger/qualify.py"]),
+        : [
+            "-I",
+            options.projectRequest ? "/opt/plenger/worker.py" : "/opt/plenger/qualify.py",
+          ]),
   ];
 }
 

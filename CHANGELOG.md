@@ -36,7 +36,7 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   whose handler writes model-supplied content to a model-controlled path. A
   target without one shows the reason in the CLI and dashboard, and the run is
   blocked instead of spending model budget on a clean control that cannot pass.
-- npm package `plenger-cli` with the `plenger` command: compiled CLI, built
+- npm package `plenger` with the `plenger` command: compiled CLI, built
   dashboard, grammars, schemas and red-team recipes. `pnpm build:package` and
   `pnpm test:package` build and check it; the npm package workflow runs the
   check on Linux, macOS and Windows.

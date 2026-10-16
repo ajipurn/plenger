@@ -11,7 +11,7 @@ build. Release availability and platform evidence are in
 For a published release, install globally:
 
 ```sh
-npm install -g plenger-cli
+npm install -g plenger
 plenger --version
 plenger scan path/to/project
 ```
@@ -25,9 +25,9 @@ standalone executable or run Plenger build scripts.
 For a published release, run a command without a global installation:
 
 ```sh
-npx plenger-cli@latest --version
-npx plenger-cli@latest scan path/to/project
-npx plenger-cli@latest serve --port 4180
+npx plenger@latest --version
+npx plenger@latest scan path/to/project
+npx plenger@latest serve --port 4180
 ```
 
 The first invocation downloads the package and its production dependencies.
@@ -56,7 +56,7 @@ From the repository root:
 ```sh
 pnpm install --ignore-scripts
 pnpm test:package
-npm install -g ./dist/npm/plenger-cli-0.1.0.tgz
+npm install -g ./dist/npm/plenger-0.1.0.tgz
 plenger serve --port 4180
 ```
 
@@ -70,7 +70,7 @@ the source checkout. See [../../CONTRIBUTING.md](../../CONTRIBUTING.md) and
 Stop any running `serve` process, then update a published release:
 
 ```sh
-npm install -g plenger-cli@latest
+npm install -g plenger@latest
 ```
 
 For a local tarball, install the new archive with `npm install -g <archive>`.

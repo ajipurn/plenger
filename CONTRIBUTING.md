@@ -191,7 +191,7 @@ Plenger install scripts. The package includes all CLI commands, the dashboard,
 grammars and container recipes. Docker or Podman is needed only for red-team
 execution.
 
-The smoke check writes `dist/npm/plenger-cli-<version>.tgz`. It installs the archive
+The smoke check writes `dist/npm/plenger-<version>.tgz`. It installs the archive
 and the locally packed production dependency closure in a temporary directory
 without registry access. It fails on runtime files outside `RUNTIME_FILES` and
 on compiled files without a matching source. It checks npm command resolution, all four grammars, offline

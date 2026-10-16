@@ -8,7 +8,8 @@ import { migrate } from "./migrations.ts";
 export type Row = Record<string, SQLOutputValue>;
 
 export function dashboardDataDirectory(): string {
-  if (process.platform === "darwin") return join(homedir(), "Library/Application Support/plenger");
+  if (process.platform === "darwin")
+    return join(homedir(), "Library/Application Support/plenger");
   if (process.platform === "win32")
     return join(process.env.LOCALAPPDATA || join(homedir(), "AppData/Local"), "plenger");
   return join(process.env.XDG_DATA_HOME || join(homedir(), ".local/share"), "plenger");

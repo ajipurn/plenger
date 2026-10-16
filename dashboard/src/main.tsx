@@ -19,7 +19,9 @@ const legacy = legacyHashTarget(window.location.hash.slice(1));
 if (window.location.pathname === "/" && legacy) {
   window.history.replaceState(null, "", legacy);
 }
-const nonce = document.querySelector<HTMLMetaElement>('meta[name="plenger-style-nonce"]')?.content;
+const nonce = document.querySelector<HTMLMetaElement>(
+  'meta[name="plenger-style-nonce"]',
+)?.content;
 OverlayScrollbars.nonce(nonce);
 // Vaul locks page scrolling through Radix, whose generated <style> reads its nonce here.
 if (nonce) setNonce(nonce);

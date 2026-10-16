@@ -12,7 +12,8 @@ import {
 /** SIWC uses the public Responses API. No Codex credentials or agent process are involved. */
 export function createChatgptProvider(access: ProviderAccess, dispatch: typeof fetch): RunProvider {
   const accessToken = access.accessToken;
-  if (!accessToken) throw new Error("Sign in with plenger redteam login --provider <name> first.");
+  if (!accessToken)
+    throw new Error("Sign in with plenger redteam login --provider <name> first.");
   const outputLimit = access.maxOutputTokens ?? 1024;
   const history = new Map<string, unknown[]>();
   function body(request: ModelRequest) {

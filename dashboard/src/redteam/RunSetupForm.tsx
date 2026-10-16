@@ -313,8 +313,9 @@ export function RunSetupForm({
                 </p>
               )}
               <p className="muted">
-                Docker Desktop or Podman must be installed and running. Plenger prepares the runtime
-                automatically. Your selected model overrides the project's model for these tests.
+                Docker Desktop or Podman must be installed and running. Plenger prepares the
+                runtime automatically. Your selected model overrides the project's model for these
+                tests.
               </p>
               <Button type="submit" className="button button-primary" disabled={missingProvider}>
                 {pending ? "Starting…" : "Start test"}

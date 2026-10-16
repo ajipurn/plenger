@@ -9,7 +9,7 @@ Release availability and platform evidence are in [../STATUS.md](../STATUS.md).
 
 ## npm package contents
 
-The package is named `plenger-cli` because the `plenger` package name and the
+The package is named `plenger` because the `plenger` package name and the
 `@plenger` scope belong to other npm accounts. `package.json` maps the
 `plenger` command to `dist/bin.js`. Node.js 22.18 or newer runs the compiled
 JavaScript. npm only warns about `engines`, so `dist/bin.js` checks the Node.js
@@ -65,7 +65,7 @@ pnpm test:package
 ```
 
 `scripts/smoke-package.ts` runs `npm pack` with its build hook and writes
-`dist/npm/plenger-cli-<version>.tgz`. It packs the installed production dependency
+`dist/npm/plenger-<version>.tgz`. It packs the installed production dependency
 closure locally and installs all archives into a temporary directory without registry
 access. From that directory it checks:
 

@@ -72,7 +72,9 @@ function findingLines(findings: Finding[], s: Styles, all: boolean): string[] {
     `  ${s.bold("Findings")}${tally.length > 0 ? `  ${tally.join(s.dim(" · "))}` : ""}`,
   ];
   if (findings.length === 0) {
-    lines.push("    No risks detected by plenger's rules. This is not proof that there are none.");
+    lines.push(
+      "    No risks detected by plenger's rules. This is not proof that there are none.",
+    );
     return lines;
   }
   const shown = all ? findings : findings.slice(0, FINDING_LIMIT);

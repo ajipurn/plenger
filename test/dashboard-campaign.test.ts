@@ -174,7 +174,8 @@ describe("dashboard repeated security tests", () => {
 
   it("rejects unauthenticated and malformed settings before a worker or model can run", async () => {
     expect(
-      (await request("/api/redteam/campaign/start", config, { "X-Plenger-Token": "wrong" })).status,
+      (await request("/api/redteam/campaign/start", config, { "X-Plenger-Token": "wrong" }))
+        .status,
     ).toBe(403);
     expect(
       (

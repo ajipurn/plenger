@@ -319,7 +319,10 @@ export function toMarkdown(
     "",
   ];
   if (report.findings.length === 0) {
-    lines.push("No risks detected by plenger's rules. This is not proof that there are none.", "");
+    lines.push(
+      "No risks detected by plenger's rules. This is not proof that there are none.",
+      "",
+    );
   }
   for (const finding of report.findings) {
     const rule = report.rules.find((item) => item.id === finding.rule);
