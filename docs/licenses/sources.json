@@ -47,5 +47,12 @@
     "filename": "react-remove-scroll-bar-2.3.8.txt",
     "source": "https://api.github.com/repos/theKashey/react-remove-scroll-bar/git/blobs/7c08c3990396ecefd90f99ff5d9a34f26f5b5616 (upstream license blob; npm react-remove-scroll-bar@2.3.8 declares MIT; published gitHead unavailable)",
     "sha256": "a79aae0c0f21990d9d963bb3c5a79cdcea9a46f8523ba55c58d7fe776b6ebc84"
+  },
+  {
+    "name": "client-only",
+    "version": "0.0.1",
+    "filename": "client-only-0.0.1.txt",
+    "source": "https://raw.githubusercontent.com/facebook/react/098d2e87a1f7142947418d15f63f975b58c4685b/LICENSE (npm client-only@0.0.1 declares MIT and points its homepage and bugs at React; it ships no license file and names no repository)",
+    "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
   }
 ]

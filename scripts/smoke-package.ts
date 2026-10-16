@@ -198,7 +198,7 @@ async function main() {
       const home = await server.fetchPage("/");
       assert.equal(home.status, 200);
       const html = await home.text();
-      assert.match(html, /<title>Plenger \| Agent security workspace<\/title>/);
+      assert.match(html, /<title>Plenger \| Source security workspace<\/title>/);
       assert.match(html, /id="root"/);
       const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(
         (match) => match[1],
