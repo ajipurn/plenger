@@ -81,4 +81,4 @@ access. From that directory it checks:
 
 The [npm package workflow](../../.github/workflows/package.yml) runs this check
 on Ubuntu 24.04, macOS 15 and Windows 2022. It saves the npm archive as an
-artifact. Publishing to the registry is a separate maintainer action.
+artifact for 7 days. Publishing to the registry is a separate maintainer action.

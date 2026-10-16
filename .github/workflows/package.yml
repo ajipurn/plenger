@@ -38,3 +38,5 @@ jobs:
           name: plenger-npm-${{ runner.os }}-${{ runner.arch }}
           path: dist/npm/*.tgz
           if-no-files-found: error
+          # Short retention keeps the account's artifact storage quota free.
+          retention-days: 7
