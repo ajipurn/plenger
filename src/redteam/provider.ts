@@ -47,8 +47,25 @@ export interface ProviderAccess {
   maxOutputTokens?: number | null;
   /** Host-owned operation allowance, independent of saved generation defaults. */
   outputTokenBudget?: number;
+  /** Host-owned request bounds for an operation; omitted, the managed-trial bounds apply. */
+  requestBounds?: RequestBounds;
   /** Host-only credential resolver. Never accepted from JSON or exported. */
   accessToken?: (signal: AbortSignal) => Promise<string>;
+}
+
+/**
+ * The largest request an operation sends, and the input tokens assumed per request byte
+ * when reserving budget. Managed trials assume four, a deliberately loose bound.
+ */
+export interface RequestBounds {
+  bytes: number;
+  inputTokensPerByte: number;
+}
+const TRIAL_BOUNDS: RequestBounds = { bytes: MODEL_REQUEST_CAP, inputTokensPerByte: 4 };
+
+/** The bounds an access requests, or the managed-trial bounds. */
+export function requestBounds(access: Pick<ProviderAccess, "requestBounds">): RequestBounds {
+  return access.requestBounds ?? TRIAL_BOUNDS;
 }
 
 /** Only the status is surfaced; provider error bodies may contain request data. */
@@ -135,13 +152,14 @@ export function createRunProvider(
     model: access.model,
     reservation(request, purpose) {
       const bytes = Buffer.byteLength(JSON.stringify(requestBody(request, outputLimit)));
-      if (bytes > MODEL_REQUEST_CAP)
+      const bounds = requestBounds(access);
+      if (bytes > bounds.bytes)
         throw new Error("Model request exceeds the runtime profile's size limit.");
       // Conservative admission estimate, reconciled with provider usage. An overrun
       // stops the run; this is not a guaranteed billing cap for every model.
       return {
         purpose,
-        inputTokensUpperBound: bytes * 4 + 4096,
+        inputTokensUpperBound: bytes * bounds.inputTokensPerByte + 4096,
         maxOutputTokens: outputLimit,
         additionalTokensUpperBound: 0,
       };

@@ -15,7 +15,7 @@ export type { ProviderModel } from "../redteam/provider-models.ts";
 import type { FixPromptDraft } from "../remediation/fix-prompt.ts";
 
 export type { ReviewFinding, SecurityReview } from "../assessment/review-model.ts";
-export { SECURITY_REVIEW_LIMITS } from "../assessment/review-model.ts";
+export { reviewBudget, SECURITY_REVIEW_LIMITS } from "../assessment/review-model.ts";
 export type { ImportedReaEvidence } from "../evidence/rea-model.ts";
 export { REA_LIMITS } from "../evidence/rea-model.ts";
 export type {

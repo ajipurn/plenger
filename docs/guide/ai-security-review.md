@@ -28,8 +28,18 @@ reaches an effect, and static finding evidence. The files of one path stay
 adjacent, so a batch can hold the path from end to end. Other AI components
 follow, then security-related file names, then relative path order.
 
-Each batch holds at most 24 files, 16 KiB of source per file and 20 KiB of
-serialized source context. Path files are added first as excerpts: the functions
+By default each batch holds at most 24 files, 16 KiB of source per file and
+20 KiB of serialized source context. When the selected model's input window is
+known, the batch grows with it. Claude catalogs report the window; press **Load
+models** once to save it. The cost ceiling does not change: each batch stays
+within two requests and 400,000 accounted tokens. The larger, second request
+(instructions, candidates, batch and related files) is sized to fit half that
+ceiling and the smallest window of the models in use, counting one token per
+request byte. Seventy percent goes to the batch, up to 112 KiB with 48 KiB per
+file and 48 files, and thirty percent to related files, up to 48 KiB. A
+second-review model whose window is unknown keeps the defaults. New Scan shows
+the batch budget for the selected model, and Outputs record the budget each
+batch used. Path files are added first as excerpts: the functions
 and methods on the path, their class headers and the module imports. Spare
 budget then replaces those excerpts with whole files and adds the remaining
 files. Budget left after that extends excerpts with their files' other
@@ -118,8 +128,9 @@ Guards and callers often live outside the batch, so the second request also
 reads related files that discovery did not see. These are project files a cited
 file imports, with the imported definitions, and project files that call a cited
 file, with the calling functions. They come from the scan's allowlist through the
-same reader, redaction and excerpt rules as the batch, within 12 KiB and eight
-files, and never repeat lines the batch already holds. Outputs list them under
+same reader, redaction and excerpt rules as the batch, within the related
+budget (12 KiB by default) and eight files, and never repeat lines the batch
+already holds. Outputs list them under
 **Second review context**, and the review adds a limitation naming their count.
 If they cannot be read, the second review continues without them.
 

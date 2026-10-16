@@ -61,7 +61,17 @@ export class SecurityCoordinator {
         provider: { id: second.saved.id, name: second.saved.name, model: second.saved.model },
         access: second.access,
         ...(secondPricing ? { pricing: structuredClone(secondPricing) } : {}),
+        inputTokens: this.#store.providers.modelInputTokens(
+          second.saved,
+          second.access.apiKey,
+          second.saved.model,
+        ),
       };
+      const inputTokens = this.#store.providers.modelInputTokens(
+        resolved.saved,
+        resolved.access.apiKey,
+        model,
+      );
       const revision = await sourceRevision(repository.path);
       if (this.#closed) throw new HttpError(503, "The service is shutting down.");
       repository.revision = revision;
@@ -127,6 +137,7 @@ export class SecurityCoordinator {
                 ...(pricing ? { pricing } : {}),
                 signal: controller.signal,
                 submitted,
+                inputTokens,
                 ...(validator ? { validator } : {}),
                 environment: repository.environment,
                 onPhase: (phase) => {

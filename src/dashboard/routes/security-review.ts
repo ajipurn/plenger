@@ -60,6 +60,11 @@ export function securityReviewRoutes({ store, supervisor }: Services): Route[] {
               access: provider.access,
               ...(pricing ? { pricing: structuredClone(pricing) } : {}),
               signal: controller.signal,
+              inputTokens: store.providers.modelInputTokens(
+                provider.saved,
+                provider.access.apiKey,
+                provider.saved.model,
+              ),
               provider: {
                 id: provider.saved.id,
                 name: provider.saved.name,

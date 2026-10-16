@@ -270,6 +270,9 @@ export function ScanDetailPage({
                       <p className="muted">
                         Captured {date(review.scope.capturedAt)}. Source may include working tree
                         changes.
+                        {review.scope.budget
+                          ? ` Batch budget ${Math.round(review.scope.budget.contextBytes / 1024)} KiB${review.scope.budget.inputTokens ? ` for a ${review.scope.budget.inputTokens.toLocaleString()}-token model window` : ""}.`
+                          : ""}
                       </p>
                       <ul>
                         {review.scope.files.map((file) => (

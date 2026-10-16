@@ -22,8 +22,10 @@ import {
 import { type ReviewFocus, reviewFocus } from "./review-focus.ts";
 import {
   SECURITY_REVIEW_LIMITS as LIMITS,
+  type ReviewBudget,
   type ReviewRange,
   type ReviewSourceFile,
+  reviewBudget,
 } from "./review-model.ts";
 
 export interface ReviewContext {
@@ -55,17 +57,8 @@ interface CapturedSource {
 }
 type Entry = ReviewSourceFile & { source: string };
 
-/** Bytes and file counts one source capture may use. */
-export interface ReviewBudget {
-  contextBytes: number;
-  fileBytes: number;
-  files: number;
-}
-const DEFAULT_BUDGET: ReviewBudget = {
-  contextBytes: LIMITS.contextBytes,
-  fileBytes: LIMITS.fileBytes,
-  files: LIMITS.files,
-};
+/** The batch budget of a model whose input window is unknown. */
+const DEFAULT_BUDGET = reviewBudget([]);
 
 /**
  * Reads redacted source within a saved scan's allowlist, under the current ignore and
@@ -191,7 +184,10 @@ export async function captureReviewSource(
   secrets: string[],
   signal?: AbortSignal,
   submitted: readonly ReviewSourceFile[] = [],
-  options: { reader?: ReviewSourceReader; budget?: ReviewBudget } = {},
+  options: {
+    reader?: ReviewSourceReader;
+    budget?: Pick<ReviewBudget, "contextBytes" | "fileBytes" | "files">;
+  } = {},
 ): Promise<{
   context: ReviewContext;
   scope: {

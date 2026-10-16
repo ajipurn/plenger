@@ -12,6 +12,8 @@ import {
 export interface ProviderModel {
   id: string;
   name: string;
+  /** Input context window in tokens, when the provider reports it (Claude's `max_input_tokens`). */
+  maxInputTokens?: number;
 }
 
 export type ProviderModelConnection = Pick<ProviderSettings, "provider" | "baseUrl"> & {
@@ -57,6 +59,9 @@ export async function listProviderModels(
           )
             .join("")
             .slice(0, LIMITS.nameLength),
+          ...(Number.isSafeInteger(value.max_input_tokens) && (value.max_input_tokens as number) > 0
+            ? { maxInputTokens: value.max_input_tokens as number }
+            : {}),
         });
         if (models.size > LIMITS.models) throw new Error("Model catalog exceeds the size limit.");
       }

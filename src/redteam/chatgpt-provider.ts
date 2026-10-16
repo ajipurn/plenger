@@ -1,10 +1,4 @@
-import {
-  CHATGPT,
-  MAX_OUTPUT_TOKENS,
-  MODEL_REQUEST_CAP,
-  MODEL_RESPONSE_CAP,
-  MODEL_STREAM_CAP,
-} from "./constants.ts";
+import { CHATGPT, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP, MODEL_STREAM_CAP } from "./constants.ts";
 import {
   ModelProviderHttpError,
   type ModelRequest,
@@ -13,6 +7,7 @@ import {
   parseModelReply,
   type RunProvider,
   record,
+  requestBounds,
 } from "./provider.ts";
 
 /** SIWC uses the public Responses API. No Codex credentials or agent process are involved. */
@@ -105,7 +100,7 @@ export function createChatgptProvider(access: ProviderAccess, dispatch: typeof f
           }
         : {}),
     });
-    if (Buffer.byteLength(encoded) > MODEL_REQUEST_CAP)
+    if (Buffer.byteLength(encoded) > requestBounds(access).bytes)
       throw new Error("Model request exceeds the runtime profile's size limit.");
     return encoded;
   }
@@ -116,7 +111,8 @@ export function createChatgptProvider(access: ProviderAccess, dispatch: typeof f
       return {
         purpose,
         tokenLimitMode: "observed",
-        inputTokensUpperBound: Buffer.byteLength(body(request)) * 4 + 4096,
+        inputTokensUpperBound:
+          Buffer.byteLength(body(request)) * requestBounds(access).inputTokensPerByte + 4096,
         maxOutputTokens: outputLimit,
         additionalTokensUpperBound: 0,
       };

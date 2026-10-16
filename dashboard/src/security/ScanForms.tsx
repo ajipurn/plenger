@@ -3,6 +3,7 @@ import { Label, Radio, RadioGroup } from "react-aria-components";
 import { Link } from "react-router";
 import {
   type LocalRepository,
+  reviewBudget,
   SCAN_DEPTHS,
   type ScanDepth,
   SECURITY_REVIEW_LIMITS,
@@ -235,6 +236,8 @@ export function NewScanForm({
       label: `${provider.model} (default)`,
     });
   const selectedPricing = provider?.modelPricing?.find((item) => item.model === model);
+  const contextWindow = catalog.models.find((item) => item.id === model)?.maxInputTokens;
+  const budget = reviewBudget([contextWindow]);
   const [notes, setNotes] = useState(project?.environment.notes ?? "");
   async function submit() {
     if (!api || !project || !provider || !model.trim()) return;
@@ -414,6 +417,14 @@ export function NewScanForm({
               )}
               <p className="muted">
                 Used for this scan only. Your provider's default stays the same.
+              </p>
+              <p className="muted">
+                {budget.inputTokens === null
+                  ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch. Load models to size it to this model's context window.`
+                  : `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch for this model's ${budget.inputTokens.toLocaleString()}-token window.`}
+                {validator
+                  ? " A second-review model with a smaller or unknown window lowers it."
+                  : ""}
               </p>
               {provider.provider === "anthropic" && (
                 <p className="muted security-scan-pricing">

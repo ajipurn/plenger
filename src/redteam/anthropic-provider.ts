@@ -1,11 +1,6 @@
 import { isRecord } from "../shared/guards.ts";
 import { redact } from "../shared/secrets.ts";
-import {
-  ANTHROPIC,
-  MAX_OUTPUT_TOKENS,
-  MODEL_REQUEST_CAP,
-  MODEL_TOOL_CALL_LIMIT,
-} from "./constants.ts";
+import { ANTHROPIC, MAX_OUTPUT_TOKENS, MODEL_TOOL_CALL_LIMIT } from "./constants.ts";
 import { type ClaudeTokenUsage, parseClaudeTokenUsage } from "./model-pricing.ts";
 import {
   ModelProviderHttpError,
@@ -16,6 +11,7 @@ import {
   type RunProvider,
   readModelJson,
   record,
+  requestBounds,
 } from "./provider.ts";
 import { PROVIDER_URLS, providerBaseUrl } from "./provider-config.ts";
 import { anthropicModelOutputLimit } from "./provider-models.ts";
@@ -109,7 +105,7 @@ export function createAnthropicProvider(
       ...(access.temperature == null ? {} : { temperature: access.temperature }),
       stream: false,
     });
-    if (Buffer.byteLength(encoded) > MODEL_REQUEST_CAP)
+    if (Buffer.byteLength(encoded) > requestBounds(access).bytes)
       throw new Error("Model request exceeds the runtime profile's size limit.");
     return encoded;
   }
@@ -119,7 +115,9 @@ export function createAnthropicProvider(
     reservation(request, purpose) {
       return {
         purpose,
-        inputTokensUpperBound: Buffer.byteLength(body(request, outputLimit)) * 4 + 4096,
+        inputTokensUpperBound:
+          Buffer.byteLength(body(request, outputLimit)) * requestBounds(access).inputTokensPerByte +
+          4096,
         maxOutputTokens: outputLimit,
         additionalTokensUpperBound: 0,
       };

@@ -504,6 +504,35 @@ describe("local project security workspace", () => {
     expect(sent.every((lines) => lines.length > 100)).toBe(true);
   }, 20_000);
 
+  it("sizes the batch from the input window in the provider's saved model catalog", async () => {
+    const repo = await repository();
+    await dashboard.close();
+    const store = await DashboardStore.open(join(root, "data"));
+    const supervisor = new OperationSupervisor();
+    const coordinator = new SecurityCoordinator(store, supervisor);
+    try {
+      store.providers.saveModelCatalog(
+        { provider: "anthropic", baseUrl: provider.baseUrl, apiKey: key },
+        [{ id: "claude-test", name: "Claude test", maxInputTokens: 200_000 }],
+      );
+      const started = await coordinator.start({
+        repositoryId: repo.id,
+        providerId: provider.id,
+        depth: "standard",
+      });
+      await supervisor.settled();
+      expect(store.security.scan(started.id)?.reviews[0]?.scope.budget).toMatchObject({
+        contextBytes: 108_460,
+        inputTokens: 200_000,
+      });
+    } finally {
+      supervisor.abortAll();
+      await coordinator.close();
+      await supervisor.settled();
+      store.close();
+    }
+  });
+
   it("runs second reviews on a separately chosen saved connection", async () => {
     const address = model.address();
     if (!address || typeof address === "string") throw new Error("No model server.");

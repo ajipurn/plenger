@@ -4,7 +4,11 @@ import { SEVERITIES, type Severity } from "../rules/model.ts";
 import { isRecord } from "../shared/guards.ts";
 import { STRIDE } from "./model.ts";
 
-/** Shared by the host and browser. A review is explicit and bounded. */
+/**
+ * Shared by the host and browser. A review is explicit and bounded. `contextBytes`,
+ * `fileBytes`, `files` and `relatedBytes` are the batch budget when the model's input
+ * window is unknown; `reviewBudget` scales them to a known window up to the `max*` values.
+ */
 export const SECURITY_REVIEW_LIMITS = {
   contextBytes: 20 * 1024,
   candidateBytes: 16 * 1024,
@@ -23,7 +27,61 @@ export const SECURITY_REVIEW_LIMITS = {
   timeoutMs: 120_000,
   perScan: 12,
   calls: 2,
+  /** Largest request a review sends, so a scaled batch fits the provider transport. */
+  requestBytes: 256 * 1024,
+  /**
+   * Instructions, schema, environment notes and candidates a validation request adds,
+   * plus the 4,096-token margin providers add to every reservation.
+   */
+  requestOverheadBytes: 36 * 1024,
+  maxContextBytes: 112 * 1024,
+  maxFileBytes: 48 * 1024,
+  maxFiles: 48,
+  maxRelatedBytes: 48 * 1024,
 } as const;
+
+/** What one batch may submit, and the related bytes its second review may add. */
+export interface ReviewBudget {
+  contextBytes: number;
+  fileBytes: number;
+  files: number;
+  relatedBytes: number;
+  /** The smallest input window of the review's models, or null when one is unknown. */
+  inputTokens: number | null;
+}
+
+/**
+ * The batch budget for the models a review uses. The cost ceiling stays the same: at
+ * most `tokens` accounted tokens and `calls` requests per batch. A token covers at least
+ * one byte of the request, so the validation request (overhead, batch and related files)
+ * is sized to fit half that ceiling and the smallest model window, with 70% for the
+ * batch and 30% for related files. An unknown window keeps the default 20 KiB batch.
+ */
+export function reviewBudget(windows: readonly (number | null | undefined)[]): ReviewBudget {
+  const L = SECURITY_REVIEW_LIMITS;
+  const known = windows.filter((value): value is number => typeof value === "number" && value > 0);
+  if (!known.length || known.length < windows.length)
+    return {
+      contextBytes: L.contextBytes,
+      fileBytes: L.fileBytes,
+      files: L.files,
+      relatedBytes: L.relatedBytes,
+      inputTokens: null,
+    };
+  const inputTokens = Math.min(...known);
+  const request = Math.min(inputTokens, L.tokens / 2) - L.outputTokens - L.requestOverheadBytes;
+  const contextBytes = Math.max(4 * 1024, Math.min(L.maxContextBytes, Math.floor(request * 0.7)));
+  return {
+    contextBytes,
+    fileBytes: Math.min(
+      contextBytes,
+      Math.max(L.fileBytes, Math.min(L.maxFileBytes, contextBytes / 2)),
+    ),
+    files: Math.max(L.files, Math.min(L.maxFiles, Math.floor(contextBytes / 2048))),
+    relatedBytes: Math.max(2 * 1024, Math.min(L.maxRelatedBytes, Math.floor(request * 0.3))),
+    inputTokens,
+  };
+}
 
 export interface ReviewCitation {
   path: string;
@@ -106,6 +164,8 @@ export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findin
     contextDigest: string;
     /** Imports and callers of cited files given to the second review only. */
     related?: RelatedSourceFile[];
+    /** The batch budget this review used; absent on earlier reviews, which used the defaults. */
+    budget?: ReviewBudget;
   };
   request: {
     calls: number;

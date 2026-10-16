@@ -5,6 +5,7 @@ import { CHATGPT } from "../redteam/constants.ts";
 import type { ProviderAccess } from "../redteam/provider.ts";
 import {
   accessFromProviderConfig,
+  hasProviderModelCatalog,
   type ProviderInput,
   type ProviderSettings,
   type SavedProvider,
@@ -180,6 +181,17 @@ export class ProviderRepository {
       .prepare("SELECT payload FROM provider_model_catalogs WHERE connection_id = ?")
       .get(providerModelCacheKey(this.#key, connection));
     return row ? parsePayload<ProviderModel[]>(row) : null;
+  }
+
+  /** A model's input window from the connection's saved catalog, when the provider reported it. */
+  modelInputTokens(saved: SavedProvider, apiKey: string | undefined, model: string): number | null {
+    if (!hasProviderModelCatalog(saved.provider) || !apiKey) return null;
+    const catalog = this.readModelCatalog({
+      provider: saved.provider,
+      baseUrl: saved.baseUrl,
+      apiKey,
+    });
+    return catalog?.find((item) => item.id === model)?.maxInputTokens ?? null;
   }
 
   saveModelCatalog(connection: ProviderModelConnection, models: ProviderModel[]): void {

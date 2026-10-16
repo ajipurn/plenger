@@ -8,7 +8,11 @@ import {
   renderSource,
   selectExcerpt,
 } from "../src/assessment/review-excerpt.ts";
-import { type ReviewSourceFile, SECURITY_REVIEW_LIMITS } from "../src/assessment/review-model.ts";
+import {
+  type ReviewSourceFile,
+  reviewBudget,
+  SECURITY_REVIEW_LIMITS,
+} from "../src/assessment/review-model.ts";
 import { captureReviewSource } from "../src/assessment/review-source.ts";
 import { reviewProject } from "../src/assessment/security-review.ts";
 import { scan } from "../src/scan.ts";
@@ -277,6 +281,68 @@ describe("AI review source selection", () => {
     expect(selectExcerpt(parts, 40, () => true, [{ line: 7, endLine: 27 }])).toEqual([
       { line: 30, endLine: 32 },
     ]);
+  });
+
+  it("sizes the batch to the smallest known model window within the token ceiling", () => {
+    const defaults = {
+      contextBytes: SECURITY_REVIEW_LIMITS.contextBytes,
+      fileBytes: SECURITY_REVIEW_LIMITS.fileBytes,
+      files: SECURITY_REVIEW_LIMITS.files,
+      relatedBytes: SECURITY_REVIEW_LIMITS.relatedBytes,
+      inputTokens: null,
+    };
+    expect(reviewBudget([])).toEqual(defaults);
+    expect(reviewBudget([null])).toEqual(defaults);
+    // A validator with an unknown window keeps the defaults too.
+    expect(reviewBudget([200_000, undefined])).toEqual(defaults);
+    const wide = reviewBudget([200_000]);
+    expect(wide).toEqual({
+      contextBytes: 108_460,
+      fileBytes: SECURITY_REVIEW_LIMITS.maxFileBytes,
+      files: SECURITY_REVIEW_LIMITS.maxFiles,
+      relatedBytes: 46_483,
+      inputTokens: 200_000,
+    });
+    // Half the 400,000-token ceiling caps every window; the smaller window decides.
+    expect(reviewBudget([1_000_000])).toEqual({ ...wide, inputTokens: 1_000_000 });
+    expect(reviewBudget([1_000_000, 64_000]).contextBytes).toBe(
+      Math.floor((64_000 - 8192 - 36 * 1024) * 0.7),
+    );
+    // The larger validation reservation, at one token per byte, fits half the ceiling.
+    const validation =
+      SECURITY_REVIEW_LIMITS.requestOverheadBytes +
+      wide.contextBytes +
+      wide.relatedBytes +
+      SECURITY_REVIEW_LIMITS.outputTokens;
+    expect(2 * validation).toBeLessThanOrEqual(SECURITY_REVIEW_LIMITS.tokens);
+  });
+
+  it("submits more source for a model whose window is known, past the trial request limit", async () => {
+    const root = join(await temporaryDir(), "project");
+    const lines = await writeRouteProject(root, [...fillers("before", 1200), ...SINK]);
+    expect(Buffer.byteLength(lines.join("\n"))).toBeGreaterThan(48 * 1024);
+    const snapshot = await scan(root);
+    const model = stub({ ...routeDiscovery(1, 1), findings: [] });
+    const review = await reviewProject(
+      snapshot,
+      { scanId: "scan", provider, access, inputTokens: 200_000 },
+      model.dispatch,
+    );
+    expect(review.status).toBe("completed");
+    expect(review.scope.budget).toMatchObject({ contextBytes: 108_460, inputTokens: 200_000 });
+    expect(Buffer.byteLength(JSON.stringify(model.bodies[0]))).toBeGreaterThan(48 * 1024);
+    const ops = required(
+      review.scope.files.find((file) => file.path === "ops.py"),
+      "ops.py",
+    );
+    const submitted = (ops.ranges ?? [{ line: 1, endLine: ops.lines }]).reduce(
+      (sum, range) => sum + range.endLine - range.line + 1,
+      0,
+    );
+    expect(submitted).toBeGreaterThan(2000);
+    expect(review.limitations).toContain(
+      "The batch budget was 106 KiB of source for a 200,000-token model window, within the 400,000-token review ceiling.",
+    );
   });
 
   it("measures rendered source exactly without rendering it", () => {

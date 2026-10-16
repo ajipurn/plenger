@@ -9,6 +9,26 @@ const key = "private-test-api-key";
 const request = { messages: [{ role: "user", content: "Hello" }], tools: null };
 
 describe("provider model catalogs and generation defaults", () => {
+  it("keeps a Claude model's reported input window and ignores invalid ones", async () => {
+    const dispatch: typeof fetch = async () =>
+      Response.json({
+        data: [
+          { id: "claude-wide", display_name: "Wide", max_input_tokens: 1_000_000 },
+          { id: "claude-unknown", display_name: "Unknown", max_input_tokens: null },
+          { id: "claude-broken", display_name: "Broken", max_input_tokens: -5 },
+        ],
+        has_more: false,
+        last_id: "claude-broken",
+      });
+    expect(
+      await listProviderModels({ provider: "anthropic", apiKey: key }, undefined, dispatch),
+    ).toEqual([
+      { id: "claude-wide", name: "Wide", maxInputTokens: 1_000_000 },
+      { id: "claude-unknown", name: "Unknown" },
+      { id: "claude-broken", name: "Broken" },
+    ]);
+  });
+
   it("loads every Claude catalog page with native headers and provider display names", async () => {
     const dispatch = vi.fn<typeof fetch>(async (url, options) => {
       expect(options).toMatchObject({

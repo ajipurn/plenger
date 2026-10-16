@@ -22,6 +22,7 @@ import {
   REVIEW_VALIDATION_SCHEMA,
   ReviewResponseError,
   type ReviewSourceFile,
+  reviewBudget,
   type SecurityReview,
 } from "./review-model.ts";
 import { captureRelatedSource } from "./review-related.ts";
@@ -73,7 +74,11 @@ export async function reviewProject(
       provider: SecurityReview["provider"];
       access: ProviderAccess;
       pricing?: ModelPricing;
+      /** The validator model's input window in tokens, when its catalog reports one. */
+      inputTokens?: number | null;
     };
+    /** The discovery model's input window in tokens, when its catalog reports one. */
+    inputTokens?: number | null;
     environment?: { name: string; notes: string };
     onPhase?: (phase: "reading" | "discovering" | "validating") => void;
   },
@@ -121,6 +126,8 @@ export async function reviewProject(
     { maxModelCalls: LIMITS.calls, maxTokens: LIMITS.tokens, timeoutMs: LIMITS.timeoutMs },
     options.signal ? { signal: options.signal } : {},
   );
+  const windows = [options.inputTokens, ...(validator ? [validator.inputTokens] : [])];
+  const sizes = reviewBudget(windows);
   let phase: "discovery" | "validation" = "discovery";
   let reader: ReviewSourceReader | undefined;
   try {
@@ -131,9 +138,13 @@ export async function reviewProject(
       secrets,
       options.signal,
       options.submitted,
-      { reader },
+      { reader, budget: sizes },
     );
-    review.scope = scope;
+    review.scope = { ...scope, budget: sizes };
+    if (sizes.inputTokens !== null)
+      review.limitations.push(
+        `The batch budget was ${Math.round(sizes.contextBytes / 1024)} KiB of source for a ${sizes.inputTokens.toLocaleString("en-US")}-token model window, within the ${LIMITS.tokens.toLocaleString("en-US")}-token review ceiling.`,
+      );
     const excerpts = scope.files.filter((file) => file.ranges).length;
     if (excerpts)
       review.limitations.push(
@@ -143,6 +154,9 @@ export async function reviewProject(
       createRunProvider(
         {
           ...access,
+          // Byte-level tokenizers use at least one byte per token, so request bytes bound
+          // input tokens; the trial default of four per byte would not fit a scaled batch.
+          requestBounds: { bytes: LIMITS.requestBytes, inputTokensPerByte: 1 },
           outputTokenBudget: LIMITS.outputTokens,
           // The structured review needs its own allowance; a saved per-call red-team limit
           // (1,024 by default) would truncate it. Automatic settings (null) stay automatic.
@@ -241,7 +255,7 @@ export async function reviewProject(
           snapshot,
           context,
           cited,
-          { bytes: LIMITS.relatedBytes, fileBytes: LIMITS.fileBytes, files: LIMITS.relatedFiles },
+          { bytes: sizes.relatedBytes, fileBytes: sizes.fileBytes, files: LIMITS.relatedFiles },
           options.signal,
         ).catch((error: unknown) => {
           if (options.signal?.aborted) throw error;

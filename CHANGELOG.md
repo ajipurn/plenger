@@ -16,6 +16,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - The AI review's second request also reads the imports and callers of cited
   files, as redacted excerpts from the scan's allowlist, and can run on a
   separately chosen saved connection with its own usage and cost.
+- The AI review batch is sized to the selected model's input window from its
+  saved catalog (Claude's `max_input_tokens`), up to 112 KiB of source and
+  48 KiB of related files, within the unchanged 400,000-token ceiling.
 - FastAPI project profile, preparation stage (M6b checkpoint 1):
   `plenger redteam prepare` builds an image from the project's `requirements.txt`
   with wheels only, retrying for `linux/amd64` on Apple Silicon when a wheel
