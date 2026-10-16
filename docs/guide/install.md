@@ -17,8 +17,8 @@ plenger scan path/to/project
 ```
 
 npm adds the `plenger` command to its executable directory. The same package
-is used on Windows, Linux and macOS. The installation does not download a
-standalone executable or run Plenger build scripts.
+is used on Windows, Linux and macOS. The installation runs no Plenger build
+or install scripts.
 
 ## npx
 

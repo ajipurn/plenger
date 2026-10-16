@@ -9,11 +9,11 @@ repeating milestone status. Last reviewed: 2026-10-16.
 | Milestone | State | Summary |
 | --- | --- | --- |
 | M0 to M5: static triage, reports and CI | Done | See [history/m0-m5.md](history/m0-m5.md) |
-| M6a: click-to-run llmfy | In progress | Managed `llmfy-file-canary-v1` profile runs with one live-model record on the bundled fixture; a live run on a team project and billed-token accounting pending |
-| M6b: HTTP and project expansion | In progress | Managed `vercel-booking-sqlite-v1` profile runs with one live-model record. The FastAPI project profile has its preparation stage (`plenger redteam prepare`); its case packs are pending. See [design/fastapi-profile.md](design/fastapi-profile.md) |
-| M6c: MCP and CI | Partly delivered | Campaigns, statistics, gates, comparisons and CLI reports exist; MCP adapter pending |
-| M7: indirect prompt injection | Planned | See [ROADMAP.md](ROADMAP.md#m7-red-team-indirect-prompt-injection-planned) |
-| M8: distribution | In progress | npm package and standalone binary checks pass in CI on Linux, macOS and Windows; public release pending |
+| M6a: click-to-run llmfy | Postponed | Managed `llmfy-file-canary-v1` profile runs with one live-model record on the bundled fixture; a live run on a team project and billed-token accounting pending |
+| M6b: HTTP and project expansion | Postponed | Managed `vercel-booking-sqlite-v1` profile runs with one live-model record. The FastAPI project profile has its preparation stage (`plenger redteam prepare`); its case packs are pending. See [design/fastapi-profile.md](design/fastapi-profile.md) |
+| M6c: MCP and CI | Postponed | Campaigns, statistics, gates, comparisons and CLI reports exist; MCP adapter pending |
+| M7: indirect prompt injection | Postponed | See [ROADMAP.md](ROADMAP.md#m7-red-team-indirect-prompt-injection-postponed) |
+| M8: distribution | In progress | npm package checks pass in CI on Linux, macOS and Windows; public release pending. The standalone binary was dropped |
 
 ## Capability matrix
 
@@ -23,7 +23,7 @@ repeating milestone status. Last reviewed: 2026-10-16.
 | Reports: terminal, JSON v1, SARIF 2.1.0, Markdown | Available | Baselines, suppressions, `--fail-on` gate, exit codes. [guide/reports-ci.md](guide/reports-ci.md) |
 | GitHub Action (composite) | Available | Runs on GitHub-hosted runners in the repository's CI workflow and writes SARIF. Uploading that SARIF to code scanning is left to the calling workflow and has not been exercised |
 | Local dashboard (`plenger serve`) | Available | Findings, local Projects, manually started Scans, full finding reports and existing provider settings. [guide/dashboard.md](guide/dashboard.md) |
-| Dashboard Red-team page | Coming soon | Legacy URL shows a placeholder. It is outside the three main workspace tabs and exposes no testing controls |
+| Dashboard Red-team page | Postponed | Legacy URL shows a placeholder. It is outside the three main workspace tabs and exposes no testing controls |
 | npm package | Available locally | Compiled CLI, built dashboard, grammars, schemas and red-team recipes in one tarball. [guide/install.md](guide/install.md) |
 | `redteam discover` and `redteam plan` (offline) | Available | llmfy function/factory discovery; Python source and Next.js route preparation plans |
 | Red-team profile `llmfy-file-canary-v1` | Available, one live-model record | A clean control and four fixed file-canary probes, bound to targets by observed file-write semantics. One live run on the bundled fixture; see qualification records below |
@@ -63,21 +63,6 @@ Podman.
 | Public npm registry release | Not published; `private: true` blocks publishing |
 | Project licence | Apache-2.0, see [LICENSE](../LICENSE) |
 
-## Binary per platform
-
-The standalone build is an optional contributor artifact. It is separate from
-npm installation.
-
-| Platform | State |
-| --- | --- |
-| macOS Apple Silicon (`darwin-arm64`) | Built and smoke-tested locally with Node.js 22.23.2 |
-| Ubuntu 24.04 (x64), macOS 15 (ARM64), Windows 2022 (x64) | Built and smoke-tested in [binary.yml](../.github/workflows/binary.yml) with Node.js 22.18.0 (commit `0950732`, 2026-10-04); archives kept as workflow artifacts |
-| Public binary release download | Not available |
-| Publisher signing, notarization | Not done; macOS builds carry an ad-hoc signature |
-
-See [design/distribution.md](design/distribution.md) and
-[guide/install.md](guide/install.md).
-
 ## Qualified versus pending
 
 Qualified means a recorded run on a stated date, image and configuration.
@@ -91,7 +76,6 @@ Records live in [qualifications/](qualifications/).
 | Next.js booking profile, scripted model | [2026-10-04](qualifications/vercel-synthetic-2026-10-04.md) | Other models, backends and platforms |
 | Next.js booking profile, live model | [2026-10-03, Autocare, `gemma4:31b-cloud`](qualifications/autocare-live-2026-10-03.md) | Repetition-based success-rate estimates |
 | FastAPI profile, build and import (checkpoint 1) | [2026-10-06, Dayatech assessment center, Docker, `linux/amd64`](qualifications/fastapi-prepare-dayatech-2026-10-06.md) | Podman; case packs, broker calls and oracles (checkpoints 2 to 4) |
-| Binary smoke test | macOS Apple Silicon locally; Ubuntu 24.04 x64, macOS 15 ARM64 and Windows 2022 x64 in CI (Node.js 22.18.0) | Intel macOS and Linux ARM64 |
 | npm package smoke test | macOS Apple Silicon locally (Node.js 22.23.2, npm 10.9.8); Ubuntu 24.04, macOS 15 and Windows 2022 in CI (Node.js 22.18.0) | Intel macOS and other Node.js versions |
 
 Every qualification used the bundled fixture or one user project. None

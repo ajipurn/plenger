@@ -43,7 +43,7 @@ pnpm bench -- --write                # regenerate test/fixtures/*/expected-*.jso
   them. Dashboard API paths, request/response types and UI limits are in
   `src/dashboard/contract.ts`. Do not re-type a literal that exists there.
 - **Runtime recipes are listed once.** `RUNTIME_FILES` in `src/redteam/runtime.ts`
-  drives both the container build and the binary bundle. Adding a file under
+  drives the container build and the image digest. Adding a file under
   `runtimes/` means adding it there and to the runtime's Dockerfile.
 - **Errors map to exit codes in `src/cli/index.ts`.** Throw `UsageError` for bad
   command lines, `PolicyError` for bad policy files, `PreparationError` for

@@ -4,8 +4,8 @@ The llmfy runtime is the container image and worker that run an llmfy 0.11.0
 project for the `llmfy-file-canary-v1` profile, plus the synthetic
 qualification suite that proves the image's isolation and the observation
 design. The recipe lives in `runtimes/llmfy/` (`Dockerfile`, `requirements.in`,
-`requirements.txt`, `qualify.py`, `worker.py`, `project/agent.py`) and is also
-embedded in the standalone binary. Qualification records are in
+`requirements.txt`, `qualify.py`, `worker.py`, `project/agent.py`) and ships in
+the npm package. Qualification records are in
 [../qualifications/](../qualifications/); the current status is in
 [../STATUS.md](../STATUS.md#qualified-versus-pending). The user-facing profile
 is described in [../guide/redteam.md](../guide/redteam.md#llmfy-file-canary-v1)

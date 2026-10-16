@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { sha256Hex } from "../shared/hash.ts";
-import { embeddedAsset } from "../shared/runtime.ts";
 import {
   BUILDKIT_IMAGE,
   DISPOSABLE_RUNTIME_TTL,
@@ -171,11 +170,9 @@ async function prepareManagedRuntime(
     ...(await Promise.all(
       files.map(async (path) => ({
         path,
-        content:
-          embeddedAsset(`runtimes/${profile}/${path}`) ??
-          (await readFile(
-            fileURLToPath(new URL(`../../runtimes/${profile}/${path}`, import.meta.url)),
-          )),
+        content: await readFile(
+          fileURLToPath(new URL(`../../runtimes/${profile}/${path}`, import.meta.url)),
+        ),
       })),
     )),
     ...(options.extraFiles ?? []),

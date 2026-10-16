@@ -2,7 +2,6 @@ import { lstat, readFile, realpath } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { embeddedAsset, isEmbeddedBinary } from "../shared/runtime.ts";
 import { applyThemeToHtml, type DashboardTheme } from "./contract.ts";
 import { HttpError } from "./http.ts";
 
@@ -16,22 +15,8 @@ const CONTENT_TYPES: Record<string, string> = {
   ".woff2": "font/woff2",
 };
 
-/** Either a built `dist/` folder on disk or the file names embedded in the binary. */
-export type AssetSource = string | Set<string>;
-
-/** Locate the built page, failing before the server starts when it is missing. */
-export async function dashboardAssets(override?: string): Promise<AssetSource> {
-  if (override === undefined && isEmbeddedBinary) {
-    const manifest = embeddedAsset("dashboard/manifest.json");
-    if (manifest === undefined) throw new Error("Dashboard assets are unavailable.");
-    const files: unknown = JSON.parse(manifest.toString("utf8"));
-    if (!Array.isArray(files) || !files.every((name) => typeof name === "string"))
-      throw new Error("Dashboard asset manifest is invalid.");
-    const assets = new Set<string>(files);
-    if (!assets.has("index.html") || embeddedAsset("dashboard/index.html") === undefined)
-      throw new Error("Dashboard assets are unavailable.");
-    return assets;
-  }
+/** Locate the built `dist/` folder, failing before the server starts when it is missing. */
+export async function dashboardAssets(override?: string): Promise<string> {
   try {
     const root = await realpath(
       resolve(override ?? fileURLToPath(new URL("../../dashboard/dist/", import.meta.url))),
@@ -57,7 +42,7 @@ export async function dashboardAssets(override?: string): Promise<AssetSource> {
  */
 export async function staticFile(
   response: ServerResponse,
-  assets: AssetSource,
+  assets: string,
   rawUrl: string,
   styleNonce: string,
   theme: DashboardTheme,
@@ -70,15 +55,6 @@ export async function staticFile(
   }
   if (path.includes("\0") || path.includes("\\") || path.split("/").includes(".."))
     throw new HttpError(404, "Dashboard page not found.");
-  if (assets instanceof Set) {
-    let name = path.slice(1);
-    if (path === "/" || (!extname(path) && !assets.has(name))) name = "index.html";
-    if (!assets.has(name)) throw new HttpError(404, "Dashboard page not found.");
-    const content = embeddedAsset(`dashboard/${name}`);
-    if (content === undefined) throw new HttpError(503, "Dashboard assets are unavailable.");
-    sendAsset(response, name, content, styleNonce, theme);
-    return;
-  }
   let root: string;
   try {
     root = await realpath(assets);

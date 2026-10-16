@@ -131,6 +131,15 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   `SECURITY.md`.
 - `package.json` scripts `bench`, `docs:rules`, `schemas` and `generate` wrap
   the generator scripts.
+- Red-team milestones M6 and M7 are postponed. The existing managed profiles
+  stay available from the CLI; the dashboard keeps its placeholder page.
+
+### Removed
+
+- The standalone binary: `pnpm build:binary`, `pnpm test:binary`, the binary
+  workflow, its embedded-asset code paths and the `esbuild` and `postject`
+  development dependencies. Plenger ships only as the npm package. Third-party
+  notices for the package are written by `scripts/package-notices.ts`.
 
 
 ## M6a/M6b/M6c preview and M8 preview (2026-10-04, f4e2242)

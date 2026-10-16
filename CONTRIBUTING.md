@@ -78,7 +78,7 @@ Vite. The `dashboard/` package has its own `package.json` and typecheck, run by
 - Fixture corpora: `test/fixtures/frameworks`, `crossfile` and `risks` each
   carry `expected-inventory.json` and `expected-findings.json` reviewed against
   their source. `mixed-agent` is the end-to-end project used by CLI, report,
-  inventory, dashboard and binary smoke tests. `redteam/llmfy` and
+  inventory, dashboard and package smoke tests. `redteam/llmfy` and
   `redteam/vercel` are the discovery and planning fixtures. `reports/` holds the
   unmodified OASIS SARIF 2.1.0 schema.
 - Golden files: the JSON schemas under `schemas/` and `docs/RULES.md` are
@@ -204,15 +204,6 @@ without registry access. It fails on runtime files outside `RUNTIME_FILES` and
 on compiled files without a matching source. It checks npm command resolution, all four grammars, offline
 Next.js preparation and `serve` with the real frontend and authenticated scans.
 The npm package workflow runs it on Linux, macOS and Windows.
-
-See [docs/design/distribution.md](docs/design/distribution.md).
-
-## Optional standalone binary
-
-```sh
-pnpm build:binary     # scripts/build-binary.ts: bundle, embed assets, create dist/binary/
-pnpm test:binary      # scripts/smoke-binary.ts: run the executable outside the checkout
-```
 
 See [docs/design/distribution.md](docs/design/distribution.md).
 

@@ -1,6 +1,6 @@
 # Distribution
 
-npm is the primary distribution for the CLI and local dashboard. The user
+npm is the only distribution for the CLI and local dashboard. The user
 flow follows [promptfoo's npm installation](https://www.promptfoo.dev/docs/installation/):
 install a CLI package or run it with npx, then open the dashboard through a CLI
 command. Plenger uses `plenger serve [path]` with `--port`, `--workspace` and
@@ -50,8 +50,8 @@ npm pack
 ```
 
 `build:package` compiles the engine, builds the frontend and generates notices.
-`pnpm build` first clears compiled output in `dist/`, keeping `dist/binary` and
-`dist/npm`, so files from removed sources never ship.
+`pnpm build` first clears compiled output in `dist/`, keeping `dist/npm`, so
+files from removed sources never ship.
 The `prepack` hook runs this build for `npm pack` and `npm publish`. npm
 installation uses the prepared files and runs no Plenger install scripts.
 The npm notices include the WASM grammars and dashboard dependency closure.
@@ -82,26 +82,3 @@ access. From that directory it checks:
 The [npm package workflow](../../.github/workflows/package.yml) runs this check
 on Ubuntu 24.04, macOS 15 and Windows 2022. It saves the npm archive as an
 artifact. Publishing to the registry is a separate maintainer action.
-
-## Optional standalone binary
-
-The standalone build is an additional contributor workflow. It packages the
-same CLI and dashboard with Node.js, so users of that archive need no separate
-Node.js installation. It is not part of npm installation.
-
-```sh
-pnpm build:binary
-pnpm test:binary
-```
-
-`scripts/build-binary.ts` bundles the CLI with esbuild and creates a Node.js
-single executable application with postject. It embeds the frontend, parser
-runtime, grammars and recipes. SQLite comes from the bundled Node.js runtime.
-The archive also contains third-party notices for that runtime.
-
-Build on the target platform with its matching Node.js executable. Windows
-uses `plenger.exe` in a ZIP archive. Linux and macOS use `plenger` in a tarball.
-The binary check runs outside the checkout with an empty `PATH` and checks
-scans, planning, dashboard assets, saved providers and SQLite persistence.
-The [binary workflow](../../.github/workflows/binary.yml) checks native builds
-separately. Platform qualifications are tracked in [../STATUS.md](../STATUS.md).

@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { Language, Parser, type Tree } from "web-tree-sitter";
-import { embeddedAsset, isEmbeddedBinary } from "../shared/runtime.ts";
 import type { Grammar } from "./languages.ts";
 
 export const GRAMMAR_FILE: Record<Grammar, string> = {
@@ -16,13 +15,9 @@ const languages = new Map<Grammar, Promise<Language>>();
 function loadLanguage(grammar: Grammar): Promise<Language> {
   let language = languages.get(grammar);
   if (language === undefined) {
-    const name = GRAMMAR_FILE[grammar];
-    const bytes = embeddedAsset(`grammars/${name}`);
-    language = (
-      bytes === undefined
-        ? readFile(new URL(`../../grammars/${name}`, import.meta.url))
-        : Promise.resolve(bytes)
-    ).then((wasm) => Language.load(wasm));
+    language = readFile(new URL(`../../grammars/${GRAMMAR_FILE[grammar]}`, import.meta.url)).then(
+      (wasm) => Language.load(wasm),
+    );
     languages.set(grammar, language);
   }
   return language;
@@ -40,9 +35,7 @@ export class SourceParser {
   }
 
   static async create(): Promise<SourceParser> {
-    runtime ??= Parser.init(
-      isEmbeddedBinary ? { wasmBinary: embeddedAsset("runtime/web-tree-sitter.wasm") } : {},
-    );
+    runtime ??= Parser.init();
     await runtime;
     return new SourceParser(new Parser());
   }

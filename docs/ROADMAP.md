@@ -25,10 +25,11 @@ when to hand those instructions to their coding agent. The dashboard does not
 execute the agent or apply patches. Local continuous scanning watches committed
 Git revisions while the service is open.
 
-Read-only analysis is the current dashboard journey. The earlier managed
-red-team engine remains a separate CLI capability. Its retained direction and
-M6/M7 contracts below describe that engine rather than the new workspace UI.
-Availability and qualification are recorded in [STATUS.md](STATUS.md).
+Plenger ships as one npm package. Its main journey is this workspace in the
+local dashboard, opened with `plenger serve`. Red-team work (M6 and M7) is
+postponed. The existing managed profiles stay available from the CLI, and the
+retained direction and contracts below describe that engine rather than the
+workspace. Availability and qualification are recorded in [STATUS.md](STATUS.md).
 
 ### Red-team capability target
 
@@ -88,9 +89,8 @@ isolation infrastructure grew far ahead of what the tool could detect.
 Node.js 22.18+ and TypeScript (strict, erasable syntax only), web-tree-sitter
 with vendored WASM grammars for Python, JavaScript, TypeScript and TSX, pnpm,
 Vitest and Biome. One parser for all three languages keeps the tool free of
-native add-ons. The primary npm package includes the compiled engine, grammars,
-built dashboard and container runtime recipes. The optional standalone binary
-also embeds Node.js through single executable applications.
+native add-ons. The npm package includes the compiled engine, grammars, built
+dashboard and container runtime recipes.
 
 The dashboard is React and TypeScript with Vite, React Router 7, Tailwind CSS
 4, React Aria Components, Gravity icons, OverlayScrollbars and Torph, served by a loopback
@@ -108,7 +108,7 @@ Foundation, code facts, agent inventory, cross-file links and capabilities,
 risk rules and triage, reports and CI. The record with measurements and known
 limits is in [history/m0-m5.md](history/m0-m5.md).
 
-### M6 Red-team harness: direct input (in progress)
+### M6 Red-team harness: direct input (postponed)
 
 **Delivered:** offline discovery and planning (`redteam discover`, `redteam plan`);
 two managed profiles, `llmfy-file-canary-v1` and `vercel-booking-sqlite-v1`,
@@ -197,7 +197,7 @@ complete user journey on an unmodified supported project, repeated from the
 saved profile. Routine CI uses stub models; each advertised integration is
 verified separately with a real model.
 
-### M7 Red-team: indirect prompt injection (planned)
+### M7 Red-team: indirect prompt injection (postponed)
 
 Extend M6's plans, runner and oracles to put test instructions in lower-trust
 content while keeping the legitimate user request unchanged. The user selects
@@ -266,13 +266,12 @@ the package. The installed-package check verifies global installation, npm
 command resolution, scanning, offline planning and the dashboard outside the
 checkout. Installed-package CI jobs cover Linux, macOS and Windows.
 
-The optional standalone build bundles Node.js and produces native archives
-with SHA-256 checksums. npm is the primary user installation. See
+npm is the only distribution; the standalone binary build was dropped. See
 [design/distribution.md](design/distribution.md), [guide/install.md](guide/install.md)
 and [STATUS.md](STATUS.md) for release and platform evidence.
 
 **Next checkpoints:** publish the npm release. Qualify runtime integrations
-under M6/M7 before advertising their dynamic coverage. Keep installation free of
+under M6/M7 before advertising their dynamic coverage, once that work resumes. Keep installation free of
 frontend builds and automatic container setup. Document the offline scan and
 click-to-run workflows, model-access setup, supported framework versions,
 observation limits, profile export and CI use; keep custom adapters and

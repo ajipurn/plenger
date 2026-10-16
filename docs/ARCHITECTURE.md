@@ -3,9 +3,8 @@
 plenger is one TypeScript codebase with two adapters, a command line and a local
 dashboard, on top of a static-analysis pipeline and a red-team engine. Node 22 runs
 the sources directly; `pnpm build` compiles them to `dist/`. `pnpm build:package`
-prepares the npm CLI with its built dashboard and assets. The optional
-`pnpm build:binary` bundles everything into a single executable. This page
-describes the layers, the direction of dependencies and where each kind of
+prepares the npm CLI with its built dashboard and assets; the npm package is the
+only distribution. This page describes the layers, the direction of dependencies and where each kind of
 change belongs.
 
 ## Layers
@@ -233,8 +232,7 @@ commands and are loaded on demand.
 ## The dashboard
 
 The service in `src/dashboard/` binds `127.0.0.1`, issues a per-process token and
-serves the built page from `dashboard/dist` in the npm package or checkout (or
-the embedded assets in the optional binary).
+serves the built page from `dashboard/dist` in the npm package or checkout.
 `server.ts` listens and dispatches through the explicit route table in
 `routes/index.ts`; each file under `routes/` handles one area (session, state,
 scan, history, folders, providers, security workspace, red-team, theme). `http.ts` holds the request

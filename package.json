@@ -24,8 +24,6 @@
     "build:package": "pnpm build && pnpm dashboard:build && node scripts/package-notices.ts",
     "prepack": "pnpm build:package",
     "test:package": "node scripts/smoke-package.ts",
-    "build:binary": "node scripts/build-binary.ts",
-    "test:binary": "node scripts/smoke-binary.ts",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "biome check .",
     "format": "biome check --write .",
@@ -49,8 +47,6 @@
     "@types/node": "22.20.4",
     "ajv": "8.17.1",
     "ajv-formats": "3.0.1",
-    "esbuild": "0.28.2",
-    "postject": "1.0.0-alpha.6",
     "typescript": "7.0.2",
     "vitest": "5.0.2",
     "yaml": "2.8.1"

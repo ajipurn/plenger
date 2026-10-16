@@ -1,15 +1,6 @@
 import { readFileSync } from "node:fs";
-import { getAsset, isSea } from "node:sea";
 
-/** Embedded resources are immutable and never resolved against the scanned project. */
-export const isEmbeddedBinary = isSea();
-
-export function embeddedAsset(name: string): Buffer | undefined {
-  return isEmbeddedBinary ? Buffer.from(getAsset(name)) : undefined;
-}
-
+/** The installed package's version, read from its own package.json, never the scanned project's. */
 export const VERSION: string = JSON.parse(
-  (
-    embeddedAsset("package.json") ?? readFileSync(new URL("../../package.json", import.meta.url))
-  ).toString("utf8"),
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
 ).version;

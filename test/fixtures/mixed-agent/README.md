@@ -8,7 +8,7 @@ with a syntax error (`app/broken.py`). It is the shared end-to-end fixture for:
 - `test/inventory.test.ts` (inventory and capabilities)
 - `test/dashboard-server.test.ts` and `test/dashboard-persistence.test.ts`
   (dashboard scans, SQLite history and clearing)
-- `scripts/smoke-binary.ts` (the standalone binary outside the checkout)
+- `scripts/smoke-package.ts` (the installed npm package outside the checkout)
 
 Keep it small and deterministic. Expected counts in those tests change when
 files are added here.

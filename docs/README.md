@@ -30,7 +30,7 @@ repeating milestone status.
 | [design/llmfy-runtime.md](design/llmfy-runtime.md) | The llmfy container image, isolation checks and the synthetic qualification suite |
 | [design/generated-attacks.md](design/generated-attacks.md) | Attacker-generated, frozen attack corpora; checkpoint 1 (host templates) is implemented |
 | [design/dashboard-ui.md](design/dashboard-ui.md) | Visual design rules for the dashboard |
-| [design/distribution.md](design/distribution.md) | How the npm package and optional binary are built and checked |
+| [design/distribution.md](design/distribution.md) | How the npm package is built and checked |
 | [qualifications/](qualifications/) | Dated qualification records |
 | [ROADMAP.md](ROADMAP.md) | Goals, principles, remaining M6 checkpoints, M7, M8, risks |
 | [history/m0-m5.md](history/m0-m5.md) | The completed milestones as recorded at completion |
