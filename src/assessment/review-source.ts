@@ -1,0 +1,374 @@
+import { createHash } from "node:crypto";
+import { extractFacts } from "../facts/index.ts";
+import type { FileFacts } from "../facts/model.ts";
+import { decodeSource, isSensitiveSourcePath, readProjectFile } from "../redteam/project-files.ts";
+import type { ScanResult } from "../scan.ts";
+import { redact } from "../shared/secrets.ts";
+import { collectSourceFiles, DEFAULT_MAX_FILE_BYTES } from "../source/files.ts";
+import type { Grammar } from "../source/languages.ts";
+import { SourceParser } from "../source/parser.ts";
+import { countLines, looksMinified } from "../source/read.ts";
+import {
+  coversAll,
+  excerptParts,
+  mergeRanges,
+  rangeBytes,
+  renderSource,
+  selectExcerpt,
+} from "./review-excerpt.ts";
+import { type ReviewFocus, reviewFocus } from "./review-focus.ts";
+import {
+  SECURITY_REVIEW_LIMITS as LIMITS,
+  type ReviewRange,
+  type ReviewSourceFile,
+} from "./review-model.ts";
+
+export interface ReviewContext {
+  /** Sent to the provider. */
+  files: (ReviewSourceFile & { source: string })[];
+  omitted: { path: string; reason: string }[];
+  /** Redacted lines of each submitted file, for host-supplied snippets. Never sent. */
+  lines: Map<string, string[]>;
+}
+export class ReviewSourceError extends Error {}
+
+const SECURITY_NAME =
+  /(?:auth|permission|tenant|route|handler|api|server|database|query|store|service|security|middleware|controller|tool|agent)/i;
+/** Below this many bytes of remaining context, no further file can fit. */
+const MIN_ENTRY_BYTES = 256;
+
+interface CapturedSource {
+  grammar: Grammar;
+  text: string;
+  /** Redacted, split on newlines. */
+  lines: string[];
+  lineCount: number;
+  /** Bytes read from disk. */
+  bytes: number;
+  digest: string;
+  facts?: FileFacts | null;
+}
+type Entry = ReviewSourceFile & { source: string };
+
+/**
+ * Line-numbered source within the saved scan's allowlist. Never loads project modules.
+ * Files on the scan's traced entry point, tool and model output paths are submitted
+ * first, as function excerpts if needed, so a batch can follow a path end to end. Spare
+ * budget then turns those excerpts into whole files and takes the remaining files.
+ * `submitted` lists what earlier batches of the same scan sent: whole files are skipped,
+ * and an excerpted file continues with the functions not sent yet.
+ */
+export async function captureReviewSource(
+  snapshot: ScanResult,
+  secrets: string[],
+  signal?: AbortSignal,
+  submitted: readonly ReviewSourceFile[] = [],
+): Promise<{
+  context: ReviewContext;
+  scope: {
+    capturedAt: string;
+    files: ReviewSourceFile[];
+    eligibleFiles: number;
+    omittedFiles: number;
+    excludedEntries: number;
+    partial: boolean;
+    contextDigest: string;
+  };
+}> {
+  const capturedAt = new Date().toISOString();
+  const collected = await collectSourceFiles(snapshot.root, { maxFiles: 5000 }).catch(() => {
+    throw new ReviewSourceError(
+      "Source is no longer available at the selected project path. Run a new scan before reviewing it.",
+    );
+  });
+  // A changed root (including a replaced symlink) must never widen the authorized scope.
+  if (collected.root !== snapshot.root)
+    throw new ReviewSourceError("The project path changed. Run a new scan before reviewing it.");
+  const allowed = new Set(snapshot.files.map((file) => file.path));
+  const available = new Map(
+    collected.files.filter((file) => allowed.has(file.path)).map((file) => [file.path, file]),
+  );
+  const scannedLines = new Map(snapshot.files.map((file) => [file.path, file.lines]));
+  const covered = previousCoverage(submitted);
+  const focus = reviewFocus(snapshot.inventory, snapshot.findings);
+  const order = reviewOrder(snapshot.files, focus);
+
+  const reasons = new Map<string, string>();
+  for (const path of order) {
+    if (covered.get(path)?.ranges === null)
+      reasons.set(path, "Included in a previous source batch.");
+    else if (redact(path, secrets) !== path)
+      reasons.set(path, "Credential-like source path excluded.");
+    else if (!available.has(path))
+      reasons.set(path, "No longer available under the scan's ignore and source rules.");
+    else if (isSensitiveSourcePath(path))
+      reasons.set(path, "Hidden or credential-related path excluded.");
+  }
+
+  const captured = new Map<string, CapturedSource>();
+  async function capture(path: string): Promise<CapturedSource | null> {
+    const cached = captured.get(path);
+    if (cached !== undefined) return cached;
+    const file = available.get(path);
+    if (file === undefined) return null;
+    try {
+      const bytes = await readProjectFile(collected.root, path, DEFAULT_MAX_FILE_BYTES);
+      const raw = decodeSource(bytes);
+      if (looksMinified(raw)) throw new Error("minified");
+      // Keep original line numbers when a multiline private key is removed.
+      const text = redact(
+        raw.replace(
+          /-----BEGIN (?:[A-Z ]+)?PRIVATE KEY-----[\s\S]*?(?:-----END (?:[A-Z ]+)?PRIVATE KEY-----|$)/g,
+          (block) => `<redacted>${"\n".repeat((block.match(/\n/g) ?? []).length)}`,
+        ),
+        secrets,
+      );
+      const lineCount = countLines(text);
+      if (!text.trim() || lineCount !== countLines(raw)) throw new Error("empty-or-line-change");
+      const source: CapturedSource = {
+        grammar: file.grammar,
+        text,
+        lines: text.split("\n"),
+        lineCount,
+        bytes: bytes.byteLength,
+        digest: createHash("sha256").update(text).digest("hex"),
+      };
+      const previous = covered.get(path);
+      // Earlier ranges describe the earlier text; a changed file cannot continue from them.
+      if (previous !== undefined && previous.digest !== source.digest) {
+        reasons.set(path, "Changed after a previous source batch submitted part of it.");
+        return null;
+      }
+      captured.set(path, source);
+      return source;
+    } catch {
+      reasons.set(path, "File too large, linked, changed, unreadable, binary, empty, or minified.");
+      return null;
+    }
+  }
+
+  let parser: SourceParser | undefined;
+  async function factsOf(source: CapturedSource): Promise<FileFacts | null> {
+    if (source.facts !== undefined) return source.facts;
+    try {
+      parser ??= await SourceParser.create();
+      const tree = await parser.parse(source.grammar, source.text);
+      try {
+        source.facts = extractFacts(tree, source.grammar);
+      } finally {
+        tree.delete();
+      }
+    } catch {
+      source.facts = null;
+    }
+    return source.facts;
+  }
+  /** Located lines are only trusted while the file still has the line count the scan saw. */
+  function focusOf(path: string, source: CapturedSource): ReviewFocus | undefined {
+    const located = focus.get(path);
+    if (located === undefined || scannedLines.get(path) === source.lineCount) return located;
+    return { ...located, lines: new Set() };
+  }
+
+  const entries = new Map<string, Entry>();
+  const sizes = new Map<string, number>();
+  const entryOf = (path: string, source: CapturedSource, ranges?: ReviewRange[]): Entry => ({
+    path,
+    lines: source.lineCount,
+    digest: source.digest,
+    ...(ranges ? { ranges } : {}),
+    source: renderSource(source.lines, source.lineCount, ranges),
+  });
+  /** Serialized context bytes if `path` held an entry of `size` bytes. */
+  const contextWith = (path: string, size: number) => {
+    let total = 2 + size;
+    for (const [other, bytes] of sizes) if (other !== path) total += bytes + 1;
+    return total;
+  };
+  const remaining = () => LIMITS.contextBytes - contextWith("", 0);
+  /** The entry and its size when it stays within the per-file and context budgets. */
+  function sized(path: string, source: CapturedSource, ranges?: ReviewRange[]) {
+    const submitted = ranges ?? [{ line: 1, endLine: source.lineCount }];
+    if (rangeBytes(source.lines, submitted) > LIMITS.fileBytes) return null;
+    const entry = entryOf(path, source, ranges);
+    const size = Buffer.byteLength(JSON.stringify(entry));
+    return contextWith(path, size) <= LIMITS.contextBytes ? { entry, size } : null;
+  }
+  function tryAdd(path: string, source: CapturedSource, ranges?: ReviewRange[]): boolean {
+    const fitted = sized(path, source, ranges);
+    if (fitted === null) return false;
+    entries.set(path, fitted.entry);
+    sizes.set(path, fitted.size);
+    return true;
+  }
+  /**
+   * Adds an excerpt; "done" when an earlier batch already sent every part of the file.
+   * With `keep`, extends that excerpt with the file's other definitions.
+   */
+  async function addExcerpt(
+    path: string,
+    source: CapturedSource,
+    keep?: ReviewRange[],
+  ): Promise<"added" | "no-room" | "done"> {
+    const sent = covered.get(path)?.ranges ?? undefined;
+    // Blank lines hold nothing to review, so they never make a sent part look new.
+    const blank = source.lines.flatMap((text, index) =>
+      text.trim() ? [] : [{ line: index + 1, endLine: index + 1 }],
+    );
+    const previous = sent && mergeRanges([...sent, ...blank], source.lineCount, 0);
+    const located = excerptParts(
+      await factsOf(source),
+      source.lineCount,
+      focusOf(path, source),
+      keep !== undefined || previous !== undefined,
+    );
+    const parts = keep ? [{ ranges: keep }, ...located] : located;
+    const ranges = selectExcerpt(
+      parts,
+      source.lineCount,
+      (trial) => sized(path, source, trial) !== null,
+      previous,
+    );
+    if (ranges.length)
+      return tryAdd(path, source, coversAll(ranges, source.lineCount) ? undefined : ranges)
+        ? "added"
+        : "no-room";
+    const left = previous && selectExcerpt(parts, source.lineCount, () => true, previous);
+    return left && !left.length ? "done" : "no-room";
+  }
+
+  try {
+    // 1. Traced paths, as excerpts of the functions on them. A file an earlier batch
+    // excerpted already sent its path functions; it continues in step 3.
+    for (const path of order) {
+      signal?.throwIfAborted();
+      if (!focus.get(path)?.traced || reasons.has(path) || covered.has(path)) continue;
+      if (entries.size >= LIMITS.files || remaining() < MIN_ENTRY_BYTES) break;
+      const source = await capture(path);
+      if (source !== null) await addExcerpt(path, source);
+    }
+    // 2. Whole files where the excerpts leave room.
+    for (const [path, entry] of [...entries]) {
+      const source = captured.get(path);
+      if (entry.ranges && source && source.bytes <= LIMITS.fileBytes) tryAdd(path, source);
+    }
+    // 3. Everything else in review order. Continued files only add lines not sent yet.
+    for (const path of order) {
+      signal?.throwIfAborted();
+      if (entries.has(path) || reasons.has(path)) continue;
+      if (entries.size >= LIMITS.files) {
+        reasons.set(path, "Review file limit reached.");
+        continue;
+      }
+      if (remaining() < MIN_ENTRY_BYTES) {
+        reasons.set(path, "Review source budget reached.");
+        continue;
+      }
+      const source = await capture(path);
+      if (source === null) continue;
+      const continued = covered.has(path);
+      if (!continued && source.bytes <= LIMITS.fileBytes && tryAdd(path, source)) continue;
+      const excerpt =
+        continued || source.bytes > LIMITS.fileBytes || focus.has(path)
+          ? await addExcerpt(path, source)
+          : "no-room";
+      if (excerpt === "done") reasons.set(path, "Included in a previous source batch.");
+      else if (excerpt === "no-room") reasons.set(path, "Review source budget reached.");
+    }
+    // 4. Spare budget extends excerpts with their files' other definitions.
+    for (const [path, entry] of [...entries]) {
+      signal?.throwIfAborted();
+      const source = captured.get(path);
+      if (entry.ranges && source && remaining() >= MIN_ENTRY_BYTES)
+        await addExcerpt(path, source, entry.ranges);
+    }
+  } finally {
+    parser?.dispose();
+  }
+
+  const context: ReviewContext = {
+    files: order.flatMap((path) => entries.get(path) ?? []),
+    omitted: order.flatMap((path) => {
+      const reason = reasons.get(path);
+      return reason === undefined ? [] : [{ path, reason }];
+    }),
+    lines: new Map([...entries.keys()].map((path) => [path, captured.get(path)?.lines ?? []])),
+  };
+  if (!context.files.length)
+    throw new ReviewSourceError(
+      "No source files fit this review. Select a smaller source folder and scan it first.",
+    );
+  // Omission details stay local. The provider receives only included files and a count.
+  const encoded = JSON.stringify(context.files);
+  const excludedEntries = new Set([
+    ...collected.skipped.map((file) => file.path),
+    ...collected.excludedDirs.map((file) => file.path),
+    ...snapshot.skipped.map((file) => file.path),
+  ]).size;
+  return {
+    context,
+    scope: {
+      capturedAt,
+      files: context.files.map(({ source: _source, ...file }) => file),
+      eligibleFiles: snapshot.files.length,
+      omittedFiles: context.omitted.length,
+      excludedEntries,
+      partial:
+        context.omitted.length > 0 ||
+        context.files.some((file) => file.ranges !== undefined) ||
+        collected.truncated ||
+        excludedEntries > 0 ||
+        snapshot.truncated,
+      contextDigest: createHash("sha256").update(encoded).digest("hex"),
+    },
+  };
+}
+
+/** What earlier batches sent per path. `ranges` is null once nothing is left to continue. */
+function previousCoverage(
+  submitted: readonly ReviewSourceFile[],
+): Map<string, { digest: string; ranges: ReviewRange[] | null }> {
+  const coverage = new Map<string, { digest: string; ranges: ReviewRange[] | null }>();
+  for (const file of submitted) {
+    const known = coverage.get(file.path);
+    // A whole file, or one that changed between earlier batches, does not continue.
+    if (!file.ranges || known?.ranges === null || (known && known.digest !== file.digest)) {
+      coverage.set(file.path, { digest: file.digest, ranges: null });
+      continue;
+    }
+    const ranges = mergeRanges([...(known?.ranges ?? []), ...file.ranges], file.lines, 0);
+    coverage.set(file.path, {
+      digest: file.digest,
+      ranges: coversAll(ranges, file.lines) ? null : ranges,
+    });
+  }
+  return coverage;
+}
+
+/** Traced files in path order, other focused files, security-related names, then path order. */
+function reviewOrder(files: ScanResult["files"], focus: Map<string, ReviewFocus>): string[] {
+  const scanned = new Set(files.map((file) => file.path));
+  const priority = (path: string) => (SECURITY_NAME.test(path) ? 0 : 1);
+  return [
+    ...[...focus.keys()].filter((path) => scanned.has(path)),
+    ...[...scanned]
+      .filter((path) => !focus.has(path))
+      .sort((a, b) => priority(a) - priority(b) || a.localeCompare(b)),
+  ];
+}
+
+export function reviewSnippet(
+  context: ReviewContext,
+  path: string,
+  line: number,
+  endLine: number,
+): string {
+  const previewEnd = Math.min(endLine, line + LIMITS.snippetLines - 1);
+  const snippet = (context.lines.get(path) ?? [])
+    .slice(line - 1, previewEnd)
+    .map((text, index) => `${line + index}: ${text}`)
+    .join("\n");
+  return snippet && previewEnd < endLine
+    ? `${snippet}\n… ${endLine - previewEnd} more cited lines (through line ${endLine}).`
+    : snippet;
+}
