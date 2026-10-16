@@ -1,7 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { selectExcerpt } from "../src/assessment/review-excerpt.ts";
+import {
+  lineSizes,
+  rangeBytes,
+  renderedJsonBytes,
+  renderSource,
+  selectExcerpt,
+} from "../src/assessment/review-excerpt.ts";
 import { type ReviewSourceFile, SECURITY_REVIEW_LIMITS } from "../src/assessment/review-model.ts";
 import { captureReviewSource } from "../src/assessment/review-source.ts";
 import { reviewProject } from "../src/assessment/security-review.ts";
@@ -271,6 +277,43 @@ describe("AI review source selection", () => {
     expect(selectExcerpt(parts, 40, () => true, [{ line: 7, endLine: 27 }])).toEqual([
       { line: 30, endLine: 32 },
     ]);
+  });
+
+  it("measures rendered source exactly without rendering it", () => {
+    const lines = [
+      'const quote = "say \\"hi\\"";',
+      "\tconst tab = 1; // café ✓ 🚀",
+      "",
+      "const control = '\u0001';",
+      "export const last = 5;",
+      "",
+    ];
+    const sizes = lineSizes(lines);
+    for (const ranges of [
+      undefined,
+      [{ line: 1, endLine: 1 }],
+      [{ line: 2, endLine: 2 }],
+      [
+        { line: 1, endLine: 2 },
+        { line: 4, endLine: 5 },
+      ],
+      [{ line: 5, endLine: 5 }],
+    ]) {
+      expect(renderedJsonBytes(sizes, 5, ranges)).toBe(
+        Buffer.byteLength(JSON.stringify(renderSource(lines, 5, ranges))),
+      );
+      const submitted = ranges ?? [{ line: 1, endLine: 5 }];
+      expect(rangeBytes(sizes, submitted)).toBe(
+        submitted.reduce(
+          (sum, range) =>
+            sum +
+            lines
+              .slice(range.line - 1, range.endLine)
+              .reduce((bytes, text) => bytes + Buffer.byteLength(text) + 1, 0),
+          0,
+        ),
+      );
+    }
   });
 
   it("does not submit an excerpt that holds only imports", () => {

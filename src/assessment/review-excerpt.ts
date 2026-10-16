@@ -151,13 +151,66 @@ export function coversAll(ranges: readonly ReviewRange[], lineCount: number): bo
   return ranges.length === 1 && ranges[0]?.line === 1 && ranges[0].endLine >= lineCount;
 }
 
+/** Prefix sums over a file's lines, so budget checks never render the source. */
+export interface LineSizes {
+  /** `raw[n]`: UTF-8 bytes of lines 1 to n, each with its newline. */
+  raw: number[];
+  /** `json[n]`: JSON-escaped bytes of numbered lines 1 to n, without quotes or separators. */
+  json: number[];
+}
+
+export function lineSizes(lines: readonly string[]): LineSizes {
+  const raw = [0];
+  const json = [0];
+  lines.forEach((text, index) => {
+    raw.push(at(raw, index) + Buffer.byteLength(text) + 1);
+    json.push(at(json, index) + escapedBytes(`${index + 1}: ${text}`));
+  });
+  return { raw, json };
+}
+
 /** UTF-8 bytes of the submitted lines, before numbering. */
-export function rangeBytes(lines: readonly string[], ranges: readonly ReviewRange[]): number {
+export function rangeBytes(sizes: LineSizes, ranges: readonly ReviewRange[]): number {
   let bytes = 0;
-  for (const item of ranges)
-    for (let line = item.line; line <= item.endLine; line++)
-      bytes += Buffer.byteLength(lines[line - 1] ?? "") + 1;
+  for (const item of ranges) bytes += at(sizes.raw, item.endLine) - at(sizes.raw, item.line - 1);
   return bytes;
+}
+
+/** `Buffer.byteLength(JSON.stringify(renderSource(lines, lineCount, ranges)))`, from line sizes. */
+export function renderedJsonBytes(
+  sizes: LineSizes,
+  lineCount: number,
+  ranges?: readonly ReviewRange[],
+): number {
+  // Lines are joined with "\n", two bytes once escaped.
+  const joined = (bytes: number, segments: number) => 2 + bytes + 2 * Math.max(0, segments - 1);
+  const total = sizes.json.length - 1;
+  if (ranges === undefined) return joined(at(sizes.json, total), total);
+  let bytes = 0;
+  let segments = 0;
+  let next = 1;
+  for (const item of ranges) {
+    if (item.line > next) {
+      bytes += escapedBytes(gap(next, item.line - 1));
+      segments += 1;
+    }
+    bytes += at(sizes.json, item.endLine) - at(sizes.json, item.line - 1);
+    segments += item.endLine - item.line + 1;
+    next = item.endLine + 1;
+  }
+  if (next <= lineCount) {
+    bytes += escapedBytes(gap(next, lineCount));
+    segments += 1;
+  }
+  return joined(bytes, segments);
+}
+
+function escapedBytes(text: string): number {
+  return Buffer.byteLength(JSON.stringify(text)) - 2;
+}
+
+function at(sums: readonly number[], index: number): number {
+  return sums[index] ?? 0;
 }
 
 /**

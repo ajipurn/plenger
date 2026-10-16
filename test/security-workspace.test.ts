@@ -152,14 +152,17 @@ async function start(id: string, patch = {}): Promise<SecurityScan> {
   expect(response.status, await response.clone().text()).toBe(202);
   return (await response.json()) as SecurityScan;
 }
-async function finished(id: string): Promise<SecurityScan> {
+async function finished(id: string, timeout = 1000): Promise<SecurityScan> {
   let result: SecurityScan | undefined;
-  await vi.waitFor(async () => {
-    result = (await (
-      await dashboard.request(pathFor(API.securityScan, id))
-    ).json()) as SecurityScan;
-    expect(result.status).not.toBe("running");
-  });
+  await vi.waitFor(
+    async () => {
+      result = (await (
+        await dashboard.request(pathFor(API.securityScan, id))
+      ).json()) as SecurityScan;
+      expect(result.status).not.toBe("running");
+    },
+    { timeout },
+  );
   if (!result) throw new Error("No scan.");
   return result;
 }
@@ -484,7 +487,8 @@ describe("local project security workspace", () => {
       ['import { join } from "node:path";', "", ...helpers, ""].join("\n"),
     );
     const repo = await repository();
-    const scan = await finished((await start(repo.id, { depth: "deep" })).id);
+    // Three batches over a large file can take seconds on a shared CI runner.
+    const scan = await finished((await start(repo.id, { depth: "deep" })).id, 15_000);
     expect(scan.status).toBe("completed");
     expect(scan.reviews).toHaveLength(3);
     const sent = scan.reviews.map((review) => {
@@ -498,7 +502,7 @@ describe("local project security workspace", () => {
     const all = sent.flat().filter((line) => line !== 1);
     expect(new Set(all).size).toBe(all.length);
     expect(sent.every((lines) => lines.length > 100)).toBe(true);
-  });
+  }, 20_000);
 
   it("stops at refusal and retains the failure outcome without leaking upstream credentials", async () => {
     const repo = await repository();

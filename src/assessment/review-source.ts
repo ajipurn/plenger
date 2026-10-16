@@ -11,8 +11,11 @@ import { countLines, looksMinified } from "../source/read.ts";
 import {
   coversAll,
   excerptParts,
+  type LineSizes,
+  lineSizes,
   mergeRanges,
   rangeBytes,
+  renderedJsonBytes,
   renderSource,
   selectExcerpt,
 } from "./review-excerpt.ts";
@@ -42,6 +45,8 @@ interface CapturedSource {
   text: string;
   /** Redacted, split on newlines. */
   lines: string[];
+  /** Measures excerpts without rendering them. */
+  measure: LineSizes;
   lineCount: number;
   /** Bytes read from disk. */
   bytes: number;
@@ -125,10 +130,12 @@ export async function captureReviewSource(
       );
       const lineCount = countLines(text);
       if (!text.trim() || lineCount !== countLines(raw)) throw new Error("empty-or-line-change");
+      const lines = text.split("\n");
       const source: CapturedSource = {
         grammar: file.grammar,
         text,
-        lines: text.split("\n"),
+        lines,
+        measure: lineSizes(lines),
         lineCount,
         bytes: bytes.byteLength,
         digest: createHash("sha256").update(text).digest("hex"),
@@ -172,12 +179,17 @@ export async function captureReviewSource(
 
   const entries = new Map<string, Entry>();
   const sizes = new Map<string, number>();
-  const entryOf = (path: string, source: CapturedSource, ranges?: ReviewRange[]): Entry => ({
+  const entryOf = (
+    path: string,
+    source: CapturedSource,
+    ranges?: ReviewRange[],
+    text = renderSource(source.lines, source.lineCount, ranges),
+  ): Entry => ({
     path,
     lines: source.lineCount,
     digest: source.digest,
     ...(ranges ? { ranges } : {}),
-    source: renderSource(source.lines, source.lineCount, ranges),
+    source: text,
   });
   /** Serialized context bytes if `path` held an entry of `size` bytes. */
   const contextWith = (path: string, size: number) => {
@@ -186,19 +198,27 @@ export async function captureReviewSource(
     return total;
   };
   const remaining = () => LIMITS.contextBytes - contextWith("", 0);
-  /** The entry and its size when it stays within the per-file and context budgets. */
-  function sized(path: string, source: CapturedSource, ranges?: ReviewRange[]) {
+  /**
+   * Whether an entry stays within the per-file and context budgets, measured from line
+   * sizes: choosing an excerpt tries many range sets, and rendering each would be quadratic.
+   */
+  function fits(path: string, source: CapturedSource, ranges?: ReviewRange[]): boolean {
     const submitted = ranges ?? [{ line: 1, endLine: source.lineCount }];
-    if (rangeBytes(source.lines, submitted) > LIMITS.fileBytes) return null;
-    const entry = entryOf(path, source, ranges);
-    const size = Buffer.byteLength(JSON.stringify(entry));
-    return contextWith(path, size) <= LIMITS.contextBytes ? { entry, size } : null;
+    if (rangeBytes(source.measure, submitted) > LIMITS.fileBytes) return false;
+    // The empty source's two quote bytes are counted again by the rendered size.
+    const size =
+      Buffer.byteLength(JSON.stringify(entryOf(path, source, ranges, ""))) -
+      2 +
+      renderedJsonBytes(source.measure, source.lineCount, ranges);
+    return contextWith(path, size) <= LIMITS.contextBytes;
   }
   function tryAdd(path: string, source: CapturedSource, ranges?: ReviewRange[]): boolean {
-    const fitted = sized(path, source, ranges);
-    if (fitted === null) return false;
-    entries.set(path, fitted.entry);
-    sizes.set(path, fitted.size);
+    if (!fits(path, source, ranges)) return false;
+    const entry = entryOf(path, source, ranges);
+    const size = Buffer.byteLength(JSON.stringify(entry));
+    if (contextWith(path, size) > LIMITS.contextBytes) return false;
+    entries.set(path, entry);
+    sizes.set(path, size);
     return true;
   }
   /**
@@ -226,7 +246,7 @@ export async function captureReviewSource(
     const ranges = selectExcerpt(
       parts,
       source.lineCount,
-      (trial) => sized(path, source, trial) !== null,
+      (trial) => fits(path, source, trial),
       previous,
     );
     if (ranges.length)
