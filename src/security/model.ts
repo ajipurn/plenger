@@ -69,6 +69,8 @@ export interface SecurityScanSummary {
   scope: "local" | "repository" | "continuous";
   depth: ScanDepth;
   provider: { id: string; name: string; model: string } | null;
+  /** The saved connection that ran second reviews, when it was not `provider`. */
+  validator?: { id: string; name: string; model: string };
   revision: SourceRevision;
   findingCount: number;
   modelCalls: number;
@@ -92,5 +94,7 @@ export interface StartSecurityScan {
   providerId: string;
   /** Omit for compatibility with clients using the provider's default model. */
   model?: string;
+  /** A saved connection for second reviews, with its saved model; omit to use `providerId`. */
+  validatorProviderId?: string;
   depth: ScanDepth;
 }

@@ -55,6 +55,129 @@ interface CapturedSource {
 }
 type Entry = ReviewSourceFile & { source: string };
 
+/** Bytes and file counts one source capture may use. */
+export interface ReviewBudget {
+  contextBytes: number;
+  fileBytes: number;
+  files: number;
+}
+const DEFAULT_BUDGET: ReviewBudget = {
+  contextBytes: LIMITS.contextBytes,
+  fileBytes: LIMITS.fileBytes,
+  files: LIMITS.files,
+};
+
+/**
+ * Reads redacted source within a saved scan's allowlist, under the current ignore and
+ * source rules, through the bounded regular-file reader. Never loads project modules.
+ * One reader serves a review's batch and its second-review context; dispose it after.
+ */
+export class ReviewSourceReader {
+  readonly root: string;
+  readonly collected: Awaited<ReturnType<typeof collectSourceFiles>>;
+  readonly #available: Map<string, { grammar: Grammar }>;
+  readonly #secrets: string[];
+  readonly #captured = new Map<string, CapturedSource | null>();
+  #parser: SourceParser | undefined;
+
+  private constructor(
+    collected: Awaited<ReturnType<typeof collectSourceFiles>>,
+    available: Map<string, { grammar: Grammar }>,
+    secrets: string[],
+  ) {
+    this.root = collected.root;
+    this.collected = collected;
+    this.#available = available;
+    this.#secrets = secrets;
+  }
+
+  static async open(snapshot: ScanResult, secrets: string[]): Promise<ReviewSourceReader> {
+    const collected = await collectSourceFiles(snapshot.root, { maxFiles: 5000 }).catch(() => {
+      throw new ReviewSourceError(
+        "Source is no longer available at the selected project path. Run a new scan before reviewing it.",
+      );
+    });
+    // A changed root (including a replaced symlink) must never widen the authorized scope.
+    if (collected.root !== snapshot.root)
+      throw new ReviewSourceError("The project path changed. Run a new scan before reviewing it.");
+    const allowed = new Set(snapshot.files.map((file) => file.path));
+    const available = new Map(
+      collected.files.filter((file) => allowed.has(file.path)).map((file) => [file.path, file]),
+    );
+    return new ReviewSourceReader(collected, available, secrets);
+  }
+
+  /** Why a scanned path may not be read, or null when it may. */
+  exclusion(path: string): string | null {
+    if (redact(path, this.#secrets) !== path) return "Credential-like source path excluded.";
+    if (!this.#available.has(path))
+      return "No longer available under the scan's ignore and source rules.";
+    if (isSensitiveSourcePath(path)) return "Hidden or credential-related path excluded.";
+    return null;
+  }
+
+  /** Redacted source with original line numbers, or null when it cannot be read safely. */
+  async read(path: string): Promise<CapturedSource | null> {
+    const cached = this.#captured.get(path);
+    if (cached !== undefined) return cached;
+    const file = this.#available.get(path);
+    let source: CapturedSource | null = null;
+    if (file !== undefined && this.exclusion(path) === null) {
+      try {
+        const bytes = await readProjectFile(this.root, path, DEFAULT_MAX_FILE_BYTES);
+        const raw = decodeSource(bytes);
+        if (looksMinified(raw)) throw new Error("minified");
+        // Keep original line numbers when a multiline private key is removed.
+        const text = redact(
+          raw.replace(
+            /-----BEGIN (?:[A-Z ]+)?PRIVATE KEY-----[\s\S]*?(?:-----END (?:[A-Z ]+)?PRIVATE KEY-----|$)/g,
+            (block) => `<redacted>${"\n".repeat((block.match(/\n/g) ?? []).length)}`,
+          ),
+          this.#secrets,
+        );
+        const lineCount = countLines(text);
+        if (!text.trim() || lineCount !== countLines(raw)) throw new Error("empty-or-line-change");
+        const lines = text.split("\n");
+        source = {
+          grammar: file.grammar,
+          text,
+          lines,
+          measure: lineSizes(lines),
+          lineCount,
+          bytes: bytes.byteLength,
+          digest: createHash("sha256").update(text).digest("hex"),
+        };
+      } catch {
+        source = null;
+      }
+    }
+    this.#captured.set(path, source);
+    return source;
+  }
+
+  /** Facts parsed from the redacted text at review time, or null when parsing fails. */
+  async facts(source: CapturedSource): Promise<FileFacts | null> {
+    if (source.facts !== undefined) return source.facts;
+    try {
+      this.#parser ??= await SourceParser.create();
+      const tree = await this.#parser.parse(source.grammar, source.text);
+      try {
+        source.facts = extractFacts(tree, source.grammar);
+      } finally {
+        tree.delete();
+      }
+    } catch {
+      source.facts = null;
+    }
+    return source.facts;
+  }
+
+  dispose(): void {
+    this.#parser?.dispose();
+    this.#parser = undefined;
+  }
+}
+
 /**
  * Line-numbered source within the saved scan's allowlist. Never loads project modules.
  * Files on the scan's traced entry point, tool and model output paths are submitted
@@ -68,6 +191,7 @@ export async function captureReviewSource(
   secrets: string[],
   signal?: AbortSignal,
   submitted: readonly ReviewSourceFile[] = [],
+  options: { reader?: ReviewSourceReader; budget?: ReviewBudget } = {},
 ): Promise<{
   context: ReviewContext;
   scope: {
@@ -81,18 +205,9 @@ export async function captureReviewSource(
   };
 }> {
   const capturedAt = new Date().toISOString();
-  const collected = await collectSourceFiles(snapshot.root, { maxFiles: 5000 }).catch(() => {
-    throw new ReviewSourceError(
-      "Source is no longer available at the selected project path. Run a new scan before reviewing it.",
-    );
-  });
-  // A changed root (including a replaced symlink) must never widen the authorized scope.
-  if (collected.root !== snapshot.root)
-    throw new ReviewSourceError("The project path changed. Run a new scan before reviewing it.");
-  const allowed = new Set(snapshot.files.map((file) => file.path));
-  const available = new Map(
-    collected.files.filter((file) => allowed.has(file.path)).map((file) => [file.path, file]),
-  );
+  const budget = options.budget ?? DEFAULT_BUDGET;
+  const reader = options.reader ?? (await ReviewSourceReader.open(snapshot, secrets));
+  const collected = reader.collected;
   const scannedLines = new Map(snapshot.files.map((file) => [file.path, file.lines]));
   const covered = previousCoverage(submitted);
   const focus = reviewFocus(snapshot.inventory, snapshot.findings);
@@ -100,76 +215,29 @@ export async function captureReviewSource(
 
   const reasons = new Map<string, string>();
   for (const path of order) {
+    const exclusion = reader.exclusion(path);
     if (covered.get(path)?.ranges === null)
       reasons.set(path, "Included in a previous source batch.");
-    else if (redact(path, secrets) !== path)
-      reasons.set(path, "Credential-like source path excluded.");
-    else if (!available.has(path))
-      reasons.set(path, "No longer available under the scan's ignore and source rules.");
-    else if (isSensitiveSourcePath(path))
-      reasons.set(path, "Hidden or credential-related path excluded.");
+    else if (exclusion !== null) reasons.set(path, exclusion);
   }
 
   const captured = new Map<string, CapturedSource>();
   async function capture(path: string): Promise<CapturedSource | null> {
-    const cached = captured.get(path);
-    if (cached !== undefined) return cached;
-    const file = available.get(path);
-    if (file === undefined) return null;
-    try {
-      const bytes = await readProjectFile(collected.root, path, DEFAULT_MAX_FILE_BYTES);
-      const raw = decodeSource(bytes);
-      if (looksMinified(raw)) throw new Error("minified");
-      // Keep original line numbers when a multiline private key is removed.
-      const text = redact(
-        raw.replace(
-          /-----BEGIN (?:[A-Z ]+)?PRIVATE KEY-----[\s\S]*?(?:-----END (?:[A-Z ]+)?PRIVATE KEY-----|$)/g,
-          (block) => `<redacted>${"\n".repeat((block.match(/\n/g) ?? []).length)}`,
-        ),
-        secrets,
-      );
-      const lineCount = countLines(text);
-      if (!text.trim() || lineCount !== countLines(raw)) throw new Error("empty-or-line-change");
-      const lines = text.split("\n");
-      const source: CapturedSource = {
-        grammar: file.grammar,
-        text,
-        lines,
-        measure: lineSizes(lines),
-        lineCount,
-        bytes: bytes.byteLength,
-        digest: createHash("sha256").update(text).digest("hex"),
-      };
-      const previous = covered.get(path);
-      // Earlier ranges describe the earlier text; a changed file cannot continue from them.
-      if (previous !== undefined && previous.digest !== source.digest) {
-        reasons.set(path, "Changed after a previous source batch submitted part of it.");
-        return null;
-      }
-      captured.set(path, source);
-      return source;
-    } catch {
+    const source = await reader.read(path);
+    if (source === null) {
       reasons.set(path, "File too large, linked, changed, unreadable, binary, empty, or minified.");
       return null;
     }
-  }
-
-  let parser: SourceParser | undefined;
-  async function factsOf(source: CapturedSource): Promise<FileFacts | null> {
-    if (source.facts !== undefined) return source.facts;
-    try {
-      parser ??= await SourceParser.create();
-      const tree = await parser.parse(source.grammar, source.text);
-      try {
-        source.facts = extractFacts(tree, source.grammar);
-      } finally {
-        tree.delete();
-      }
-    } catch {
-      source.facts = null;
+    // Earlier ranges describe the earlier text; a changed file cannot continue from them.
+    const previous = covered.get(path);
+    if (previous !== undefined && previous.digest !== source.digest) {
+      reasons.set(path, "Changed after a previous source batch submitted part of it.");
+      return null;
     }
-    return source.facts;
+    captured.set(path, source);
+    return source;
   }
+  const factsOf = (source: CapturedSource) => reader.facts(source);
   /** Located lines are only trusted while the file still has the line count the scan saw. */
   function focusOf(path: string, source: CapturedSource): ReviewFocus | undefined {
     const located = focus.get(path);
@@ -197,26 +265,26 @@ export async function captureReviewSource(
     for (const [other, bytes] of sizes) if (other !== path) total += bytes + 1;
     return total;
   };
-  const remaining = () => LIMITS.contextBytes - contextWith("", 0);
+  const remaining = () => budget.contextBytes - contextWith("", 0);
   /**
    * Whether an entry stays within the per-file and context budgets, measured from line
    * sizes: choosing an excerpt tries many range sets, and rendering each would be quadratic.
    */
   function fits(path: string, source: CapturedSource, ranges?: ReviewRange[]): boolean {
     const submitted = ranges ?? [{ line: 1, endLine: source.lineCount }];
-    if (rangeBytes(source.measure, submitted) > LIMITS.fileBytes) return false;
+    if (rangeBytes(source.measure, submitted) > budget.fileBytes) return false;
     // The empty source's two quote bytes are counted again by the rendered size.
     const size =
       Buffer.byteLength(JSON.stringify(entryOf(path, source, ranges, ""))) -
       2 +
       renderedJsonBytes(source.measure, source.lineCount, ranges);
-    return contextWith(path, size) <= LIMITS.contextBytes;
+    return contextWith(path, size) <= budget.contextBytes;
   }
   function tryAdd(path: string, source: CapturedSource, ranges?: ReviewRange[]): boolean {
     if (!fits(path, source, ranges)) return false;
     const entry = entryOf(path, source, ranges);
     const size = Buffer.byteLength(JSON.stringify(entry));
-    if (contextWith(path, size) > LIMITS.contextBytes) return false;
+    if (contextWith(path, size) > budget.contextBytes) return false;
     entries.set(path, entry);
     sizes.set(path, size);
     return true;
@@ -263,20 +331,20 @@ export async function captureReviewSource(
     for (const path of order) {
       signal?.throwIfAborted();
       if (!focus.get(path)?.traced || reasons.has(path) || covered.has(path)) continue;
-      if (entries.size >= LIMITS.files || remaining() < MIN_ENTRY_BYTES) break;
+      if (entries.size >= budget.files || remaining() < MIN_ENTRY_BYTES) break;
       const source = await capture(path);
       if (source !== null) await addExcerpt(path, source);
     }
     // 2. Whole files where the excerpts leave room.
     for (const [path, entry] of [...entries]) {
       const source = captured.get(path);
-      if (entry.ranges && source && source.bytes <= LIMITS.fileBytes) tryAdd(path, source);
+      if (entry.ranges && source && source.bytes <= budget.fileBytes) tryAdd(path, source);
     }
     // 3. Everything else in review order. Continued files only add lines not sent yet.
     for (const path of order) {
       signal?.throwIfAborted();
       if (entries.has(path) || reasons.has(path)) continue;
-      if (entries.size >= LIMITS.files) {
+      if (entries.size >= budget.files) {
         reasons.set(path, "Review file limit reached.");
         continue;
       }
@@ -287,9 +355,9 @@ export async function captureReviewSource(
       const source = await capture(path);
       if (source === null) continue;
       const continued = covered.has(path);
-      if (!continued && source.bytes <= LIMITS.fileBytes && tryAdd(path, source)) continue;
+      if (!continued && source.bytes <= budget.fileBytes && tryAdd(path, source)) continue;
       const excerpt =
-        continued || source.bytes > LIMITS.fileBytes || focus.has(path)
+        continued || source.bytes > budget.fileBytes || focus.has(path)
           ? await addExcerpt(path, source)
           : "no-room";
       if (excerpt === "done") reasons.set(path, "Included in a previous source batch.");
@@ -303,7 +371,7 @@ export async function captureReviewSource(
         await addExcerpt(path, source, entry.ranges);
     }
   } finally {
-    parser?.dispose();
+    if (options.reader === undefined) reader.dispose();
   }
 
   const context: ReviewContext = {

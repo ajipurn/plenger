@@ -211,6 +211,7 @@ export function ScanDetailPage({
                     <p className="muted">
                       {review.scope.files.length} of {review.scope.eligibleFiles} source files
                       included · {review.scope.omittedFiles} omitted · {review.status}
+                      {review.validator ? ` · second review by ${review.validator.model}` : ""}
                     </p>
                     <p>{review.summary}</p>
                     {review.reason && <p className="security-output-failure">{review.reason}</p>}
@@ -280,6 +281,20 @@ export function ScanDetailPage({
                           </li>
                         ))}
                       </ul>
+                      {review.scope.related?.length ? (
+                        <>
+                          <h4>Second review context</h4>
+                          <ul>
+                            {review.scope.related.map((file) => (
+                              <li key={file.path}>
+                                <code>{file.path}</code> ·{" "}
+                                {file.relation === "imported" ? "imported by" : "calls"}{" "}
+                                <code>{file.via}</code>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
                       <ul>
                         {[...new Set(review.limitations)].map((item) => (
                           <li key={item}>{item}</li>

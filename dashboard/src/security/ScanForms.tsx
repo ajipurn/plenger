@@ -20,6 +20,8 @@ import { DetailDrawer } from "../shared/DetailDrawer.tsx";
 import { Icon } from "../shared/icons.tsx";
 import { Button, Input, Select, TextArea } from "../shared/ui.tsx";
 
+/** The second review uses the discovery provider and model. */
+const SAME_VALIDATOR = "same";
 export function ProjectForm({
   open,
   onClose,
@@ -206,10 +208,12 @@ export function NewScanForm({
     (providers.find((item) => item.isDefault) ?? providers[0])?.id ?? "",
   );
   const [depth, setDepth] = useState<ScanDepth>("standard");
+  const [validatorId, setValidatorId] = useState(SAME_VALIDATOR);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const project = repositories.find((item) => item.id === selected) ?? repositories[0];
   const provider = providers.find((item) => item.id === providerId) ?? providers[0];
+  const validator = providers.find((item) => item.id === validatorId);
   const [model, setModel] = useState(provider?.model ?? "");
   const catalog = useProviderModels(api);
   const { clear: clearCatalog, restore: restoreCatalog } = catalog;
@@ -246,6 +250,7 @@ export function NewScanForm({
         providerId: provider.id,
         model: model.trim(),
         depth,
+        ...(validator ? { validatorProviderId: validator.id } : {}),
       });
       onStarted(scan);
       onClose();
@@ -279,7 +284,8 @@ export function NewScanForm({
       footer={
         <div className="security-form-footer">
           <p className="security-form-consent">
-            Selected source and review context are sent to {provider?.name ?? "your provider"}. API
+            Selected source and review context are sent to {provider?.name ?? "your provider"}
+            {validator && validator.id !== provider?.id ? ` and to ${validator.name}` : ""}. API
             usage may incur costs.
           </p>
           <Button className="button button-secondary" disabled={busy} onClick={onClose}>
@@ -424,6 +430,29 @@ export function NewScanForm({
                   {catalog.error}
                 </p>
               )}
+            </div>
+          )}
+          {provider && (
+            <div className="security-form-block">
+              <label htmlFor={`${id}-validator`}>Second review</label>
+              <Select
+                label="Second review"
+                id={`${id}-validator`}
+                value={validator ? validator.id : SAME_VALIDATOR}
+                items={[
+                  { value: SAME_VALIDATOR, label: "Same provider and model" },
+                  ...providers.map((item) => ({
+                    value: item.id,
+                    label: `${item.name} · ${item.model}`,
+                  })),
+                ]}
+                onValueChange={setValidatorId}
+                disabled={busy}
+              />
+              <p className="muted">
+                Checks each candidate for counterevidence with the provider's saved model. A
+                different model is less likely to repeat the first model's mistakes.
+              </p>
             </div>
           )}
         </fieldset>

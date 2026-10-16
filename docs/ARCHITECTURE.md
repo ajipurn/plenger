@@ -86,7 +86,9 @@ in a saved scan's allowlist through the bounded regular-file reader. It redacts
 and line-numbers source before model dispatch. `review-focus.ts` orders files by
 the scan's traced entry point, tool and model output paths. `review-excerpt.ts`
 cuts a file that does not fit into whole functions with original line numbers,
-using facts parsed at review time. `review-model.ts` checks
+using facts parsed at review time. `review-related.ts` gives the second review
+the imports and callers of cited files, resolved through the project linker over
+the same allowlist. An optional separate connection runs the second review. `review-model.ts` checks
 all six STRIDE categories, citation ranges and complete host-assigned decision
 ids. It canonicalizes known enum casing while preserving exact source scope.
 Validation failures identify the stage and JSON field without echoing model values.

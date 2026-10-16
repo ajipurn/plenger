@@ -48,6 +48,20 @@ export class SecurityCoordinator {
       const pricing = structuredClone(
         resolved.saved.modelPricing?.find((item) => item.model === model),
       );
+      // A different saved connection checks candidates with its saved model.
+      const second =
+        input.validatorProviderId === undefined ||
+        (input.validatorProviderId === input.providerId && resolved.saved.model === model)
+          ? undefined
+          : this.#store.resolveProvider(input.validatorProviderId);
+      const secondPricing = second?.saved.modelPricing?.find(
+        (item) => item.model === second.saved.model,
+      );
+      const validator = second && {
+        provider: { id: second.saved.id, name: second.saved.name, model: second.saved.model },
+        access: second.access,
+        ...(secondPricing ? { pricing: structuredClone(secondPricing) } : {}),
+      };
       const revision = await sourceRevision(repository.path);
       if (this.#closed) throw new HttpError(503, "The service is shutting down.");
       repository.revision = revision;
@@ -65,6 +79,7 @@ export class SecurityCoordinator {
         scope: "local",
         depth: input.depth,
         provider: { id: resolved.saved.id, name: resolved.saved.name, model },
+        ...(validator ? { validator: validator.provider } : {}),
         revision,
         environment: structuredClone(repository.environment),
         findingCount: 0,
@@ -112,6 +127,7 @@ export class SecurityCoordinator {
                 ...(pricing ? { pricing } : {}),
                 signal: controller.signal,
                 submitted,
+                ...(validator ? { validator } : {}),
                 environment: repository.environment,
                 onPhase: (phase) => {
                   job.phase = phase;
@@ -128,7 +144,12 @@ export class SecurityCoordinator {
                 break;
               this.#store.reviews.save(review);
               job.reviews.push(review);
-              job.cost = sumCosts(job.reviews.map((item) => item.request.billing?.cost));
+              job.cost = sumCosts(
+                job.reviews.flatMap((item) => [
+                  item.request.billing?.cost,
+                  ...(item.request.validatorBilling ? [item.request.validatorBilling.cost] : []),
+                ]),
+              );
               job.modelCalls += review.request.calls;
               if (review.status !== "completed") {
                 job.status = review.status === "cancelled" ? "cancelled" : "failed";

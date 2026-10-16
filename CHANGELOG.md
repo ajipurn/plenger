@@ -13,6 +13,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   carry a `trace` entry in the JSON inventory with the calls past the depth
   limit and the calls through a callback, subscript or call result; every report
   lists them under coverage, and findings about them carry a note.
+- The AI review's second request also reads the imports and callers of cited
+  files, as redacted excerpts from the scan's allowlist, and can run on a
+  separately chosen saved connection with its own usage and cost.
 - FastAPI project profile, preparation stage (M6b checkpoint 1):
   `plenger redteam prepare` builds an image from the project's `requirements.txt`
   with wheels only, retrying for `linux/amd64` on Apple Silicon when a wheel

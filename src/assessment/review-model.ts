@@ -11,6 +11,9 @@ export const SECURITY_REVIEW_LIMITS = {
   responseBytes: 32 * 1024,
   fileBytes: 16 * 1024,
   files: 24,
+  /** Imports and callers of cited files that the second review reads besides the batch. */
+  relatedBytes: 12 * 1024,
+  relatedFiles: 8,
   findings: 6,
   evidence: 6,
   snippetLines: 13,
@@ -77,6 +80,12 @@ export interface ReviewSourceFile {
   /** Present when only selected functions were submitted: the submitted lines, in order. */
   ranges?: ReviewRange[];
 }
+/** A file the second review read besides the batch, and how it relates to a cited file. */
+export interface RelatedSourceFile extends ReviewSourceFile {
+  relation: "imported" | "caller";
+  /** The cited file that imports it, or that it calls. */
+  via: string;
+}
 export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findings"> {
   schemaVersion: 1;
   id: string;
@@ -85,6 +94,8 @@ export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findin
   kind: "ai-security-review";
   status: "completed" | "refused" | "failed" | "cancelled";
   provider: { id: string; name: string; model: string };
+  /** The connection that ran the second review, when it was not `provider`. */
+  validator?: { id: string; name: string; model: string };
   scope: {
     capturedAt: string;
     files: ReviewSourceFile[];
@@ -93,8 +104,18 @@ export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findin
     excludedEntries: number;
     partial: boolean;
     contextDigest: string;
+    /** Imports and callers of cited files given to the second review only. */
+    related?: RelatedSourceFile[];
   };
-  request: { calls: number; usage: TokenUsage | null; durationMs: number; billing?: ReviewBilling };
+  request: {
+    calls: number;
+    usage: TokenUsage | null;
+    durationMs: number;
+    /** Claude usage and cost of the discovery connection, and of the second review without a validator. */
+    billing?: ReviewBilling;
+    /** Claude usage and cost of a separate second-review connection. */
+    validatorBilling?: ReviewBilling;
+  };
   findings: ReviewFinding[];
 }
 

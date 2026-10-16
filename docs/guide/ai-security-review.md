@@ -114,8 +114,20 @@ one outcome:
 - **Needs review**: an essential assumption or control needs more context.
 - **Dismissed**: the candidate is contradicted, duplicated or unsupported.
 
-The second pass uses the same selected model with a separate review instruction.
-It is not an independent detection service or runtime validation. A refusal,
+Guards and callers often live outside the batch, so the second request also
+reads related files that discovery did not see. These are project files a cited
+file imports, with the imported definitions, and project files that call a cited
+file, with the calling functions. They come from the scan's allowlist through the
+same reader, redaction and excerpt rules as the batch, within 12 KiB and eight
+files, and never repeat lines the batch already holds. Outputs list them under
+**Second review context**, and the review adds a limitation naming their count.
+If they cannot be read, the second review continues without them.
+
+By default the second pass uses the same model with a separate review
+instruction. **Second review** in New Scan can pick another saved connection,
+which runs with its saved model; a different model is less likely to repeat the
+first model's mistakes. Its usage and estimated cost are reported separately.
+The second pass is not an independent detection service or runtime validation. A refusal,
 invalid citation, incomplete decision set or provider failure stops the review.
 There are no model retries. No candidates means one request. The limit per batch is
 two requests, 400,000 accounted tokens and 120 seconds. A deep scan makes at

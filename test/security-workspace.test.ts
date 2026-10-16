@@ -504,6 +504,33 @@ describe("local project security workspace", () => {
     expect(sent.every((lines) => lines.length > 100)).toBe(true);
   }, 20_000);
 
+  it("runs second reviews on a separately chosen saved connection", async () => {
+    const address = model.address();
+    if (!address || typeof address === "string") throw new Error("No model server.");
+    const second = (await (
+      await dashboard.request(API.providers, {
+        name: "Claude validator",
+        provider: "anthropic",
+        model: "claude-validator",
+        apiKey: key,
+        baseUrl: `http://127.0.0.1:${address.port}/v1`,
+        maxOutputTokens: 8192,
+        temperature: null,
+      })
+    ).json()) as SavedProvider;
+    const repo = await repository();
+    const scan = await finished((await start(repo.id, { validatorProviderId: second.id })).id);
+    expect(scan.status).toBe("completed");
+    expect(scan.validator).toEqual({
+      id: second.id,
+      name: "Claude validator",
+      model: "claude-validator",
+    });
+    expect(scan.reviews[0]?.validator).toEqual(scan.validator);
+    expect(bodies.map((body) => body.model)).toEqual(["claude-test", "claude-validator"]);
+    expect(scan.modelCalls).toBe(2);
+  });
+
   it("stops at refusal and retains the failure outcome without leaking upstream credentials", async () => {
     const repo = await repository();
     mode = "refusal";

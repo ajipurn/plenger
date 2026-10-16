@@ -112,7 +112,7 @@ export function securityWorkspaceRoutes({
         const body = await jsonRequest(request);
         expectKeys(
           body,
-          ["repositoryId", "providerId", "scope", "depth", "model"],
+          ["repositoryId", "providerId", "scope", "depth", "model", "validatorProviderId"],
           "Choose a local project, provider and scan depth.",
         );
         // Accept earlier local-scan clients, without enabling any automatic mode.
@@ -140,6 +140,15 @@ export function securityWorkspaceRoutes({
             }),
             depth: body.depth as ScanDepth,
             ...(body.model === undefined ? {} : { model: body.model as string }),
+            ...(body.validatorProviderId === undefined
+              ? {}
+              : {
+                  validatorProviderId: requireString(
+                    body.validatorProviderId,
+                    "Choose a saved provider for the second review.",
+                    { min: 1, max: WORKSPACE_LIMITS.recordIdCharacters },
+                  ),
+                }),
           });
           return { status: 202, body: result };
         } catch (error) {

@@ -92,7 +92,9 @@ The dashboard scans folders; the CLI also accepts a single file.
 2. Press **New Scan** and choose a local project. Check the displayed folder path.
 3. Choose a provider, model and **Standard** or **Deep** depth. The saved model is
    selected initially. Choosing another model applies to this scan only. Use
-   **Load models** if the provider's saved catalog needs refreshing.
+   **Load models** if the provider's saved catalog needs refreshing. Optionally
+   choose another saved connection under **Second review** to check candidates
+   with a different model.
 4. Optionally edit **Review context**. It is saved for subsequent scans.
 5. Press **Start Scan**. This sends redacted source and context to the provider
    and consumes API usage.
