@@ -105,6 +105,8 @@ describe("AI review evaluation", () => {
       const messages = body.messages as { content: { text: string }[] }[];
       const data = JSON.parse(messages[0]?.content[0]?.text ?? "{}");
       const source = data.files.map((file: { source: string }) => file.source).join("\n");
+      // Labels stay on the host.
+      expect(data.files.map((file: { path: string }) => file.path)).not.toContain("case.json");
       if (data.candidates) {
         // The second review dismisses the candidate on the scoped route.
         const verdict = source.includes("tenantId") ? "dismissed" : "source-supported";

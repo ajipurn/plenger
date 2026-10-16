@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { appendFile, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -474,6 +474,23 @@ describe("local project security workspace", () => {
     expect(paths).toHaveLength(52);
     expect(new Set(paths).size).toBe(52);
     expect(scan.modelCalls).toBeLessThanOrEqual(6);
+  });
+
+  it("reviews a folder without Python, JavaScript or TypeScript as plain text", async () => {
+    const service = join(root, "go-service");
+    await mkdir(join(service, "templates"), { recursive: true });
+    await writeFile(join(service, "main.go"), "package main\n\nfunc main() {}\n");
+    await writeFile(join(service, "templates", "index.html"), "<p>{{ .Name }}</p>\n");
+    const repo = (await (
+      await dashboard.request(API.repositories, { path: service, name: "Go service" })
+    ).json()) as LocalRepository;
+    const scan = await finished((await start(repo.id)).id);
+    expect(scan.status).toBe("completed");
+    expect(scan.reviews[0]?.scope.files.map((file) => file.path)).toEqual([
+      "main.go",
+      "templates/index.html",
+    ]);
+    expect(JSON.stringify(bodies[0])).toContain("1: package main");
   });
 
   it("continues a file too large for one batch with its unsent functions in later deep batches", async () => {

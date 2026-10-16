@@ -41,9 +41,16 @@ const SECURITY_NAME =
   /(?:auth|permission|tenant|route|handler|api|server|database|query|store|service|security|middleware|controller|tool|agent)/i;
 /** Below this many bytes of remaining context, no further file can fit. */
 const MIN_ENTRY_BYTES = 256;
+/** Tests, fixtures and examples: reviewed after the code they exercise. */
+const TEST_PATH =
+  /(?:^|\/)(?:tests?|__tests__|specs?|fixtures|__fixtures__|testdata|e2e|mocks|__mocks__|examples?)\/|(?:^|[/._-])(?:test|spec)[._-][^/]*$/i;
+/** CI definitions: hidden paths that hold no credentials and run with repository secrets. */
+const CI_DEFINITION =
+  /^(?:\.github\/workflows\/[^/]+|\.github\/actions\/.+\/action|\.gitlab-ci|\.circleci\/config)\.ya?ml$/;
 
 interface CapturedSource {
-  grammar: Grammar;
+  /** Absent for a text file without a parser, which has no facts. */
+  grammar?: Grammar;
   text: string;
   /** Redacted, split on newlines. */
   lines: string[];
@@ -68,14 +75,14 @@ const DEFAULT_BUDGET = reviewBudget([]);
 export class ReviewSourceReader {
   readonly root: string;
   readonly collected: Awaited<ReturnType<typeof collectSourceFiles>>;
-  readonly #available: Map<string, { grammar: Grammar }>;
+  readonly #available: Map<string, { grammar?: Grammar }>;
   readonly #secrets: string[];
   readonly #captured = new Map<string, CapturedSource | null>();
   #parser: SourceParser | undefined;
 
   private constructor(
     collected: Awaited<ReturnType<typeof collectSourceFiles>>,
-    available: Map<string, { grammar: Grammar }>,
+    available: Map<string, { grammar?: Grammar }>,
     secrets: string[],
   ) {
     this.root = collected.root;
@@ -85,7 +92,8 @@ export class ReviewSourceReader {
   }
 
   static async open(snapshot: ScanResult, secrets: string[]): Promise<ReviewSourceReader> {
-    const collected = await collectSourceFiles(snapshot.root, { maxFiles: 5000 }).catch(() => {
+    // The scan's own limit, so that every file it listed can still be found.
+    const collected = await collectSourceFiles(snapshot.root, { texts: true }).catch(() => {
       throw new ReviewSourceError(
         "Source is no longer available at the selected project path. Run a new scan before reviewing it.",
       );
@@ -93,10 +101,15 @@ export class ReviewSourceReader {
     // A changed root (including a replaced symlink) must never widen the authorized scope.
     if (collected.root !== snapshot.root)
       throw new ReviewSourceError("The project path changed. Run a new scan before reviewing it.");
-    const allowed = new Set(snapshot.files.map((file) => file.path));
-    const available = new Map(
-      collected.files.filter((file) => allowed.has(file.path)).map((file) => [file.path, file]),
-    );
+    const allowed = new Set(reviewPaths(snapshot));
+    const available = new Map<string, { grammar?: Grammar }>([
+      ...collected.files
+        .filter((file) => allowed.has(file.path))
+        .map((file) => [file.path, file] as const),
+      ...collected.texts
+        .filter((file) => allowed.has(file.path))
+        .map((file) => [file.path, {}] as const),
+    ]);
     return new ReviewSourceReader(collected, available, secrets);
   }
 
@@ -105,7 +118,8 @@ export class ReviewSourceReader {
     if (redact(path, this.#secrets) !== path) return "Credential-like source path excluded.";
     if (!this.#available.has(path))
       return "No longer available under the scan's ignore and source rules.";
-    if (isSensitiveSourcePath(path)) return "Hidden or credential-related path excluded.";
+    if (isSensitiveSourcePath(path) && !CI_DEFINITION.test(path))
+      return "Hidden or credential-related path excluded.";
     return null;
   }
 
@@ -132,7 +146,7 @@ export class ReviewSourceReader {
         if (!text.trim() || lineCount !== countLines(raw)) throw new Error("empty-or-line-change");
         const lines = text.split("\n");
         source = {
-          grammar: file.grammar,
+          ...(file.grammar ? { grammar: file.grammar } : {}),
           text,
           lines,
           measure: lineSizes(lines),
@@ -151,11 +165,16 @@ export class ReviewSourceReader {
   /** Facts parsed from the redacted text at review time, or null when parsing fails. */
   async facts(source: CapturedSource): Promise<FileFacts | null> {
     if (source.facts !== undefined) return source.facts;
+    const grammar = source.grammar;
+    if (grammar === undefined) {
+      source.facts = null;
+      return null;
+    }
     try {
       this.#parser ??= await SourceParser.create();
-      const tree = await this.#parser.parse(source.grammar, source.text);
+      const tree = await this.#parser.parse(grammar, source.text);
       try {
-        source.facts = extractFacts(tree, source.grammar);
+        source.facts = extractFacts(tree, grammar);
       } finally {
         tree.delete();
       }
@@ -207,7 +226,7 @@ export async function captureReviewSource(
   const scannedLines = new Map(snapshot.files.map((file) => [file.path, file.lines]));
   const covered = previousCoverage(submitted);
   const focus = reviewFocus(snapshot.inventory, snapshot.findings);
-  const order = reviewOrder(snapshot.files, focus);
+  const order = reviewOrder(snapshot, focus);
 
   const reasons = new Map<string, string>();
   for (const path of order) {
@@ -323,10 +342,12 @@ export async function captureReviewSource(
 
   try {
     // 1. Traced paths, as excerpts of the functions on them. A file an earlier batch
-    // excerpted already sent its path functions; it continues in step 3.
+    // excerpted already sent its path functions; it continues in step 3. Traced tests
+    // wait for step 3, after the other code.
     for (const path of order) {
       signal?.throwIfAborted();
-      if (!focus.get(path)?.traced || reasons.has(path) || covered.has(path)) continue;
+      if (!focus.get(path)?.traced || TEST_PATH.test(path)) continue;
+      if (reasons.has(path) || covered.has(path)) continue;
       if (entries.size >= budget.files || remaining() < MIN_ENTRY_BYTES) break;
       const source = await capture(path);
       if (source !== null) await addExcerpt(path, source);
@@ -394,7 +415,7 @@ export async function captureReviewSource(
     scope: {
       capturedAt,
       files: context.files.map(({ source: _source, ...file }) => file),
-      eligibleFiles: snapshot.files.length,
+      eligibleFiles: order.length,
       omittedFiles: context.omitted.length,
       excludedEntries,
       partial:
@@ -429,15 +450,33 @@ function previousCoverage(
   return coverage;
 }
 
-/** Traced files in path order, other focused files, security-related names, then path order. */
-function reviewOrder(files: ScanResult["files"], focus: Map<string, ReviewFocus>): string[] {
-  const scanned = new Set(files.map((file) => file.path));
-  const priority = (path: string) => (SECURITY_NAME.test(path) ? 0 : 1);
+/** Parsed source files and listed text files: every path a review may read. */
+export function reviewPaths(snapshot: ScanResult): string[] {
   return [
-    ...[...focus.keys()].filter((path) => scanned.has(path)),
-    ...[...scanned]
+    ...snapshot.files.map((file) => file.path),
+    ...(snapshot.textFiles ?? []).map((file) => file.path),
+  ];
+}
+
+/**
+ * Traced files in path order and other focused files, then the rest: code in any
+ * language before configuration, security-related names first, then path order. Tests,
+ * fixtures and examples follow in the same order, after everything else.
+ */
+function reviewOrder(snapshot: ScanResult, focus: Map<string, ReviewFocus>): string[] {
+  const kinds = new Map((snapshot.textFiles ?? []).map((file) => [file.path, file.kind]));
+  const listed = new Set(reviewPaths(snapshot));
+  const rank = (path: string) =>
+    (kinds.get(path) === "config" ? 2 : 0) + (SECURITY_NAME.test(path) ? 0 : 1);
+  const order = [
+    ...[...focus.keys()].filter((path) => listed.has(path)),
+    ...[...listed]
       .filter((path) => !focus.has(path))
-      .sort((a, b) => priority(a) - priority(b) || a.localeCompare(b)),
+      .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b)),
+  ];
+  return [
+    ...order.filter((path) => !TEST_PATH.test(path)),
+    ...order.filter((path) => TEST_PATH.test(path)),
   ];
 }
 

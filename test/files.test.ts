@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { collectSourceFiles } from "../src/source/files.ts";
-import { classifyPath } from "../src/source/languages.ts";
+import { classifyPath, textKindOf } from "../src/source/languages.ts";
 
 describe("classifyPath", () => {
   it.each([
@@ -30,6 +30,38 @@ describe("classifyPath", () => {
 
   it.each(["README.md", "Makefile", ".py", "agent.pyc", "stubs.pyi"])("leaves %s alone", (path) => {
     expect(classifyPath(path)).toEqual({ kind: "other" });
+  });
+});
+
+describe("textKindOf", () => {
+  it.each([
+    ["cmd/server/main.go", "code"],
+    ["app/Http/Controllers/UserController.php", "code"],
+    ["templates/invoice.html", "code"],
+    ["db/migrate/001_users.sql", "code"],
+    ["Makefile", "code"],
+    ["config/app.yaml", "config"],
+    ["deploy/main.tf", "config"],
+    ["Dockerfile", "config"],
+    ["Dockerfile.prod", "config"],
+    ["deploy/api.dockerfile", "config"],
+    ["firestore.rules", "config"],
+  ])("reads %s as %s", (path, kind) => {
+    expect(textKindOf(path)).toBe(kind);
+  });
+
+  it.each([
+    "agent.py",
+    "server.ts",
+    "README.md",
+    "logo.png",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "api/users.pb.go",
+    "static/site.min.css",
+    "client_generated.go",
+  ])("leaves %s to the parser or out of review", (path) => {
+    expect(textKindOf(path)).toBeNull();
   });
 });
 
@@ -100,6 +132,56 @@ describe("collectSourceFiles", () => {
 
   it("rejects a single file it cannot analyse", async () => {
     await expect(collectSourceFiles(join(root, "notes.txt"))).rejects.toThrow("not a Python");
+  });
+});
+
+describe("collectSourceFiles with texts", () => {
+  let root: string;
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), "plenger-texts-"));
+    const files: Record<string, string> = {
+      ".gitignore": "secret.yaml\n",
+      "agent.py": "print('hi')\n",
+      "main.go": "package main\n",
+      "web/index.html": "<p>hi</p>\n",
+      ".github/workflows/ci.yml": "on: push\n",
+      "secret.yaml": "token: x\n",
+      "package-lock.json": "{}\n",
+      "logo.png": "png",
+      "big.yaml": "a: 1\n".repeat(400),
+    };
+    for (const [path, content] of Object.entries(files)) {
+      await mkdir(join(root, path, ".."), { recursive: true });
+      await writeFile(join(root, path), content);
+    }
+  });
+
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("lists text files without a parser beside the source files, under the same rules", async () => {
+    const result = await collectSourceFiles(root, { maxFileBytes: 1024, texts: true });
+    expect(result.files.map((file) => file.path)).toEqual(["agent.py"]);
+    expect(result.texts.map((file) => [file.path, file.kind])).toEqual([
+      [".github/workflows/ci.yml", "config"],
+      ["main.go", "code"],
+      ["web/index.html", "code"],
+    ]);
+    expect(result.skipped).toEqual([{ path: "big.yaml", reason: "too_large" }]);
+  });
+
+  it("lists no text files unless asked", async () => {
+    const result = await collectSourceFiles(root, { maxFileBytes: 1024 });
+    expect(result.texts).toEqual([]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it("counts text files toward the file limit", async () => {
+    const result = await collectSourceFiles(root, { maxFiles: 2, texts: true });
+    expect(result.files.length + result.texts.length).toBe(2);
+    expect(result.truncated).toBe(true);
   });
 });
 

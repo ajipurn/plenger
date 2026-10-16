@@ -16,7 +16,7 @@ import {
   type ExcludedDir,
   type SkipReason,
 } from "./source/files.ts";
-import { LANGUAGE_OF, type Language } from "./source/languages.ts";
+import { LANGUAGE_OF, type Language, type TextKind } from "./source/languages.ts";
 import { SourceParser } from "./source/parser.ts";
 import { countLines, looksMinified, type ReadSkipReason, readSource } from "./source/read.ts";
 
@@ -31,6 +31,13 @@ export interface ScannedFile {
   facts?: FileFacts;
 }
 
+/** A text file the scan lists for the AI review without reading or parsing it. */
+export interface ListedTextFile {
+  path: string;
+  kind: TextKind;
+  bytes: number;
+}
+
 export interface ScanOptions extends CollectOptions {
   /** Extract imports, definitions, assignments and calls from every file. */
   facts?: boolean;
@@ -41,6 +48,11 @@ export type ScanSkipReason = SkipReason | ReadSkipReason;
 export interface ScanResult {
   root: string;
   files: ScannedFile[];
+  /**
+   * Text files without a parser, in any language, that the AI review may read as plain
+   * text. Present when the scan was asked for them with `texts`.
+   */
+  textFiles?: ListedTextFile[];
   skipped: { path: string; reason: ScanSkipReason }[];
   excludedDirs: ExcludedDir[];
   truncated: boolean;
@@ -105,6 +117,9 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   const result: ScanResult = {
     root: collected.root,
     files,
+    ...(options.texts
+      ? { textFiles: collected.texts.map(({ path, kind, bytes }) => ({ path, kind, bytes })) }
+      : {}),
     skipped,
     excludedDirs: collected.excludedDirs,
     truncated: collected.truncated,

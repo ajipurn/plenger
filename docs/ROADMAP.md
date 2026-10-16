@@ -30,11 +30,11 @@ effects a request or a model output can reach, and which approvals are
 missing. They show what a manipulated agent could do. They do not prove that
 an injection succeeds; that needs dynamic tests.
 
-The AI review is the general engine. It reads Python, JavaScript and
-TypeScript, the languages the parser supports.
-[M9](#m9-review-for-any-language-next) extends it to any language: first every
-text file, then read-only exploration by the model. Static parsing stays with
-the three languages.
+The AI review is the general engine. It reads text files in any language.
+Python, JavaScript and TypeScript also get static facts, which order the files
+along traced paths and excerpt them by function; other files are read as plain
+text. [M9](#m9-review-for-any-language-in-progress) adds read-only exploration
+by the model next. Static parsing stays with the three languages.
 
 Validation is a second model review of the source. Validation by execution,
 reproducing a finding in a sandbox, is the long-term direction and would build
@@ -297,11 +297,17 @@ differ on purpose: the static gate ignores baseline findings, the dynamic gate
 fails on an observed violation even when a baseline contains it. State that
 dynamic testing is for targets the user owns or has permission to test.
 
-### M9 Review for any language (next)
+### M9 Review for any language (in progress)
 
-The AI review reads only files the parser supports. A Go, Java or PHP
-repository gets no AI review, and templates, configuration and SQL files are
+The AI review used to read only files the parser supports. A Go, Java or PHP
+repository got no AI review, and templates, configuration and SQL files were
 never read. M9 removes that limit in two checkpoints, reviewed separately.
+
+**Delivered:** M9a. Dashboard scans list text files without a parser, and the
+review reads them as plain text after the traced and focused files: code before
+configuration, tests and fixtures last. Large files go as 80-line windows that
+later Deep batches continue. CI definitions are the only hidden paths reviewed.
+See [guide/ai-security-review.md](guide/ai-security-review.md).
 
 | Checkpoint | Deliverable | Acceptance |
 | --- | --- | --- |

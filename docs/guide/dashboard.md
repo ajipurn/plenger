@@ -63,8 +63,10 @@ work. `/history` redirects to Scans; `/repositories` and `/inventory` redirect t
 The `/redteam` route displays **Coming soon** and exposes no testing controls.
 
 The workspace accepts local folders. It does not need a GitHub connection.
-Projects can be ordinary Python, JavaScript or TypeScript applications. Static
-agent-specific rules and source-based model analysis have different coverage.
+Projects can be in any language. Static agent-specific rules cover Python,
+JavaScript and TypeScript; the source-based model analysis also reads other
+languages, templates and configuration as plain text. The two have different
+coverage.
 See [ai-security-review.md](ai-security-review.md).
 
 ## Add a project

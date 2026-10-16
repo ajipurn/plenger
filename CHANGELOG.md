@@ -9,6 +9,13 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- Dashboard reviews read text files without a parser: code in other languages,
+  shell, SQL, templates, configuration, Terraform and Dockerfiles, plus CI
+  definitions under `.github/workflows`. They come after the traced and
+  focused files, code before configuration and tests last, and large ones go
+  as 80-line windows that later Deep batches continue. A folder without
+  Python, JavaScript or TypeScript now gets a review instead of failing.
+
 - AI reviews and `plenger assess` reports record what produced them: the
   SHA-256 of the instructions with their schemas, and each request's model,
   temperature, output ceiling and use of structured output. Outputs show them.

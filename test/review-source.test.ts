@@ -75,6 +75,34 @@ function routeDiscovery(line: number, endLine: number) {
   return value;
 }
 
+/** A Go service with a template, configuration, a test, CI and a hidden editor file. */
+async function writeGoProject(root: string): Promise<void> {
+  const files: Record<string, string> = {
+    "handlers/users.go": [
+      "package handlers",
+      "",
+      'import "net/http"',
+      "",
+      "func GetUser(w http.ResponseWriter, r *http.Request) {",
+      '\tid := r.URL.Query().Get("id")',
+      '\trows, _ := db.Query("SELECT * FROM users WHERE id = " + id)',
+      "\tdefer rows.Close()",
+      "}",
+      "",
+    ].join("\n"),
+    "handlers/users_test.go": "package handlers\n",
+    "util/strings.go": "package util\n\nfunc Trim(s string) string { return s }\n",
+    "config/app.yaml": "listen: 0.0.0.0:8080\n",
+    ".github/workflows/ci.yml": "on: pull_request_target\n",
+    ".vscode/settings.json": "{}\n",
+    "go.sum": "example.com/x v1.0.0 h1:abc=\n",
+  };
+  for (const [path, content] of Object.entries(files)) {
+    await mkdir(join(root, path, ".."), { recursive: true });
+    await writeFile(join(root, path), content);
+  }
+}
+
 function stub(discovery: unknown) {
   const bodies: Record<string, unknown>[] = [];
   const dispatch: typeof fetch = async (_url, init) => {
@@ -157,7 +185,7 @@ describe("AI review source selection", () => {
       `${sink}: def execute(cmd):\n${sink + 1}:     return subprocess.run(cmd, shell=True)`,
     );
     expect(review.limitations).toContain(
-      "1 file was submitted as excerpts of selected functions. Their omitted lines were not reviewed.",
+      "1 file was submitted as excerpts of selected functions or line windows. Their omitted lines were not reviewed.",
     );
     expect(JSON.stringify(model.bodies[0])).toContain("A file with ranges is an excerpt");
     expect(JSON.stringify(model.bodies[0])).not.toContain("def before_599(");
@@ -379,6 +407,100 @@ describe("AI review source selection", () => {
           0,
         ),
       );
+    }
+  });
+
+  it("reviews a repository in another language as plain text, code before configuration and tests", async () => {
+    const root = join(await temporaryDir(), "service");
+    await writeGoProject(root);
+    // Without listed text files nothing here can be read.
+    await expect(captureReviewSource(await scan(root), [])).rejects.toThrow(
+      "No source files fit this review.",
+    );
+    const snapshot = await scan(root, { texts: true });
+    expect(snapshot.files).toEqual([]);
+    const { context, scope } = await captureReviewSource(snapshot, []);
+    expect(scope.files.map((file) => file.path)).toEqual([
+      "handlers/users.go",
+      "util/strings.go",
+      ".github/workflows/ci.yml",
+      "config/app.yaml",
+      "handlers/users_test.go",
+    ]);
+    expect(scope.files.some((file) => file.ranges)).toBe(false);
+    expect(context.omitted).toEqual([
+      { path: ".vscode/settings.json", reason: "Hidden or credential-related path excluded." },
+    ]);
+    expect(scope.eligibleFiles).toBe(6);
+    expect(context.files[0]?.source).toContain(
+      '7: \trows, _ := db.Query("SELECT * FROM users WHERE id = " + id)',
+    );
+
+    const value = reviewDiscovery();
+    value.stride = value.stride.map((entry) => ({
+      ...entry,
+      status: "insufficient-context" as const,
+      evidence: [],
+    }));
+    required(value.findings[0], "finding").evidence = [
+      {
+        path: "handlers/users.go",
+        line: 6,
+        endLine: 7,
+        role: "sink",
+        message: "The id reaches SQL.",
+      },
+    ];
+    const model = stub(value);
+    const review = await reviewProject(
+      snapshot,
+      { scanId: "scan", provider, access },
+      model.dispatch,
+    );
+    expect(review.status).toBe("completed");
+    expect(review.findings[0]?.evidence[0]?.snippet).toBe(
+      '6: \tid := r.URL.Query().Get("id")\n7: \trows, _ := db.Query("SELECT * FROM users WHERE id = " + id)',
+    );
+    expect(review.limitations.join(" ")).toContain(
+      "Files without a parser (other languages, templates and configuration) are read as plain text",
+    );
+  });
+
+  it("reviews traced files under test paths after the other code", async () => {
+    const root = join(await temporaryDir(), "project");
+    await writeRouteProject(join(root, "tests"), SINK);
+    await writeFile(join(root, "util.py"), fillers("util", 2).join("\n"));
+    const snapshot = await scan(root);
+    expect(snapshot.inventory.entryPoints[0]?.location.path).toBe("tests/api.py");
+    const { scope } = await captureReviewSource(snapshot, []);
+    expect(scope.files.map((file) => file.path)).toEqual([
+      "util.py",
+      "tests/api.py",
+      "tests/ops.py",
+    ]);
+  });
+
+  it("sends a large file without a parser in line windows and continues them in later batches", async () => {
+    const root = join(await temporaryDir(), "service");
+    const lines = Array.from(
+      { length: 2400 },
+      (_, index) => `\tvalues[${index}] = lookup(${index})`,
+    );
+    await mkdir(root, { recursive: true });
+    await writeFile(join(root, "table.go"), ["package table", ...lines, ""].join("\n"));
+    const snapshot = await scan(root, { texts: true });
+    const batches: ReviewSourceFile[][] = [];
+    for (let batch = 0; batch < 3; batch++)
+      batches.push(
+        (await captureReviewSource(snapshot, [], undefined, batches.flat())).scope.files,
+      );
+    const sent = batches.map((files) => required(files[0], "table.go").ranges ?? []);
+    // Each batch starts where the previous one stopped, in whole 80-line windows.
+    expect(sent[0]?.[0]?.line).toBe(1);
+    for (const [index, ranges] of sent.entries()) {
+      expect(ranges, `batch ${index}`).toHaveLength(1);
+      expect(((ranges[0]?.endLine ?? 0) - (ranges[0]?.line ?? 0) + 1) % 80).toBe(0);
+      if (index > 0) expect(ranges[0]?.line).toBe((sent[index - 1]?.[0]?.endLine ?? 0) + 1);
     }
   });
 

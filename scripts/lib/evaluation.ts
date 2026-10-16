@@ -214,7 +214,12 @@ export async function evaluateAi(
   dispatch: typeof fetch = fetch,
 ): Promise<AiEvaluation> {
   const snapshots = new Map<string, Awaited<ReturnType<typeof scan>>>();
-  for (const item of cases) snapshots.set(item.id, await scan(item.root));
+  for (const item of cases) {
+    // Text files are listed as the dashboard lists them; the label file is never sent.
+    const snapshot = await scan(item.root, { texts: true });
+    snapshot.textFiles = (snapshot.textFiles ?? []).filter((file) => file.path !== "case.json");
+    snapshots.set(item.id, snapshot);
+  }
   const runs: AiOutcome[][] = [];
   for (let run = 0; run < options.runs; run++) {
     const outcomes: AiOutcome[] = [];

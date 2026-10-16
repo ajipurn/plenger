@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ReviewSourceFile } from "../assessment/review-model.ts";
+import { reviewPaths } from "../assessment/review-source.ts";
 import { reviewProject } from "../assessment/security-review.ts";
 import { sumCosts } from "../redteam/model-pricing.ts";
 import { validateProviderSettings } from "../redteam/provider-config.ts";
@@ -110,17 +111,18 @@ export class SecurityCoordinator {
             const result = {
               id: randomUUID(),
               createdAt: new Date().toISOString(),
-              scan: await scan(repository.path),
+              scan: await scan(repository.path, { texts: true }),
               rules: RULES,
             };
             controller.signal.throwIfAborted();
             this.#store.saveScan(result);
             job.sourceScanId = result.id;
             this.#store.security.saveScan(job);
-            if (!result.scan.files.length) {
+            const paths = reviewPaths(result.scan);
+            if (!paths.length) {
               job.status = "failed";
               job.error =
-                "No readable Python, JavaScript or TypeScript source files were found in this folder.";
+                "No readable source, template or configuration files were found in this folder.";
             }
             // Earlier batches' files: whole ones are skipped, excerpts continue.
             const submitted: ReviewSourceFile[] = [];
@@ -129,7 +131,7 @@ export class SecurityCoordinator {
               const whole = new Set(
                 submitted.filter((file) => !file.ranges).map((file) => file.path),
               );
-              if (result.scan.files.every((file) => whole.has(file.path))) break;
+              if (paths.every((path) => whole.has(path))) break;
               const review = await reviewProject(result.scan, {
                 scanId: result.id,
                 provider: job.provider ?? { id: "", name: "", model: "" },

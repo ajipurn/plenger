@@ -3,7 +3,13 @@ import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import ignore, { type Ignore } from "ignore";
 import { compareStrings } from "../shared/compare.ts";
-import { classifyPath, type Grammar, type IgnoredSourceReason } from "./languages.ts";
+import {
+  classifyPath,
+  type Grammar,
+  type IgnoredSourceReason,
+  type TextKind,
+  textKindOf,
+} from "./languages.ts";
 
 /** Directories that hold dependencies, build output or tool caches rather than project code. */
 const EXCLUDED_DIR_NAMES: ReadonlySet<string> = new Set([
@@ -73,12 +79,22 @@ export interface CollectOptions {
    * same ignore, symlink and size rules. Nothing is listed when absent.
    */
   resources?: readonly string[];
+  /** Also list text files without a parser in `texts`, under the same rules. */
+  texts?: boolean;
 }
 
 /** A non-source file a runtime profile may capture beside the code (prompts, templates). */
 export interface ResourceFile {
   path: string;
   absolutePath: string;
+  bytes: number;
+}
+
+/** A text file in another language, a template or configuration, for the AI review. */
+export interface TextFile {
+  path: string;
+  absolutePath: string;
+  kind: TextKind;
   bytes: number;
 }
 
@@ -94,6 +110,8 @@ interface CollectResult {
   files: SourceFile[];
   /** Files matching `options.resources`, sorted by path; empty unless asked for. */
   resources: ResourceFile[];
+  /** Text files without a parser, sorted by path; empty unless `options.texts`. */
+  texts: TextFile[];
   skipped: SkippedFile[];
   /** Directories not walked into, and why. */
   excludedDirs: ExcludedDir[];
@@ -102,8 +120,9 @@ interface CollectResult {
 }
 
 /**
- * Lists the Python, JavaScript and TypeScript files under `root` without following
- * symlinks or reading file contents. Results are sorted by path. When `root` is a
+ * Lists the Python, JavaScript and TypeScript files under `root`, and with `texts` the
+ * text files without a parser, without following symlinks or reading file contents.
+ * Results are sorted by path. When `root` is a
  * file, the result holds just that file, relative to its directory.
  */
 export async function collectSourceFiles(
@@ -121,6 +140,7 @@ export async function collectSourceFiles(
     root: absoluteRoot,
     files: [],
     resources: [],
+    texts: [],
     skipped: [],
     excludedDirs: [],
     truncated: false,
@@ -179,8 +199,11 @@ export async function collectSourceFiles(
           }
           if (bytes > maxFileBytes) result.skipped.push({ path, reason: "too_large" });
           else result.files.push({ path, absolutePath, grammar: classification.grammar, bytes });
-        } else if (resourceExtensions.has(extensionOf(entry.name))) {
-          if (result.files.length + result.resources.length >= maxFiles) {
+        } else {
+          const resource = resourceExtensions.has(extensionOf(entry.name));
+          const kind = options.texts ? textKindOf(entry.name) : null;
+          if (!resource && kind === null) continue;
+          if (result.files.length + result.resources.length + result.texts.length >= maxFiles) {
             result.truncated = true;
             break walk;
           }
@@ -193,7 +216,8 @@ export async function collectSourceFiles(
             continue;
           }
           if (bytes > maxFileBytes) result.skipped.push({ path, reason: "too_large" });
-          else result.resources.push({ path, absolutePath, bytes });
+          else if (resource) result.resources.push({ path, absolutePath, bytes });
+          else if (kind !== null) result.texts.push({ path, absolutePath, kind, bytes });
         }
       }
     }
@@ -201,6 +225,7 @@ export async function collectSourceFiles(
 
   result.files.sort((a, b) => compareStrings(a.path, b.path));
   result.resources.sort((a, b) => compareStrings(a.path, b.path));
+  result.texts.sort((a, b) => compareStrings(a.path, b.path));
   result.skipped.sort((a, b) => compareStrings(a.path, b.path));
   result.excludedDirs.sort((a, b) => compareStrings(a.path, b.path));
   return result;
@@ -252,6 +277,7 @@ function collectSingleFile(
     root: dirname(absolutePath),
     files: [],
     resources: [],
+    texts: [],
     skipped: [],
     excludedDirs: [],
     truncated: false,

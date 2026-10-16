@@ -4,11 +4,11 @@ Local security review of your repositories, modeled on Codex Security Cloud.
 One npm package with a CLI and a local dashboard.
 
 The dashboard is the main workflow; `plenger serve` opens it. A scan combines
-offline static analysis with a bounded AI review of the source on a model
-connection you choose: candidate findings, a second skeptical review, STRIDE
-threat modeling, source evidence and a prompt a coding agent can use to fix a
-finding. Source leaves the machine only for the selected provider, after
-redaction and within the budget you set.
+offline static analysis with a bounded AI review of the source, in any
+language, on a model connection you choose: candidate findings, a second
+skeptical review, STRIDE threat modeling, source evidence and a prompt a coding
+agent can use to fix a finding. Source leaves the machine only for the selected
+provider, after redaction and within the budget you set.
 
 Static analysis reads source code only. It never runs, imports or installs the
 project and needs no network access. Its specialty is agentic AI code in

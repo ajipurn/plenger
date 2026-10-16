@@ -16,9 +16,15 @@ facts-only `assess` CLI command. See [../STATUS.md](../STATUS.md) for qualificat
 `plenger scan` remains offline. The facts-only `assess` command has its own
 [guide](assessment.md).
 
-The host rereads Python, JavaScript and TypeScript files from the
-static scan's allowlist. It reapplies current exclusions and `.gitignore`
-rules. Source can change during a job. Reviews record capture time, file and
+The host rereads files from the static scan's allowlist. It reapplies current
+exclusions and `.gitignore` rules. The allowlist holds the parsed Python,
+JavaScript and TypeScript files and, for dashboard scans, text files without a
+parser: code in other languages (Go, Java, PHP, Ruby, C#, Rust and more),
+shell scripts, SQL, templates (HTML, Jinja, ERB, Handlebars, Twig and others),
+configuration (YAML, TOML, JSON, XML, INI), Terraform and Dockerfiles. These are
+read as plain text: they get no static facts, so nothing orders or excerpts
+them by function. Lockfiles, generated protobuf and minified files stay out.
+Source can change during a job. Reviews record capture time, file and
 context digests, coverage, provider, model, calls and reported token usage.
 They also record what produced them, so results can be compared across prompt
 versions and models: `generation.promptDigest` is the SHA-256 of the discovery
@@ -32,7 +38,10 @@ Selection follows the static scan. Files on traced paths come first: HTTP and
 MCP entry points that reach an effect, tools with effects, model output that
 reaches an effect, and static finding evidence. The files of one path stay
 adjacent, so a batch can hold the path from end to end. Other AI components
-follow, then security-related file names, then relative path order.
+follow. The remaining files come in this order: code in any language before
+configuration, security-related file names first within each group, then
+relative path order. Tests, fixtures and examples, traced or not, come after
+everything else in the same order.
 
 By default each batch holds at most 24 files, 16 KiB of source per file and
 20 KiB of serialized source context. When the selected model's input window is
@@ -51,17 +60,21 @@ budget then replaces those excerpts with whole files and adds the remaining
 files. Budget left after that extends excerpts with their files' other
 top-level definitions. A file larger than 16 KiB is always an excerpt. It holds
 the located functions first, or its top-level definitions in source order when
-nothing was located. A function too large on its own keeps its signature and 8 lines around
+nothing was located. A file without a parser, or one that no longer parses, is
+excerpted as consecutive 80-line windows from its start; the excerpt stops at
+the first window that does not fit. A function too large on its own keeps its signature and 8 lines around
 each located line. Excerpts keep original line numbers and mark every omitted
 stretch. The review adds a limitation when it includes an excerpt. Located lines
 are ignored when a file's line count changed since the scan. Hidden and
 credential-related paths, links, hard-linked files, binaries, minified files
-and files that change while reading are excluded.
+and files that change while reading are excluded. CI definitions are the one
+hidden exception: `.github/workflows/*.yml`, `.github/actions/**/action.yml`,
+`.gitlab-ci.yml` and `.circleci/config.yml` are reviewed, after redaction.
 
 **Standard** uses one batch. **Deep** uses up to three independent batches.
 Later batches skip files an earlier batch sent whole. A file sent as an excerpt
 continues: a later batch sends its definitions that were not sent yet, with the
-module imports again for context. Module-level code outside definitions is sent
+module imports again for context, or the line windows after the last one sent. Module-level code outside definitions is sent
 only where the scan located something. A file that changed after a batch sent
 part of it does not continue. Each batch has its own discovery and
 validation context. Deep broadens file coverage without establishing analysis

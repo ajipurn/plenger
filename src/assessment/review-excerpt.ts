@@ -6,6 +6,8 @@ import type { ReviewRange } from "./review-model.ts";
 const CONTEXT_LINES = 8;
 /** Gaps of at most this many lines are submitted instead of being marked as omitted. */
 const JOIN_GAP = 2;
+/** Lines per window of a file without facts: no parser, or a failed parse. */
+const WINDOW_LINES = 80;
 
 /** Lines an excerpt adds together, with a smaller alternative for when they do not fit. */
 export interface ExcerptPart {
@@ -13,6 +15,8 @@ export interface ExcerptPart {
   fallback?: ReviewRange[];
   /** Context such as imports: an excerpt of only supporting parts is not submitted. */
   supporting?: true;
+  /** A line window: once one does not fit, later windows are not tried, so none is skipped. */
+  sequential?: true;
 }
 
 /**
@@ -20,7 +24,8 @@ export interface ExcerptPart {
  * methods and module statements that hold located lines or handlers, each with its
  * enclosing class headers, then module imports. Without focus, when nothing located
  * maps onto the file, or with `allDefinitions`: module imports, then top-level
- * definitions in source order.
+ * definitions in source order. A file without facts is split into consecutive line
+ * windows instead, so a later batch can continue where an earlier one stopped.
  */
 export function excerptParts(
   facts: FileFacts | null,
@@ -89,14 +94,20 @@ export function excerptParts(
         if (member.parent === definition.id && member.kind !== "class")
           outline.push({ ranges: [...classHeaders(member, byId), extent(member)] });
   }
+  if (facts === null)
+    for (let line = 1; line <= lineCount; line += WINDOW_LINES)
+      outline.push({
+        ranges: [{ line, endLine: Math.min(lineCount, line + WINDOW_LINES - 1) }],
+        sequential: true,
+      });
   return outline;
 }
 
 /**
  * Adds parts in order while `fits` accepts the merged ranges, trying each fallback once.
  * A part counts only when its own lines reach outside `covered`, the lines an earlier
- * batch submitted; its fallback must too. Supporting context is sent again. Empty unless
- * such a part fits.
+ * batch submitted; its fallback must too. Supporting context is sent again. Line windows
+ * stop at the first new one that does not fit. Empty unless such a part fits.
  */
 export function selectExcerpt(
   parts: readonly ExcerptPart[],
@@ -110,18 +121,23 @@ export function selectExcerpt(
     );
   let chosen: ReviewRange[] = [];
   let substantive = false;
+  let windowsFull = false;
   for (const part of parts) {
     // A fallback only stands in for lines that are new; it never revisits a sent part.
     if (!part.supporting && !adds(part.ranges)) continue;
+    if (part.sequential && windowsFull) break;
+    let added = false;
     for (const option of part.fallback ? [part.ranges, part.fallback] : [part.ranges]) {
       if (!part.supporting && !adds(option)) continue;
       const trial = mergeRanges([...chosen, ...option], lineCount);
       if (fits(trial)) {
         chosen = trial;
         substantive ||= !part.supporting;
+        added = true;
         break;
       }
     }
+    windowsFull ||= part.sequential === true && !added;
   }
   return substantive ? chosen : [];
 }
