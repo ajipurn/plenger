@@ -1,7 +1,11 @@
 # Instructions for coding agents
 
-plenger is a TypeScript CLI and local dashboard that statically triages agentic AI
-projects and runs managed red-team campaigns in containers. Read
+plenger is an npm package with a CLI and a local dashboard for security review of
+any repository, modeled on Codex Security Cloud. The dashboard is the main journey:
+a bounded AI source review with a second validation pass, STRIDE and findings.
+Static triage is the agentic AI specialty for Python, JavaScript and TypeScript.
+Managed red-team campaigns in containers stay in the CLI; that work is postponed.
+The product direction is in [docs/ROADMAP.md](docs/ROADMAP.md#goal). Read
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the source layout and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain. This file lists the rules that
 are easy to get wrong.

@@ -4,32 +4,49 @@ Current capabilities, qualifications and pending work are in [STATUS.md](STATUS.
 The completed milestones M0 to M5 are recorded in [history/m0-m5.md](history/m0-m5.md).
 The normative M6 contracts are in [design/redteam-contracts.md](design/redteam-contracts.md).
 This page keeps the goal, principles, stack, the remaining M6 checkpoints, M7,
-M8, risks and the work beyond the MVP.
+M8, M9, risks and the work beyond the MVP.
 
 ## Goal
 
-Give developers a repository security workflow modeled on the supplied Codex
-Security Cloud references: Findings, Repositories, Scans, detailed source
+Give developers a local repository security review modeled on the supplied
+Codex Security Cloud references: Findings, Projects, Scans, detailed source
 evidence, STRIDE threat modeling and a prompt that a coding agent can use to
-fix a selected finding. Provider settings remain configurable. Projects are
-not restricted to a single application or agent framework.
+fix a selected finding. The users are the author, other developers and their
+coworkers. Each person runs the npm package on their own machine with their
+own model connection. There is no hosted service, account system or
+multi-tenant deployment.
 
-The first source is local folders. A scan combines offline static triage with
-bounded LLM source discovery and skeptical validation. Static rules retain
-their agent-specific coverage. AI review can inspect ordinary Python,
-JavaScript and TypeScript code, with explicit coverage and limitations.
-Findings keep triage state, scan provenance and remediation evidence.
+Plenger reviews any repository, not only agentic AI projects. Its main
+journey is the local dashboard, opened with `plenger serve`. The first
+source is local folders. A scan combines offline static triage with bounded
+LLM source discovery and skeptical validation. Provider settings remain
+configurable. Source leaves the machine only for the selected provider, after
+redaction and within a budget. Findings keep triage state, scan provenance and
+remediation evidence.
+
+Agentic AI is the specialty, not the boundary. Static rules keep their
+agent-specific coverage: where untrusted text enters a prompt, which tools and
+effects a request or a model output can reach, and which approvals are
+missing. They show what a manipulated agent could do. They do not prove that
+an injection succeeds; that needs dynamic tests.
+
+The AI review is the general engine. It reads Python, JavaScript and
+TypeScript, the languages the parser supports.
+[M9](#m9-review-for-any-language-next) extends it to any language: first every
+text file, then read-only exploration by the model. Static parsing stays with
+the three languages.
+
+Validation is a second model review of the source. Validation by execution,
+reproducing a finding in a sandbox, is the long-term direction and would build
+on the red-team containers. Red-team work (M6 and M7) is postponed. The
+existing managed profiles stay available from the CLI, and the retained
+direction and contracts below describe that engine rather than the workspace.
 
 The repair action generates instructions after a finding exists. Users choose
 when to hand those instructions to their coding agent. The dashboard does not
-execute the agent or apply patches. Local continuous scanning watches committed
-Git revisions while the service is open.
-
-Plenger ships as one npm package. Its main journey is this workspace in the
-local dashboard, opened with `plenger serve`. Red-team work (M6 and M7) is
-postponed. The existing managed profiles stay available from the CLI, and the
-retained direction and contracts below describe that engine rather than the
-workspace. Availability and qualification are recorded in [STATUS.md](STATUS.md).
+execute the agent or apply patches. Scans start manually; continuous scanning
+is not part of the current journey. Availability and qualification are
+recorded in [STATUS.md](STATUS.md).
 
 ### Red-team capability target
 
@@ -280,6 +297,21 @@ differ on purpose: the static gate ignores baseline findings, the dynamic gate
 fails on an observed violation even when a baseline contains it. State that
 dynamic testing is for targets the user owns or has permission to test.
 
+### M9 Review for any language (next)
+
+The AI review reads only files the parser supports. A Go, Java or PHP
+repository gets no AI review, and templates, configuration and SQL files are
+never read. M9 removes that limit in two checkpoints, reviewed separately.
+
+| Checkpoint | Deliverable | Acceptance |
+| --- | --- | --- |
+| M9a Every text file | Text files in any language enter the review under the same ignore, size, sensitive-path and redaction rules as parsed source. Files without a parser are sent whole or as line windows, ordered after traced files by path hints, and cited by line | A repository without Python, JavaScript or TypeScript gets a review with checked citations. Coverage lists the files sent and skipped. Lockfiles, binaries, minified and generated files stay out |
+| M9b Read-only exploration | The model lists, reads and searches the redacted allowlist through bounded tools, with the static facts as starting hints. The second review can read further files to confirm or dismiss a candidate. Format errors get one bounded retry, and candidates that cannot be validated stay unvalidated | Tool calls work on every supported provider. The model budget bounds every turn. Coverage equals the recorded reads. The evaluation corpus gains cross-file cases, and precision and recall are recorded before and after |
+
+M9b changes the review architecture and gets a design document before it is
+built. Static parsing stays with Python, JavaScript and TypeScript; a new
+grammar is added only for static rules in another language.
+
 ## Risks
 
 - **TypeScript grammar.** `tree-sitter-typescript` has had no release since
@@ -332,6 +364,9 @@ claim of parity:
   import cases, compare the same attacks and policies across fixes, prompts,
   models or builds in the dashboard and CI, preserving case and strategy
   versions and scope; track target, attacker and judge usage in one budget.
+- **Validation by execution:** reproduce a candidate finding in a networkless
+  container built from the red-team runtimes and attach the observed output as
+  evidence.
 - **Expanded dashboard:** team collaboration and cross-project views.
 - **Additional dynamic adapters:** explicitly configured local MCP stdio
   processes, more framework observation adapters and broader probe coverage,

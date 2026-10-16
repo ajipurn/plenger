@@ -1,25 +1,34 @@
 # plenger
 
-Source-based security review, STRIDE threat modeling and static triage for
-Python, JavaScript and TypeScript projects. One CLI and one local dashboard.
+Local security review of your repositories, modeled on Codex Security Cloud.
+One npm package with a CLI and a local dashboard.
 
-`plenger scan` reads source code only. It never runs, imports or installs the
-project and needs no network access. It reports the agent inventory, what each
-tool and entry point can do, and ranked findings with the code that supports
-them. `plenger redteam run` tests supported projects inside networkless
-containers after an explicit start, with a model connection and budget you
-choose. The dashboard reviews local folders with Findings,
-Projects, Scans, Settings and coding agent fix prompts. See the [roadmap](docs/ROADMAP.md).
+The dashboard is the main workflow; `plenger serve` opens it. A scan combines
+offline static analysis with a bounded AI review of the source on a model
+connection you choose: candidate findings, a second skeptical review, STRIDE
+threat modeling, source evidence and a prompt a coding agent can use to fix a
+finding. Source leaves the machine only for the selected provider, after
+redaction and within the budget you set.
+
+Static analysis reads source code only. It never runs, imports or installs the
+project and needs no network access. Its specialty is agentic AI code in
+Python, JavaScript and TypeScript: the agent inventory, what each tool and
+entry point can do, and ranked findings with the code that supports them. These
+rules show where untrusted text reaches a model and what a manipulated agent
+could do. They do not prove that an injection succeeds.
+
+`plenger redteam run` tests two supported project shapes inside networkless
+containers from the CLI. Further red-team work is postponed. See the
+[roadmap](docs/ROADMAP.md).
 
 ## Status
 
 | Area | State |
 | --- | --- |
+| Local dashboard: projects, scans, AI review, STRIDE, findings, fix prompts | Available; see [qualification status](docs/STATUS.md) |
 | Static scan, reports, CI gate, GitHub Action | Available (M0 to M5 done) |
-| Local dashboard with repositories, AI scans, STRIDE, findings and providers | Available; see [qualification status](docs/STATUS.md) |
-| Managed red-team profiles: llmfy file canary, Next.js booking/SQLite | Available; synthetic qualification plus one live-model record |
-| CLI campaigns (`redteam run`) and before/after comparisons (`redteam compare`) | Available |
 | npm package | CLI, dashboard and red-team recipes in one package; see [release status](docs/STATUS.md) |
+| Managed red-team profiles, CLI campaigns and comparisons | Available from the CLI; further work postponed |
 
 [docs/STATUS.md](docs/STATUS.md) is the single source of truth for what is
 available, qualified and pending.
@@ -50,9 +59,9 @@ npm tarball, see [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Quick start
 
 ```sh
+plenger serve path/to/project --port 4180
 plenger scan path/to/project
 plenger scan path/to/project --format sarif --output plenger.sarif --fail-on high
-plenger serve path/to/project --port 4180
 plenger redteam run path/to/project --provider "Local security tests" --repeat 20 --fail-on high
 plenger redteam compare before.json after.json --change "Require approval before a price override"
 ```
@@ -89,7 +98,7 @@ explains the output; [docs/RULES.md](docs/RULES.md) describes every rule.
 
 ## Red-teaming
 
-Two managed profiles exist. `llmfy-file-canary-v1` runs an llmfy 0.11.0 project
+Red-team work is postponed. Two managed profiles stay available from the CLI. `llmfy-file-canary-v1` runs an llmfy 0.11.0 project
 and checks whether a forbidden file write happens. `vercel-booking-sqlite-v1`
 runs a Next.js booking route handler against a disposable SQLite database and
 checks price-override and zero-payment boundaries. plenger captures the source,
@@ -142,5 +151,4 @@ Aji Purnomo.
 
 Third-party notices for the grammars and dashboard dependencies are listed in
 [docs/licenses/sources.json](docs/licenses/sources.json) and shipped as
-`dist/THIRD_PARTY_NOTICES.txt` in the npm package. Optional standalone archives
-also include the bundled Node.js runtime notices.
+`dist/THIRD_PARTY_NOTICES.txt` in the npm package.

@@ -2,7 +2,7 @@
 
 This page is the single source of truth for what plenger can do today, what has
 been qualified and what is pending. Other documents link here instead of
-repeating milestone status. Last reviewed: 2026-10-16.
+repeating milestone status. Last reviewed: 2026-10-17.
 
 ## Milestones
 
@@ -14,6 +14,7 @@ repeating milestone status. Last reviewed: 2026-10-16.
 | M6c: MCP and CI | Postponed | Campaigns, statistics, gates, comparisons and CLI reports exist; MCP adapter pending |
 | M7: indirect prompt injection | Postponed | See [ROADMAP.md](ROADMAP.md#m7-red-team-indirect-prompt-injection-postponed) |
 | M8: distribution | In progress | npm package checks pass in CI on Linux, macOS and Windows; public release pending. The standalone binary was dropped |
+| M9: review for any language | Next | The AI review reads only Python, JavaScript and TypeScript files. See [ROADMAP.md](ROADMAP.md#m9-review-for-any-language-next) |
 
 ## Capability matrix
 
