@@ -60,6 +60,9 @@ hypotheses. They do not become static findings or change the scan's CI gate.
 The JSON schema is `schemas/security-assessment-v1.schema.json`. Markdown
 escapes model-provided markup. Both formats redact known secrets and the selected
 API key before output. Use `--output` to retain the assessment as an audit record.
+The JSON report's `generation` holds the SHA-256 of the instructions (which
+include the response schema), the temperature and the output ceiling, so
+assessments from different prompt versions can be told apart.
 
 ## Limits and refusal handling
 

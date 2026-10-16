@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { AnthropicResponseError } from "../redteam/anthropic-provider.ts";
 import { BudgetStoppedError, ModelBudget } from "../redteam/budget.ts";
 import {
@@ -21,6 +21,7 @@ import {
   REVIEW_DISCOVERY_SCHEMA,
   REVIEW_VALIDATION_SCHEMA,
   ReviewResponseError,
+  type ReviewSampling,
   type ReviewSourceFile,
   reviewBudget,
   type SecurityReview,
@@ -57,6 +58,24 @@ The related array, when present, holds read-only excerpts the host added for thi
 Use source-supported only when the cited code establishes the path and no supplied guard defeats it. Use needs-review when an essential precondition or deployment fact is unknown. Dismiss false positives, duplicates, and claims contradicted by source.
 Provide one decision for every host-assigned candidate id. Do not add candidates. Explain the supporting or contradicting source locations and remaining assumptions in each decision's reason. Keep the top-level reason null when completed. Source-supported is a static analysis judgment, not a confirmed exploit.
 Schema: ${JSON.stringify(REVIEW_VALIDATION_SCHEMA)}`;
+
+/** Identifies the exact instructions and response contracts a review used. */
+export const REVIEW_PROMPT_DIGEST = createHash("sha256")
+  .update(DISCOVERY)
+  .update("\0")
+  .update(VALIDATION)
+  .digest("hex");
+
+/** The settings a review request is sent with; mirrors `providerFor` below. */
+function sampling(access: ProviderAccess): ReviewSampling {
+  return {
+    provider: access.provider,
+    model: access.model,
+    temperature: access.temperature ?? null,
+    maxOutputTokens: access.maxOutputTokens === null ? null : LIMITS.outputTokens,
+    structuredOutput: access.provider === "anthropic",
+  };
+}
 
 /** Two bounded source-based passes. No project execution, tools, or retry loops. */
 export async function reviewProject(
@@ -99,6 +118,7 @@ export async function reviewProject(
     kind: "ai-security-review",
     provider: options.provider,
     ...(validator ? { validator: validator.provider } : {}),
+    generation: { promptDigest: REVIEW_PROMPT_DIGEST, discovery: sampling(options.access) },
     status: "failed",
     reason: null,
     summary: "The security review could not complete.",
@@ -246,6 +266,8 @@ export async function reviewProject(
       if (candidates.length) {
         options.onPhase?.("validating");
         phase = "validation";
+        if (review.generation)
+          review.generation.validation = sampling(validator?.access ?? options.access);
         const cited = [
           ...new Set(candidates.flatMap((item) => item.evidence.map((cite) => cite.path))),
         ];

@@ -67,6 +67,9 @@ If you decline the task, return status refused, a reason, and empty assets, trus
 Use reason null when completed. Return only a JSON object matching this schema, without Markdown fences:
 ${JSON.stringify(ASSESSMENT_DATA_SCHEMA)}`;
 
+/** Identifies the exact instructions, response schema included, an assessment used. */
+export const ASSESSMENT_PROMPT_DIGEST = createHash("sha256").update(INSTRUCTIONS).digest("hex");
+
 export interface AssessmentOptions {
   access: ProviderAccess;
   timeoutMs?: number;
@@ -162,6 +165,11 @@ export async function assessProject(
       usage: snapshot.calls[0]?.usage ?? null,
       accountedTokens: snapshot.accountedTokens,
       durationMs: Math.round(performance.now() - started),
+    },
+    generation: {
+      promptDigest: ASSESSMENT_PROMPT_DIGEST,
+      temperature: access.temperature ?? null,
+      maxOutputTokens: access.maxOutputTokens ?? null,
     },
     ...data,
     limitations: [

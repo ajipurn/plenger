@@ -337,6 +337,40 @@
           "minimum": 0
         }
       }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["promptDigest", "temperature", "maxOutputTokens"],
+      "properties": {
+        "promptDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxOutputTokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
     }
   }
 }

@@ -20,7 +20,13 @@ The host rereads Python, JavaScript and TypeScript files from the
 static scan's allowlist. It reapplies current exclusions and `.gitignore`
 rules. Source can change during a job. Reviews record capture time, file and
 context digests, coverage, provider, model, calls and reported token usage.
-The observed Git revision does not freeze a commit or working tree.
+They also record what produced them, so results can be compared across prompt
+versions and models: `generation.promptDigest` is the SHA-256 of the discovery
+and validation instructions with their schemas, and each request's provider,
+model, temperature, output ceiling and use of structured output are kept. Any
+change to the instructions changes the digest. Outputs show the digest and the
+settings of each request. The observed Git revision does not freeze a commit or
+working tree.
 
 Selection follows the static scan. Files on traced paths come first: HTTP and
 MCP entry points that reach an effect, tools with effects, model output that

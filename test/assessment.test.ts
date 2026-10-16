@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Ajv } from "ajv";
 import type { FormatsPlugin } from "ajv-formats";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { assessProject } from "../src/assessment/assess.ts";
+import { ASSESSMENT_PROMPT_DIGEST, assessProject } from "../src/assessment/assess.ts";
 import { formatAssessment } from "../src/assessment/format.ts";
 import {
   ASSESSMENT_LIMITS,
@@ -130,7 +130,16 @@ describe("read-only Claude assessments", () => {
       accountedTokens: 300,
     });
     expect(report.scope.contextDigest).toMatch(/^[a-f0-9]{64}$/);
+    expect(report.generation).toEqual({
+      promptDigest: ASSESSMENT_PROMPT_DIGEST,
+      temperature: null,
+      maxOutputTokens: access.maxOutputTokens,
+    });
+    expect(ASSESSMENT_PROMPT_DIGEST).toMatch(/^[a-f0-9]{64}$/);
     expect(validate(report), JSON.stringify(validate.errors)).toBe(true);
+    // Reports written before the generation record still validate.
+    const { generation: _generation, ...earlier } = report;
+    expect(validate(earlier), JSON.stringify(validate.errors)).toBe(true);
     expect(await readFile(join(root, "agent.py"), "utf8")).toBe(code);
     await expect(stat(marker)).rejects.toMatchObject({ code: "ENOENT" });
     expect(dispatch).toHaveBeenCalledTimes(1);

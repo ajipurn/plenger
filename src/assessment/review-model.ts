@@ -138,6 +138,27 @@ export interface ReviewSourceFile {
   /** Present when only selected functions were submitted: the submitted lines, in order. */
   ranges?: ReviewRange[];
 }
+/** How one model request was configured, so results can be compared across runs. */
+export interface ReviewSampling {
+  provider: string;
+  model: string;
+  /** Null uses the model's default. */
+  temperature: number | null;
+  /** The output ceiling the host sent; null lets it follow the model's reported limit. */
+  maxOutputTokens: number | null;
+  /** The response schema was sent as the provider's structured output contract. */
+  structuredOutput: boolean;
+}
+
+/** What produced a review: the exact instructions and each request's settings. */
+export interface ReviewGeneration {
+  /** SHA-256 of the discovery and validation instructions with their schemas. */
+  promptDigest: string;
+  discovery: ReviewSampling;
+  /** Present once candidates went to a second review. */
+  validation?: ReviewSampling;
+}
+
 /** A file the second review read besides the batch, and how it relates to a cited file. */
 export interface RelatedSourceFile extends ReviewSourceFile {
   relation: "imported" | "caller";
@@ -154,6 +175,8 @@ export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findin
   provider: { id: string; name: string; model: string };
   /** The connection that ran the second review, when it was not `provider`. */
   validator?: { id: string; name: string; model: string };
+  /** Absent on reviews saved before prompts and settings were recorded. */
+  generation?: ReviewGeneration;
   scope: {
     capturedAt: string;
     files: ReviewSourceFile[];

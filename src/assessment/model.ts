@@ -63,15 +63,24 @@ export interface AssessmentReport extends AssessmentData {
     contextDigest: string;
   };
   request: { calls: number; usage: TokenUsage | null; accountedTokens: number; durationMs: number };
+  /** The exact instructions and request settings; absent on reports written before them. */
+  generation?: {
+    /** SHA-256 of the instructions, which include the response schema. */
+    promptDigest: string;
+    /** Null uses the model's default. */
+    temperature: number | null;
+    /** The saved output ceiling; null follows the model's reported limit. */
+    maxOutputTokens: number | null;
+  };
 }
 
 type Schema = Record<string, unknown>;
-function object(properties: Record<string, Schema>): Schema {
+function object(properties: Record<string, Schema>, optional: Record<string, Schema> = {}): Schema {
   return {
     type: "object",
     additionalProperties: false,
     required: Object.keys(properties),
-    properties,
+    properties: { ...properties, ...optional },
   };
 }
 const text: Schema = { type: "string", minLength: 1, maxLength: ASSESSMENT_LIMITS.text };
@@ -106,42 +115,52 @@ export const ASSESSMENT_DATA_SCHEMA = object(properties);
 export const ASSESSMENT_REPORT_SCHEMA: Schema = {
   $schema: "http://json-schema.org/draft-07/schema#",
   title: "Plenger read-only security assessment v1",
-  ...object({
-    ...properties,
-    status: { enum: ["completed", "refused", "failed"] },
-    schemaVersion: { const: 1 },
-    kind: { const: "security-assessment" },
-    mode: { const: "read-only" },
-    createdAt: { type: "string", format: "date-time" },
-    provider: object({
-      name: { const: "anthropic" },
-      model: text,
-      baseUrl: { type: "string", format: "uri" },
-    }),
-    scope: object({
-      root: text,
-      files: list(
-        object({ path: text, lines: natural, syntaxErrors: { type: "boolean" } }),
-        ASSESSMENT_LIMITS.files,
-      ),
-      scannedFiles: natural,
-      omittedFiles: natural,
-      skippedFiles: natural,
-      partial: { type: "boolean" },
-      contextDigest: { type: "string", pattern: "^[a-f0-9]{64}$" },
-    }),
-    request: object({
-      calls: { type: "integer", minimum: 0, maximum: 1 },
-      usage: {
-        anyOf: [
-          object({ inputTokens: natural, outputTokens: natural, additionalTokens: natural }),
-          { type: "null" },
-        ],
-      },
-      accountedTokens: natural,
-      durationMs: natural,
-    }),
-  }),
+  ...object(
+    {
+      ...properties,
+      status: { enum: ["completed", "refused", "failed"] },
+      schemaVersion: { const: 1 },
+      kind: { const: "security-assessment" },
+      mode: { const: "read-only" },
+      createdAt: { type: "string", format: "date-time" },
+      provider: object({
+        name: { const: "anthropic" },
+        model: text,
+        baseUrl: { type: "string", format: "uri" },
+      }),
+      scope: object({
+        root: text,
+        files: list(
+          object({ path: text, lines: natural, syntaxErrors: { type: "boolean" } }),
+          ASSESSMENT_LIMITS.files,
+        ),
+        scannedFiles: natural,
+        omittedFiles: natural,
+        skippedFiles: natural,
+        partial: { type: "boolean" },
+        contextDigest: { type: "string", pattern: "^[a-f0-9]{64}$" },
+      }),
+      request: object({
+        calls: { type: "integer", minimum: 0, maximum: 1 },
+        usage: {
+          anyOf: [
+            object({ inputTokens: natural, outputTokens: natural, additionalTokens: natural }),
+            { type: "null" },
+          ],
+        },
+        accountedTokens: natural,
+        durationMs: natural,
+      }),
+    },
+    // Optional, so reports written before it still validate against the v1 schema.
+    {
+      generation: object({
+        promptDigest: { type: "string", pattern: "^[a-f0-9]{64}$" },
+        temperature: { anyOf: [{ type: "number", minimum: 0, maximum: 1 }, { type: "null" }] },
+        maxOutputTokens: { anyOf: [{ type: "integer", minimum: 1 }, { type: "null" }] },
+      }),
+    },
+  ),
 };
 
 /** Model output cannot choose metadata or cite files outside the submitted context. */

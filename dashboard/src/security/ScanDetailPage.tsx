@@ -274,6 +274,15 @@ export function ScanDetailPage({
                           ? ` Batch budget ${Math.round(review.scope.budget.contextBytes / 1024)} KiB${review.scope.budget.inputTokens ? ` for a ${review.scope.budget.inputTokens.toLocaleString()}-token model window` : ""}.`
                           : ""}
                       </p>
+                      {review.generation && (
+                        <p className="muted">
+                          Prompt <code>{review.generation.promptDigest.slice(0, 12)}</code> ·{" "}
+                          {samplingText("Discovery", review.generation.discovery)}
+                          {review.generation.validation
+                            ? ` · ${samplingText("second review", review.generation.validation)}`
+                            : ""}
+                        </p>
+                      )}
                       <ul>
                         {review.scope.files.map((file) => (
                           <li key={file.path}>
@@ -464,4 +473,12 @@ export function ScanDetailPage({
       </div>
     </div>
   );
+}
+
+/** "Discovery claude-x, default temperature, up to 8,192 output tokens" */
+function samplingText(
+  label: string,
+  sampling: NonNullable<SecurityScan["reviews"][number]["generation"]>["discovery"],
+): string {
+  return `${label} ${sampling.model}, ${sampling.temperature === null ? "default temperature" : `temperature ${sampling.temperature}`}, ${sampling.maxOutputTokens === null ? "model output limit" : `up to ${sampling.maxOutputTokens.toLocaleString()} output tokens`}`;
 }
