@@ -207,6 +207,27 @@
       },
       "required": ["path", "line", "column", "endLine", "endColumn"]
     },
+    "traceGaps": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "depthLimited": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dynamic": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/location"
+          }
+        }
+      },
+      "required": ["depthLimited", "dynamic", "locations"]
+    },
     "dynamicPart": {
       "type": "object",
       "additionalProperties": false,
@@ -729,6 +750,9 @@
         },
         "approval": {
           "type": "string"
+        },
+        "trace": {
+          "$ref": "#/definitions/traceGaps"
         }
       },
       "required": [
@@ -950,6 +974,9 @@
         },
         "handlerPath": {
           "type": "string"
+        },
+        "trace": {
+          "$ref": "#/definitions/traceGaps"
         }
       },
       "required": ["id", "framework", "location", "kind", "method", "path", "handler", "reaches"]

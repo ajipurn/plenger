@@ -2,8 +2,9 @@ import { isAbsolute, relative, sep } from "node:path";
 import type { Location } from "../inventory/model.ts";
 import type { Rule, Severity } from "../rules/index.ts";
 import { SEVERITIES } from "../rules/model.ts";
+import { traceGapText } from "../rules/text.ts";
 import { json } from "../shared/json.ts";
-import { activeFindings, type Report, type ReportFinding } from "./model.ts";
+import { activeFindings, incompleteTraces, type Report, type ReportFinding } from "./model.ts";
 import { formatSummary, type SummaryOptions } from "./summary.ts";
 
 export const FORMATS = ["terminal", "json", "sarif", "markdown"] as const;
@@ -144,6 +145,11 @@ export function toSarif(report: Report, options: SourceOptions = {}) {
       `${skipped} source ${skipped === 1 ? "file" : "files"} could not be analysed; see run.properties.skipped.`,
     );
   if (report.truncated) warnings.push("File limit reached; this scan is truncated.");
+  const traces = incompleteTraces(report.inventory).length;
+  if (traces)
+    warnings.push(
+      `${traces} ${traces === 1 ? "handler was" : "handlers were"} traced incompletely; affected findings note the calls that were not followed.`,
+    );
   return {
     $schema: "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
     version: "2.1.0",
@@ -310,6 +316,10 @@ export function toMarkdown(
     ...report.files
       .filter((file) => file.syntaxErrors)
       .map((file) => `- Syntax errors: ${markdownText(file.path)}`),
+    ...incompleteTraces(report.inventory).map(
+      ({ name, location, trace }) =>
+        `- Trace incomplete: ${markdownText(name)} (${markdownText(sourcePath(location.path, prefix))}:${location.line}): ${traceGapText(trace)}`,
+    ),
     ...report.skipped.map((file) => `- Skipped: ${markdownText(file.path)} (${file.reason})`),
     ...report.excludedDirs.map(
       (dir) => `- Excluded directory: ${markdownText(dir.path)} (${dir.reason})`,

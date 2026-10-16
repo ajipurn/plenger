@@ -19,7 +19,7 @@ repeating milestone status. Last reviewed: 2026-10-16.
 
 | Capability | State | Notes |
 | --- | --- | --- |
-| Static scan of Python, JavaScript and TypeScript | Available | Inventory, capabilities, 26 risk rules; never executes project code. [guide/scanning.md](guide/scanning.md) |
+| Static scan of Python, JavaScript and TypeScript | Available | Inventory, capabilities, 26 risk rules; never executes project code. Handler traces cut by the depth limit or dynamic calls are reported. [guide/scanning.md](guide/scanning.md) |
 | Reports: terminal, JSON v1, SARIF 2.1.0, Markdown | Available | Baselines, suppressions, `--fail-on` gate, exit codes. [guide/reports-ci.md](guide/reports-ci.md) |
 | GitHub Action (composite) | Available | Runs on GitHub-hosted runners in the repository's CI workflow and writes SARIF. Uploading that SARIF to code scanning is left to the calling workflow and has not been exercised |
 | Local dashboard (`plenger serve`) | Available | Findings, local Projects, manually started Scans, full finding reports and existing provider settings. [guide/dashboard.md](guide/dashboard.md) |

@@ -171,3 +171,89 @@ export const run = tool({
     expect(run?.capabilities[1]?.location.path).toBe("src/files.ts");
   });
 });
+
+describe("calls a handler's trace cannot follow", () => {
+  const chain = Array.from(
+    { length: 7 },
+    (_, index) => `def step${index}(c):\n    return step${index + 1}(c)\n`,
+  ).join("\n");
+  const source = `import subprocess
+from langchain_core.tools import tool
+
+HANDLERS = {"run": subprocess.run}
+
+${chain}
+def step7(c):
+    return subprocess.run(c, shell=True)
+
+
+@tool
+def deep(command: str) -> str:
+    """Run a command several helpers down."""
+    return step0(command)
+
+
+@tool
+def dispatch(command: str, on_done=None) -> str:
+    """Run a command through a handler table."""
+    HANDLERS["run"](command)
+    getattr(subprocess, "run")(command)
+    on_done(command)
+    return "ok"
+
+
+@tool
+def notify(command: str, callback=None) -> str:
+    """Run a command and report it."""
+    result = subprocess.run(command, shell=True)
+    callback(result)
+    return "ok"
+
+
+@tool
+def plain(command: str) -> str:
+    """Run a command."""
+    return subprocess.run(command, shell=True)
+`;
+  const lineOf = (text: string) => source.split("\n").indexOf(text) + 1;
+  let root: string;
+  let result: Awaited<ReturnType<typeof scan>>;
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), "plenger-capabilities-"));
+    await writeFile(join(root, "tools.py"), source);
+    result = await scan(root);
+  });
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+  const tool = (name: string) => result.inventory.tools.find((item) => item.name === name);
+
+  it("records a call past the depth limit and leaves it out of the capabilities", () => {
+    expect(tool("deep")?.capabilities).toEqual([]);
+    expect(tool("deep")?.trace).toMatchObject({ depthLimited: 1, dynamic: 0 });
+    // step0 is depth 1, so step5 reaches the limit and its call to step6 is not followed.
+    expect(tool("deep")?.trace?.locations).toEqual([
+      expect.objectContaining({ line: lineOf("    return step6(c)") }),
+    ]);
+  });
+
+  it("records calls through a subscript, a call result and a callback parameter", () => {
+    expect(tool("dispatch")?.trace).toMatchObject({ depthLimited: 0, dynamic: 3 });
+    expect(tool("dispatch")?.trace?.locations.map((location) => location.line)).toEqual([
+      lineOf('    HANDLERS["run"](command)'),
+      lineOf('    getattr(subprocess, "run")(command)'),
+      lineOf("    on_done(command)"),
+    ]);
+  });
+
+  it("notes the calls on findings about the tool, and nothing for a complete trace", () => {
+    expect(tool("plain")?.trace).toBeUndefined();
+    const notes = (name: string) =>
+      result.findings.find((finding) => finding.subject.name === name)?.notes ?? [];
+    expect(notes("notify")).toContain(
+      `Trace incomplete: 1 call through a callback, subscript or call result not followed (tools.py:${lineOf("    callback(result)")}). Effects behind them were not seen.`,
+    );
+    expect(notes("plain").some((note) => note.startsWith("Trace incomplete"))).toBe(false);
+  });
+});

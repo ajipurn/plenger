@@ -1,11 +1,12 @@
 import { styleText } from "node:util";
 import type { CapabilityKind, Inventory } from "../inventory/model.ts";
 import { type Finding, SEVERITIES, type Severity } from "../rules/model.ts";
-import { UNNAMED } from "../rules/text.ts";
+import { traceGapText, UNNAMED } from "../rules/text.ts";
 import type { ScanResult, ScanSkipReason } from "../scan.ts";
 import { VERSION } from "../shared/runtime.ts";
 import { callLabel, routeLabel, shortName } from "../shared/text.ts";
 import { LANGUAGE_LABEL, type Language } from "../source/languages.ts";
+import { incompleteTraces } from "./model.ts";
 
 const SKIP_LABEL: Record<ScanSkipReason, string> = {
   declaration: "type declarations",
@@ -128,6 +129,22 @@ function fileLines(result: ScanResult, s: Styles): string[] {
     );
     lines.push(
       ...truncatedList(broken.map((file) => file.path)).map((path) => `    ${s.dim(path)}`),
+    );
+  }
+  const traces = incompleteTraces(result.inventory);
+  if (traces.length > 0) {
+    lines.push(
+      s.warn(
+        `  ${plural(traces.length, "handler")} traced incompletely; effects behind these calls were not seen:`,
+      ),
+    );
+    lines.push(
+      ...truncatedList(
+        traces.map(
+          ({ name, location, trace }) =>
+            `${name} (${location.path}:${location.line}): ${traceGapText(trace)}`,
+        ),
+      ).map((line) => `    ${s.dim(line)}`),
     );
   }
   if (result.skipped.length > 0) {

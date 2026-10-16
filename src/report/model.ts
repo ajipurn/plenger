@@ -5,12 +5,30 @@
  * and described by report/schema.ts.
  */
 
+import type { Inventory, Location, TraceGaps } from "../inventory/model.ts";
 import { type Finding, RULES, type Rule, type Severity } from "../rules/index.ts";
 import { SEVERITIES } from "../rules/model.ts";
 import type { ScanResult } from "../scan.ts";
 import { VERSION } from "../shared/runtime.ts";
 import { redactReport } from "../shared/secrets.ts";
+import { routeLabel } from "../shared/text.ts";
 import { type Baseline, matchesSuppression, type Suppression } from "./policy.ts";
+
+/** Tools and entry points whose handler trace stopped short, for every coverage section. */
+export function incompleteTraces(
+  inventory: Inventory,
+): { name: string; location: Location; trace: TraceGaps }[] {
+  return [
+    ...inventory.tools.flatMap((tool) =>
+      tool.trace ? [{ name: `tool ${tool.name}`, location: tool.location, trace: tool.trace }] : [],
+    ),
+    ...inventory.entryPoints.flatMap((entry) =>
+      entry.trace
+        ? [{ name: `route ${routeLabel(entry)}`, location: entry.location, trace: entry.trace }]
+        : [],
+    ),
+  ];
+}
 
 export interface ReportFinding extends Finding {
   baselineState?: "new" | "unchanged";

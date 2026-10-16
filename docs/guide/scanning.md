@@ -25,8 +25,8 @@ last rule off. The walker never follows symlinks and applies size and
 file-count limits. Type declarations and minified bundles are skipped with a
 reason.
 
-A completed scan is not proof of safety. Syntax errors, truncation and skipped
-files leave gaps, and the report shows them. A rule that finds nothing proves
+A completed scan is not proof of safety. Syntax errors, truncation, skipped
+files and incomplete handler traces leave gaps, and the report shows them. A rule that finds nothing proves
 nothing: plenger reports what it can see in the code.
 
 ## Agent inventory
@@ -86,7 +86,13 @@ provider.
 
 Data flow is name-based, not field- or path-sensitive. Dynamic dispatch,
 callbacks passed in from other files and framework-internal effects are not
-followed.
+followed. A handler whose trace stopped short carries a `trace` entry in the JSON
+inventory: calls past the depth limit, and calls whose target is chosen at run
+time, such as a callback parameter, a subscript (`handlers[name](args)`) or a
+call's result (`getattr(tools, name)(args)`). Up to ten of those calls are listed
+by location. The coverage section of every report lists these handlers, and
+findings about them, or about an agent using them, carry a "Trace incomplete"
+note. Effects behind those calls are not seen.
 
 ## Findings
 

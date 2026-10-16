@@ -184,10 +184,22 @@ export interface Tool {
   agent?: string;
   /** What the tool can do, found by following its handler through the project. */
   capabilities: Capability[];
+  /** Calls the handler's trace could not follow, so `capabilities` may be incomplete. */
+  trace?: TraceGaps;
   /** A human approval step plenger saw for the tool: the option that requires it (`needs_approval`) or the call that asks (`input`). */
   approval?: string;
   /** Id of the MCP server the tool belongs to. */
   server: string | null;
+}
+
+/** Calls a handler's trace could not follow; present only when there are some. */
+export interface TraceGaps {
+  /** Calls into project functions past the call depth limit. */
+  depthLimited: number;
+  /** Calls whose target is chosen at run time: a parameter, a subscript or a call's result. */
+  dynamic: number;
+  /** Up to ten of those calls, depth-limited ones first. */
+  locations: Location[];
 }
 
 export interface McpServer {
@@ -241,6 +253,8 @@ export interface EntryPoint {
   handlerPath?: string;
   /** What the handler reaches: models, agents and effects, through project functions. */
   reaches: Capability[];
+  /** Calls the handler's trace could not follow, so `reaches` may be incomplete. */
+  trace?: TraceGaps;
 }
 
 interface FrameworkUse {

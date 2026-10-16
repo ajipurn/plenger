@@ -7,6 +7,7 @@ import type {
   LlmCall,
   Prompt,
   Tool,
+  TraceGaps,
 } from "../inventory/model.ts";
 import { ProjectIndex } from "../project/index.ts";
 import type { Project } from "../project/project.ts";
@@ -43,14 +44,16 @@ class CapabilityAnalyzer {
     for (const call of this.#inventory.llmCalls) call.systemInputs = this.systemInputs(call);
     for (const tool of this.#inventory.tools) {
       tool.capabilities = this.toolCapabilities(tool);
+      const trace = this.traceGaps(tool.handlerPath ?? tool.location.path, tool.handler);
+      if (trace !== null) tool.trace = trace;
       const approval = this.#approvals.toolApproval(tool);
       if (approval !== null) tool.approval = approval;
     }
     for (const entry of this.#inventory.entryPoints) {
-      entry.reaches =
-        entry.handler === null
-          ? []
-          : this.#effects.effects(entry.handlerPath ?? entry.location.path, entry.handler, 0);
+      const path = entry.handlerPath ?? entry.location.path;
+      entry.reaches = entry.handler === null ? [] : this.#effects.effects(path, entry.handler, 0);
+      const trace = this.traceGaps(path, entry.handler);
+      if (trace !== null) entry.trace = trace;
     }
     const tools = new Map(this.#inventory.tools.map((tool) => [tool.id, tool]));
     for (const agent of this.#inventory.agents) {
@@ -59,6 +62,11 @@ class CapabilityAnalyzer {
       if (approval !== null) agent.approval = approval;
     }
     attachOutputEffects(this.#inventory, this.#effects, this.#index);
+  }
+
+  /** Calls a traced handler could not follow; built-in and agent tools have no handler trace. */
+  traceGaps(path: string, handler: string | null): TraceGaps | null {
+    return handler === null ? null : this.#effects.gaps(path, handler);
   }
 
   /** The system prompt's dynamic parts and the values the call passes for its template variables. */

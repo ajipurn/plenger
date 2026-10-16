@@ -57,7 +57,7 @@ rating changes therefore moves to another rule id. Source URIs are relative to
 `%SRCROOT%`, the source root; its absolute path is not written, so reports can be
 shared without revealing the local checkout path. Coverage warnings are in the
 SARIF invocation and run properties. A completed static scan is not proof of safety: syntax errors,
-truncation and skipped files can leave gaps. Finding gates do not turn those gaps
+truncation, skipped files and incomplete handler traces can leave gaps. Finding gates do not turn those gaps
 into findings; inspect coverage as part of review.
 
 ## Baselines

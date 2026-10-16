@@ -23,16 +23,27 @@ import type {
   Inventory,
   LlmCall,
   Location,
+  TraceGaps,
 } from "../inventory/model.ts";
 import { MODULE_SCOPE, type ProjectIndex } from "../project/index.ts";
 import type { Project, ProjectFile } from "../project/project.ts";
+import { compareStrings } from "../shared/compare.ts";
 import { locationKey } from "../shared/location.ts";
 import { compiledSinks, sinksFor } from "./catalog.ts";
 import type { Sink } from "./sinks.ts";
 
 /** How many project functions deep the analysis follows calls. */
 export const MAX_DEPTH = 6;
+/** Calls a `TraceGaps` lists by location; the counts cover every one. */
+const TRACE_GAP_LOCATIONS = 10;
 const ENVIRONMENT = /^(?:os\.environ|process\.env|import\.meta\.env)\.[\w$]+$/;
+
+/** What tracing one function could not follow, and the project functions it went into. */
+interface Visit {
+  depthLimited: Map<string, Location>;
+  dynamic: Map<string, Location>;
+  callees: Set<string>;
+}
 
 interface Guard {
   name: string;
@@ -55,6 +66,8 @@ export class EffectTracer {
   readonly #agentRuns = new Map<string, { agent: Agent; inputs: DynamicPart[] }>();
   readonly #memo = new Map<string, Capability[]>();
   readonly #active = new Set<string>();
+  readonly #visits = new Map<string, Visit>();
+  readonly #tracing: Visit[] = [];
 
   constructor(project: Project, index: ProjectIndex, inventory: Inventory) {
     this.#project = project;
@@ -74,6 +87,9 @@ export class EffectTracer {
     const file = this.#project.files.get(path);
     if (file === undefined || this.#active.has(memoKey) || depth > MAX_DEPTH) return [];
     this.#active.add(memoKey);
+    const visit: Visit = { depthLimited: new Map(), dynamic: new Map(), callees: new Set() };
+    this.#visits.set(memoKey, visit);
+    this.#tracing.push(visit);
     const scopes = this.#index.scopesOf(file, definition);
     const found: Capability[] = [];
     const guards: Guard[] = [];
@@ -84,10 +100,40 @@ export class EffectTracer {
       if (guard !== null) guards.push(guard);
     }
     found.push(...this.environmentReads(file, scopes));
+    this.#tracing.pop();
     this.#active.delete(memoKey);
     const result = unique(found).map((effect) => withGuards(effect, guards));
     this.#memo.set(memoKey, result);
     return result;
+  }
+
+  /**
+   * Calls that tracing a function and every project function it reached could not
+   * follow, or null when it followed all of them. Call `effects` for the function first.
+   */
+  gaps(path: string, definition: string): TraceGaps | null {
+    const depthLimited = new Map<string, Location>();
+    const dynamic = new Map<string, Location>();
+    const seen = new Set<string>();
+    const pending = [`${path}|${definition}`];
+    for (let key = pending.pop(); key !== undefined; key = pending.pop()) {
+      const visit = seen.has(key) ? undefined : this.#visits.get(key);
+      seen.add(key);
+      if (visit === undefined) continue;
+      for (const [id, location] of visit.depthLimited) depthLimited.set(id, location);
+      for (const [id, location] of visit.dynamic) dynamic.set(id, location);
+      pending.push(...visit.callees);
+    }
+    if (depthLimited.size === 0 && dynamic.size === 0) return null;
+    const ordered = (calls: Map<string, Location>) =>
+      [...calls.values()].sort(
+        (a, b) => compareStrings(a.path, b.path) || a.line - b.line || a.column - b.column,
+      );
+    return {
+      depthLimited: depthLimited.size,
+      dynamic: dynamic.size,
+      locations: [...ordered(depthLimited), ...ordered(dynamic)].slice(0, TRACE_GAP_LOCATIONS),
+    };
   }
 
   callEffects(file: ProjectFile, call: CallFact, depth: number): Capability[] {
@@ -117,7 +163,14 @@ export class EffectTracer {
       if (match !== undefined) effects.push(this.sinkEffect(file, call, match.sink, location));
     }
     const target = this.#index.calledFunction(file, call);
-    if (target !== null) {
+    const visit = this.#tracing.at(-1);
+    if (target === null) {
+      if (visit !== undefined && effects.length === 0 && dynamicCall(file, call))
+        visit.dynamic.set(locationKey(location), location);
+    } else if (depth + 1 > MAX_DEPTH && !this.#memo.has(`${target.path}|${target.definition}`)) {
+      visit?.depthLimited.set(locationKey(location), location);
+    } else {
+      visit?.callees.add(`${target.path}|${target.definition}`);
       const bindings = this.bindArguments(file, call, target);
       for (const effect of this.effects(target.path, target.definition, depth + 1)) {
         const bound: Capability = {
@@ -326,6 +379,22 @@ export class EffectTracer {
     }
     return found;
   }
+}
+
+/**
+ * A call whose target is chosen at run time, which tracing cannot follow: a callback
+ * parameter (`on_done(result)`), a subscript (`handlers[name](args)`) or a call's result
+ * (`getattr(tools, name)(args)`).
+ */
+function dynamicCall(file: ProjectFile, call: CallFact): boolean {
+  const callee = call.callee.trim();
+  if (/[\])]$/.test(callee)) return true;
+  if (call.ref !== null || call.scope === null || !/^[A-Za-z_$][\w$]*$/.test(callee)) return false;
+  return (
+    file.facts.definitions
+      .find((definition) => definition.id === call.scope)
+      ?.params.includes(callee) === true
+  );
 }
 
 /** Unknown/compound SQL stays conservative; a fixed SELECT is not a write. */

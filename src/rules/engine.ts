@@ -1,4 +1,4 @@
-import type { Inventory } from "../inventory/model.ts";
+import type { Inventory, Location, TraceGaps } from "../inventory/model.ts";
 import type { Project } from "../project/project.ts";
 import { compareStrings } from "../shared/compare.ts";
 import { locationKey } from "../shared/location.ts";
@@ -13,6 +13,7 @@ import { toolChecks } from "./checks/tools.ts";
 import { RuleContext } from "./context.ts";
 import type { Draft, Evidence, Finding } from "./model.ts";
 import { fingerprint, inTests, SEVERITY_RANK, triageScore } from "./scoring.ts";
+import { traceGapText } from "./text.ts";
 
 /**
  * PLG401 (model output reaching an effect) and the PLG1xx tool rules can describe the
@@ -36,6 +37,8 @@ export function evaluateRules(project: Project, inventory: Inventory): Finding[]
   ];
   for (const draft of drafts) {
     if (!RULE_BY_ID.has(draft.rule)) throw new Error(`finding for unknown rule ${draft.rule}`);
+    const note = traceNote(inventory, draft.subject);
+    if (note !== null) draft.notes.push(note);
   }
   const toolSinks = new Set(
     drafts
@@ -47,6 +50,34 @@ export function evaluateRules(project: Project, inventory: Inventory): Finding[]
       (draft) => draft.rule !== OUTPUT_EFFECT_RULE || !toolSinks.has(locationKey(draft.location)),
     ),
   );
+}
+
+/**
+ * Where tracing the subject's handler, or its agent's tools, stopped short: an effect
+ * behind those calls would be missing from this finding and from the scan.
+ */
+function traceNote(inventory: Inventory, subject: Draft["subject"]): string | null {
+  const tool = (id: string | undefined) => inventory.tools.find((item) => item.id === id)?.trace;
+  const traces =
+    subject.kind === "tool"
+      ? [tool(subject.id)]
+      : subject.kind === "entry_point"
+        ? [inventory.entryPoints.find((item) => item.id === subject.id)?.trace]
+        : subject.kind === "agent"
+          ? (inventory.agents.find((item) => item.id === subject.id)?.tools ?? []).map(tool)
+          : [];
+  const found = traces.filter((item): item is TraceGaps => item !== undefined);
+  if (found.length === 0) return null;
+  const gaps = {
+    depthLimited: found.reduce((sum, item) => sum + item.depthLimited, 0),
+    dynamic: found.reduce((sum, item) => sum + item.dynamic, 0),
+  };
+  const where = [...new Set(found.flatMap((item) => item.locations).map(locationText))];
+  return `Trace incomplete: ${traceGapText(gaps)} not followed (${where.join(", ")}). Effects behind them were not seen.`;
+}
+
+function locationText(location: Location): string {
+  return `${location.path}:${location.line}`;
 }
 
 function finalize(drafts: Draft[]): Finding[] {

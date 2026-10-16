@@ -20,6 +20,7 @@ import {
   readSuppressions,
 } from "../src/report/policy.ts";
 import { REPORT_SCHEMA, REPORT_SCHEMAS } from "../src/report/schema.ts";
+import { formatSummary } from "../src/report/summary.ts";
 import { SEVERITIES } from "../src/rules/model.ts";
 import { scan } from "../src/scan.ts";
 import { fixturePath } from "./support/fixtures.ts";
@@ -44,6 +45,20 @@ beforeAll(async () => {
 });
 
 describe("report contracts", () => {
+  it("lists handlers whose trace stopped short in every coverage section", () => {
+    const line =
+      "tool calculate (js/tools.ts:30): 1 call through a callback, subscript or call result";
+    expect(report.inventory.tools.find((tool) => tool.name === "calculate")?.trace).toMatchObject({
+      depthLimited: 0,
+      dynamic: 1,
+    });
+    expect(formatSummary(report, { color: false })).toContain(line);
+    expect(toMarkdown(report)).toContain(
+      "- Trace incomplete: tool calculate (js/tools\\.ts:30): 1 call through a callback, subscript or call result",
+    );
+    expect(JSON.stringify(toSarif(report))).toContain("1 handler was traced incompletely");
+  });
+
   it("validates the full inventory, findings and linked facts of all fixture corpora", () => {
     for (const value of reports) {
       expect(validateReport(value), JSON.stringify(validateReport.errors)).toBe(true);
@@ -150,7 +165,7 @@ describe("report contracts", () => {
     expect(validateReport(trimmed), JSON.stringify(validateReport.errors)).toBe(true);
   });
 
-  it("retains coverage warnings, including syntax errors, unreadable files and truncation", () => {
+  it("retains coverage warnings, including syntax errors, unreadable files, truncation and incomplete traces", () => {
     const value = {
       ...report,
       truncated: true,
@@ -160,7 +175,8 @@ describe("report contracts", () => {
       skipped: [{ path: "missing.py", reason: "unreadable" as const }],
     };
     const sarif = toSarif(value);
-    expect(sarif.runs[0]?.invocations[0]?.toolExecutionNotifications).toHaveLength(3);
+    // The risks fixture's calculate tool calls a generated function, so its trace is incomplete.
+    expect(sarif.runs[0]?.invocations[0]?.toolExecutionNotifications).toHaveLength(4);
     expect(validateSarif(sarif), JSON.stringify(validateSarif.errors)).toBe(true);
     expect(toMarkdown(value)).toContain("Scan truncated: yes");
   });

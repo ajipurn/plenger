@@ -1,6 +1,7 @@
 /** Wording shared by the rule checks: inline code, lists, labels and the verbs for capabilities. */
 
-import type { CapabilityKind, DynamicPart } from "../inventory/model.ts";
+import { MAX_DEPTH } from "../capabilities/effects.ts";
+import type { CapabilityKind, DynamicPart, TraceGaps } from "../inventory/model.ts";
 
 /** How an MCP server with no name is referred to in titles. */
 export const UNNAMED = "unnamed";
@@ -55,3 +56,14 @@ export const ACTION_PHRASE: Record<CapabilityKind, string> = {
   agent: "run other agents",
   llm: "call models",
 };
+
+/** What a handler's trace did not follow: "1 call past the depth limit of 6, 2 calls through ...". */
+export function traceGapText(trace: Pick<TraceGaps, "depthLimited" | "dynamic">): string {
+  const calls = (count: number) => `${count} ${count === 1 ? "call" : "calls"}`;
+  return [
+    trace.depthLimited ? `${calls(trace.depthLimited)} past the depth limit of ${MAX_DEPTH}` : "",
+    trace.dynamic ? `${calls(trace.dynamic)} through a callback, subscript or call result` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}

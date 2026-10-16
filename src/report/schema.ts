@@ -55,6 +55,7 @@ const projectLinks = {
 const definitions: Record<string, Schema> = {
   span: object(span),
   location: object({ path: text, ...span }),
+  traceGaps: object({ depthLimited: natural, dynamic: natural, locations }),
   dynamicPart: object(
     { text, source: choices("param", "name", "call", "other") },
     { ref: text, from: texts, calls: texts, callSites: texts },
@@ -166,7 +167,7 @@ const definitions: Record<string, Schema> = {
       capabilities,
       server: nullable(text),
     },
-    { handlerPath: text, agent: text, approval: text },
+    { handlerPath: text, agent: text, approval: text, trace: ref("traceGaps") },
   ),
   mcpMember: object(
     { name: text, handler: nullable(text), location: ref("location") },
@@ -195,7 +196,7 @@ const definitions: Record<string, Schema> = {
       handler: nullable(text),
       reaches: capabilities,
     },
-    { handlerPath: text },
+    { handlerPath: text, trace: ref("traceGaps") },
   ),
   inventory: object({
     frameworks: array(object({ id: text, name: text, files: texts })),
