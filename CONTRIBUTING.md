@@ -136,6 +136,13 @@ touches them. The FastAPI image is built per project by `plenger redteam
 prepare`, from the recipe plus the project's `requirements.txt`; there is no
 fixture image to qualify separately yet.
 
+Managed runs and FastAPI preparation remove their runtime images on completion,
+failure or cancellation. Campaign repetitions share one image and remove it at
+the end. Docker needs Buildx for a dedicated builder whose cache is removed after
+each build. Podman disables intermediate image caching. Shared base and service
+images stay reusable, as do images built by the developer qualification scripts.
+The next run builds a new runtime image.
+
 ```sh
 pnpm qualify:llmfy    # builds the llmfy image, runs the synthetic suite and the container tests
 pnpm qualify:vercel   # builds the Next.js image and runs test/redteam-vercel-run.test.ts against it

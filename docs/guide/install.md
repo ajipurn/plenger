@@ -78,10 +78,11 @@ Dashboard data is stored separately from the installed package.
 
 ## Container prerequisites
 
-Red-team runs need Docker Desktop or a Docker engine reachable through the
-`docker` CLI, or Podman with a running Linux backend. Docker is preferred when
-`docker info` succeeds. The first run downloads the pinned base image and
-dependency packages and builds a local image. Static scanning needs neither.
+Red-team runs need Docker Desktop or a Docker engine with the Buildx plugin,
+reachable through the `docker` CLI, or Podman with a running Linux backend.
+Docker is preferred when `docker info` succeeds. Each run builds its own image
+from the pinned recipe without a shared build cache, so every build downloads
+dependency packages and needs network access. Static scanning needs neither.
 See [redteam.md](redteam.md#prerequisites).
 
 The npm package includes all red-team commands and recipes. Containers are

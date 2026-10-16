@@ -43,6 +43,21 @@ container stdio.
   10 seconds, in epoch milliseconds. A live host stops its worker before then,
   so `removeExpiredWorkers()` treats a labelled container past that time as
   left by a host that died and removes it when a runtime is prepared.
+- Removing a worker or backing service also removes its anonymous volumes.
+  Trial data and writable container layers are disposable; reports stay on the host.
+- Runs own a unique runtime image tag and remove it after execution, including
+  failure or cancellation. Campaign repetitions share one image until the campaign
+  ends. FastAPI preparation follows the same cleanup policy.
+- Docker builds use a dedicated Buildx container builder. Removing that builder
+  after the build removes its cache volume. Podman builds disable intermediate
+  image caching and remove build containers. Cleanup never prunes global storage.
+  Shared base and service images and qualification fixture images stay reusable.
+- Run images carry `org.plenger.expires`: build time plus the longest build and
+  the longest run deadline. Only a host that died leaves an expired run image or a
+  dedicated builder older than the longest build. Preparing a runtime removes both,
+  by tag and by builder name, with `removeExpiredRuntimes()`.
+- A Docker host needs the Buildx plugin for managed runs. A failed `buildx create`
+  is reported as a build failure; there is no builder to clean up.
 - The host writes exactly one request line to stdin, then keeps stdin open
   for `model_response` replies. Each frame is one JSON object followed by
   `\n`.

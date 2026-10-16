@@ -1,3 +1,5 @@
+import { MAX_BUDGET_TIMEOUT_MS } from "./constants.ts";
+
 export interface BudgetLimits {
   maxModelCalls: number;
   maxTokens: number;
@@ -342,7 +344,7 @@ export class ModelBudget {
 export function validateBudgetLimits(limits: BudgetLimits): void {
   integer(limits.maxModelCalls, "maxModelCalls", 1, 100_000);
   integer(limits.maxTokens, "maxTokens", 1, Number.MAX_SAFE_INTEGER);
-  integer(limits.timeoutMs, "timeoutMs", 1, 86_400_000);
+  integer(limits.timeoutMs, "timeoutMs", 1, MAX_BUDGET_TIMEOUT_MS);
 }
 
 function integer(

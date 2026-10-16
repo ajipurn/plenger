@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 const { spawn } = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock("node:child_process", () => ({ spawn }));
 
+import { startDisposableServices } from "../src/redteam/services.ts";
 import { removeExpiredWorkers, runWorker } from "../src/redteam/worker.ts";
 
 const image = `sha256:${"a".repeat(64)}`;
@@ -49,7 +50,9 @@ it("removes only labelled workers past their expiry", async () => {
   });
   expect(await removeExpiredWorkers("docker", 5000)).toBe(1);
   expect(calls[0]).toEqual(["ps", "--all", "--quiet", "--filter", "label=org.plenger.expires"]);
-  expect(calls.filter((args) => args[0] === "rm")).toEqual([["rm", "--force", "expired"]]);
+  expect(calls.filter((args) => args[0] === "rm")).toEqual([
+    ["rm", "--force", "--volumes", "expired"],
+  ]);
 });
 
 it("leaves everything in place when the engine cannot list containers", async () => {
@@ -70,3 +73,33 @@ it("labels each worker with its deadline plus the backstop grace", async () => {
   expect(expires).toBeGreaterThanOrEqual(before + 15_000);
   expect(expires).toBeLessThanOrEqual(after + 15_000);
 });
+
+it.each(["docker", "podman"] as const)(
+  "removes service containers with their anonymous data volumes on %s",
+  async (program) => {
+    const containers = new Set<string>();
+    const calls = engine((args) => {
+      if (args[0] === "run") containers.add(args[args.indexOf("--name") + 1] as string);
+      if (args[0] === "exec") return { stdout: "alive PONG" };
+      if (args[0] === "ps") {
+        const name = (args.at(-1) as string).replace(/^name=\^\//, "").replace(/\$$/, "");
+        return { stdout: containers.has(name) ? name : "" };
+      }
+      if (args[0] === "rm") containers.delete(args.at(-1) as string);
+      return {};
+    });
+    const services = await startDisposableServices(
+      program,
+      ["mysql", "redis"],
+      new AbortController().signal,
+      { timeoutMs: 10_000 },
+    );
+    expect(containers.size).toBe(2);
+    expect(await services.dispose()).toBe(true);
+    expect(containers.size).toBe(0);
+    const removals = calls.filter((args) => args[0] === "rm");
+    expect(removals).toHaveLength(2);
+    for (const args of removals) expect(args).toContain("--volumes");
+    expect(calls.at(-1)).toEqual(["network", "rm", services.network]);
+  },
+);

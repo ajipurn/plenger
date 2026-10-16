@@ -1,6 +1,6 @@
 import { cp, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fillTemplate, trialTemplate } from "../src/redteam/attack-model.ts";
 import { createCampaignPlan, executeCampaign, newCampaign } from "../src/redteam/campaign.ts";
 import {
@@ -69,6 +69,26 @@ function scriptedProvider(refuse = false): RunProvider {
   });
 }
 describe("managed Next.js preparation", () => {
+  it("releases its runtime image after backend validation fails", async () => {
+    const root = await project();
+    const plan = await planProject(root);
+    const options = {
+      target: plan.selectedTarget as string,
+      sourceDigest: plan.sourceDigest,
+      provider: scriptedProvider(),
+      profile: "vercel-booking-sqlite-v1" as const,
+      limits: { maxModelCalls: 20, maxTokens: 1000000, timeoutMs: 120000 },
+    };
+    const dispose = vi.fn(async () => {});
+    const report = await executeVercelRun(newRun(root, options), options, {
+      prepare: async () => ({ image: `sha256:${"a".repeat(64)}`, dispose }),
+      worker: async () => {
+        throw new WorkerError("Backend failed.", { cleanupConfirmed: true });
+      },
+    });
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(report).toMatchObject({ state: "failed", cleanupConfirmed: true });
+  });
   it("captures the handler closure, supplies resources and rejects stale source", async () => {
     const root = await project();
     await writeFile(join(root, ".env"), "OPENAI_API_KEY=private-local-secret");

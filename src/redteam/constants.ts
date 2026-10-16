@@ -39,6 +39,16 @@ export const MODEL_RESPONSE_CAP = 64 * 1024;
 /** SSE deltas repeat metadata and the final response, so wire bytes have a separate cap. */
 export const MODEL_STREAM_CAP = 4 * 1024 * 1024;
 export const WORKER_TIMEOUT_MS = 120_000;
+/** Dedicated Docker builders keep each run's build cache separate from the host's. */
+export const BUILDKIT_IMAGE =
+  "docker.io/moby/buildkit:buildx-stable-1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea";
+/** Longest budget deadline a run or campaign accepts: 24 hours. */
+export const MAX_BUDGET_TIMEOUT_MS = 86_400_000;
+/**
+ * Build deadline of the bundled llmfy and Vercel recipes. Run images share no build
+ * cache, so every build pulls its base image and installs every pinned package.
+ */
+export const RUNTIME_BUILD_TIMEOUT_MS = 600_000;
 /** Observations a single live trial may record. */
 export const RUN_EVENT_LIMIT = 128;
 /** Observations an exported trial may carry (stored evidence is validated more leniently). */
@@ -191,6 +201,16 @@ export const FASTAPI_WORKER = {
   timeoutMs: 300_000,
   /** Resolving and installing a project's wheels, including a possible platform retry. */
   buildTimeoutMs: 1_800_000,
+} as const;
+/**
+ * The longest a disposable runtime can legitimately exist. A dedicated Docker builder
+ * lives for one build; a run image lives for its build plus the longest run deadline.
+ * Older labelled images and builders were left by a host that died, and preparing the
+ * next runtime removes them.
+ */
+export const DISPOSABLE_RUNTIME_TTL = {
+  builderMs: FASTAPI_WORKER.buildTimeoutMs + 600_000,
+  imageMs: FASTAPI_WORKER.buildTimeoutMs + MAX_BUDGET_TIMEOUT_MS + 600_000,
 } as const;
 /** Every check a `ready` frame from the FastAPI worker must report. */
 export const FASTAPI_ISOLATION_CHECKS: readonly string[] = [

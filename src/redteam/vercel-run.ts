@@ -25,7 +25,7 @@ import {
   withRunLifecycle,
 } from "./run-lifecycle.ts";
 import type { DatabaseState, RedteamRun, RunOptions, RunTrial } from "./run-model.ts";
-import { prepareVercelRuntime } from "./runtime.ts";
+import { prepareRunRuntime } from "./runtime.ts";
 import { cleanupConfirmedFrom, runVercelWorker, type WorkerLauncher } from "./worker.ts";
 
 const VERCEL_SPEC: RuntimeSpec = {
@@ -143,7 +143,11 @@ export async function executeVercelRun(
       async (workspace, plan) => {
         if (!plan.nextProfile) throw new Error("Wrong runtime profile.");
         const sources = await readWorkspaceSources(workspace, plan);
-        const image = await (dependencies.prepare ?? prepareVercelRuntime)(context.budget.signal);
+        const image = context.useRuntime(
+          await (dependencies.prepare ?? ((signal) => prepareRunRuntime("vercel", signal)))(
+            context.budget.signal,
+          ),
+        );
         report.state = "running";
         context.update();
         const session: VercelSession = {

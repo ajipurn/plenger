@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createCampaignPlan, executeCampaign, newCampaign } from "../src/redteam/campaign.ts";
 import { WORKER_PROTOCOL_VERSION } from "../src/redteam/constants.ts";
 import { planProject } from "../src/redteam/plan.ts";
 import {
@@ -11,6 +12,8 @@ import {
 } from "../src/redteam/provider.ts";
 import { executeRun, newRun, type RunOptions } from "../src/redteam/run.ts";
 import { assertReadyFrame } from "../src/redteam/run-lifecycle.ts";
+import * as runtime from "../src/redteam/runtime.ts";
+import * as workers from "../src/redteam/worker.ts";
 import { WorkerError, type WorkerLauncher } from "../src/redteam/worker.ts";
 import { stubProvider, toolCallReply } from "./support/provider.ts";
 import { temporaryDir } from "./support/tmp.ts";
@@ -115,6 +118,96 @@ function worker({
   };
 }
 const prepare = async () => `sha256:${"a".repeat(64)}`;
+afterEach(() => vi.restoreAllMocks());
+
+describe("runtime cleanup at the end of execution", () => {
+  it.each(["completed", "failed", "stopped"] as const)(
+    "disposes the owned image after workers (%s)",
+    async (state) => {
+      const { root, options } = await project();
+      const controller = new AbortController();
+      options.signal = controller.signal;
+      let disposed = false;
+      const dispose = vi.fn(async () => {
+        disposed = true;
+      });
+      const simulate = worker({ violate: true });
+      const snapshots: string[] = [];
+      options.onUpdate = (report) => {
+        if (report.finishedAt) snapshots.push(report.state);
+      };
+      const report = await executeRun(newRun(root, options), options, {
+        prepare: async () => ({ image: await prepare(), dispose }),
+        worker: async (image, request, signal, receive) => {
+          expect(disposed).toBe(false);
+          await simulate(image, request, signal, receive);
+          if (state === "stopped") controller.abort();
+          if (state !== "completed")
+            throw new WorkerError("Worker stopped.", { cleanupConfirmed: true });
+        },
+      });
+      expect(report.state).toBe(state);
+      expect(report.cleanupConfirmed).toBe(true);
+      expect(dispose).toHaveBeenCalledTimes(1);
+      expect(snapshots).toEqual([state]);
+      expect(report.trials[0]?.events.length).toBeGreaterThan(0);
+    },
+  );
+
+  it("preserves trial evidence and provider errors when image cleanup fails", async () => {
+    const { root, options } = await project();
+    options.provider.generate = async () => {
+      throw new ModelProviderHttpError(410);
+    };
+    const report = await executeRun(newRun(root, options), options, {
+      prepare: async () => ({
+        image: await prepare(),
+        dispose: async () => {
+          throw new Error("Engine refused cleanup.");
+        },
+      }),
+      worker: worker(),
+    });
+    expect(report.state).toBe("failed");
+    expect(report.cleanupConfirmed).toBe(false);
+    expect(report.error).toContain("HTTP 410");
+    expect(report.error).toContain("Runtime image cleanup failed");
+    expect(report.trials[0]?.modelCalls).toBe(1);
+  });
+
+  it.each([false, true])(
+    "shares one runtime across a campaign and cleans it after the final repetition (cleanup fails=%s)",
+    async (fails) => {
+      const { root, options } = await project();
+      const dispose = vi.fn(async () => {
+        if (fails) throw new Error("Cleanup refused.");
+      });
+      const build = vi
+        .spyOn(runtime, "prepareRunRuntime")
+        .mockResolvedValue({ image: await prepare(), dispose });
+      const simulate = worker({ violate: true });
+      vi.spyOn(workers, "runLlmfyWorker").mockImplementation(async (...args) => {
+        expect(dispose).not.toHaveBeenCalled();
+        await simulate(...args);
+      });
+      const plan = createCampaignPlan(await planProject(root), {
+        provider: "ollama",
+        model: options.provider.model,
+        repetitions: 2,
+        limits: { ...options.limits, maxModelCalls: 20 },
+      });
+      const report = await executeCampaign(newCampaign(plan), {
+        ...options.provider,
+        name: "ollama",
+      });
+      expect(report.runs).toHaveLength(2);
+      expect(build).toHaveBeenCalledTimes(1);
+      expect(dispose).toHaveBeenCalledTimes(1);
+      expect(report.state).toBe(fails ? "failed" : "completed");
+      expect(report.runs.at(-1)?.cleanupConfirmed).toBe(!fails);
+    },
+  );
+});
 
 describe("managed run scoring and shared budget", () => {
   it("preserves a safe model HTTP status after worker cleanup without counting a failed control as safe", async () => {

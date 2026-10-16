@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { FASTAPI_SERVICES, type FastapiService } from "./constants.ts";
-import { EXPIRES_LABEL, runContainer } from "./worker.ts";
+import { EXPIRES_LABEL, removeContainer, runContainer } from "./worker.ts";
 
 /** Margin past the deadline for the expiry label, as for workers. */
 const BACKSTOP_GRACE_MS = 10_000;
@@ -159,13 +159,7 @@ export const startDisposableServices: ServiceLauncher = async (engine, names, si
     let confirmed = true;
     for (const container of containers) {
       try {
-        await runContainer({
-          engine,
-          args: ["rm", "--force", container],
-          input: "",
-          timeoutMs: 30_000,
-          maxOutputBytes: 65536,
-        });
+        await removeContainer(engine, container);
       } catch {
         confirmed = false;
       }

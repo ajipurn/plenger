@@ -11,11 +11,12 @@ import {
   type RunProvider,
 } from "./provider.ts";
 import type { RedteamRun, RunOptions, RunTrial } from "./run-model.ts";
+import { type DisposableRuntime, RuntimeCleanupError } from "./runtime.ts";
 import type { WorkerLauncher } from "./worker.ts";
 
 /** Substitutes for the managed image build and worker launch, used by offline tests. */
 export interface RunDependencies {
-  prepare?: (signal: AbortSignal) => Promise<string>;
+  prepare?: (signal: AbortSignal) => Promise<string | DisposableRuntime>;
   worker?: WorkerLauncher;
 }
 
@@ -24,6 +25,8 @@ export interface RunContext {
   budget: ModelBudget;
   /** Refresh `report.budget`, redact and publish a snapshot to `onUpdate`. */
   update: () => void;
+  /** Register an owned runtime before launching workers; injected fixture images stay reusable. */
+  useRuntime: (runtime: string | DisposableRuntime) => string;
 }
 
 /**
@@ -45,11 +48,20 @@ export async function withRunLifecycle(
     redactReport(report);
     options.onUpdate?.(structuredClone(report));
   };
+  let runtime: DisposableRuntime | undefined;
   try {
     update();
-    await body({ budget, update });
+    await body({
+      budget,
+      update,
+      useRuntime: (prepared) => {
+        if (typeof prepared === "string") return prepared;
+        runtime = prepared;
+        return prepared.image;
+      },
+    });
     report.state = budget.signal.aborted ? "stopped" : "completed";
-  } catch {
+  } catch (error) {
     report.state = budget.signal.aborted ? "stopped" : "failed";
     // The first stop reason is the cause; later ones (a cancel after the cap) follow from it.
     const { stopReasons, limits } = budget.snapshot();
@@ -60,12 +72,29 @@ export async function withRunLifecycle(
           ? describeBudgetStop(reason, limits)
           : "Run stopped by its budget, deadline or cancellation."
         : (report.error ?? failureMessage);
+    if (error instanceof RuntimeCleanupError) recordRuntimeCleanupFailure(report, error);
   } finally {
     if (!options.sharedBudget) budget.finish();
+    if (runtime) {
+      try {
+        await runtime.dispose();
+      } catch (error) {
+        recordRuntimeCleanupFailure(report, error);
+      }
+    }
     report.finishedAt = new Date().toISOString();
     update();
   }
   return report;
+}
+
+/** Keep observed evidence and the original error when final resource cleanup fails. */
+export function recordRuntimeCleanupFailure(report: RedteamRun, error: unknown): void {
+  report.cleanupConfirmed = false;
+  if (report.state !== "stopped") report.state = "failed";
+  const message =
+    error instanceof RuntimeCleanupError ? error.message : "Runtime image cleanup failed.";
+  report.error = report.error ? `${report.error} ${message}` : message;
 }
 
 /** The captured source files of a prepared snapshot, as the worker receives them. */

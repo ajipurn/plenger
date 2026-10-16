@@ -16,6 +16,8 @@ import type { ProjectPlan } from "./plan-model.ts";
 import type { RunProvider } from "./provider.ts";
 import { isProviderId, type ProviderConfig, validateProviderConfig } from "./provider-config.ts";
 import { executeRun, interruptRun, isRunActive, newRun, validateRunPlan } from "./run.ts";
+import { recordRuntimeCleanupFailure } from "./run-lifecycle.ts";
+import { type DisposableRuntime, prepareRunRuntime } from "./runtime.ts";
 
 export {
   backendObservations,
@@ -388,6 +390,15 @@ export async function executeCampaign(
     refreshCampaignDerived(report);
     options.onUpdate?.(structuredClone(report));
   };
+  // Repetitions share one image; workers and trial data are still fresh every time.
+  let runtime: DisposableRuntime | undefined;
+  const prepare = async (signal: AbortSignal) => {
+    runtime ??= await prepareRunRuntime(
+      report.plan.profile === "vercel-booking-sqlite-v1" ? "vercel" : "llmfy",
+      signal,
+    );
+    return runtime.image;
+  };
   try {
     report.state = "running";
     update();
@@ -407,7 +418,8 @@ export async function executeCampaign(
       const run = newRun(report.plan.root, runOptions);
       if (report.plan.providerConfig) run.providerConfig = { ...report.plan.providerConfig };
       report.runs.push(run);
-      await (options.execute ?? executeRun)(run, runOptions);
+      if (options.execute) await options.execute(run, runOptions);
+      else await executeRun(run, runOptions, { prepare });
       if (run.state !== "completed" || !run.cleanupConfirmed) break;
     }
     report.state = budget.signal.aborted
@@ -420,6 +432,15 @@ export async function executeCampaign(
     report.state = budget.signal.aborted ? "stopped" : "failed";
   } finally {
     budget.finish();
+    if (runtime) {
+      try {
+        await runtime.dispose();
+      } catch (error) {
+        const run = report.runs.at(-1);
+        if (run) recordRuntimeCleanupFailure(run, error);
+        if (report.state !== "stopped") report.state = "failed";
+      }
+    }
     report.finishedAt = new Date().toISOString();
     update();
   }

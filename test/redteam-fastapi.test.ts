@@ -48,11 +48,15 @@ const ready = {
 
 function stubs(worker: FastapiWorkerLauncher) {
   let disposed = 0;
+  let runtimeDisposed = 0;
   const dependencies: FastapiDependencies = {
     prepare: async () => ({
       image: `docker:sha256:${"a".repeat(64)}`,
       platform: "linux/amd64",
       engine: "docker",
+      dispose: async () => {
+        runtimeDisposed += 1;
+      },
     }),
     services: async (_engine, names) => ({
       network: "plenger-services-test",
@@ -71,7 +75,7 @@ function stubs(worker: FastapiWorkerLauncher) {
     }),
     worker,
   };
-  return { dependencies, disposed: () => disposed };
+  return { dependencies, disposed: () => disposed, runtimeDisposed: () => runtimeDisposed };
 }
 
 describe("FastAPI profile planning", () => {
@@ -146,21 +150,23 @@ describe("FastAPI preparation", () => {
 
   it("builds, starts services, imports the application and probes a route without any model call", async () => {
     let launch: { request: Record<string, unknown>; options: FastapiWorkerOptions } | undefined;
-    const { dependencies, disposed } = stubs(async (image, request, _signal, receive, options) => {
-      launch = { request, options };
-      expect(image).toMatch(/^docker:sha256:/);
-      await receive(ready);
-      await receive({ type: "adapter", llmfy: "0.6.0", patched: ["llmfy.BedrockModel"] });
-      await receive({
-        type: "imported",
-        durationMs: 12,
-        application: "FastAPI",
-        routes: [{ methods: ["GET"], path: "/" }],
-      });
-      await receive({ type: "event", stage: "tool_handler_entered", tool: "lookup_order" });
-      await receive({ type: "probe", method: "GET", path: "/", status: 200, bytes: 20 });
-      await receive({ type: "finished", completed: true });
-    });
+    const { dependencies, disposed, runtimeDisposed } = stubs(
+      async (image, request, _signal, receive, options) => {
+        launch = { request, options };
+        expect(image).toMatch(/^docker:sha256:/);
+        await receive(ready);
+        await receive({ type: "adapter", llmfy: "0.6.0", patched: ["llmfy.BedrockModel"] });
+        await receive({
+          type: "imported",
+          durationMs: 12,
+          application: "FastAPI",
+          routes: [{ methods: ["GET"], path: "/" }],
+        });
+        await receive({ type: "event", stage: "tool_handler_entered", tool: "lookup_order" });
+        await receive({ type: "probe", method: "GET", path: "/", status: 200, bytes: 20 });
+        await receive({ type: "finished", completed: true });
+      },
+    );
     const updates: FastapiPreparation["stage"][] = [];
     const report = await prepareFastapiProject(
       fixture,
@@ -214,6 +220,7 @@ describe("FastAPI preparation", () => {
       expect.arrayContaining(["plan", "build", "services", "worker", "done"]),
     );
     expect(disposed()).toBe(1);
+    expect(runtimeDisposed()).toBe(1);
   });
 
   it("records an import failure, refuses a model request and a wrong runtime, and always removes services", async () => {
@@ -227,6 +234,7 @@ describe("FastAPI preparation", () => {
       await receive({ type: "finished", completed: false });
     });
     const failed = await prepareFastapiProject(fixture, {}, failing.dependencies);
+    expect(failing.runtimeDisposed()).toBe(1);
     expect(failed).toMatchObject({
       state: "failed",
       stage: "worker",
@@ -249,6 +257,38 @@ describe("FastAPI preparation", () => {
     expect((await prepareFastapiProject(fixture, {}, wrong.dependencies)).state).toBe("failed");
     expect(wrong.disposed()).toBe(1);
   });
+
+  it.each(["services", "cancelled", "cleanup"] as const)(
+    "releases the runtime after %s failure",
+    async (stage) => {
+      const controller = new AbortController();
+      const stub = stubs(async (_image, _request, _signal, receive) => {
+        await receive(ready);
+        await receive({ type: "finished", completed: true });
+        if (stage === "cancelled") controller.abort();
+      });
+      if (stage === "services")
+        stub.dependencies.services = async () => {
+          throw new Error("Service startup failed.");
+        };
+      const prepare = stub.dependencies.prepare as NonNullable<FastapiDependencies["prepare"]>;
+      const dispose = vi.fn(async () => {
+        expect(stub.disposed()).toBe(stage === "services" ? 0 : 1);
+        if (stage === "cleanup") throw new Error("Image still in use.");
+      });
+      stub.dependencies.prepare = async (...args) => ({ ...(await prepare(...args)), dispose });
+      const report = await prepareFastapiProject(
+        fixture,
+        { signal: controller.signal },
+        stub.dependencies,
+      );
+      expect(dispose).toHaveBeenCalledTimes(1);
+      expect(report.finishedAt).not.toBeNull();
+      expect(report.state).toBe(stage === "cancelled" ? "stopped" : "failed");
+      expect(report.cleanupConfirmed).toBe(stage !== "cleanup");
+      if (stage === "cleanup") expect(report.error).toContain("Runtime image cleanup failed");
+    },
+  );
 
   it("prepares a project given as a relative path and reports its real path", async () => {
     const { dependencies } = stubs(async (_image, _request, _signal, receive) => {

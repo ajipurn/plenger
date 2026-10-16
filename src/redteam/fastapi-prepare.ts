@@ -14,7 +14,7 @@ import { PreparationError, type ProjectPlan } from "./plan-model.ts";
 import { decodeSource, readProjectFile } from "./project-files.ts";
 import { record } from "./provider.ts";
 import { assertReadyFrame, readWorkspaceSources } from "./run-lifecycle.ts";
-import { type FastapiRuntime, prepareFastapiRuntime } from "./runtime.ts";
+import { type FastapiRuntime, prepareFastapiRuntime, RuntimeCleanupError } from "./runtime.ts";
 import {
   type DisposableServices,
   type ServiceLauncher,
@@ -144,6 +144,7 @@ export async function prepareFastapiProject(
     options.onUpdate?.(structuredClone(report));
   };
   let services: DisposableServices | undefined;
+  let runtime: FastapiRuntime | undefined;
   try {
     validateSettings(options.settings ?? {});
     update();
@@ -172,17 +173,21 @@ export async function prepareFastapiProject(
         const sources = await readWorkspaceSources(workspace, plan);
         report.stage = "build";
         update();
-        const runtime = await (dependencies.prepare ?? prepareFastapiRuntime)(requirements, signal);
+        const prepared = await (dependencies.prepare ?? prepareFastapiRuntime)(
+          requirements,
+          signal,
+        );
+        runtime = prepared;
         report.runtime = {
-          image: runtime.image,
-          platform: runtime.platform,
+          image: prepared.image,
+          platform: prepared.platform,
           python: "",
           llmfy: "",
         };
         report.stage = "services";
         update();
         const started = await (dependencies.services ?? startDisposableServices)(
-          runtime.engine,
+          prepared.engine,
           profile.services,
           signal,
           { timeoutMs: FASTAPI_WORKER.timeoutMs },
@@ -204,7 +209,7 @@ export async function prepareFastapiProject(
         const llmfyVersion = profile.llmfy.version;
         try {
           await (dependencies.worker ?? runFastapiWorker)(
-            runtime.image,
+            prepared.image,
             {
               sources,
               app: { module: profile.app.module, attribute: profile.app.attribute },
@@ -218,7 +223,7 @@ export async function prepareFastapiProject(
             {
               network: started.network,
               env,
-              ...(runtime.platform === "native" ? {} : { platform: runtime.platform }),
+              ...(prepared.platform === "native" ? {} : { platform: prepared.platform }),
             },
           );
           report.cleanupConfirmed = true;
@@ -240,6 +245,7 @@ export async function prepareFastapiProject(
       throw error;
     }
     report.state = signal.aborted ? "stopped" : "failed";
+    if (error instanceof RuntimeCleanupError) report.cleanupConfirmed = false;
     report.error =
       report.state === "stopped"
         ? "Preparation stopped by its deadline or cancellation."
@@ -251,6 +257,17 @@ export async function prepareFastapiProject(
     if (services) {
       const removed = await services.dispose();
       report.cleanupConfirmed &&= removed;
+    }
+    if (runtime) {
+      try {
+        await runtime.dispose();
+      } catch (error) {
+        report.cleanupConfirmed = false;
+        if (report.state !== "stopped") report.state = "failed";
+        const message =
+          error instanceof RuntimeCleanupError ? error.message : "Runtime image cleanup failed.";
+        report.error = report.error ? `${report.error} ${message}` : message;
+      }
     }
     report.finishedAt = new Date().toISOString();
     update();

@@ -21,7 +21,7 @@ import {
   withRunLifecycle,
 } from "./run-lifecycle.ts";
 import type { RedteamRun, RunEvent, RunOptions, RunTrial } from "./run-model.ts";
-import { prepareLlmfyRuntime } from "./runtime.ts";
+import { prepareRunRuntime } from "./runtime.ts";
 import { executeVercelRun } from "./vercel-run.ts";
 import { cleanupConfirmedFrom, runLlmfyWorker, type WorkerLauncher } from "./worker.ts";
 
@@ -65,7 +65,11 @@ export async function executeRun(
         const target = plan.targets.find((item) => item.id === plan.selectedTarget);
         if (!target?.symbol) throw new Error("No supported entry function selected.");
         const sources = await readWorkspaceSources(workspace, plan);
-        const image = await (dependencies.prepare ?? prepareLlmfyRuntime)(context.budget.signal);
+        const image = context.useRuntime(
+          await (dependencies.prepare ?? ((signal) => prepareRunRuntime("llmfy", signal)))(
+            context.budget.signal,
+          ),
+        );
         report.state = "running";
         context.update();
         const session: CanarySession = {

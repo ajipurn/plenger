@@ -250,11 +250,12 @@ export function containerArguments(
   ];
 }
 
-async function removeContainer(engine: "docker" | "podman", name: string): Promise<void> {
+/** Remove only this container and its anonymous volumes; confirm absence on Docker. */
+export async function removeContainer(engine: "docker" | "podman", name: string): Promise<void> {
   if (engine === "podman") {
     await runContainer({
       engine,
-      args: ["rm", "--force", "--time=0", "--ignore", name],
+      args: ["rm", "--force", "--time=0", "--ignore", "--volumes", name],
       input: "",
       timeoutMs: 10_000,
     });
@@ -272,7 +273,7 @@ async function removeContainer(engine: "docker" | "podman", name: string): Promi
     try {
       await runContainer({
         engine,
-        args: ["rm", "--force", name],
+        args: ["rm", "--force", "--volumes", name],
         input: "",
         timeoutMs: 10_000,
         maxOutputBytes: 65536,
@@ -315,7 +316,7 @@ export async function removeExpiredWorkers(
         await command(["inspect", "--format", `{{index .Config.Labels "${EXPIRES_LABEL}"}}`, id])
       ).trim();
       if (!/^\d{1,16}$/.test(label) || Number(label) >= now) continue;
-      await command(["rm", "--force", id]);
+      await command(["rm", "--force", "--volumes", id]);
       removed++;
     } catch {
       // Already removed by --rm, or refused by the engine; the next sweep retries.

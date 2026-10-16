@@ -95,6 +95,7 @@ beforeEach(() => {
       queueMicrotask(() => emit(child));
     } else {
       expect(args.slice(0, 4)).toEqual(["rm", "--force", "--time=0", "--ignore"]);
+      expect(args).toContain("--volumes");
       cleanup = child;
       queueMicrotask(() => {
         if (failCleanup) child.stderr.write("cleanup refused");
