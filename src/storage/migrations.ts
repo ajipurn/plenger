@@ -75,6 +75,43 @@ export const MIGRATIONS: ((database: DatabaseSync) => void)[] = [
         created_at TEXT NOT NULL, payload TEXT NOT NULL
       ) STRICT;
     `),
+  // 5 -> 6: imported REA analysis belongs to one saved scan.
+  (database) =>
+    database.exec(`
+    CREATE TABLE IF NOT EXISTS rea_evidence (
+      id TEXT PRIMARY KEY,
+      scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+      imported_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    ) STRICT;
+    CREATE INDEX IF NOT EXISTS rea_evidence_scan ON rea_evidence(scan_id);
+  `),
+  // 6 -> 7: source-based AI review history and independently generated findings.
+  (database) =>
+    database.exec(`
+    CREATE TABLE IF NOT EXISTS security_reviews (
+      id TEXT PRIMARY KEY,
+      scan_id TEXT NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL,
+      payload TEXT NOT NULL
+    ) STRICT;
+    CREATE INDEX IF NOT EXISTS security_reviews_scan ON security_reviews(scan_id);
+  `),
+  // 7 -> 8: repository-centric security workspace, scans and triage state.
+  (database) =>
+    database.exec(`
+    CREATE TABLE IF NOT EXISTS security_repositories (id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE REFERENCES projects(path) ON DELETE CASCADE, created_at TEXT NOT NULL, payload TEXT NOT NULL) STRICT;
+    CREATE TABLE IF NOT EXISTS security_scans (id TEXT PRIMARY KEY, repository_id TEXT NOT NULL REFERENCES security_repositories(id) ON DELETE CASCADE, started_at TEXT NOT NULL, payload TEXT NOT NULL) STRICT;
+    CREATE TABLE IF NOT EXISTS security_findings (id TEXT PRIMARY KEY, repository_id TEXT NOT NULL REFERENCES security_repositories(id) ON DELETE CASCADE, payload TEXT NOT NULL) STRICT;
+  `),
+  // 8 -> 9: non-secret model catalogs, scoped by a private connection fingerprint.
+  (database) =>
+    database.exec(`
+    CREATE TABLE IF NOT EXISTS provider_model_catalogs (
+      connection_id TEXT PRIMARY KEY,
+      payload TEXT NOT NULL
+    ) STRICT;
+  `),
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

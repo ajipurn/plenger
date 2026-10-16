@@ -1,4 +1,5 @@
 import { isRecord } from "../shared/guards.ts";
+import { createAnthropicProvider } from "./anthropic-provider.ts";
 import {
   BudgetStoppedError,
   ModelBudget,
@@ -6,16 +7,27 @@ import {
   type TokenUsage,
 } from "./budget.ts";
 import { createChatgptProvider } from "./chatgpt-provider.ts";
-import { MODEL_REQUEST_CAP, MODEL_RESPONSE_CAP, type ProviderId } from "./constants.ts";
+import {
+  MAX_OUTPUT_TOKENS,
+  MODEL_REQUEST_CAP,
+  MODEL_RESPONSE_CAP,
+  MODEL_TOOL_CALL_LIMIT,
+  type ProviderId,
+} from "./constants.ts";
+import type { ClaudeTokenUsage } from "./model-pricing.ts";
 import { PROVIDER_URLS, providerBaseUrl, validateProviderSettings } from "./provider-config.ts";
 
 export interface ModelRequest {
   messages: unknown[];
   tools: unknown[] | null;
+  /** Host-owned structured output schema. Currently used by native Claude reviews. */
+  outputSchema?: Record<string, unknown>;
 }
 export interface ModelReply {
   content: string | null;
   toolCalls: { id: string; name: string; arguments: Record<string, unknown> }[];
+  /** A provider refusal ends the step without executing tools or retrying. */
+  refusal?: string;
 }
 export interface RunProvider {
   name: string;
@@ -24,7 +36,7 @@ export interface RunProvider {
   generate(
     request: ModelRequest,
     allowance: { signal: AbortSignal; maxOutputTokens: number },
-  ): Promise<{ value: ModelReply; usage?: TokenUsage }>;
+  ): Promise<{ value: ModelReply; usage?: TokenUsage; tokenDetails?: ClaudeTokenUsage }>;
 }
 export interface ProviderAccess {
   provider: ProviderId;
@@ -32,7 +44,9 @@ export interface ProviderAccess {
   apiKey?: string;
   baseUrl?: string;
   temperature?: number | null;
-  maxOutputTokens?: number;
+  maxOutputTokens?: number | null;
+  /** Host-owned operation allowance, independent of saved generation defaults. */
+  outputTokenBudget?: number;
   /** Host-only credential resolver. Never accepted from JSON or exported. */
   accessToken?: (signal: AbortSignal) => Promise<string>;
 }
@@ -80,8 +94,14 @@ export function createRunProvider(
   if (access.provider === "chatgpt") return createChatgptProvider(access, dispatch);
   if (access.provider !== "ollama" && !access.apiKey)
     throw new Error("Enter your selected provider's API key for this run.");
+  if (access.provider === "anthropic") return createAnthropicProvider(access, dispatch);
   const url = `${providerBaseUrl(access.baseUrl ?? PROVIDER_URLS[access.provider])}/chat/completions`;
-  const outputLimit = access.maxOutputTokens ?? 1024;
+  // Automatic output settings (null) use the operation's whole allowance as the ceiling.
+  // The ceiling is always sent, so every reservation stays enforced by the provider.
+  const outputLimit = Math.min(
+    access.maxOutputTokens ?? (access.maxOutputTokens === null ? MAX_OUTPUT_TOKENS : 1024),
+    access.outputTokenBudget ?? MAX_OUTPUT_TOKENS,
+  );
   // Gemini's OpenAI-compatible transport requires its returned thought signatures
   // on later function-call turns. Retain these only within this provider instance.
   const metadata = new Map<string, unknown>();
@@ -146,27 +166,7 @@ export function createRunProvider(
         await response.body?.cancel();
         throw new ModelProviderHttpError(response.status);
       }
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("Model provider returned an empty response.");
-      const chunks: Uint8Array[] = [];
-      let bytes = 0;
-      try {
-        for (;;) {
-          const next = await reader.read();
-          if (next.done) break;
-          bytes += next.value.byteLength;
-          if (bytes > MODEL_RESPONSE_CAP) throw new Error("Model response exceeds the size limit.");
-          chunks.push(next.value);
-        }
-      } finally {
-        await reader.cancel();
-      }
-      let raw: unknown;
-      try {
-        raw = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-      } catch {
-        throw new Error("Model provider returned invalid JSON.");
-      }
+      const raw = await readModelJson(response);
       const parsed = parseModelReply(raw);
       if (access.provider === "gemini") {
         const value = record(raw);
@@ -210,9 +210,10 @@ export async function testProviderConnection(
       messages: [{ role: "user", content: "Reply with OK." }],
       tools: null,
     };
-    await budget.execute(provider.reservation(request, "setup"), (allowance) =>
+    const reply = await budget.execute(provider.reservation(request, "setup"), (allowance) =>
       provider.generate(request, allowance),
     );
+    if (reply.refusal) throw new Error("The provider declined the connection test.");
     return { model: provider.model, durationMs: Math.round(performance.now() - started) };
   } catch (error) {
     throw new Error(
@@ -243,7 +244,8 @@ export function parseModelReply(raw: unknown): { value: ModelReply; usage?: Toke
   if (message.content !== null && typeof message.content !== "string")
     throw new Error("Invalid model content.");
   const calls = message.tool_calls ?? [];
-  if (!Array.isArray(calls) || calls.length > 8) throw new Error("Invalid model tool calls.");
+  if (!Array.isArray(calls) || calls.length > MODEL_TOOL_CALL_LIMIT)
+    throw new Error("Invalid model tool calls.");
   const toolCalls = calls.map((item: unknown) => {
     const call = record(item);
     const fn = record(call.function);
@@ -290,4 +292,31 @@ export function parseModelReply(raw: unknown): { value: ModelReply; usage?: Toke
 export function record(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) throw new Error("Invalid runtime message.");
   return value;
+}
+
+/** Bounded JSON for native and compatible model transports. */
+export async function readModelJson(
+  response: Response,
+  byteCap = MODEL_RESPONSE_CAP,
+): Promise<unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Model provider returned an empty response.");
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      bytes += next.value.byteLength;
+      if (bytes > byteCap) throw new Error("Model response exceeds the size limit.");
+      chunks.push(next.value);
+    }
+  } finally {
+    await reader.cancel();
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    throw new Error("Model provider returned invalid JSON.");
+  }
 }

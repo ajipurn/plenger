@@ -133,17 +133,25 @@ export async function dispatchModelCall(
   trial: RunTrial,
   request: ModelRequest,
 ): Promise<ModelReply> {
-  return context.budget.execute(provider.reservation(request, trial.purpose), async (allowance) => {
-    trial.modelCalls += 1;
-    context.update();
-    try {
-      return await provider.generate(request, allowance);
-    } catch (error) {
-      if (error instanceof ModelProviderHttpError)
-        report.error = `Model provider returned HTTP ${error.status}. Check model availability and access in Providers.`;
-      throw error;
-    }
-  });
+  const reply = await context.budget.execute(
+    provider.reservation(request, trial.purpose),
+    async (allowance) => {
+      trial.modelCalls += 1;
+      context.update();
+      try {
+        return await provider.generate(request, allowance);
+      } catch (error) {
+        if (error instanceof ModelProviderHttpError)
+          report.error = `Model provider returned HTTP ${error.status}. Check model availability and access in Providers.`;
+        throw error;
+      }
+    },
+  );
+  if (reply.refusal) {
+    report.error = `Model provider refused the request: ${reply.refusal}`;
+    throw new Error(report.error);
+  }
+  return reply;
 }
 
 /** The pinned versions and isolation checks a worker's `ready` frame must report. */

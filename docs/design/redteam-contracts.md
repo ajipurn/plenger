@@ -67,6 +67,13 @@ completed usage and stops on an overrun. Those reservations are estimates,
 not guaranteed bounds on subscription consumption. It never retries model
 requests. OAuth refresh is serialized separately and makes no inference call.
 
+Saved OpenAI connections with automatic output settings keep an enforced output
+cap. Requests send the operation allowance, up to 16,384 tokens, as
+`max_completion_tokens`, so a completed response never exceeds its reservation.
+Claude automatic settings also keep an enforced output cap, using the smaller of
+model metadata and the operation allowance.
+Provider model catalog requests make no inference calls and do not reserve model tokens.
+
 Reports record configured limits, calls admitted, observed usage, outstanding
 reservations and the reason execution stopped. When the budget prevents
 required work, admission stops, managed workers are cancelled and partial

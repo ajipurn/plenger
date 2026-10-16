@@ -4,8 +4,14 @@
  */
 
 /** Order matters: it is the enum order in the published campaign plan schema. */
-export const PROVIDERS = ["openai", "gemini", "ollama", "chatgpt"] as const;
+export const PROVIDERS = ["openai", "gemini", "ollama", "chatgpt", "anthropic"] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
+
+export const ANTHROPIC = {
+  version: "2023-06-01",
+  maxTemperature: 1,
+  refusalTextLimit: 2000,
+} as const;
 
 export const CHATGPT = {
   issuer: "https://auth.openai.com",
@@ -28,6 +34,19 @@ export const MODEL_ID = /^[\w./:-]{1,128}$/;
 export const MAX_OUTPUT_TOKENS = 16384;
 export const TEMPERATURE_RANGE = { min: 0, max: 2 } as const;
 export const API_KEY_MAX_LENGTH = 4096;
+export const API_KEY_PREVIEW = {
+  mask: "••••••••••••",
+  suffixLength: 4,
+  minimumLength: 12,
+} as const;
+export const PROVIDER_MODEL_LIMITS = {
+  timeoutMs: 20_000,
+  bytes: 4 * 1024 * 1024,
+  pageSize: 100,
+  pages: 10,
+  models: 1000,
+  nameLength: 160,
+} as const;
 
 /** An immutable image ID, optionally prefixed for the Docker engine. */
 export const IMAGE_ID = /^(?:docker:)?sha256:[a-f0-9]{64}$/;
@@ -36,6 +55,7 @@ export const SOURCE_BYTE_CAP = 4 * 1024 * 1024;
 /** Serialised model request/response sizes the bounded transport accepts. */
 export const MODEL_REQUEST_CAP = 48 * 1024;
 export const MODEL_RESPONSE_CAP = 64 * 1024;
+export const MODEL_TOOL_CALL_LIMIT = 8;
 /** SSE deltas repeat metadata and the final response, so wire bytes have a separate cap. */
 export const MODEL_STREAM_CAP = 4 * 1024 * 1024;
 export const WORKER_TIMEOUT_MS = 120_000;
@@ -237,3 +257,4 @@ export const VERCEL_ISOLATION_CHECKS: readonly string[] = [
   ...RESOURCE_ISOLATION_CHECKS,
   "private-temporary-files",
 ];
+export const MODEL_PRICING_LIMITS = { models: 100, perMillion: 1_000_000 } as const;

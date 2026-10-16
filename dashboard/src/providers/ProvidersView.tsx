@@ -1,16 +1,21 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { NavLink } from "react-router";
+import { UNSAFE_PortalProvider } from "react-aria/PortalProvider";
 import { CHATGPT_LOGIN_POLL_MS, type ChatgptLoginResult } from "../../../src/dashboard/contract.ts";
-import { PROVIDER_URLS, type SavedProvider } from "../../../src/redteam/provider-config.ts";
+import {
+  hasProviderModelCatalog,
+  PROVIDER_URLS,
+  type SavedProvider,
+} from "../../../src/redteam/provider-config.ts";
 import { useApi } from "../app/DashboardContext.tsx";
-import { routes } from "../app/routes.ts";
 import { useAsyncAction } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 import { DeleteProviderDialog } from "./DeleteProviderDialog.tsx";
-import { ProviderEditor, type ProviderForm } from "./ProviderEditor.tsx";
+import { pricingDrafts, pricingValues } from "./ModelPricingEditor.tsx";
+import { ProviderEditor, type ProviderForm, savedGeneration } from "./ProviderEditor.tsx";
 import { ProviderTable } from "./ProviderTable.tsx";
+import { useProviderModels } from "./useProviderModels.ts";
 
 export function ProvidersView({
   providers,
@@ -20,13 +25,16 @@ export function ProvidersView({
   onChange: (providers: SavedProvider[]) => void;
 }) {
   const api = useApi();
+  const catalog = useProviderModels(api);
   const id = useId();
   const [editorOpen, setEditorOpen] = useState(false);
   const [query, setQuery] = useState("");
   const addButton = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
+  const editorContent = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<SavedProvider | null>(null);
   const [form, setForm] = useState<ProviderForm>({
+    modelPricing: [],
     name: "",
     provider: "ollama",
     model: "",
@@ -35,6 +43,7 @@ export function ProvidersView({
     output: 1024,
     apiKey: "",
     isDefault: providers.length === 0,
+    keepGeneration: true,
   });
   const { busy, error, setError, run } = useAsyncAction();
   const [notice, setNotice] = useState("");
@@ -43,13 +52,27 @@ export function ProvidersView({
   const activeLogin = useRef<string | null>(null);
   const mounted = useRef(true);
   const signingIn = login?.state === "pending";
-  const update = (patch: Partial<ProviderForm>) => setForm((current) => ({ ...current, ...patch }));
+  const update = (patch: Partial<ProviderForm>) => {
+    const connectionChanged =
+      patch.provider !== undefined || patch.baseUrl !== undefined || patch.apiKey !== undefined;
+    if (connectionChanged) catalog.clear();
+    setForm((current) => ({
+      ...current,
+      ...(patch.provider !== undefined || patch.baseUrl !== undefined ? { modelPricing: [] } : {}),
+      ...(connectionChanged && hasProviderModelCatalog(patch.provider ?? current.provider)
+        ? { model: "" }
+        : {}),
+      ...patch,
+    }));
+  };
   function edit(value: SavedProvider | null, trigger?: HTMLButtonElement) {
+    catalog.clear();
     setLogin(null);
     returnFocus.current = trigger ?? addButton.current;
     setEditorOpen(true);
     setSelected(value);
     setForm({
+      modelPricing: pricingDrafts(value?.modelPricing ?? []),
       name: value?.name ?? "",
       provider: value?.provider ?? "ollama",
       model: value?.model ?? "",
@@ -58,25 +81,39 @@ export function ProvidersView({
       output: value?.maxOutputTokens ?? 1024,
       isDefault: value?.isDefault ?? providers.length === 0,
       apiKey: "",
+      keepGeneration: true,
     });
     setError("");
     setNotice("");
+    if (value?.hasApiKey && hasProviderModelCatalog(value.provider)) void catalog.restore(value.id);
   }
   function save() {
     if (!api) return;
+    if (hasProviderModelCatalog(form.provider) && (!form.model || catalog.loading)) return;
     if (form.provider === "chatgpt" && !selected?.chatgptAccount) {
       connectChatgpt();
       return;
     }
     setNotice("");
+    // Hidden OpenAI and Claude settings saved earlier are kept unless the user opts out.
+    const kept = form.keepGeneration ? savedGeneration(selected, form.provider) : null;
     void run(async () => {
       const saved = await api.saveProvider({
+        ...(form.provider === "anthropic"
+          ? { modelPricing: pricingValues(form.modelPricing) }
+          : {}),
         name: form.name,
         provider: form.provider,
         model: form.model,
         baseUrl: form.baseUrl,
-        temperature: form.temperature === "" ? null : Number(form.temperature),
-        maxOutputTokens: form.output,
+        temperature: hasProviderModelCatalog(form.provider)
+          ? (kept?.temperature ?? null)
+          : form.temperature === ""
+            ? null
+            : Number(form.temperature),
+        maxOutputTokens: hasProviderModelCatalog(form.provider)
+          ? (kept?.maxOutputTokens ?? null)
+          : form.output,
         isDefault: form.isDefault,
         ...(selected ? { id: selected.id } : {}),
         ...(form.apiKey ? { apiKey: form.apiKey } : {}),
@@ -85,8 +122,27 @@ export function ProvidersView({
       setSelected(saved);
       update({ apiKey: "" });
       setEditorOpen(false);
-      setNotice("Provider saved. Select it in Red-team when starting a test.");
+      setNotice("Provider saved.");
     }, "Could not save the provider.");
+  }
+  async function loadModels() {
+    if (!hasProviderModelCatalog(form.provider)) return;
+    const models = await catalog.load({
+      provider: form.provider,
+      baseUrl: form.baseUrl,
+      refresh: catalog.loaded,
+      ...(selected ? { id: selected.id } : {}),
+      ...(form.apiKey ? { apiKey: form.apiKey } : {}),
+    });
+    if (models)
+      setForm((current) =>
+        current.provider === form.provider &&
+        current.baseUrl === form.baseUrl &&
+        current.apiKey === form.apiKey &&
+        !models.some((model) => model.id === current.model)
+          ? { ...current, model: "" }
+          : current,
+      );
   }
   function connectChatgpt() {
     if (!api || busy || signingIn) return;
@@ -203,7 +259,7 @@ export function ProvidersView({
     void run(async () => {
       const result = await api.testProvider(value.id);
       setNotice(
-        `Connected to ${result.model} in ${(result.durationMs / 1000).toFixed(1)}s. This checks model access; tool support is verified during a test.`,
+        `Connected to ${result.model} in ${(result.durationMs / 1000).toFixed(1)}s. This checks model access without sending project source.`,
       );
     }, "Could not connect to the model.");
   }
@@ -222,7 +278,7 @@ export function ProvidersView({
         isDefault: true,
       });
       onChange(await api.providers());
-      setNotice(`${value.name} is now the default for new tests.`);
+      setNotice(`${value.name} is now the default for new scans.`);
     }, "Could not update the default provider.");
   }
   function requestDelete(value: SavedProvider) {
@@ -230,15 +286,7 @@ export function ProvidersView({
     setPendingDelete(value);
   }
   return (
-    <div className="subnav-layout">
-      <aside className="subnav">
-        <p className="eyebrow">Workspace settings</p>
-        <nav className="subnav-list" aria-label="Settings categories">
-          <NavLink to={routes.providers} className="subnav-item">
-            <Icon name="providers" /> Providers
-          </NavLink>
-        </nav>
-      </aside>
+    <>
       <section className="subnav-content" aria-labelledby={`${id}-list`}>
         <div className="subnav-content-heading">
           <div>
@@ -249,7 +297,7 @@ export function ProvidersView({
               </span>
             </h2>
             <p className="muted">
-              Save model connections, then choose one when starting a red-team test.
+              Save model connections for security scans and coding agent fix prompts.
             </p>
           </div>
           <Button
@@ -284,6 +332,7 @@ export function ProvidersView({
         />
       </section>
       <ProviderEditor
+        contentRef={editorContent}
         id={id}
         open={editorOpen}
         onOpenChange={(next) => {
@@ -299,6 +348,8 @@ export function ProvidersView({
         apiAvailable={!!api}
         selected={selected}
         form={form}
+        catalog={catalog}
+        onLoadModels={() => void loadModels()}
         onChange={update}
         onSubmit={save}
         onCancel={() => {
@@ -313,16 +364,18 @@ export function ProvidersView({
           returnFocus.current?.isConnected ? returnFocus.current : addButton.current
         }
       />
-      <DeleteProviderDialog
-        provider={pendingDelete}
-        busy={busy}
-        error={error}
-        finalFocus={addButton}
-        onClose={() => setPendingDelete(null)}
-        onConfirm={() => {
-          if (pendingDelete) remove(pendingDelete);
-        }}
-      />
-    </div>
+      <UNSAFE_PortalProvider getContainer={() => editorContent.current}>
+        <DeleteProviderDialog
+          provider={pendingDelete}
+          busy={busy}
+          error={error}
+          finalFocus={addButton}
+          onClose={() => setPendingDelete(null)}
+          onConfirm={() => {
+            if (pendingDelete) remove(pendingDelete);
+          }}
+        />
+      </UNSAFE_PortalProvider>
+    </>
   );
 }

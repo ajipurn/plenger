@@ -1,5 +1,6 @@
 import { isRecord } from "../shared/guards.ts";
 import {
+  ANTHROPIC,
   API_KEY_MAX_LENGTH,
   CHATGPT,
   MAX_OUTPUT_TOKENS,
@@ -8,6 +9,7 @@ import {
   type ProviderId,
   TEMPERATURE_RANGE,
 } from "./constants.ts";
+import { type ModelPricing, validateModelPricing } from "./model-pricing.ts";
 import type { ProviderAccess } from "./provider.ts";
 
 export const PROVIDER_URLS: Record<ProviderId, string> = {
@@ -15,6 +17,7 @@ export const PROVIDER_URLS: Record<ProviderId, string> = {
   openai: "https://api.openai.com/v1",
   gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
   chatgpt: CHATGPT.resource,
+  anthropic: "https://api.anthropic.com/v1",
 };
 
 export interface ProviderSettings {
@@ -23,18 +26,23 @@ export interface ProviderSettings {
   model: string;
   baseUrl: string;
   temperature: number | null;
-  maxOutputTokens: number;
+  /** Null uses provider defaults, subject to the operation's token budget. */
+  maxOutputTokens: number | null;
 }
 export interface SavedProvider extends ProviderSettings {
+  modelPricing?: ModelPricing[];
   id: string;
   isDefault: boolean;
   hasApiKey: boolean;
+  /** Display-only mask with at most the last four characters. Never a replacement key. */
+  apiKeyPreview?: string;
   /** Display identity from a verified ChatGPT sign-in. Never a credential. */
   chatgptAccount?: string;
   createdAt: string;
   updatedAt: string;
 }
 export interface ProviderInput extends ProviderSettings {
+  modelPricing?: ModelPricing[];
   id?: string;
   isDefault?: boolean;
   /** Omit to retain; an empty string explicitly removes the saved credential. */
@@ -46,7 +54,7 @@ export interface ProviderConfig {
   name: string;
   baseUrl: string;
   temperature: number | null;
-  maxOutputTokens: number;
+  maxOutputTokens: number | null;
 }
 const PROVIDER_CONFIG_KEYS = ["id", "name", "baseUrl", "temperature", "maxOutputTokens"];
 
@@ -76,6 +84,10 @@ export function providerBaseUrl(input: string): string {
 
 export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === "string" && (PROVIDERS as readonly string[]).includes(value);
+}
+
+export function hasProviderModelCatalog(value: unknown): value is "openai" | "anthropic" {
+  return value === "openai" || value === "anthropic";
 }
 
 function isModelId(value: unknown): value is string {
@@ -117,12 +129,21 @@ export function validateProviderSettings(settings: {
     throw new Error("Enter your selected provider's API key for this run.");
   const { temperature, maxOutputTokens } = settings;
   if (
+    settings.provider === "anthropic" &&
+    typeof temperature === "number" &&
+    temperature > ANTHROPIC.maxTemperature
+  )
+    throw new Error(
+      "Use a Claude temperature from 0 to 1, or leave it blank for the model default.",
+    );
+  if (
     (temperature != null &&
       (typeof temperature !== "number" ||
         !Number.isFinite(temperature) ||
         temperature < TEMPERATURE_RANGE.min ||
         temperature > TEMPERATURE_RANGE.max)) ||
-    (maxOutputTokens !== undefined &&
+    (maxOutputTokens === null && !hasProviderModelCatalog(settings.provider)) ||
+    (maxOutputTokens != null &&
       (!Number.isSafeInteger(maxOutputTokens) ||
         (maxOutputTokens as number) < 1 ||
         (maxOutputTokens as number) > MAX_OUTPUT_TOKENS))
@@ -147,6 +168,7 @@ export function validateProviderInput(value: unknown): ProviderInput {
           "maxOutputTokens",
           "isDefault",
           "apiKey",
+          "modelPricing",
         ].includes(key),
     ) ||
     typeof input.name !== "string" ||
@@ -170,13 +192,18 @@ export function validateProviderInput(value: unknown): ProviderInput {
     maxOutputTokens: input.maxOutputTokens,
     baseUrl: input.baseUrl,
   });
+  const modelPricing =
+    input.modelPricing === undefined ? undefined : validateModelPricing(input.modelPricing);
+  if (modelPricing?.length && input.provider !== "anthropic")
+    throw new Error("Model pricing currently supports native Anthropic connections.");
   return {
     name: input.name.trim(),
     provider: input.provider as ProviderId,
     model: input.model as string,
     baseUrl: providerBaseUrl(input.baseUrl),
     temperature: input.temperature as number | null,
-    maxOutputTokens: input.maxOutputTokens as number,
+    maxOutputTokens: input.maxOutputTokens as number | null,
+    ...(modelPricing === undefined ? {} : { modelPricing }),
     ...(input.id === undefined ? {} : { id: input.id as string }),
     ...(input.isDefault === undefined ? {} : { isDefault: input.isDefault as boolean }),
     ...(input.apiKey === undefined ? {} : { apiKey: input.apiKey as string }),

@@ -1,9 +1,7 @@
 import { chatgptModels, signInChatgpt } from "../../redteam/chatgpt-auth.ts";
 import { CHATGPT } from "../../redteam/constants.ts";
 import { PROVIDER_URLS, validateProviderInput } from "../../redteam/provider-config.ts";
-import { dashboardDataDirectory } from "../../storage/database.ts";
 import { ProviderRepository } from "../../storage/provider-repository.ts";
-import { chatgptHostId } from "../../storage/provider-secrets.ts";
 import { COMMON_OPTIONS, parseCommandArgs, requireNonemptyPaths } from "../args.ts";
 import { describe, type Io, UsageError } from "../io.ts";
 
@@ -45,8 +43,8 @@ export async function redteamLoginCommand(argv: string[], io: Io): Promise<numbe
   } catch (error) {
     throw new UsageError(describe(error));
   }
-  const directory = values["data-dir"] ?? dashboardDataDirectory();
-  const store = await ProviderRepository.open(directory);
+  // The default folder is resolved by the store.
+  const store = await ProviderRepository.open(values["data-dir"]);
   const controller = new AbortController();
   const cancel = () => controller.abort();
   process.once("SIGINT", cancel);
@@ -71,7 +69,7 @@ export async function redteamLoginCommand(argv: string[], io: Io): Promise<numbe
     if (session.refreshLease && session.refreshLease.until > Date.now())
       throw new Error("ChatGPT is refreshing this connection. Try signing in again shortly.");
     session = await signInChatgpt({
-      hostId: await chatgptHostId(directory),
+      hostId: await store.providers.chatgptHostId(),
       ...(session.clientId === CHATGPT.dynamicClient ? {} : { previous: session }),
       signal: controller.signal,
       onAuthorize: (url) =>

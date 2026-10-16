@@ -1,8 +1,21 @@
 import { testProviderConnection } from "../../redteam/provider.ts";
-import { type ProviderInput, validateProviderInput } from "../../redteam/provider-config.ts";
+import {
+  hasProviderModelCatalog,
+  type ProviderInput,
+  providerBaseUrl,
+  validateProviderInput,
+  validateProviderSettings,
+} from "../../redteam/provider-config.ts";
+import { listProviderModels } from "../../redteam/provider-models.ts";
 import { errorMessage } from "../../shared/guards.ts";
 import { StoreValidationError } from "../../storage/store.ts";
-import { API, type DeleteResult, type ProviderTestResult } from "../contract.ts";
+import {
+  API,
+  type DeleteResult,
+  PROVIDER_SETTINGS_BYTES,
+  type ProviderModelsResult,
+  type ProviderTestResult,
+} from "../contract.ts";
 import { expectKeys, HttpError, jsonRequest, requireString } from "../http.ts";
 import type { Route } from "../router.ts";
 import type { Services } from "../services.ts";
@@ -16,6 +29,73 @@ export function providerRoutes({ store, chatgptLogin }: Services): Route[] {
     return requireString(body.id, message);
   }
   return [
+    {
+      method: "GET",
+      path: API.providerModels,
+      handler: ({ url }) => {
+        const id = requireString(url.searchParams.get("id"), "Choose a saved provider.");
+        const saved = store.readProviders().find((item) => item.id === id);
+        if (!saved) throw new HttpError(404, "Provider not found.");
+        if (!hasProviderModelCatalog(saved.provider) || !saved.hasApiKey)
+          return { status: 200, body: null };
+        const { apiKey } = store.resolveProvider(id).access;
+        const models = apiKey
+          ? store.providers.readModelCatalog({
+              provider: saved.provider,
+              baseUrl: saved.baseUrl,
+              apiKey,
+            })
+          : null;
+        return { status: 200, body: models === null ? null : { models } };
+      },
+    },
+    {
+      method: "POST",
+      path: API.providerModels,
+      handler: async ({ request, response }) => {
+        const body = await jsonRequest(request);
+        const message = "Choose Anthropic or OpenAI and enter its base URL and API key.";
+        expectKeys(body, ["id", "provider", "baseUrl", "apiKey", "refresh"], message);
+        if (
+          !hasProviderModelCatalog(body.provider) ||
+          (body.refresh !== undefined && typeof body.refresh !== "boolean")
+        )
+          throw new HttpError(400, message);
+        const provider = body.provider;
+        let baseUrl: string;
+        try {
+          baseUrl = providerBaseUrl(requireString(body.baseUrl, message));
+          validateProviderSettings({ provider, model: "catalog", apiKey: body.apiKey });
+        } catch {
+          throw new HttpError(400, message);
+        }
+        let apiKey = body.apiKey as string | undefined;
+        if (body.id !== undefined) {
+          const id = requireString(body.id, message);
+          const saved = store.readProviders().find((item) => item.id === id);
+          if (!saved) throw new HttpError(404, "Provider not found.");
+          if (!apiKey && saved.provider === provider && saved.baseUrl === baseUrl)
+            apiKey = store.resolveProvider(id).access.apiKey;
+        }
+        if (!apiKey) throw new HttpError(400, "Enter an API key before loading models.");
+        const connection = { provider, baseUrl, apiKey };
+        const cached = body.refresh ? null : store.providers.readModelCatalog(connection);
+        if (cached !== null) return { status: 200, body: { models: cached } };
+        const controller = new AbortController();
+        const disconnect = () => controller.abort();
+        response.once("close", disconnect);
+        let result: ProviderModelsResult;
+        try {
+          result = { models: await listProviderModels(connection, controller.signal) };
+        } catch (error) {
+          throw new HttpError(400, errorMessage(error));
+        } finally {
+          response.off("close", disconnect);
+        }
+        store.providers.saveModelCatalog(connection, result.models);
+        return { status: 200, body: result };
+      },
+    },
     {
       method: "POST",
       path: API.chatgptLogin,
@@ -45,13 +125,13 @@ export function providerRoutes({ store, chatgptLogin }: Services): Route[] {
     {
       method: "GET",
       path: API.providers,
-      handler: () => ({ status: 200, body: store.readProviders() }),
+      handler: () => ({ status: 200, body: store.readProviders({ keyPreviews: true }) }),
     },
     {
       method: "POST",
       path: API.providers,
       handler: async ({ request }) => {
-        const body = await jsonRequest(request);
+        const body = await jsonRequest(request, PROVIDER_SETTINGS_BYTES);
         let input: ProviderInput;
         try {
           input = validateProviderInput(body);

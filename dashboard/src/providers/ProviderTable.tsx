@@ -1,4 +1,4 @@
-import { Menu } from "@base-ui/react/menu";
+import { Menu, MenuItem, MenuTrigger, Popover } from "react-aria-components";
 import type { SavedProvider } from "../../../src/redteam/provider-config.ts";
 import { EmptyState } from "../shared/EmptyState.tsx";
 import { plural } from "../shared/format.ts";
@@ -48,7 +48,7 @@ export function ProviderTable({
         <span className="muted">Shared across projects</span>
       </div>
       <table className="providers-table">
-        <caption className="sr-only">Saved providers available for red-team tests</caption>
+        <caption className="sr-only">Saved providers available for security scans</caption>
         <colgroup>
           <col className="provider-name-column" />
           <col className="provider-model-column" />
@@ -109,37 +109,45 @@ export function ProviderTable({
                   >
                     <Icon name="edit" /> <span>Edit</span>
                   </Button>
-                  <Menu.Root>
-                    <Menu.Trigger
+                  <MenuTrigger>
+                    <Button
                       className="icon-button"
                       disabled={busy}
                       aria-label={`Actions for ${item.name}`}
                     >
                       …
-                    </Menu.Trigger>
-                    <Menu.Portal>
-                      <Menu.Positioner className="ui-select-positioner" align="end" sideOffset={6}>
-                        <Menu.Popup className="provider-action-menu">
-                          <Menu.Item className="provider-menu-item" onClick={() => onTest(item)}>
-                            <Icon name="providers" /> Test connection
-                          </Menu.Item>
-                          <Menu.Item
-                            className="provider-menu-item"
-                            disabled={item.isDefault}
-                            onClick={() => onMakeDefault(item)}
-                          >
-                            <Icon name="check" /> Make default
-                          </Menu.Item>
-                          <Menu.Item
-                            className="provider-menu-item provider-menu-danger"
-                            onClick={() => onDelete(item)}
-                          >
-                            <Icon name="trash" /> Delete provider
-                          </Menu.Item>
-                        </Menu.Popup>
-                      </Menu.Positioner>
-                    </Menu.Portal>
-                  </Menu.Root>
+                    </Button>
+                    <Popover
+                      className="provider-action-menu ui-popover"
+                      placement="bottom end"
+                      offset={6}
+                    >
+                      <Menu aria-label={`Actions for ${item.name}`}>
+                        <MenuItem
+                          textValue="Test connection"
+                          className="provider-menu-item"
+                          onAction={() => onTest(item)}
+                        >
+                          <Icon name="providers" /> Test connection
+                        </MenuItem>
+                        <MenuItem
+                          textValue="Make default"
+                          className="provider-menu-item"
+                          isDisabled={item.isDefault}
+                          onAction={() => onMakeDefault(item)}
+                        >
+                          <Icon name="check" /> Make default
+                        </MenuItem>
+                        <MenuItem
+                          textValue="Delete provider"
+                          className="provider-menu-item provider-menu-danger"
+                          onAction={() => onDelete(item)}
+                        >
+                          <Icon name="trash" /> Delete provider
+                        </MenuItem>
+                      </Menu>
+                    </Popover>
+                  </MenuTrigger>
                 </div>
               </td>
             </tr>
@@ -156,7 +164,7 @@ export function ProviderTable({
           description={
             providers.length
               ? "Try another name, model, or endpoint."
-              : "Add an Ollama, OpenAI, or Gemini connection to use in red-team tests."
+              : "Add a provider connection to run a security scan or generate a fix prompt."
           }
           descriptionClassName="muted"
         >

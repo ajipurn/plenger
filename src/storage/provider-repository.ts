@@ -10,18 +10,22 @@ import {
   type SavedProvider,
   validateProviderInput,
 } from "../redteam/provider-config.ts";
-import { maskAccount } from "../shared/secrets.ts";
+import type { ProviderModel, ProviderModelConnection } from "../redteam/provider-models.ts";
+import { maskAccount, redactReport } from "../shared/secrets.ts";
 import { parsePayload, Storage, textColumn } from "./database.ts";
 import { StoreValidationError } from "./errors.ts";
 import {
   chatgptHostId,
   openProviderKey,
   providerEncryptionKey,
+  providerModelCacheKey,
+  redactedProviderKey,
   sealProviderKey,
 } from "./provider-secrets.ts";
 
 /** What `model_providers.payload` holds: the settings minus the columns stored beside it. */
 type ProviderPayload = ProviderSettings & {
+  modelPricing?: NonNullable<SavedProvider["modelPricing"]>;
   createdAt: string;
   updatedAt: string;
   chatgptAccount?: string;
@@ -35,7 +39,7 @@ export interface ResolvedProvider {
 
 /**
  * Saved model connections. API keys are sealed with the data directory's key before
- * they reach SQLite and are only unsealed by `resolveProvider`.
+ * they reach SQLite. Only engine access and a bounded display hint unseal them.
  */
 export class ProviderRepository {
   readonly #storage: Storage;
@@ -66,24 +70,35 @@ export class ProviderRepository {
     return chatgptHostId(this.#storage.directory);
   }
 
-  /** Every connection without its key, the default first then by name. */
-  readProviders(): SavedProvider[] {
+  /**
+   * Every connection, the default first then by name. `keyPreviews` adds the masked
+   * display hint, which unseals each key; only the provider list for the page asks for it.
+   */
+  readProviders(options: { keyPreviews?: boolean } = {}): SavedProvider[] {
     return this.#storage.database
       .prepare(
-        "SELECT id, is_default, payload, credential IS NOT NULL AS has_key FROM model_providers ORDER BY is_default DESC, name",
+        "SELECT id, is_default, payload, credential FROM model_providers ORDER BY is_default DESC, name",
       )
       .all()
       .map((row) => {
         const payload = parsePayload<ProviderPayload>(row);
+        const id = textColumn(row, "id");
+        const credential =
+          payload.provider !== "chatgpt" && typeof row.credential === "string"
+            ? row.credential
+            : null;
         return {
           ...payload,
           // Rows written before masking still hold the full address.
           ...(payload.chatgptAccount
             ? { chatgptAccount: maskAccount(payload.chatgptAccount) }
             : {}),
-          id: textColumn(row, "id"),
+          id,
           isDefault: row.is_default === 1,
-          hasApiKey: payload.provider !== "chatgpt" && row.has_key === 1,
+          hasApiKey: credential !== null,
+          ...(credential !== null && options.keyPreviews
+            ? { apiKeyPreview: redactedProviderKey(this.#key, id, credential) }
+            : {}),
         };
       });
   }
@@ -118,6 +133,7 @@ export class ProviderRepository {
       throw new StoreValidationError("Enter an API key for this provider.");
     const isDefault = input.isDefault ?? old?.isDefault ?? providers.length === 0;
     const now = new Date().toISOString();
+    const modelPricing = input.modelPricing ?? (sameDestination ? old?.modelPricing : undefined);
     const payload: ProviderPayload = {
       name: input.name,
       provider: input.provider,
@@ -127,6 +143,7 @@ export class ProviderRepository {
       maxOutputTokens: input.maxOutputTokens,
       createdAt: old?.createdAt ?? now,
       updatedAt: now,
+      ...(modelPricing === undefined ? {} : { modelPricing }),
       ...(input.provider === "chatgpt" && sameDestination && credential && old?.chatgptAccount
         ? { chatgptAccount: old.chatgptAccount }
         : {}),
@@ -144,6 +161,9 @@ export class ProviderRepository {
       id,
       isDefault,
       hasApiKey: input.provider !== "chatgpt" && credential !== null,
+      ...(input.provider !== "chatgpt" && credential !== null
+        ? { apiKeyPreview: redactedProviderKey(this.#key, id, credential) }
+        : {}),
     };
   }
 
@@ -152,6 +172,24 @@ export class ProviderRepository {
       this.#storage.database.prepare("DELETE FROM model_providers WHERE id = ?").run(id).changes !==
       0
     );
+  }
+
+  /** Catalogs survive edits and restarts, but only match the same provider, endpoint and key. */
+  readModelCatalog(connection: ProviderModelConnection): ProviderModel[] | null {
+    const row = this.#storage.database
+      .prepare("SELECT payload FROM provider_model_catalogs WHERE connection_id = ?")
+      .get(providerModelCacheKey(this.#key, connection));
+    return row ? parsePayload<ProviderModel[]>(row) : null;
+  }
+
+  saveModelCatalog(connection: ProviderModelConnection, models: ProviderModel[]): void {
+    const catalog = structuredClone(models);
+    redactReport(catalog, [connection.apiKey]);
+    this.#storage.database
+      .prepare(
+        "INSERT INTO provider_model_catalogs (connection_id, payload) VALUES (?, ?) ON CONFLICT(connection_id) DO UPDATE SET payload = excluded.payload",
+      )
+      .run(providerModelCacheKey(this.#key, connection), JSON.stringify(catalog));
   }
 
   /** The connection plus its unsealed key, for the engine only; never for API responses. */

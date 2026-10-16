@@ -70,7 +70,7 @@ const providerConfig = object({
     minimum: TEMPERATURE_RANGE.min,
     maximum: TEMPERATURE_RANGE.max,
   }),
-  maxOutputTokens: { type: "integer", minimum: 1, maximum: MAX_OUTPUT_TOKENS },
+  maxOutputTokens: nullable({ type: "integer", minimum: 1, maximum: MAX_OUTPUT_TOKENS }),
 });
 const databaseState = object({
   bookings: array(object({ id: text, service: text, date: text, time: text }), 20),

@@ -392,7 +392,7 @@
         },
         "provider": {
           "type": "string",
-          "enum": ["openai", "gemini", "ollama", "chatgpt"]
+          "enum": ["openai", "gemini", "ollama", "chatgpt", "anthropic"]
         },
         "model": {
           "type": "string"
@@ -470,9 +470,16 @@
               ]
             },
             "maxOutputTokens": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 16384
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 16384
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         },
@@ -995,9 +1002,16 @@
               ]
             },
             "maxOutputTokens": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 16384
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 16384
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         },

@@ -175,6 +175,38 @@ describe("runtime cleanup at the end of execution", () => {
     expect(report.trials[0]?.modelCalls).toBe(1);
   });
 
+  it("stops campaign repetitions on a provider refusal and preserves its reason", async () => {
+    const { root, options } = await project();
+    const generate = vi.fn(async () => ({
+      value: { content: null, toolCalls: [], refusal: "This request was declined." },
+      usage: { inputTokens: 5, outputTokens: 5, additionalTokens: 0 },
+    }));
+    const provider = stubProvider({ name: "anthropic", model: "claude-test", generate });
+    const dispose = vi.fn(async () => {});
+    vi.spyOn(runtime, "prepareRunRuntime").mockResolvedValue({ image: await prepare(), dispose });
+    const simulate = worker();
+    vi.spyOn(workers, "runLlmfyWorker").mockImplementation(async (...args) => {
+      try {
+        await simulate(...args);
+      } catch (error) {
+        throw new WorkerError("Model step stopped.", { cleanupConfirmed: true, cause: error });
+      }
+    });
+    const plan = createCampaignPlan(await planProject(root), {
+      provider: "anthropic",
+      model: provider.model,
+      repetitions: 3,
+      limits: options.limits,
+    });
+    const report = await executeCampaign(newCampaign(plan), provider);
+    expect(report.state).toBe("failed");
+    expect(report.runs).toHaveLength(1);
+    expect(report.runs[0]?.error).toContain("This request was declined.");
+    expect(report.budget?.callsAdmitted).toBe(1);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
   it.each([false, true])(
     "shares one runtime across a campaign and cleans it after the final repetition (cleanup fails=%s)",
     async (fails) => {

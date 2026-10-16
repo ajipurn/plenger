@@ -1,7 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { open, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { API_KEY_PREVIEW } from "../redteam/constants.ts";
+import type { ProviderModelConnection } from "../redteam/provider-models.ts";
 import { isErrno } from "../shared/guards.ts";
 import { StoreValidationError } from "./errors.ts";
 
@@ -60,6 +62,14 @@ export function sealProviderKey(key: Buffer, id: string, secret: string): string
   return Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString("base64");
 }
 
+/** Scope cached models to one connection without persisting its key or an unkeyed hash. */
+export function providerModelCacheKey(key: Buffer, connection: ProviderModelConnection): string {
+  return createHmac("sha256", key)
+    .update("provider-model-catalog\0")
+    .update(JSON.stringify([connection.provider, connection.baseUrl, connection.apiKey]))
+    .digest("hex");
+}
+
 export function openProviderKey(key: Buffer, id: string, sealed: string): string {
   try {
     const bytes = Buffer.from(sealed, "base64");
@@ -74,5 +84,18 @@ export function openProviderKey(key: Buffer, id: string, sealed: string): string
       "Saved provider key could not be unlocked. Enter the API key again in Providers.",
       { cause: error },
     );
+  }
+}
+
+/** Derive a bounded display hint locally. Short or unreadable keys stay fully masked. */
+export function redactedProviderKey(key: Buffer, id: string, sealed: string): string {
+  try {
+    const secret = Array.from(openProviderKey(key, id, sealed));
+    return secret.length >= API_KEY_PREVIEW.minimumLength
+      ? `${API_KEY_PREVIEW.mask}${secret.slice(-API_KEY_PREVIEW.suffixLength).join("")}`
+      : API_KEY_PREVIEW.mask;
+  } catch {
+    // Keep damaged credentials editable; resolving them still fails closed.
+    return API_KEY_PREVIEW.mask;
   }
 }

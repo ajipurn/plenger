@@ -1,4 +1,10 @@
-import { CHATGPT, MODEL_REQUEST_CAP, MODEL_RESPONSE_CAP, MODEL_STREAM_CAP } from "./constants.ts";
+import {
+  CHATGPT,
+  MAX_OUTPUT_TOKENS,
+  MODEL_REQUEST_CAP,
+  MODEL_RESPONSE_CAP,
+  MODEL_STREAM_CAP,
+} from "./constants.ts";
 import {
   ModelProviderHttpError,
   type ModelRequest,
@@ -14,7 +20,10 @@ export function createChatgptProvider(access: ProviderAccess, dispatch: typeof f
   const accessToken = access.accessToken;
   if (!accessToken)
     throw new Error("Sign in with plenger redteam login --provider <name> first.");
-  const outputLimit = access.maxOutputTokens ?? 1024;
+  const outputLimit = Math.min(
+    access.maxOutputTokens ?? 1024,
+    access.outputTokenBudget ?? MAX_OUTPUT_TOKENS,
+  );
   const history = new Map<string, unknown[]>();
   function body(request: ModelRequest) {
     const input: unknown[] = [];

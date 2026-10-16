@@ -18,11 +18,13 @@ contracts behind this page are in
 
 ## Prerequisites
 
-- Docker Desktop or a Docker engine reachable through `docker` (used when
-  `docker info` succeeds), otherwise Podman with a running Linux backend.
-- Network access on the first run of each profile, to download the pinned base
-  image and dependency packages. plenger builds its own image from bundled
-  recipes; it never runs a project Dockerfile, installer or script.
+- Docker Desktop or a Docker engine with the Buildx plugin, reachable through
+  `docker` (used when `docker info` succeeds), otherwise Podman with a running
+  Linux backend.
+- Network access while each run builds its image. Every run builds a disposable
+  image from bundled recipes without a shared build cache, so it downloads
+  dependency packages each time. plenger never runs a project Dockerfile,
+  installer or script.
 - A model connection: a saved provider from Settings → Providers, or OpenAI,
   Gemini or Ollama access entered for one run in the dashboard.
 - A project that matches a profile. Unsupported shapes block preparation with a
@@ -156,6 +158,11 @@ requires the clean control and the final snapshot to complete.
 Reports keep three evidence levels apart: static indication, backend handler
 validation and model trial effect. A refused model attack does not override an
 observed backend weakness.
+
+A provider-level refusal, such as a Claude response that stops with `refusal`,
+ends the run without sending further requests. Plenger does not retry content a
+provider declined. The run keeps the reason, and the campaign gate reports an
+incomplete campaign instead of a pass.
 
 ### fastapi-llmfy-v1 (preparation)
 
