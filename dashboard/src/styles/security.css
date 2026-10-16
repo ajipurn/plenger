@@ -1,0 +1,1247 @@
+/* Repository-centric workspace. Provider controls retain their shared components. */
+.security-shell {
+  --workspace-gutter: 32px;
+  @apply min-h-screen flex flex-col bg-canvas text-ink;
+}
+.security-header {
+  @apply sticky top-0 z-20;
+  background: var(--chrome);
+}
+.security-header-row,
+.security-nav-row {
+  @apply border-b border-line;
+}
+.security-header-inner,
+.security-primary-nav,
+.security-content {
+  width: 100%;
+  max-width: var(--content-width);
+  margin-inline: auto;
+  padding-inline: var(--workspace-gutter);
+}
+.security-header-inner {
+  @apply flex items-center justify-between gap-4 min-h-14;
+}
+.security-workspace-identity {
+  @apply flex items-center gap-4 min-w-0;
+}
+.security-brand {
+  @apply inline-flex items-center gap-2.5 font-brand text-[28px] font-normal leading-none tracking-normal shrink-0;
+}
+.security-primary-nav {
+  @apply flex items-stretch gap-6 min-h-10;
+}
+.security-primary-nav a {
+  @apply relative flex items-center gap-2 text-muted text-[13px] font-medium whitespace-nowrap;
+}
+.security-primary-nav a::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+.security-primary-nav a.active {
+  @apply text-ink;
+}
+.security-primary-nav a.active::after {
+  background: var(--accent);
+}
+.security-primary-nav a:hover {
+  @apply text-ink;
+}
+.security-header-actions {
+  @apply flex items-center gap-2 shrink-0;
+}
+.security-content {
+  @apply flex-1 min-w-0 py-7;
+}
+.security-content:focus {
+  outline: none;
+}
+.security-page-heading {
+  @apply flex items-start justify-between gap-4 mb-5;
+}
+.security-page-heading h1 {
+  @apply flex items-center gap-2 text-[21px] font-semibold;
+}
+.security-page-heading p {
+  @apply text-[13px] text-muted mt-1.5 leading-relaxed;
+}
+.security-count {
+  @apply inline-flex items-center justify-center min-w-5 px-1.5 py-0.5 rounded-[6px] border border-line-strong text-[11px] text-muted font-medium tabular-nums;
+}
+.security-toolbar {
+  @apply flex flex-wrap gap-2 items-center pb-4;
+}
+.security-search {
+  @apply relative flex items-center min-w-0 flex-1;
+  flex-basis: 20rem;
+}
+.security-search > .icon {
+  @apply absolute start-2.5 text-muted pointer-events-none;
+  width: var(--control-icon-size);
+  height: var(--control-icon-size);
+}
+.security-search input {
+  @apply w-full ps-8;
+}
+.security-filter-chips {
+  @apply flex flex-wrap gap-2 items-center mb-4;
+}
+.security-chip {
+  @apply inline-flex items-center gap-2 bg-hover text-ink rounded-full;
+  min-height: var(--control-height);
+  padding: var(--control-padding-block) var(--control-padding-inline);
+  border: 1px solid transparent;
+  font-size: var(--control-font-size);
+  line-height: var(--control-line-height);
+}
+.security-chip .icon {
+  @apply size-3.5;
+}
+.security-filter-trigger .security-status {
+  min-height: var(--control-line-height);
+  padding-block: 0;
+  line-height: var(--control-line-height);
+}
+.security-filter-body {
+  @apply bg-surface border border-line-strong rounded-panel p-4 w-60;
+  box-shadow: var(--shadow-popover);
+}
+.security-filter-body [role="dialog"] {
+  @apply grid gap-3 outline-none;
+}
+.security-filter-body fieldset {
+  @apply grid gap-2 border-0 p-0 m-0;
+}
+.security-filter-body legend {
+  @apply mb-2 font-medium;
+}
+.security-filter-body label {
+  @apply flex items-center gap-2 text-[13px];
+}
+.security-flow {
+  @apply border border-line rounded-panel p-5 mb-5 bg-surface;
+}
+.security-flow > h2 {
+  @apply text-[14px] font-medium mb-2;
+}
+.security-flow-scroll {
+  @apply overflow-x-auto;
+}
+.security-flow svg {
+  @apply w-full block;
+  min-width: 640px;
+  max-height: 280px;
+}
+.security-flow text {
+  fill: var(--ink);
+  font-size: 11px;
+}
+.security-flow .security-flow-label {
+  fill: var(--muted);
+}
+.security-flow-marker {
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.security-flow-marker.marker-critical {
+  stroke: var(--critical);
+}
+.security-flow-marker.marker-high {
+  stroke: var(--high);
+}
+.security-flow-marker.marker-medium {
+  stroke: var(--medium);
+}
+.security-flow-marker.marker-low {
+  stroke: var(--low);
+}
+.security-ribbon {
+  fill: var(--line-strong);
+}
+.ribbon-critical {
+  fill: color-mix(in oklab, var(--critical) 12%, var(--canvas));
+}
+.ribbon-high {
+  fill: color-mix(in oklab, var(--high) 12%, var(--canvas));
+}
+.ribbon-medium {
+  fill: color-mix(in oklab, var(--medium) 10%, var(--canvas));
+}
+.ribbon-low {
+  fill: color-mix(in oklab, var(--low) 12%, var(--canvas));
+}
+.security-table-scroll {
+  @apply w-full overflow-x-auto min-w-0 border border-line rounded-panel bg-surface;
+}
+.security-table {
+  @apply w-full text-[13px];
+  border-collapse: collapse;
+  min-width: 780px;
+}
+.security-table th {
+  @apply text-start text-[12px] font-medium text-muted py-2.5 px-4 border-b border-line bg-hover;
+}
+.security-table td {
+  @apply py-3 px-4 border-b border-line align-middle;
+}
+.security-table th:first-child,
+.security-table td:first-child {
+  @apply ps-4;
+}
+.security-table th:last-child,
+.security-table td:last-child {
+  @apply pe-4;
+}
+.security-table tr:hover td {
+  background: var(--hover);
+}
+.security-table .badge {
+  @apply text-[12px] py-0.5 px-1.5 rounded-[6px] font-medium;
+}
+.security-table td:first-child {
+  @apply w-[115px];
+}
+.security-row-link {
+  @apply block font-medium leading-relaxed text-ink;
+}
+.security-row-link:hover {
+  @apply underline underline-offset-4;
+}
+.security-cell-caption {
+  @apply block text-muted text-[12px] mt-1;
+}
+.security-status {
+  @apply inline-flex items-center text-[12px] font-medium rounded-[6px] px-1.5 py-0.5 bg-hover text-muted whitespace-nowrap;
+}
+.security-status.scan-completed,
+.security-status.finding-resolved {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.security-status.scan-failed {
+  background: var(--critical-soft);
+  color: var(--critical);
+}
+.security-status.scan-running,
+.security-status.finding-in-progress {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.security-date {
+  @apply text-[12px] whitespace-nowrap;
+}
+.security-number {
+  @apply tabular-nums text-[13px];
+}
+.security-projects-table td:first-child,
+.security-scans-table td:first-child {
+  width: auto;
+}
+.security-projects-table td:first-child {
+  width: 58%;
+}
+.security-project-cell {
+  @apply flex items-start gap-3 min-w-0;
+}
+.security-project-cell > .icon {
+  @apply size-4 mt-1 shrink-0;
+}
+.security-path {
+  @apply break-all;
+}
+.security-row-actions {
+  @apply flex items-center gap-2 justify-end;
+}
+.security-row-actions .button {
+  @apply whitespace-nowrap;
+}
+.security-pagination {
+  @apply flex flex-wrap items-center justify-between py-3 gap-3 text-[12px];
+}
+.security-pagination > div {
+  @apply flex items-center gap-3;
+}
+.security-empty {
+  @apply min-h-52 grid place-content-center justify-items-center text-center gap-2.5 px-5 py-10;
+}
+.security-empty h2 {
+  @apply text-[16px];
+}
+.security-empty p {
+  max-width: 32rem;
+}
+.security-service-error {
+  @apply mb-5 flex flex-wrap gap-3 items-center border border-line-strong rounded-ui p-4;
+}
+.security-inline-error {
+  @apply py-4;
+}
+.inventory-detail-panel.security-drawer {
+  width: min(760px, 100vw);
+  max-width: min(760px, 100vw);
+  background: var(--surface);
+}
+.security-drawer .security-drawer-heading {
+  @apply flex items-start justify-between gap-4 px-5 py-4 border-b border-line;
+}
+.security-drawer .security-drawer-heading h2 {
+  @apply text-[20px] mt-1;
+}
+.security-drawer-heading .eyebrow {
+  @apply hidden;
+}
+.security-drawer-heading .muted {
+  @apply text-[13px] mt-1;
+}
+.security-drawer > .inventory-detail-scroll {
+  @apply flex flex-col;
+}
+.security-form {
+  @apply flex flex-col gap-4 min-w-0 p-5;
+}
+.security-form-block {
+  @apply grid gap-2 min-w-0;
+}
+.security-form label {
+  @apply text-[13px] font-medium;
+}
+.security-form p {
+  @apply text-[12px] leading-relaxed;
+}
+.security-form input,
+.security-form textarea {
+  @apply w-full min-w-0;
+}
+.security-form textarea {
+  @apply border border-line-strong rounded-ui bg-field text-ink resize-y;
+  padding: var(--control-padding-block) var(--control-padding-inline);
+  font-size: var(--control-font-size);
+  line-height: var(--control-line-height);
+}
+.security-path-control {
+  @apply flex items-center gap-2 min-w-0;
+}
+.security-path-control .button {
+  @apply shrink-0;
+}
+.security-form-footer {
+  @apply shrink-0 px-5 py-3 flex flex-wrap items-center gap-2 justify-end border-t border-line;
+  background: var(--surface);
+}
+.security-form-consent {
+  @apply flex-1 min-w-0 me-3 text-[12px] leading-relaxed text-muted;
+}
+.security-drawer .finding-detail {
+  @apply p-5;
+}
+body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
+  background: color-mix(in oklab, var(--canvas) 70%, transparent);
+}
+.security-project-control {
+  @apply flex flex-wrap items-center gap-2 min-w-0;
+}
+.security-project-control > .ui-select {
+  @apply flex-1 min-w-0;
+  flex-basis: 16rem;
+}
+.security-project-path {
+  @apply block wrap-anywhere text-[12px] leading-relaxed;
+}
+.security-review-context summary {
+  @apply text-[13px] font-medium;
+}
+.security-review-context textarea {
+  @apply mt-2;
+}
+.security-review-context p {
+  @apply mt-2;
+}
+.security-form.security-scan-form {
+  @apply gap-5;
+}
+.security-scan-field-heading {
+  @apply flex flex-wrap items-center justify-between gap-x-3 gap-y-1 min-w-0;
+}
+.security-scan-source {
+  @apply flex items-start gap-2 min-w-0 text-muted;
+}
+.security-scan-source > .icon {
+  @apply shrink-0 mt-0.5;
+}
+.security-scan-settings {
+  @apply grid gap-4 min-w-0 m-0 p-0 border-0;
+}
+.security-scan-pricing {
+  @apply flex items-start gap-2;
+}
+.security-scan-pricing > .icon {
+  @apply shrink-0 mt-0.5;
+}
+.security-scan-depth {
+  @apply grid gap-2 min-w-0;
+}
+.security-scan-depth-options {
+  @apply grid gap-3;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.security-scan-form .security-scan-depth-option {
+  @apply flex items-start gap-2.5 min-w-0 p-3 rounded-ui border border-line-strong font-normal cursor-pointer;
+}
+.security-scan-depth-option[data-hovered] {
+  @apply bg-hover border-subtle;
+}
+.security-scan-depth-option[data-selected] {
+  @apply bg-paper border-muted;
+}
+.security-scan-depth-option[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.security-scan-depth-option[data-disabled] {
+  @apply opacity-50 cursor-not-allowed;
+}
+.security-scan-depth-indicator {
+  @apply grid place-items-center size-3.5 mt-0.5 shrink-0 rounded-full border border-subtle;
+}
+.security-scan-depth-option[data-selected] .security-scan-depth-indicator {
+  @apply border-ink;
+}
+.security-scan-depth-option[data-selected] .security-scan-depth-indicator::after {
+  content: "";
+  @apply size-1.5 rounded-full bg-ink;
+}
+.security-scan-depth-copy {
+  @apply grid gap-1 min-w-0 text-[12px] leading-relaxed;
+}
+.security-scan-depth-name {
+  @apply text-[13px] font-medium text-ink;
+}
+.security-scan-depth-calls {
+  @apply mt-1 text-muted tabular-nums;
+}
+.security-review-context.security-scan-context {
+  @apply m-0 p-0;
+}
+.security-scan-context > summary {
+  @apply flex items-center gap-2 px-3 py-3 list-none rounded-ui;
+}
+.security-scan-context > summary::-webkit-details-marker {
+  display: none;
+}
+.security-scan-context > summary:hover {
+  @apply bg-hover;
+}
+.security-scan-context > summary > .icon {
+  @apply size-3.5 shrink-0 text-muted;
+}
+.security-scan-context[open] > summary > .icon {
+  rotate: 90deg;
+}
+.security-scan-context-status {
+  @apply ms-auto text-[12px] font-normal;
+}
+.security-scan-context-body {
+  @apply px-3 pb-3;
+}
+.security-scan-context-body > p {
+  @apply mt-2;
+}
+.security-scan-includes {
+  @apply flex items-start gap-2.5 text-muted;
+}
+.security-scan-includes > .icon {
+  @apply shrink-0 mt-0.5;
+}
+.security-scan-includes > div {
+  @apply grid gap-1 min-w-0;
+}
+.security-scan-includes p:first-child {
+  @apply text-ink;
+}
+@media (forced-colors: active) {
+  .security-scan-depth-option[data-selected],
+  .security-scan-depth-option[data-selected] .security-scan-depth-indicator {
+    border-color: Highlight;
+  }
+  .security-scan-depth-option[data-selected] .security-scan-depth-indicator::after {
+    background: Highlight;
+  }
+}
+.security-detail-actions {
+  @apply mb-5 flex flex-wrap items-center justify-between gap-3 text-[13px];
+}
+.security-detail-actions > div {
+  @apply flex flex-wrap items-center gap-2;
+}
+.security-detail-layout {
+  @apply grid items-start gap-6;
+  grid-template-columns: minmax(0, 1fr) 260px;
+}
+.security-detail-main {
+  @apply min-w-0;
+}
+.security-detail-main > h1 {
+  @apply text-[22px] font-semibold leading-relaxed;
+}
+.security-detail-main > h1 > span {
+  @apply text-[16px];
+}
+.security-subnav {
+  @apply flex items-center gap-6 my-5 border-b border-line;
+}
+.security-subnav a {
+  @apply inline-flex items-center gap-2 text-muted text-[13px] py-3 border-b-2 border-transparent font-medium;
+}
+.security-subnav a[aria-current="page"] {
+  @apply text-ink;
+  border-bottom-color: var(--accent);
+}
+.security-detail-main .security-table {
+  min-width: 600px;
+}
+.security-detail-main .security-table td:first-child,
+.security-detail-main .security-table th:first-child {
+  @apply ps-4;
+}
+.security-detail-main .security-table td:last-child,
+.security-detail-main .security-table th:last-child {
+  @apply pe-4 hidden;
+}
+.security-detail-main .security-table-scroll {
+  @apply border border-line rounded-panel;
+}
+.security-detail-meta {
+  @apply min-w-0 p-4 border border-line rounded-panel bg-surface;
+}
+.security-detail-meta dl {
+  @apply m-0 grid gap-5;
+}
+.security-detail-meta dt {
+  @apply uppercase text-[11px] text-muted font-medium mb-2;
+}
+.security-detail-meta dd {
+  @apply m-0 text-[13px] leading-relaxed break-words;
+}
+.security-detail-meta dd a {
+  @apply text-accent;
+}
+.security-detail-meta dd small {
+  @apply block text-muted text-[12px] mt-1;
+}
+.security-detail-meta dl > div,
+.security-detail-meta dd,
+.security-detail-meta code,
+.security-detail-meta small {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.security-detail-meta code {
+  white-space: normal;
+}
+.security-location-links {
+  @apply grid gap-1.5;
+}
+.security-location-links code {
+  @apply break-all text-[12px];
+}
+.security-finding-layout {
+  grid-template-columns: minmax(0, 1fr) 260px;
+  column-gap: 40px;
+}
+.security-finding-document {
+  @apply min-w-0 mx-auto w-full;
+  /* max-width: 860px; */
+}
+.security-finding-title {
+  @apply flex flex-wrap items-start gap-2;
+}
+.security-finding-title h1 {
+  @apply text-[18px] leading-relaxed font-semibold;
+}
+.security-finding-title .security-status {
+  @apply mt-1;
+}
+.security-finding-updated {
+  @apply text-[12px] mt-1 mb-7;
+}
+.security-finding-document > section {
+  @apply mt-6;
+}
+.security-finding-document > section > h2 {
+  @apply uppercase text-[11px] text-muted font-normal mb-3;
+}
+.security-finding-document > section > p {
+  @apply text-[14px] leading-[1.8] whitespace-pre-wrap wrap-anywhere;
+}
+.security-source-evidence {
+  @apply mt-5;
+  scroll-margin-top: calc(var(--navigation-height) + 20px);
+}
+.security-source-evidence > p {
+  @apply text-[12px] mt-1;
+}
+.security-raw-evidence {
+  @apply mt-7 text-[14px];
+}
+.security-raw-evidence summary {
+  @apply cursor-pointer;
+}
+.security-back-link {
+  @apply inline-flex items-center gap-1.5 text-[13px] text-muted mb-3;
+  min-height: var(--control-height);
+}
+.security-back-link > .icon {
+  rotate: 180deg;
+}
+.security-back-link:hover,
+.security-text-link:hover {
+  @apply text-ink underline underline-offset-4;
+}
+.security-scan-heading {
+  @apply flex flex-wrap items-start justify-between gap-4 mb-6 min-w-0;
+}
+.security-scan-identity {
+  @apply min-w-0;
+}
+.security-scan-identity > div {
+  @apply flex flex-wrap items-center gap-3 min-w-0;
+}
+.security-scan-identity h1 {
+  @apply text-[22px] leading-tight font-semibold wrap-anywhere;
+}
+.security-scan-identity p {
+  @apply text-[13px] mt-2 leading-relaxed;
+}
+.security-project-detail-path {
+  @apply wrap-anywhere;
+}
+.security-project-page .security-scan-identity {
+  flex: 1 1 20rem;
+}
+.security-project-notice {
+  @apply flex flex-wrap items-center gap-2 text-[13px] mb-4;
+}
+.security-project-outputs-link {
+  @apply inline-flex items-center gap-2 mt-4 text-[13px];
+}
+.security-detail-main .security-scans-table :is(th, td):last-child {
+  display: table-cell;
+}
+.security-billing {
+  @apply border border-line rounded-ui p-4 mb-5 text-[13px];
+}
+.security-billing > summary {
+  @apply cursor-pointer font-medium;
+}
+.security-billing p {
+  @apply my-3 leading-relaxed;
+}
+.security-billing section {
+  @apply mt-5;
+}
+.security-billing .security-table-scroll {
+  @apply mt-3;
+}
+.security-billing-table caption {
+  @apply text-start px-4 py-3 font-medium;
+}
+.security-detail-main .security-billing-table :is(th, td):last-child {
+  display: table-cell;
+}
+.security-scan-actions {
+  @apply flex flex-wrap items-center gap-2;
+}
+.security-scan-actions .button {
+  @apply whitespace-nowrap;
+}
+.security-scan-summary {
+  @apply grid grid-cols-3 rounded-panel border border-line bg-surface m-0 mb-5;
+}
+.security-scan-summary > div {
+  @apply min-w-0 px-4 py-3;
+}
+.security-scan-summary > div + div {
+  @apply border-s border-line;
+}
+.security-scan-summary dt {
+  @apply flex items-center gap-2 text-muted text-[12px];
+}
+.security-scan-summary dd {
+  @apply m-0 mt-1.5 text-[18px] leading-6 font-medium tabular-nums;
+}
+.security-scan-layout {
+  grid-template-columns: minmax(0, 1fr) 296px;
+  gap: 24px;
+}
+.security-scan-layout .security-subnav {
+  @apply mt-0 mb-5;
+}
+.security-scan-meta {
+  @apply p-4;
+}
+.security-scan-meta > section + section {
+  @apply border-t border-line pt-5 mt-5;
+}
+.security-scan-meta h2 {
+  @apply flex items-center gap-2 text-[13px] font-semibold mb-4;
+}
+.security-scan-meta dl {
+  @apply gap-4;
+}
+.security-scan-meta dt {
+  @apply normal-case text-[12px] mb-1;
+}
+.security-meta-path {
+  grid-column: 1 / -1;
+}
+.security-scan-context {
+  @apply mt-4 text-[12px];
+}
+.security-scan-context summary,
+.security-error-details summary {
+  @apply cursor-pointer font-medium;
+}
+.security-scan-context p {
+  @apply mt-2 leading-relaxed whitespace-pre-wrap wrap-anywhere;
+}
+.security-scan-progress {
+  @apply border border-line rounded-panel bg-surface p-5;
+  container-type: inline-size;
+}
+.security-scan-progress-heading {
+  @apply flex items-center gap-6;
+}
+.security-scan-illustration {
+  @apply shrink-0 text-ink;
+  width: 168px;
+  height: auto;
+}
+.security-scan-progress-copy {
+  @apply min-w-0 py-2;
+}
+.security-scan-progress-kicker {
+  @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted mb-2;
+}
+.security-scan-progress h2 {
+  @apply text-[18px] leading-snug;
+}
+.security-scan-progress-heading .muted {
+  @apply text-[13px] leading-relaxed mt-2;
+  max-width: 45ch;
+}
+.security-scan-steps {
+  @apply grid grid-cols-3 gap-4 list-none p-0 m-0 mt-4 pt-4 border-t border-line;
+}
+.security-scan-steps li {
+  @apply flex items-start gap-2.5 min-w-0 text-muted text-[12px];
+}
+.security-scan-step-number {
+  @apply inline-flex items-center justify-center shrink-0 size-6 rounded-full border border-line text-[11px] tabular-nums;
+}
+.security-scan-steps small {
+  @apply block text-[11px] text-muted mt-0.5;
+}
+.security-scan-steps [data-state="current"] {
+  @apply text-ink font-medium;
+}
+.security-scan-steps [data-state="current"] .security-scan-step-number {
+  @apply bg-ink text-canvas border-ink;
+}
+.security-scan-steps [data-state="complete"] .security-scan-step-number {
+  @apply bg-hover text-ink;
+}
+.security-scan-progress-footer {
+  @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-3 mt-4 border-t border-line;
+}
+.security-scan-progress-note {
+  @apply flex items-start gap-2 text-[12px] text-muted leading-relaxed;
+  flex: 1 1 22rem;
+}
+.security-scan-progress-note > .icon {
+  @apply shrink-0 mt-0.5;
+}
+.security-scan-progress .security-scan-animation-toggle {
+  @apply hidden shrink-0;
+}
+.scan-art-grid {
+  opacity: 0.12;
+}
+.scan-art-back-page {
+  fill: var(--paper);
+  stroke: var(--line-strong);
+}
+.scan-art-page {
+  fill: var(--field);
+  stroke: var(--line-strong);
+}
+.scan-art-connection {
+  stroke: var(--line-strong);
+  stroke-linecap: round;
+}
+.scan-art-page-dots,
+.scan-art-code {
+  opacity: 0.3;
+}
+.scan-art-node {
+  fill: var(--paper);
+  stroke: var(--line-strong);
+}
+.scan-art-node-lines {
+  stroke: currentColor;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+.scan-art-packet {
+  fill: currentColor;
+  opacity: 0;
+}
+.scan-art-beam {
+  transform: translateY(15px);
+  opacity: 0.65;
+}
+.scan-art-halo {
+  stroke: currentColor;
+  opacity: 0.12;
+}
+.scan-art-badge {
+  fill: var(--raised);
+  stroke: var(--line-strong);
+}
+.scan-art-shield {
+  fill: var(--surface);
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+  opacity: 0.8;
+}
+.scan-art-glyph {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.security-scan-progress[data-phase="reading"] .scan-art-glyph-reading,
+.security-scan-progress[data-phase="discovering"] .scan-art-glyph-discovering,
+.security-scan-progress[data-phase="validating"] .scan-art-glyph-validating {
+  opacity: 1;
+}
+@container (max-width: 32rem) {
+  .security-scan-progress-heading {
+    @apply flex-col gap-2 text-center;
+  }
+  .security-scan-illustration {
+    width: 156px;
+  }
+  .security-scan-progress-kicker {
+    @apply justify-center;
+  }
+  .security-scan-steps {
+    @apply grid-cols-1 gap-4;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .security-scan-progress .security-scan-animation-toggle {
+    @apply inline-flex;
+  }
+  .scan-art-beam {
+    animation: scan-source-sweep 3.2s linear infinite;
+  }
+  .security-scan-progress[data-phase="discovering"] .scan-art-packet,
+  .security-scan-progress[data-phase="validating"] .scan-art-packet {
+    animation: scan-source-trace 3.2s linear infinite;
+  }
+  .security-scan-progress[data-phase] .scan-art-packet-bottom {
+    animation-delay: -1.6s;
+  }
+  .security-scan-progress[data-phase="validating"] .scan-art-beam {
+    animation: none;
+    opacity: 0.2;
+  }
+  .security-scan-progress[data-phase="validating"] .scan-art-packet {
+    animation-direction: reverse;
+  }
+  .security-scan-progress[data-phase="validating"] .scan-art-halo {
+    animation: scan-verify-pulse 3.2s linear infinite;
+  }
+  .security-scan-progress[data-animation-paused="true"]
+    :is(.scan-art-beam, .scan-art-packet, .scan-art-halo) {
+    animation-play-state: paused;
+  }
+}
+@keyframes scan-source-sweep {
+  0% {
+    transform: translateY(-22px);
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(58px);
+    opacity: 0;
+  }
+}
+@keyframes scan-source-trace {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.7;
+  }
+  30% {
+    transform: translate(24px, 0);
+  }
+  65% {
+    transform: translate(24px, -29px);
+    opacity: 0.7;
+  }
+  90%,
+  100% {
+    transform: translate(54px, -29px);
+    opacity: 0;
+  }
+}
+@keyframes scan-verify-pulse {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.security-scan-result-empty {
+  @apply flex flex-col items-center text-center rounded-panel border border-line bg-surface px-5 py-10 gap-2.5;
+}
+.security-scan-result-empty > .icon {
+  @apply size-6 text-muted;
+}
+.security-scan-result-empty h2 {
+  @apply text-[15px];
+}
+.security-scan-result-empty p {
+  @apply text-[13px] leading-relaxed max-w-96;
+}
+.security-text-link {
+  @apply inline-flex items-center gap-2 text-[13px] font-medium;
+  min-height: var(--control-height);
+}
+.security-error-details {
+  @apply mt-3;
+}
+.security-error-details > p {
+  @apply text-[12px] font-mono whitespace-pre-wrap wrap-anywhere;
+}
+.security-outputs {
+  @apply grid gap-5;
+}
+.security-output-batch {
+  @apply grid gap-3 min-w-0 p-4 border border-line rounded-panel bg-surface;
+}
+.security-output-batch h2 {
+  @apply text-[17px];
+}
+.security-output-batch h3 {
+  @apply mt-3;
+}
+.security-output-batch p,
+.security-output-batch li {
+  @apply text-[13px] leading-relaxed wrap-anywhere;
+}
+.security-output-batch ul {
+  @apply my-2;
+}
+.security-output-model {
+  @apply grid gap-4;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+}
+.security-stride-list {
+  @apply grid gap-2;
+}
+.security-stride-list details {
+  @apply border border-line rounded-ui p-3;
+}
+.security-stride-list summary {
+  @apply cursor-pointer flex flex-wrap justify-between gap-2 text-[13px] font-medium;
+}
+.security-stride-list summary::before {
+  content: "+";
+}
+.security-stride-list details[open] summary::before {
+  content: "−";
+}
+.security-stride-list summary > span:first-of-type {
+  @apply flex-1;
+}
+.security-stride-list p,
+.security-stride-list h4 {
+  @apply mt-3;
+}
+.security-output-coverage {
+  @apply border border-line rounded-ui p-4 text-[13px];
+}
+.security-output-coverage summary {
+  @apply cursor-pointer font-medium;
+}
+.security-settings {
+  @apply w-full;
+}
+.provider-pricing {
+  @apply grid gap-4 min-w-0 text-label;
+}
+.provider-pricing-heading {
+  @apply flex flex-wrap items-center justify-between gap-2;
+}
+.provider-pricing-heading h3 {
+  @apply text-label font-semibold;
+}
+.provider-pricing-heading a {
+  @apply text-[12px] text-muted underline underline-offset-4;
+}
+.provider-pricing-model {
+  @apply grid gap-2 min-w-0;
+}
+.provider-pricing-model > label,
+.provider-long-context > label {
+  @apply text-[13px] font-medium;
+}
+.provider-rate-table {
+  @apply min-w-0 p-0 border border-line rounded-ui overflow-hidden;
+}
+.provider-rate-heading {
+  @apply bg-raised text-[12px] text-muted py-2.5;
+}
+.provider-rate-heading,
+.provider-rate-row {
+  @apply grid items-center gap-3 px-3;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 37%);
+}
+.provider-rate-row {
+  @apply py-2 border-t border-line cursor-pointer;
+}
+.provider-rate-row > span:first-child {
+  @apply min-w-0;
+}
+.provider-rate-input {
+  @apply relative block min-w-0;
+}
+.provider-rate-input > span {
+  @apply absolute left-3 top-1/2 -translate-y-1/2 text-muted;
+}
+.provider-rate-input input {
+  @apply w-full pl-7 tabular-nums;
+}
+.provider-pricing-empty {
+  @apply p-4 rounded-ui bg-raised grid gap-1;
+}
+.provider-pricing-empty > p:first-child {
+  @apply font-medium;
+}
+.provider-pricing-count {
+  @apply text-[12px];
+}
+.provider-pricing-help {
+  @apply text-[12px] text-muted;
+}
+.provider-pricing-help summary {
+  @apply cursor-pointer;
+}
+.provider-pricing-help p {
+  @apply mt-2;
+}
+.provider-long-context {
+  @apply grid gap-3 border border-line rounded-ui p-4 min-w-0;
+}
+.provider-long-context legend {
+  @apply text-[13px] font-medium px-1;
+}
+.settings-clear-data {
+  @apply flex flex-wrap items-start justify-between gap-5 rounded-ui border border-line p-5;
+}
+.settings-clear-data > div {
+  @apply min-w-0 flex-1;
+  flex-basis: 28rem;
+}
+.settings-clear-data h3 {
+  @apply text-section;
+}
+.settings-clear-data p {
+  @apply mt-2 max-w-[65ch] text-label;
+}
+.settings-data-hint {
+  @apply mt-3 text-label;
+}
+.settings-theme-switch {
+  @apply flex items-center justify-between gap-5 min-h-11 rounded-ui border border-line p-5 cursor-pointer;
+}
+.settings-theme-switch-copy {
+  @apply grid gap-1 min-w-0 text-label;
+}
+.settings-theme-switch-copy > span:first-child {
+  @apply font-medium;
+}
+.settings-theme-switch-track {
+  @apply inline-flex items-center shrink-0 w-9 h-5 p-px rounded-full border border-line-strong bg-field;
+}
+.settings-theme-switch-track > span {
+  @apply size-4 rounded-full bg-muted;
+}
+.settings-theme-switch[data-selected] .settings-theme-switch-track {
+  @apply justify-end;
+  background: var(--primary-bg);
+  border-color: var(--primary-bg);
+}
+.settings-theme-switch[data-selected] .settings-theme-switch-track > span {
+  background: var(--primary-fg);
+}
+.settings-theme-switch[data-hovered] {
+  @apply bg-hover;
+}
+.settings-theme-switch[data-focus-visible] .settings-theme-switch-track {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.settings-theme-switch[data-disabled] {
+  @apply opacity-50 cursor-not-allowed;
+}
+@media (forced-colors: active) {
+  .settings-theme-switch[data-selected] .settings-theme-switch-track {
+    background: Highlight;
+    border-color: Highlight;
+  }
+  .settings-theme-switch-track > span {
+    background: ButtonText;
+  }
+  .settings-theme-switch[data-selected] .settings-theme-switch-track > span {
+    background: HighlightText;
+  }
+}
+@media (max-width: 1000px) {
+  .security-detail-layout,
+  .security-finding-layout {
+    grid-template-columns: minmax(0, 1fr) 220px;
+    @apply gap-5;
+  }
+  .security-scan-layout {
+    grid-template-columns: minmax(0, 1fr) 260px;
+  }
+}
+@media (max-width: 720px) {
+  .security-shell {
+    --workspace-gutter: 16px;
+  }
+  .security-header-inner {
+    @apply gap-3;
+  }
+  .security-header-actions {
+    @apply gap-1;
+  }
+  .security-primary-nav {
+    @apply gap-6;
+  }
+  .security-content {
+    @apply py-6;
+  }
+  .security-page-heading {
+    @apply mb-5;
+  }
+  .security-toolbar > .ui-select {
+    @apply flex-1;
+    flex-basis: 160px;
+  }
+  .security-flow {
+    @apply p-4;
+  }
+  .security-detail-layout,
+  .security-finding-layout {
+    @apply flex flex-col gap-6;
+  }
+  .security-detail-main,
+  .security-finding-document,
+  .security-detail-meta {
+    @apply w-full;
+  }
+  .security-detail-meta dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .security-detail-actions > div {
+    @apply gap-1.5;
+  }
+  .security-scan-actions {
+    @apply w-full;
+  }
+  .security-scan-summary > div {
+    @apply px-3 py-4;
+  }
+  .security-scan-progress {
+    @apply p-4;
+  }
+  .security-form-footer {
+    @apply px-4;
+  }
+  .security-form.security-scan-form {
+    @apply p-4;
+  }
+  .security-scan-drawer .security-drawer-heading {
+    @apply px-4;
+  }
+  .security-form-consent {
+    flex-basis: 100%;
+    @apply me-0;
+  }
+  .security-filter-body {
+    width: min(240px, calc(100vw - 32px));
+  }
+}
+@media (max-width: 480px) {
+  .security-scan-depth-options {
+    @apply grid-cols-1;
+  }
+  .security-scan-actions .button {
+    flex: 1 1 auto;
+  }
+  .security-scan-summary dt {
+    @apply items-start min-h-9;
+  }
+  .security-scan-summary dt > .icon {
+    @apply hidden;
+  }
+  .security-scan-steps {
+    @apply grid-cols-1 gap-4;
+  }
+  .security-primary-nav {
+    @apply grid grid-cols-4 gap-0;
+  }
+  .security-primary-nav a {
+    @apply flex-col justify-center gap-1 py-1.5 text-[12px] leading-4 min-w-0;
+  }
+  .security-brand > span:last-child {
+    @apply hidden;
+  }
+}
+
+.security-review-error {
+  @apply flex items-start gap-3 p-4 my-4 rounded-panel border border-critical/25 bg-critical-soft text-[13px];
+}
+.security-review-error > .icon {
+  @apply size-[18px] text-critical shrink-0 mt-0.5;
+}
+.security-review-error strong {
+  @apply text-ink;
+}
+.security-review-error p {
+  @apply mt-1 leading-relaxed wrap-anywhere;
+}
+.security-output-failure {
+  @apply text-critical;
+}

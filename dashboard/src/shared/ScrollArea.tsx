@@ -2,7 +2,7 @@ import { OverlayScrollbarsComponent, useOverlayScrollbars } from "overlayscrollb
 import { type ComponentProps, useCallback } from "react";
 import { horizontalScrollbars, verticalScrollbars } from "./scrollbars.ts";
 
-/** Enhance an existing viewport without moving React or Base UI children. */
+/** Enhance an existing viewport without moving React children. */
 export function useElementScrollbars<T extends HTMLElement>(axis: "x" | "y" = "y") {
   const [initialize, instance] = useOverlayScrollbars({
     options: axis === "x" ? horizontalScrollbars : verticalScrollbars,

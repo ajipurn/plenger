@@ -1,4 +1,4 @@
-/* Design tokens: a monochrome neutral scale with one accent.
+/* Design tokens: monochrome surfaces and controls.
  * Dark is the default; light overrides the same names. Components read only these
  * tokens, so both appearances share layout, type and spacing.
  */
@@ -6,25 +6,26 @@
   color-scheme: dark;
 
   /* Neutral surfaces, from the page canvas up to floating layers. */
-  --canvas: #0b0b0b;
-  --sidebar: #0e0e0f;
-  --surface: #111112;
-  --paper: #18181a;
-  --raised: #141415;
-  --field: #0b0b0c;
-  --hover: #ffffff08;
-  --line: #ffffff0f;
-  --line-strong: #ffffff1c;
+  --canvas: #1b1b1b;
+  --chrome: #111111;
+  --sidebar: #171717;
+  --surface: #131313;
+  --paper: #242424;
+  --raised: #292929;
+  --field: #252525;
+  --hover: #ffffff09;
+  --line: #ffffff10;
+  --line-strong: #ffffff1f;
 
   /* Text. */
-  --ink: #ededee;
+  --ink: #ededed;
   --ink-hover: #ffffff;
-  --muted: #8e8e96;
-  --subtle: #64646c;
+  --muted: #aaaaaa;
+  --subtle: #7b7b7b;
 
-  /* The single accent: navigation state, focus, selection and the primary chart series. */
-  --accent: #7ea4f7;
-  --accent-soft: #7ea4f71a;
+  /* Neutral emphasis for navigation, focus and selection. */
+  --accent: #e4e4e4;
+  --accent-soft: #ffffff14;
   --navigation-accent: var(--accent);
   --focus: var(--accent);
 
@@ -40,34 +41,40 @@
   --success: oklch(0.78 0.11 162);
   --success-soft: oklch(0.78 0.11 162 / 0.11);
 
-  --code-bg: #0b0b0c;
+  --code-bg: #101010;
   --code-fg: #d4d4d8;
   --scrollbar: #ffffff24;
   --scrollbar-hover: #ffffff40;
   --surface-overlay: #000000b3;
 
-  /* Primary actions are monochrome: a light fill on dark. */
-  --primary-bg: linear-gradient(180deg, #ffffff 0%, #e4e4e7 100%);
-  --primary-fg: #0b0b0b;
-  --primary-hover: linear-gradient(180deg, #ffffff 0%, #f1f1f3 100%);
-  --primary-border: #d4d4d8;
+  /* Primary actions invert the neutral foreground and background. */
+  --primary-bg: #eeeeee;
+  --primary-fg: #171717;
+  --primary-hover: #ffffff;
+  --primary-border: #ffffff14;
   /* Shadows stay inside or below the box so primary and secondary sizes match. */
-  --primary-shadow: inset 0 1px 0 #ffffffcc, 0 1px 2px #00000080;
+  --primary-shadow: inset 0 1px 0 #ffffff14, 0 1px 2px #00000040;
 
   /* Depth: a hairline top highlight on cards, soft lift for floating layers. */
   --highlight: inset 0 1px 0 #ffffff08;
   --shadow-card: var(--highlight), 0 1px 2px #00000066;
   --shadow-popover: 0 0 0 1px #ffffff12, 0 16px 40px -12px #000000cc, 0 4px 12px #00000066;
   --shadow-drawer: -24px 0 64px #00000099;
-  --glow: radial-gradient(1200px 320px at 50% -120px, #7ea4f70d, transparent 70%);
+  --glow: none;
 
   /* Shape and rhythm. */
   --ui-radius: 8px;
+  --control-height: 32px;
+  --control-font-size: 13px;
+  --control-line-height: 18px;
+  --control-padding-inline: 10px;
+  --control-padding-block: 6px;
+  --control-icon-size: 14px;
   --panel-radius: 12px;
   --sidebar-width: 248px;
   --topbar-height: 56px;
-  --navigation-height: var(--topbar-height);
-  --content-width: 1240px;
+  --navigation-height: 96px;
+  --content-width: 1280px;
 
   /* Type scale. */
   --text-body: 14px;
@@ -82,20 +89,21 @@
 :root[data-theme="light"] {
   color-scheme: light;
   --canvas: #fafafa;
-  --sidebar: #f4f4f5;
+  --chrome: #ffffff;
+  --sidebar: #f4f4f4;
   --surface: #ffffff;
-  --paper: #f4f4f5;
+  --paper: #f5f5f5;
   --raised: #ffffff;
   --field: #ffffff;
-  --hover: #18181b08;
-  --line: #e9e9ec;
-  --line-strong: #d7d7dc;
-  --ink: #111113;
+  --hover: #00000005;
+  --line: #e6e6e6;
+  --line-strong: #d4d4d4;
+  --ink: #242424;
   --ink-hover: #2b2b30;
-  --muted: #66666f;
-  --subtle: #9c9ca5;
-  --accent: #2f63d6;
-  --accent-soft: #2f63d614;
+  --muted: #707070;
+  --subtle: #969696;
+  --accent: #292929;
+  --accent-soft: #0000000d;
   --critical: oklch(0.5 0.17 24);
   --critical-soft: oklch(0.6 0.17 24 / 0.08);
   --high: oklch(0.52 0.13 50);
@@ -111,16 +119,16 @@
   --scrollbar: #18181b2e;
   --scrollbar-hover: #18181b59;
   --surface-overlay: #18181b52;
-  --primary-bg: linear-gradient(180deg, #2c2c31 0%, #141416 100%);
+  --primary-bg: #242424;
   --primary-fg: #ffffff;
-  --primary-hover: linear-gradient(180deg, #3a3a40 0%, #1d1d20 100%);
-  --primary-border: #111113;
-  --primary-shadow: inset 0 1px 0 #ffffff26, 0 1px 2px #1018282e;
+  --primary-hover: #111111;
+  --primary-border: #111111;
+  --primary-shadow: inset 0 1px 0 #ffffff1a, 0 1px 2px #00000026;
   --highlight: inset 0 1px 0 #ffffff;
   --shadow-card: 0 0 0 0 transparent, 0 1px 2px #1018280a, 0 1px 3px #1018280a;
   --shadow-popover: 0 0 0 1px #18181b14, 0 16px 40px -12px #1018282e, 0 4px 10px #1018280f;
   --shadow-drawer: -16px 0 48px #10182824;
-  --glow: radial-gradient(1200px 320px at 50% -120px, #2f63d60a, transparent 70%);
+  --glow: none;
 }
 
 @theme inline {
@@ -155,7 +163,7 @@
   --color-code-fg: var(--code-fg);
   --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono Variable", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --font-brand: "Nanum Pen Script", cursive;
+  --font-brand: "Sacramento", cursive;
   --radius-ui: var(--ui-radius);
   --radius-panel: var(--panel-radius);
   --text-ui: var(--text-body);
@@ -166,4 +174,22 @@
   --text-micro--line-height: 1.45;
   --text-section: var(--text-heading-sm);
   --text-section--line-height: var(--leading-heading-sm);
+}
+
+@media (max-width: 720px) {
+  :root {
+    --control-height: 40px;
+    --control-font-size: 16px;
+    --control-line-height: 20px;
+    --control-padding-block: 9px;
+    --control-icon-size: 16px;
+  }
+}
+@media (pointer: coarse) {
+  :root {
+    --control-height: 44px;
+    --control-line-height: 20px;
+    --control-padding-block: 11px;
+    --control-icon-size: 16px;
+  }
 }

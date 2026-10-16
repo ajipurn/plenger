@@ -1,68 +1,123 @@
-import { Button as BaseButton } from "@base-ui/react/button";
-import { Input as BaseInput } from "@base-ui/react/input";
-import { Select as BaseSelect } from "@base-ui/react/select";
-import type { ComponentPropsWithRef } from "react";
+import type { MouseEvent, MouseEventHandler, ReactNode, RefAttributes } from "react";
+import {
+  Button as AriaButton,
+  Input as AriaInput,
+  Select as AriaSelect,
+  TextArea as AriaTextArea,
+  type ButtonProps,
+  CheckboxButton,
+  CheckboxField,
+  type CheckboxFieldProps,
+  type InputProps,
+  ListBox,
+  ListBoxItem,
+  Popover,
+  SelectValue,
+  type TextAreaProps,
+} from "react-aria-components";
 import { Icon } from "./icons.tsx";
-import { usePopupContainer } from "./PopupLayer.tsx";
 
-export function Button({ type = "button", ...props }: ComponentPropsWithRef<"button">) {
-  return <BaseButton type={type} {...props} />;
+export function Button({
+  type = "button",
+  disabled = false,
+  onClick,
+  ...props
+}: Omit<ButtonProps, "onClick" | "render"> &
+  RefAttributes<HTMLButtonElement> & {
+    disabled?: boolean;
+    title?: string;
+    onClick?: MouseEventHandler<HTMLButtonElement>;
+  }) {
+  return (
+    <AriaButton
+      type={type}
+      isDisabled={disabled}
+      {...props}
+      // This wrapper always renders a button, so callers receive its concrete DOM type.
+      {...(onClick ? { onClick: (event) => onClick(event as MouseEvent<HTMLButtonElement>) } : {})}
+    />
+  );
 }
 
-export function Input({ type = "text", ...props }: ComponentPropsWithRef<"input">) {
-  return <BaseInput type={type} {...props} />;
+export function Input({ type = "text", ...props }: InputProps & RefAttributes<HTMLInputElement>) {
+  return <AriaInput type={type} {...props} />;
+}
+
+export function TextArea(props: TextAreaProps & RefAttributes<HTMLTextAreaElement>) {
+  return <AriaTextArea {...props} />;
+}
+
+export function Checkbox({
+  children,
+  className = "",
+  ...props
+}: Omit<CheckboxFieldProps, "children" | "className"> & {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <CheckboxField {...props} className="ui-checkbox-field">
+      <CheckboxButton className={`ui-checkbox ${className}`}>
+        <span className="ui-checkbox-indicator" aria-hidden="true">
+          <Icon name="check" />
+        </span>
+        <span>{children}</span>
+      </CheckboxButton>
+    </CheckboxField>
+  );
 }
 
 export function Select<Value extends string>({
   id,
+  label,
   value,
   items,
   onValueChange,
   disabled = false,
+  placeholder,
 }: {
   id: string;
+  label: string;
   value: Value;
   items: { value: Value; label: string }[];
   onValueChange: (value: Value) => void;
   disabled?: boolean;
+  placeholder?: string;
 }) {
-  const container = usePopupContainer();
   return (
-    <BaseSelect.Root
-      items={items}
+    <AriaSelect
+      className="ui-select"
+      aria-label={label}
+      {...(placeholder === undefined ? {} : { placeholder })}
       value={value}
-      onValueChange={(next) => {
-        if (next !== null) onValueChange(next);
+      onChange={(next) => {
+        const item = items.find((item) => item.value === next);
+        if (item) onValueChange(item.value);
       }}
-      disabled={disabled}
+      isDisabled={disabled}
     >
-      <BaseSelect.Trigger id={id} className="ui-select-trigger">
-        <BaseSelect.Value className="ui-select-value" />
-        <BaseSelect.Icon className="ui-select-icon">
+      <AriaButton id={id} className="ui-select-trigger">
+        <SelectValue className="ui-select-value" />
+        <span className="ui-select-icon" aria-hidden="true">
           <Icon name="chevron" />
-        </BaseSelect.Icon>
-      </BaseSelect.Trigger>
-      <BaseSelect.Portal container={container ?? undefined}>
-        <BaseSelect.Positioner
-          className="ui-select-positioner"
-          sideOffset={6}
-          align="start"
-          alignItemWithTrigger={false}
-        >
-          <BaseSelect.Popup className="ui-select-popup">
-            <BaseSelect.List className="ui-select-list">
-              {items.map((item) => (
-                <BaseSelect.Item key={item.value} value={item.value} className="ui-select-item">
-                  <BaseSelect.ItemText>{item.label}</BaseSelect.ItemText>
-                  <BaseSelect.ItemIndicator className="ui-select-indicator">
-                    <Icon name="check" />
-                  </BaseSelect.ItemIndicator>
-                </BaseSelect.Item>
-              ))}
-            </BaseSelect.List>
-          </BaseSelect.Popup>
-        </BaseSelect.Positioner>
-      </BaseSelect.Portal>
-    </BaseSelect.Root>
+        </span>
+      </AriaButton>
+      <Popover className="ui-select-popup ui-popover" placement="bottom start" offset={6}>
+        <ListBox className="ui-select-list" items={items}>
+          {(item) => (
+            <ListBoxItem id={item.value} textValue={item.label} className="ui-select-item">
+              {({ isSelected }) => (
+                <>
+                  <span>{item.label}</span>
+                  <span className="ui-select-indicator" aria-hidden="true">
+                    {isSelected && <Icon name="check" />}
+                  </span>
+                </>
+              )}
+            </ListBoxItem>
+          )}
+        </ListBox>
+      </Popover>
+    </AriaSelect>
   );
 }

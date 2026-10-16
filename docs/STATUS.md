@@ -2,7 +2,7 @@
 
 This page is the single source of truth for what plenger can do today, what has
 been qualified and what is pending. Other documents link here instead of
-repeating milestone status. Last reviewed: 2026-10-04.
+repeating milestone status. Last reviewed: 2026-10-16.
 
 ## Milestones
 
@@ -22,7 +22,8 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | Static scan of Python, JavaScript and TypeScript | Available | Inventory, capabilities, 26 risk rules; never executes project code. [guide/scanning.md](guide/scanning.md) |
 | Reports: terminal, JSON v1, SARIF 2.1.0, Markdown | Available | Baselines, suppressions, `--fail-on` gate, exit codes. [guide/reports-ci.md](guide/reports-ci.md) |
 | GitHub Action (composite) | Available | Runs on GitHub-hosted runners in the repository's CI workflow and writes SARIF. Uploading that SARIF to code scanning is left to the calling workflow and has not been exercised |
-| Local dashboard (`plenger serve`) | Available | Scans, inventory, findings, history, providers, red-team runs, campaigns and comparisons. [guide/dashboard.md](guide/dashboard.md) |
+| Local dashboard (`plenger serve`) | Available | Findings, local Projects, manually started Scans, full finding reports and existing provider settings. [guide/dashboard.md](guide/dashboard.md) |
+| Dashboard Red-team page | Coming soon | Legacy URL shows a placeholder. It is outside the three main workspace tabs and exposes no testing controls |
 | npm package | Available locally | Compiled CLI, built dashboard, grammars, schemas and red-team recipes in one tarball. [guide/install.md](guide/install.md) |
 | `redteam discover` and `redteam plan` (offline) | Available | llmfy function/factory discovery; Python source and Next.js route preparation plans |
 | Red-team profile `llmfy-file-canary-v1` | Available, one live-model record | A clean control and four fixed file-canary probes, bound to targets by observed file-write semantics. One live run on the bundled fixture; see qualification records below |
@@ -30,11 +31,18 @@ repeating milestone status. Last reviewed: 2026-10-04.
 | FastAPI project profile `fastapi-llmfy-v1` | Preparation stage only, one record | Builds the project's declared dependencies from wheels, starts disposable MySQL and Redis on a private network, imports the application with llmfy 0.6.0 model classes routed to the broker and probes `GET /`. No cases, no model calls. Qualified once on the Dayatech assessment center; see below |
 | `redteam run` (CLI campaigns) | Available | Fixed repetitions, shared budget, Wilson intervals, severity/coverage/scope gates, profile export. [guide/redteam.md](guide/redteam.md) |
 | `redteam compare` (before/after) | Available | Fixed-configuration checks, 20 usable trials per case per build |
-| Saved providers (OpenAI, Gemini, Ollama) | Available | Keys encrypted at rest in SQLite; never sent to workers or included in reports |
+| Saved providers (OpenAI, Gemini, Ollama, Anthropic Claude) | Available | Keys encrypted at rest in SQLite; never sent to workers or included in reports. Claude uses the native Messages API |
+| Claude scan cost estimates and model selection | Offline integration tests pass | Per-model manual USD prices for input, output, cache writes and hits, plus an optional long-prompt tier. Per-request accounting and saved price snapshots. New Scan selects a model independently of the provider default. Synthetic browser flow checked; invoice reconciliation is not implemented. [guide/dashboard.md](guide/dashboard.md#claude-model-pricing) |
+| Claude defensive assessments (`assess`) | Offline tests pass | One bounded request over redacted scan facts and snippets. Structured STRIDE output, checked file/line scope, refusal stops and audit metadata. Live Anthropic qualification pending. [guide/assessment.md](guide/assessment.md) |
+| Source-based AI security review and STRIDE | Offline protocol tests pass | Source ordered by the scan's traced paths in a bounded context, with function excerpts of files that do not fit, all six STRIDE categories, independent candidate discovery and a second source review. Standard and Deep source batches, saved history, checked citations, source excerpts and fix prompts. Native Claude structured outputs, canonical enum spelling and safe field diagnostics. Synthetic providers tested; live model detection quality pending. [guide/ai-security-review.md](guide/ai-security-review.md) |
+| Automatic and remote repository scanning | Unavailable | The dashboard scans local folders after an explicit start. Git is optional. Continuous requests are rejected and earlier saved monitors are disabled on startup. GitHub connections and hosted scanning are not implemented. [guide/dashboard.md](guide/dashboard.md#manual-local-scans) |
+| Finding triage and workspace migration | Offline integration tests pass | Five saved workflow statuses, matching-fingerprint persistence across rescans, earlier static history imported with its latest review, provider keys retained |
+| Coding agent fix prompts | Offline tests pass | Generate instructions for one saved static or AI review finding through an explicitly selected provider. Copy the prompt into a coding agent; no agent execution or code edits. Live provider qualification pending. [guide/dashboard.md](guide/dashboard.md#generate-a-fix-prompt) |
+| REA JavaScript/Electron JSON imports | Offline tests pass | Redacted evidence tied to one saved scan, reported provenance and coverage, explicit selection for fix prompts. Contract-shaped synthetic fixtures tested. Live REA CLI export qualification pending. [guide/rea-evidence.md](guide/rea-evidence.md) |
 | ChatGPT subscription provider | Experimental | Native Sign in with ChatGPT, encrypted OAuth storage, text/function Responses transport and observed token thresholds. Offline protocol tests cover authentication and accounting; one live llmfy run recorded on 2026-10-06. Live qualification on a team project pending. |
 | Container runtime | Available | Docker preferred, Podman fallback; networkless, non-root workers. [design/llmfy-runtime.md](design/llmfy-runtime.md) |
 | Trial input templates | Available | Generated-attacks checkpoint 1: built-in controls and probes are host templates in `attack-model.ts`, filled per trial; the Vercel worker fills the booking it seeds and the host checks the delivered text. Same text as before; synthetic container suites rerun on Docker on 2026-10-06. [design/generated-attacks.md](design/generated-attacks.md) |
-| Attacker and judge model roles | Planned | Today's providers configure the target model only; generated attacks are designed in [design/generated-attacks.md](design/generated-attacks.md) |
+| Attacker and judge model roles | Planned | Managed runs configure the target model only; generated attacks are designed in [design/generated-attacks.md](design/generated-attacks.md) |
 | General HTTP and MCP adapters | Planned | M6b/M6c |
 | Indirect injection channels | Planned | M7 |
 | Worker protocol version | Available | Request and `ready` frames carry `protocolVersion` 2; the host and all three runtimes refuse other values. [design/worker-protocol.md](design/worker-protocol.md#version) |
@@ -48,11 +56,11 @@ Podman.
 
 | Package or platform | State |
 | --- | --- |
-| Package name | `plenger` with the `plenger` command; the `plenger` name and `@plenger` scope belong to other npm accounts. The `@plenger` organisation is registered |
+| Package name | `plenger` with the `plenger` command; the `@plenger` npm organisation is registered. The private dashboard workspace is `@plenger/dashboard` |
 | Local npm tarball | Built and installed on macOS Apple Silicon with Node.js 22.23.2 and npm 10.9.8 |
 | Installed CLI and dashboard | Global install, npm exec, all four grammars, offline Next.js planning and authenticated dashboard scans checked locally |
 | Linux, macOS and Windows CI | Installed-package jobs in [package.yml](../.github/workflows/package.yml) passed on Ubuntu 24.04, macOS 15 and Windows 2022 with Node.js 22.18.0 (commit `3f00c03`, 2026-10-04) |
-| Public npm registry release | Not published; `private: true` blocks publishing. A placeholder `plenger@0.0.1` reserves the name; it contains no scanner |
+| Public npm registry release | Not published; `private: true` blocks publishing |
 | Project licence | Apache-2.0, see [LICENSE](../LICENSE) |
 
 ## Binary per platform

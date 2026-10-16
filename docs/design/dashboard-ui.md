@@ -1,252 +1,203 @@
 # Dashboard UI design
 
-Visual design rules for the dashboard frontend under `dashboard/src/`. Usage
-is documented in [../guide/dashboard.md](../guide/dashboard.md).
+The local security workspace reviews source folders on this computer. Codex
+Security informs the finding reports and Clerk informs the visual styling.
+The interface follows Plenger's available local capabilities. Its navigation is
+**Findings**, **Projects**, **Scans** and **Settings**, each with an icon.
+Provider settings retain their connection behavior and use the shared React Aria components.
+Usage is documented in [../guide/dashboard.md](../guide/dashboard.md), with
+qualification in [../STATUS.md](../STATUS.md).
 
-The dashboard uses a monochrome enterprise system with one accent. Tokens live
-in `dashboard/src/styles/tokens.css`; components read only those tokens and are
-styled in `dashboard/src/styles/styles.css`. Both appearances share layout,
-type and spacing.
+Page modules load on navigation through React lazy and Suspense. The shell stays
+visible while a page loads. Scan forms and their drawer code load on first use
+and stay mounted afterwards to preserve closing and focus behavior. Keep the
+default 500 kB build warning and check emitted chunks when adding dependencies.
 
-## Color and surfaces
+## Shell and visual system
 
-- Neutral layers, from back to front: canvas `#0b0b0b`, sidebar `#0e0e0f`,
-  cards `#111112`, nested surfaces `#18181a`. Floating layers (menus, drawers,
-  dialogs) use `--raised` with a soft popover shadow.
-- Borders are hairlines: 6% white for dividers, 11% white for controls.
-  Cards add a 1px top highlight instead of a heavy shadow.
-- Primary text `#ededee`, secondary `#8e8e96`, tertiary `#64646c`.
-- One accent, `#7ea4f7`, marks the active navigation item, focus rings,
-  selected rows and the primary chart series. Nothing else uses it.
-- Severity colors carry finding severity only, on tinted badges with a dot.
-  Green marks success and the local-workspace status.
-- Primary actions are monochrome: a light fill in dark mode, a dark fill in
-  light mode, each with a subtle vertical gradient.
+Use a centered workspace with a sticky two-row header, underlined tabs, quiet
+borders and dense tables. The first row contains the Plenger brand and New Scan
+at the right. The second row contains
+the four main tabs. Settings opens provider connections and stays active on nested
+settings routes. Header, tabs and content share a 1280px container with
+32px gutters, reduced to 16px on small screens. Child sections do not add a
+second outer gutter. Do not restore the old
+Overview, Inventory or campaign sidebar in this shell. The workspace has no footer.
+The header rows are 56px and 40px tall. Tables and drawers use compact padding.
+Settings includes Appearance, Providers and Data. The Dark mode switch lives in
+Appearance and saves changes immediately.
 
-Dark is the default appearance. Light mode uses a `#fafafa` canvas, a `#f4f4f5`
-sidebar, white cards, `#111113` primary text, `#66666f` secondary text and the
-accent `#2f63d6`. The sun/moon action in the sidebar footer switches to the other
-appearance and remains available on narrow screens. SQLite saves the global
-choice independently of the selected project. Apply it to the initial HTML to
-avoid a flash on page loads.
+The navbar uses the existing `/mark.svg` brand asset, shared with the favicon.
+Keep this logo when changing navigation or menu icons.
 
-## Typography
+Read colors, radii and typography from `styles/tokens.css`. Layout rules for
+this shell live in `styles/security.css`; shared controls remain in
+`styles/styles.css`. Light and dark appearances share structure. Dark remains
+the default and SQLite preserves the selected appearance before page scripts
+load. Use bundled Geist Sans for interface text and Geist Mono for source,
+paths and identifiers. Counts use tabular numbers.
 
-Use locally bundled Geist Sans for the interface and Geist Mono for code,
-source paths and identifiers. UI copy is 14px/1.5, table text and secondary
-copy 13px, metadata 12px, and group labels and table headers 11px uppercase
-with 0.06em tracking. Card titles are 15px, page titles 24px (22px on phones)
-with -0.025em tracking. Body copy uses weight 400, navigation and controls 500,
-headings 600. Counts and metrics use tabular numbers.
-
-The brand pairs the outlined `n` monogram from `dashboard/public/mark.svg` with
-the Plenger wordmark in locally bundled Nanum Pen Script, 20px at weight 400
-with natural letter spacing. Light mode inverts the monogram tile.
-
-## Shell
-
-A 248px sidebar holds the brand, the project switcher, grouped navigation
-(Analyze: Overview, Findings, Inventory; Test: Red-team; Workspace: Scan
-history, Settings) and a footer with the local-workspace status and the
-appearance toggle. The project switcher shows an initial tile, the project
-name and its parent path. Navigation counts use Torph.
-
-A sticky 56px topbar beside the sidebar shows a breadcrumb (project or
-Workspace, then the page), when the open scan was taken, and the scan actions:
-Export JSON and Scan or Rescan project. These actions are available on every
-page. Page headings sit below with a title and one line of description.
-
-Below 1024px the sidebar becomes a header row (brand, project, appearance) and
-the navigation becomes a sticky, horizontally scrolling tab strip with an accent
-underline. The breadcrumb is hidden there; the scan actions stay at the top of
-the page.
-
-## Components and layout
-
-Cards, dialogs and drawers use the 12px `--panel-radius`; controls, inputs,
-badges and menus use the 8px `--ui-radius`. Flush surfaces inside a shared
-container remain square so adjacent edges join cleanly. Content shares a
-centered 1240px container with 16px gaps between cards and 20px card padding.
-
-Overview opens with a metadata line (project path, rule count, frameworks) and
-a single KPI strip of four metrics divided by hairlines. The findings metric
-adds a stacked severity meter. Charts, priority findings, frameworks and
-coverage follow as cards with a title and a one-line description; eyebrow
-labels are reserved for drawers and group labels.
-
-Data tables share one header treatment: a quiet band with small uppercase
-labels. Rows use a neutral hover; the row whose detail is open gets an accent
-tint and a 2px accent edge. Severity filters are a segmented control.
-
-Vaul drawers are Radix modal dialogs that disable pointer events outside
-themselves. While a drawer is open, Base UI selects and confirmation dialogs
-mount inside it (`dashboard/src/shared/PopupLayer.tsx`), and Escape closes the
-open popup before the drawer.
-
-Preserve keyboard focus, modal scroll locking, reduced motion and readable
-wrapping. Long technical disclosures use bounded scroll regions; hiding overflow
-must not remove their content.
-
-Inventory uses the same sub-navigation layout as Settings: a narrow category
-list on the left and a headed content column on the right. The list starts with
-Frameworks, followed by the declaration categories, and stays in view while the
-table scrolls. The active item uses the same raised style as Settings. Base UI
-vertical tabs provide keyboard navigation; a synchronized Base UI Select dropdown
-replaces the list below 700px. Category counts use Torph only for numbers.
-Each category has a heading with its name, total count and a one-line
-description. The table panel opens with a toolbar: search by name, configuration
-or source file on the left, and a framework filter using the shared Base UI
-Select on the right. Paginate at 20 declarations; the footer puts the visible
-range on the left and Previous / Next on the right. Frameworks list each detected
-framework with its files, and a second table lists unrecognized AI imports.
-
-Align declarations, configuration and source locations in shared columns. Keep
-frameworks under the declaration name, use compact chips for configuration and
-linked tool counts, and show the filename and line above its directory. Long
-names and paths expose their complete values on hover and in the detail panel.
-Unresolved values stay explicit. Distinct declarations retain their own rows even
-when they share a constructor. Selecting a row opens its metadata, captured prompt
-and capabilities in a Vaul drawer on the right, with scroll locking, swipe dismissal, Escape to
-close and focus returned to the row. On phones this panel fills the viewport.
-Configuration moves under the declaration on narrow screens while source stays
-in its own column. Frameworks remain in an expandable summary above the browser.
+Primary actions use a monochrome foreground and background inversion. Dark
+appearance uses charcoal surfaces and light primary buttons. Light appearance
+uses neutral surfaces and dark primary buttons. Navigation, selection, focus
+and links use neutral emphasis. Reserve severity colors for finding severity
+and chart ribbons. Green indicates completed jobs.
+Workflow status and security severity are separate concepts. Keep actual source
+paths, review limitations and unknown values explicit.
 
 ## Findings
 
-Use a single compact page header with the finding count; the topbar shows the
-scan timestamp.
-The full-width table groups severity, a short rule title with subject and rule ID,
-source filename/directory, and confidence. The toolbar combines search, severity
-filters and a Base UI sort select. Default to highest severity, then score; paginate
-at 20 findings. Hover rows use a neutral surface and the open row an accent tint, with
-severity colors restricted to badges. On phones, rows stack source and confidence below the title,
-and a Base UI severity select replaces the filter buttons.
+The toolbar combines search, project selection, open/all/closed views and
+status/severity filters. Active status filters appear as removable chips.
+A severity-to-status flow uses the currently filtered findings, including zero
+and mixed-status results. Its minimum readable width can scroll inside its
+container on phones. It never uses demonstration counts in the product.
 
-Selecting a row opens a 680px Vaul drawer with the full finding title, source code,
-numbered evidence trace with expandable code context, risk explanation, review
-notes and suggested remediation.
-Keep all source observations and reference mappings. Deep links open the matching
-finding, Escape dismisses the drawer and returns focus to its row, and the panel
-fills the viewport on phones. Use the table-shaped skeleton while loading and Torph
-only for numeric counters.
+The table shows severity, finding, project, origin, status and detection
+time. Sort by severity and paginate at 30 findings. Selecting a row opens a
+full page report with Summary, Root cause, Attack path, Validation, Remediation
+and captured evidence. The metadata column holds severity, editable workflow
+status, observed revision, project, detection time and affected locations.
+View scan returns to the original scan. A historical occurrence keeps its own
+source evidence while showing the current workflow status.
 
-## Red-team results
+Fix with a coding agent opens a drawer. The user chooses a provider and
+explicitly generates a prompt, then copies it. It does not launch an agent or
+apply a patch. Optional REA evidence is unselected by default.
 
-A saved-test switcher sits above the result: the caption with the number of
-saved tests, the test select, then Export result and Export test profile. A
-result is one panel of flush sections divided by hairlines:
+## Project details
 
-1. Verdict: tone icon, title and explanation, with pills on the right for the
-   process state and, once finished, whether the CI gate passed. Issue and
-   warning verdicts get a faint tinted band. The process state never stands in
-   for the security result.
-2. Key figures: model and provider, repetitions, normal tasks, model calls and
-   tokens, each with a small usage bar where a limit applies.
-3. Notices: a CI gate minimum below the estimation threshold (warning), errors
-   with the action that fixes their cause, stale results (warning) and context
-   (info). A stop at a limit names the limit, says every repetition shares it
-   and offers to raise it: the action opens Configure another test and focuses
-   that field. Provider problems link to Providers; a cancellation is context
-   with no action. Each has an icon and full text. A missing safeguard is not a notice;
-   it gets its own section below.
-4. Progress: what the campaign is doing now (repetition, normal task or attack,
-   model calls, last worker event) beside the elapsed time against the
-   deadline, then a matrix with one row per check (direct tool checks, normal
-   task, each attack) and one square per repetition. Squares read: hairline
-   for not started, accent and pulsing for running, neutral fill for completed
-   without violation, critical for an observed violation, medium for no
-   conclusion, dashed for not run. The matrix sits in a bordered table with
-   the shared header band, hairline rows and the legend as its footer. Row
-   labels stay in view while many repetitions scroll sideways, and a summary
-   column on the right gives finished checks and a critical chip for
-   violations. On phones the summary column gives way and labels wrap.
-   Selecting a square opens that repetition under Evidence by repetition. While a test runs, the latest worker events of
-   the current check follow as a short list. After it ends, the line reads
-   Completed, Stopped or Failed with the total duration and the matrix stays as
-   the map of the result. The elapsed time is outside the live region.
-5. Direct tool checks: one card per handler called without the model, with the
-   outcome chip, the observed change, the arguments sent and the recommended
-   fix. The section sits directly under the key figures when a handler accepted
-   the prohibited arguments, so the failing evidence comes first, and after the
-   model table otherwise. The verdict text leads with the channel that failed.
-6. Attacks through the model: a table with violation counts as tinted chips,
-   usable tests with a bar, and the observed rate with its interval. Below the
-   comparison minimum the cell reads "Too few tests to estimate" with the count
-   needed and the interval in the note, never a bold percentage. The method
-   note sits below it as a footnote.
-7. Discovered surfaces exercised, as a ratio with a bar. Handlers exercised by
-   direct tool checks count, and the text says how many.
-8. Collapsible blocks (CI gate, evidence by repetition, technical evidence)
-   with an icon tile, one line of description and a value on the right.
+Project names open `/projects/:id`. Keep Projects selected in the main navigation.
+The page has a project heading, New Scan, saved finding counts and a metadata
+column. Findings and Scans are separate project-scoped views. Scan rows open
+their saved results. Latest scan outputs link to the existing scan output view.
+Preserve project context when opening findings and scans so the back link returns
+to the project. An unscanned project still opens its detail page with an empty state.
 
-A single run uses the same parts: attack checks replace the table, and the
-normal task and coverage notes sit side by side. Comparison, run setup and
-test setup below the result use the same collapsible summary.
+## Projects and scans
 
-## Scan history
+Projects shows saved local folder names and paths, the last scan, finding counts
+and a per-row New Scan action. Search operates on project names and paths.
+Add project saves a folder, optional display name and optional review context.
+Git is optional. Registration does not call a model.
 
-The page opens with a heading that carries the saved-scan count and one line
-with the number of projects, and the Clear saved data action on the right. The
-table uses the shared header treatment: project name with its directory in
-mono and an icon tile, scan time with a relative time under it, source files,
-findings as a count chip, and a chevron. The scan open in the workspace gets
-the accent tint, the 2px accent edge and an Open now tag. A search field
-filters by project name or path, and the footer shows the visible range with
-Previous / Next at 20 scans per page. Below 1000px the source file column is
-hidden; on phones the scan time moves under the project name.
+Scans shows start time, local source, duration, reported tokens and status.
+Search and state filters operate on saved jobs. Scan details have Findings and
+Outputs tabs with metadata beside them. Outputs includes architecture, assets,
+trust boundaries, all six STRIDE categories, source coverage and optional REA
+imports. Deep scans expose their independent batches and limitations.
 
-## Project picker
+Scan details place the project, status and actions in one header. A compact
+summary shows elapsed time, saved findings and scan depth. Metadata groups source,
+model usage and timing. Long folder paths wrap within the panel. While a scan
+runs, show its actual read, review and validation stages without estimating a
+percentage. Cancel acknowledges the pending request. Export snapshot identifies
+incomplete records; finished jobs use Export JSON. Scan again opens the local scan
+form after a job ends. Empty failed runs are incomplete, never clean results.
 
-Keep the project dialog compact: a title and close button, followed by a location
-breadcrumb and Browse action. Show the last two path segments and place earlier
-ancestors in a Base UI menu opened by `…`, without horizontal scrolling. Truncate
-long names and expose their full paths on hover. The labeled Edit action switches
-to a focused path input, with Enter to navigate and Escape to
-cancel editing. Keep Parent folder at the top of the dense folder list. Use
-skeleton rows during initial loading. The footer identifies the selected folder
-by name and provides Cancel / Open project, without repeating the full path.
+A source and shield illustration follows the active scan phase. Keep its motion
+inside the progress card and provide Pause animation. Pausing affects only the
+illustration. Reduced motion keeps a static illustration with phase changes.
+Sort scan findings by severity, highest first, across static and AI origins.
 
-## Icon semantics
+Show Reading source, Discovering findings and Validating findings while a job
+runs. A failed AI review names the response stage and rejected field when
+available. Keep completed static findings visible and explain that they are
+separate from the failed model review. Navigation does not cancel the job. Cancellation has a separate action.
+Job completion is separate from the presence of findings. Refusals and failures
+remain visible with their saved outcome. Missing token usage is unavailable,
+never zero. Dollar estimates require saved model prices and reported usage.
+Show partial estimates explicitly and retain the price snapshot used by each
+scan. Do not invent account credits, hosted environments or remote integrations.
 
-Use outlined Gravity UI icons consistently at a native 16px size. A plain
-`ChevronRight` indicates disclosure, rotating down when expanded; show-all
-controls point down when collapsed and up when expanded. Reserve directional
-arrows for actions with a direction.
+## New Scan drawer
 
-| Meaning | Gravity UI icon |
-| --- | --- |
-| Models | `Cpu` |
-| Agents | `FaceRobot` |
-| Tools | `Wrench` |
-| LLM calls | `Comments` |
-| Entry points | `ArrowRightToSquare` |
-| MCP servers | `PlugConnection` |
-| MCP clients | `PlugWire` |
-| Data stores | `Database` |
-| Prompts | `FileText` |
-| Frameworks | `Cubes3` |
-| Source files | `FileCode` |
-| Parent folder | `FolderArrowUp` |
-| Red-team review | `Shield` |
-| Remaining preparation steps | `ListCheck` |
-| Switch to light / dark mode | `Sun` / `Moon` |
-| Project switcher | `ChevronsExpandVertical` |
-| CI gate | `Flag` |
-| Compare tests | `ArrowRightArrowLeft` |
-| Error / warning / context notice | `CircleXmark` / `CircleExclamation` / `CircleInfo` |
+Use a right drawer up to 760px wide and full width on phones. Keep its title
+and close action above the scrolling form. Cancel and Start Scan stay in a
+fixed footer, alongside a visible source-dispatch and API-usage disclosure.
+The form selects a saved local project, provider, model and scan depth. Start
+with the provider's default model. A scan's model choice does not change that
+default. Show the selected folder path. Keep optional review context in a disclosure.
+Use a simple vertical form without environment or scan-scope selectors.
+Standard and Deep describe actual review coverage and model-call bounds.
+Static checks, AI code review and STRIDE threat modeling remain included.
 
-## Settings
+All scans start manually. The service does not watch commits or start scheduled
+reviews. Saved monitors from earlier versions are disabled on startup. Existing
+projects, scan history, triage and provider settings stay saved. Earlier
+`/repositories` bookmarks redirect to `/projects`. Internal repository record
+names and API paths stay compatible with saved data; they do not imply a remote
+repository connection. Availability is recorded in [../STATUS.md](../STATUS.md).
 
-The sidebar navigation uses consistent 16px Gravity icons beside every label.
-Settings lives at `/settings/providers`; the old `/providers` URL redirects there.
-Use a narrow category sidebar on the left, currently containing Providers, and
-a provider table on the right. The table shows named connections, provider/model,
-endpoint, saved-key presence and actions. Put Add provider in the section heading;
-open Add/Edit in a Vaul drawer, rather than keeping a large form on the page.
+## Accessibility and responsive behavior
 
-Connections are shared across projects. Keep one default connection for new tests,
-allow multiple saved providers, and select a named provider in the red-team form.
-Actions include Edit, Test connection, Make default, and Delete with confirmation.
-Do not expose API keys in table rows. Keep button labels static during requests
-and disable actions while pending. On smaller screens, stack the sidebar above
-the table and simplify columns; the editor fills the viewport on phones.
+Changing numeric readouts use Torph's Counter tick behavior through `MorphNumber`.
+Match digits by place value and use tabular figures. Only changed digits move.
+Use the shared 200ms ease-in-out transition without scale. Running scan timers tick
+locally once a second between API polls and stop when the scan finishes.
+Reduced motion displays updated values without rolling digits. Keep dates, model
+IDs, source text and editable fields static.
+
+Use semantic tables, visible labels and status text alongside color. Shared
+React Aria Components provide buttons, inputs, selects, checkboxes,
+menus, tabs, popovers and confirmation dialogs. Right drawers use Vaul with
+accessible titles and descriptions, focus trapping and explicit focus restoration.
+React Aria popovers and provider deletion confirmations portal inside the drawer
+so its modal focus scope includes them. Escape dismisses the innermost popup first. Drawers lock background
+scrolling and allow vertical scrolling inside the form. Busy forms cannot dismiss
+their modal. Reduced motion disables drawer animations. React Aria reads the
+response stylesheet nonce from the `csp-nonce` meta property. Radix scroll-lock
+styles use the same nonce. CSP admits only Vaul's pinned stylesheet by hash.
+No inline script or style policy is relaxed.
+
+Ordinary buttons, icon buttons, inputs and select triggers share a 32px control
+height, 13px type, 18px line height, 1px border and 8px radius. Panels use a 12px
+radius. Use shared control tokens for padding and icon size. On small screens
+controls are 40px with 16px type; coarse pointers use 44px controls. Multiline fields and selection indicators
+keep their appropriate shapes. Primary and secondary buttons have the same
+geometry. Do not add individual size overrides in page styles.
+
+The navigation always has its own header row. Below 480px the four tabs use
+equal columns with icons above their labels. All labels stay visible.
+Below 720px controls wrap, report
+metadata moves below the document and form fields stack. Source blocks and
+wide tables scroll within their own regions. Long paths wrap without expanding
+the page. Keep the drawer footer usable at 320px. Preserve keyboard focus rings
+and the skip link.
+
+## Providers and red-team
+
+Provider settings keep named connections, endpoint/model controls, encrypted
+key presence, connection tests, default selection and deletion confirmation.
+The browser receives only a masked preview with at most the last four characters
+of a stored API key. Keys shorter than 12 characters stay fully masked. Derive the
+preview locally without persisting it. Keep the replacement input empty and show
+the preview as its placeholder only while the provider and endpoint match.
+ChatGPT sign-in credentials have no key preview. Editors continue using the shared
+drawer and popup primitives.
+
+Claude editors split Connection and Model pricing into keyboard-accessible tabs.
+Keep Cancel, Save provider and save errors in a fixed footer. Preserve drafts
+across tab and model changes. Saving invalid prices opens the affected model
+and focuses its first invalid field. Group USD rates in aligned category rows,
+with the unit stated once. Keep long context rates optional and explain
+estimates in a disclosure. Advanced connection settings hold the endpoint and
+generation defaults.
+
+Anthropic and OpenAI place the API key before a model selector. **Load models**
+uses the entered key or the saved key for the same endpoint. Clear the catalog
+when the provider, endpoint or key changes. Keep loading, empty and failure states
+visible beside the selector. Persist successful catalogs locally and restore them
+when a saved provider is opened, including after a restart. Restoring a catalog
+never contacts the provider. **Reload models** explicitly refreshes it; a failed
+refresh preserves the previous list. Cache scope includes the provider, normalized
+endpoint and key, using a private HMAC without storing draft credentials.
+Model IDs come from the provider API, without a bundled model list.
+Temperature and output controls are hidden for these providers.
+Save null generation settings. Claude's required output cap is determined from
+model metadata and the operation allowance. OpenAI defaults omit the optional
+output limit and report observed token thresholds.
+
+The legacy `/redteam` URL shows Coming soon without execution controls. It is
+outside the four main workspace tabs. The CLI engine and its earlier
+contracts are documented separately in [redteam-contracts.md](redteam-contracts.md).

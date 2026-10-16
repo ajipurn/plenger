@@ -32,7 +32,10 @@ export function requireMethod(request: IncomingMessage, method: string): void {
 }
 
 /** The request body as a JSON object: small, UTF-8, `application/json`. */
-export async function jsonRequest(request: IncomingMessage): Promise<Record<string, unknown>> {
+export async function jsonRequest(
+  request: IncomingMessage,
+  maxBytes = MAX_BODY_BYTES,
+): Promise<Record<string, unknown>> {
   if (!JSON_CONTENT_TYPE.test(request.headers["content-type"] ?? ""))
     throw new HttpError(415, "Send this request as JSON.");
   const bytes = await new Promise<Buffer>((resolveBody, reject) => {
@@ -40,7 +43,7 @@ export async function jsonRequest(request: IncomingMessage): Promise<Record<stri
     let size = 0;
     request.on("data", (chunk: Buffer) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
         parts.length = 0;
         reject(new HttpError(413, "Request body is too large."));
       } else parts.push(chunk);

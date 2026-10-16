@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
+import { type ReactNode, type RefObject, useRef } from "react";
+import { UNSAFE_PortalProvider } from "react-aria/PortalProvider";
 import { Drawer } from "vaul";
 import { Icon } from "./icons.tsx";
-import { usePopupContainerRef } from "./PopupLayer.tsx";
 import { useElementScrollbars } from "./ScrollArea.tsx";
 import { Button } from "./ui.tsx";
 
@@ -20,7 +20,9 @@ export function DetailDrawer({
   closeLabel,
   closeDisabled = false,
   returnFocus,
+  contentRef,
   children,
+  footer,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,10 +38,15 @@ export function DetailDrawer({
   closeDisabled?: boolean;
   /** Resolves the element that regains focus once the drawer has closed. */
   returnFocus: () => HTMLElement | null | undefined;
+  /** Allows sibling confirmations to portal inside the drawer's modal focus scope. */
+  contentRef?: RefObject<HTMLDivElement | null>;
   children: ReactNode;
+  footer?: ReactNode;
 }) {
   const scrollbars = useElementScrollbars<HTMLDivElement>();
-  const popupContainer = usePopupContainerRef();
+  const ownContent = useRef<HTMLDivElement>(null);
+  const content = contentRef ?? ownContent;
+  const closeButton = useRef<HTMLButtonElement>(null);
   return (
     <Drawer.Root
       direction="right"
@@ -52,40 +59,59 @@ export function DetailDrawer({
       <Drawer.Portal>
         <Drawer.Overlay className="inventory-drawer-overlay" />
         <Drawer.Content
-          ref={popupContainer}
+          ref={content}
           className={className}
-          onEscapeKeyDown={(event) => {
-            // Radix sees Escape first; leave it to an open select, menu or confirmation.
-            if (event.target instanceof Element && event.target.closest("[data-base-ui-portal]"))
-              event.preventDefault();
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            closeButton.current?.focus({ preventScroll: true });
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            returnFocus()?.focus({ preventScroll: true });
+            const target = returnFocus();
+            if (target?.isConnected) target.focus({ preventScroll: true });
+          }}
+          onEscapeKeyDown={(event) => {
+            // Radix handles Escape during capture. Let the inner React Aria overlay close first.
+            if (
+              event.target instanceof Element &&
+              event.target.closest(".ui-popover, [data-overlay-container]")
+            )
+              event.preventDefault();
           }}
         >
-          <div className={headingClassName}>
-            <div>
-              <p className="eyebrow">{eyebrow}</p>
-              <Drawer.Title>{title}</Drawer.Title>
-              <Drawer.Description className={descriptionClassName}>
-                {description}
-              </Drawer.Description>
-            </div>
-            <Drawer.Close asChild>
-              <Button className="icon-button" aria-label={closeLabel} disabled={closeDisabled}>
+          <UNSAFE_PortalProvider getContainer={() => content.current}>
+            <div className={headingClassName}>
+              <div>
+                <p className="eyebrow">{eyebrow}</p>
+                <Drawer.Title>{title}</Drawer.Title>
+                <Drawer.Description className={descriptionClassName}>
+                  {description}
+                </Drawer.Description>
+              </div>
+              <Button
+                ref={closeButton}
+                className="icon-button"
+                aria-label={closeLabel}
+                disabled={closeDisabled}
+                onClick={() => onOpenChange(false)}
+              >
                 <Icon name="close" />
               </Button>
-            </Drawer.Close>
-          </div>
-          <div
-            className={bodyClassName}
-            ref={scrollbars}
-            data-overlayscrollbars-initialize=""
-            data-vaul-no-drag
-          >
-            {children}
-          </div>
+            </div>
+            <div
+              className={bodyClassName}
+              ref={scrollbars}
+              data-overlayscrollbars-initialize=""
+              data-vaul-no-drag
+            >
+              {children}
+            </div>
+            {footer && (
+              <div className="ui-drawer-footer" data-vaul-no-drag>
+                {footer}
+              </div>
+            )}
+          </UNSAFE_PortalProvider>
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

@@ -1,8 +1,8 @@
-import { AlertDialog } from "@base-ui/react/alert-dialog";
-import { type ReactNode, type RefObject, useRef } from "react";
-import { usePopupContainer } from "./PopupLayer.tsx";
+import type { ReactNode, RefObject } from "react";
+import { Dialog, Heading, Modal, ModalOverlay, Text } from "react-aria-components";
 import { useElementScrollbars } from "./ScrollArea.tsx";
 import { Button } from "./ui.tsx";
+import { useDialogFocus } from "./useDialogFocus.ts";
 
 /** Destructive confirmation with a cancel control that receives initial focus. */
 export function ConfirmDialog({
@@ -37,50 +37,43 @@ export function ConfirmDialog({
   /** Enhance the popup with overlay scrollbars for long descriptions. */
   scrollable?: boolean;
 }) {
-  const cancel = useRef<HTMLButtonElement>(null);
   const scrollbars = useElementScrollbars<HTMLDivElement>();
-  const container = usePopupContainer();
+  useDialogFocus(open, () => finalFocus.current);
   return (
-    <AlertDialog.Root
-      open={open}
+    <ModalOverlay
+      isOpen={open}
+      isKeyboardDismissDisabled={busy}
       onOpenChange={(next) => {
         if (!next && !busy) onClose();
       }}
+      className={`${backdropClassName} ${viewportClassName}`}
     >
-      <AlertDialog.Portal container={container ?? undefined}>
-        <AlertDialog.Backdrop className={backdropClassName} />
-        <AlertDialog.Viewport className={viewportClassName}>
-          <AlertDialog.Popup
-            {...(scrollable ? { ref: scrollbars, "data-overlayscrollbars-initialize": "" } : {})}
-            className={popupClassName}
-            initialFocus={cancel}
-            finalFocus={finalFocus}
-          >
-            <div className="dialog-heading">
-              <AlertDialog.Title>{title}</AlertDialog.Title>
-            </div>
-            <AlertDialog.Description className="muted">{description}</AlertDialog.Description>
-            {error && (
-              <p className="error-message" role="alert">
-                {error}
-              </p>
-            )}
-            <div className={actionsClassName}>
-              <Button
-                ref={cancel}
-                className="button button-secondary"
-                disabled={busy}
-                onClick={onClose}
-              >
-                Cancel
-              </Button>
-              <Button className="button button-danger" disabled={busy} onClick={onConfirm}>
-                {confirmLabel}
-              </Button>
-            </div>
-          </AlertDialog.Popup>
-        </AlertDialog.Viewport>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
+      <Modal
+        {...(scrollable ? { ref: scrollbars, "data-overlayscrollbars-initialize": "" } : {})}
+        className={popupClassName}
+      >
+        <Dialog role="alertdialog" className="ui-dialog">
+          <div className="dialog-heading">
+            <Heading slot="title">{title}</Heading>
+          </div>
+          <Text slot="description" className="muted">
+            {description}
+          </Text>
+          {error && (
+            <p className="error-message" role="alert">
+              {error}
+            </p>
+          )}
+          <div className={actionsClassName}>
+            <Button className="button button-secondary" disabled={busy} onClick={onClose} autoFocus>
+              Cancel
+            </Button>
+            <Button className="button button-danger" disabled={busy} onClick={onConfirm}>
+              {confirmLabel}
+            </Button>
+          </div>
+        </Dialog>
+      </Modal>
+    </ModalOverlay>
   );
 }

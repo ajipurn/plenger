@@ -22,12 +22,12 @@ export function ClearSavedData({
       open={open}
       busy={busy}
       error={error}
-      title="Clear saved data?"
-      description="Delete all saved scans, project reviews, red-team runs, run settings and project selections on this device. Saved providers stay in Settings. Your project files and exported reports stay unchanged."
+      title="Clear all workspace data?"
+      description="Permanently delete all saved projects, scans, findings, reviews, imported evidence and red-team results on this device. Providers and their credentials are kept. Your project files and exported reports stay unchanged. This cannot be undone."
       confirmLabel={
         <>
           {busy ? <span className="spinner" aria-hidden="true" /> : <Icon name="trash" />}
-          {busy ? "Clearing…" : "Clear saved data"}
+          {busy ? "Clearing…" : "Clear data"}
         </>
       }
       onClose={onClose}

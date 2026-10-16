@@ -27,6 +27,12 @@ export class ScanRepository {
     return row ? parsePayload<DashboardScan>(row) : null;
   }
 
+  /** Read a snapshot without changing the selected project or scan. */
+  readScan(id: string): DashboardScan | null {
+    const row = this.#storage.database.prepare("SELECT payload FROM scans WHERE id = ?").get(id);
+    return row ? parsePayload<DashboardScan>(row) : null;
+  }
+
   readPlan(project: string): ProjectPlan | null {
     const row = this.#storage.database
       .prepare("SELECT plan FROM projects WHERE path = ? AND plan IS NOT NULL")

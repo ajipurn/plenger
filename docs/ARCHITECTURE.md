@@ -18,6 +18,10 @@ src/
   storage/               SQLite repositories shared by the dashboard and the CLI
   redteam/               dynamic testing engine: discovery, plans, campaigns, workers
   scan.ts                composition root of the static pipeline
+  security/              repository, job and finding domain; read-only Git metadata
+  assessment/            explicit source-based AI review, STRIDE and facts-only CLI assessments
+  remediation/           explicit model-generated coding agent prompts from saved findings
+  evidence/              bounded, redacted imports of external REA JavaScript analysis
   report/                report shapes, formats (terminal, JSON, SARIF, Markdown), policies
   rules/                 risk rules, the engine that evaluates them, scoring
   capabilities/          what tools, agents and entry points can do
@@ -35,8 +39,8 @@ test/                    vitest suites, `support/` helpers, fixture corpora and 
 Dependencies point downwards only. `shared` and `source` import nothing else from
 `src/`. The pipeline layers (`facts` → `project` → `inventory` → `capabilities` →
 `rules` → `report`) each depend on the layers below them. `redteam` uses the
-pipeline through `scan.ts` and `facts`/`inventory` types, plus `shared`. `storage`
-depends on `redteam` record types. `dashboard` and `cli` sit on top and nothing
+pipeline through `scan.ts` and `facts`/`inventory` types, plus `shared`. `security` normalizes static and AI findings without changing the static
+pipeline. `storage` depends on persisted domain record types. `dashboard` and `cli` sit on top and nothing
 imports them back; `src/bin.ts` and `src/dashboard/bin.ts` are the only entry
 points.
 
@@ -75,6 +79,58 @@ code:
 
 Secrets are redacted by `shared/secrets.ts` before anything is written.
 
+## Read-only model assessment
+
+`assessment/security-review.ts` runs bounded source discovery and a skeptical
+second review through the saved provider. `review-source.ts` rereads only files
+in a saved scan's allowlist through the bounded regular-file reader. It redacts
+and line-numbers source before model dispatch. `review-focus.ts` orders files by
+the scan's traced entry point, tool and model output paths. `review-excerpt.ts`
+cuts a file that does not fit into whole functions with original line numbers,
+using facts parsed at review time. `review-model.ts` checks
+all six STRIDE categories, citation ranges and complete host-assigned decision
+ids. It canonicalizes known enum casing while preserving exact source scope.
+Validation failures identify the stage and JSON field without echoing model values.
+Native Claude reviews pass a host-owned output schema through the provider.
+Its transport converts unsupported schema bounds to descriptions; the host
+parser remains authoritative. The host supplies snippets from captured source. No model tools are exposed.
+`storage/review-repository.ts` persists per-scan results. The explicit dashboard
+route `routes/security-review.ts` remains available. The repository workspace
+coordinates new jobs through `security-coordinator.ts` and exposes coverage,
+threat models and source traces in scan Outputs. See
+[guide/ai-security-review.md](guide/ai-security-review.md).
+
+`assessment/assess.ts` composes an offline scan with one explicit Claude request.
+It selects bounded, redacted facts and finding snippets from the chosen path.
+`assessment/model.ts` validates the structured STRIDE response and its file/line
+references. It defines the generated assessment schema. `assessment/format.ts`
+renders JSON or escaped Markdown. Refusals and failures stop after one request.
+No project execution or model tools are exposed. `cli/commands/assess.ts` resolves
+an encrypted Anthropic connection or an explicitly named key environment variable.
+
+## Repository security workspace
+
+`security/model.ts` defines local repositories, environments, monitoring, scan
+jobs, finding statuses and scan depths. `security/findings.ts` normalizes
+static and AI evidence into reports with stable fingerprints. The workflow
+status is separate from an AI validation verdict.
+
+`dashboard/security-coordinator.ts` owns background jobs and local commit
+monitoring. It captures an offline scan, runs one or up to three independent
+source-review batches, saves results and stops at failures or refusals.
+`OperationSupervisor` serializes jobs with other project operations and owns
+cancellation. Navigating away does not abort a job. Monitoring checks local
+HEAD every 30 seconds while the service runs. Provider failures pause it.
+
+`security/git.ts` reads revision metadata using fixed Git commands, disables
+hooks and fsmonitor, and removes inherited Git configuration variables. It is
+outside the static pipeline. The reported revision does not freeze source;
+review file digests identify captured content. No application code executes.
+
+`routes/security-workspace.ts` validates repository registration, job starts,
+monitoring pauses, cancellation and finding status updates. It resolves saved
+provider IDs without accepting raw credentials or model-supplied execution.
+
 ## The red-team engine
 
 `src/redteam/` runs supported projects inside networkless containers after an
@@ -87,8 +143,10 @@ explicit start.
   runnable. `format.ts` renders the CLI text for both.
 - **Model access.** `provider-config.ts` validates saved provider settings and
   converts them to `ProviderAccess`; `provider.ts` is the HTTP transport for
-  OpenAI, Gemini and Ollama and the connection test; `budget.ts` enforces one
-  shared call, token and time budget. The experimental ChatGPT subscription
+  OpenAI, Gemini and Ollama and the connection test. `anthropic-provider.ts`
+  translates text and function tools to Claude's native Messages API and accounts
+  for cache tokens. Provider refusals stop the step and campaign repetitions.
+  `budget.ts` enforces one shared call, token and time budget. The experimental ChatGPT subscription
   provider has two modules: `chatgpt-auth.ts` runs the Sign in with ChatGPT
   flow (PKCE, loopback callback, id-token verification, refresh, model
   catalog) and `chatgpt-provider.ts` is its streaming Responses API transport,
@@ -109,6 +167,11 @@ explicit start.
   `worker.ts` launches one container per trial and turns protocol violations and
   cleanup results into a typed `WorkerError`. `runtime.ts` builds the pinned
   images and lists the recipe files (`RUNTIME_FILES`) shipped by both distributions.
+  Runs own disposable runtime images. Docker builds have a dedicated Buildx
+  builder whose cache is removed after building; Podman disables intermediate
+  image caching. Runtime images are removed when a run or campaign ends; expired
+  images and builders left by a host that died are swept when the next runtime is
+  prepared.
 - **Campaigns.** `campaign-model.ts` defines campaign plans, reports and the
   built-in case catalog; `campaign.ts` creates, validates and executes campaigns;
   `campaign-evidence.ts` computes statistics and the gate; `campaign-report.ts`
@@ -141,8 +204,18 @@ recovers interrupted ones on open; `provider-repository.ts` keeps provider
 connections and their sealed keys (`provider-secrets.ts`), including the sealed
 ChatGPT OAuth session and the lease that serialises its refresh across
 processes. `store.ts` is the
-facade the dashboard uses; `records.ts` defines the persisted shapes that the
-dashboard contract re-exports.
+facade the dashboard uses. `security-repository.ts` stores repository settings,
+scan jobs and current finding statuses. Migration 8 adds its tables without
+replacing existing provider storage. Interrupted jobs become failed on open.
+The coordinator imports earlier static history with its latest review once.
+`review-repository.ts` and `evidence-repository.ts` retain source reviews and
+redacted REA imports tied to the underlying static snapshot. `records.ts`
+defines the persisted shapes that the dashboard contract re-exports.
+
+Migration 9 adds provider model catalogs. `provider-repository.ts` stores only the
+sanitized model list and an opaque connection fingerprint. `provider-secrets.ts`
+derives the fingerprint from the provider, normalized endpoint and key using the
+installation encryption key. Draft credentials are never saved with a catalog.
 
 ## The command line
 
@@ -164,7 +237,7 @@ serves the built page from `dashboard/dist` in the npm package or checkout (or
 the embedded assets in the optional binary).
 `server.ts` listens and dispatches through the explicit route table in
 `routes/index.ts`; each file under `routes/` handles one area (session, state,
-scan, history, folders, providers, red-team, theme). `http.ts` holds the request
+scan, history, folders, providers, security workspace, red-team, theme). `http.ts` holds the request
 validators and `HttpError`, `security.ts` the headers and CSP, `operations.ts` the
 supervisor that serialises long operations and cancellation, `static-assets.ts`
 the asset serving, and `chatgpt-login.ts` the one browser sign-in a dashboard
@@ -174,12 +247,15 @@ runs at a time, exposing only its public progress through the provider routes.
 route map, request and response types, the limits both sides enforce and the
 theme markup both rewrite. It has no `node:` imports.
 
-The page in `dashboard/src/` is organised by feature: `app/` (shell, routes,
-state reducer, polling, theme), `api/` (the fetch client), `shared/` (UI
-primitives, formatting, async helpers), and one folder per view: `overview`,
-`findings`, `inventory`, `history`, `project`, `redteam`, `campaigns`,
-`providers`. Styles live in `styles/`; the visual rules are in
-[design/dashboard-ui.md](design/dashboard-ui.md).
+The page in `dashboard/src/security/` implements the Findings, Repositories and
+Scans shell, job details, finding reports and scan forms. `app/App.tsx` exports
+this shell. `providers/` retains the existing connection settings, `findings/`
+supplies fix prompt and REA components, `api/` owns the fetch client, and
+`shared/` owns UI primitives. The earlier overview, inventory, history and red-team
+views were removed; they remain in Git history. `/redteam` renders its placeholder.
+The red-team, campaign and plan HTTP routes remain for the CLI-compatible API and
+their tests, without a page client. Styles live in `styles/`; the
+visual rules are in [design/dashboard-ui.md](design/dashboard-ui.md).
 
 ## Tests
 

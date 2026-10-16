@@ -8,55 +8,27 @@ M8, risks and the work beyond the MVP.
 
 ## Goal
 
-For an agentic AI project in Python, JavaScript or TypeScript, help a developer
-or security reviewer answer four questions quickly:
+Give developers a repository security workflow modeled on the supplied Codex
+Security Cloud references: Findings, Repositories, Scans, detailed source
+evidence, STRIDE threat modeling and a prompt that a coding agent can use to
+fix a selected finding. Provider settings remain configurable. Projects are
+not restricted to a single application or agent framework.
 
-1. **What can the agent do?** Its models, tools, MCP servers, retrievers and
-   what each tool can reach (shell, files, network, databases, messages).
-2. **What can reach it?** HTTP routes, chat inputs, retrieved documents and
-   tool outputs that end up in a prompt or a tool call.
-3. **What should I look at first?** Findings ranked by severity and confidence,
-   each pointing at the code that justifies it.
-4. **Can adversarial input cross the application's security boundary?** Run
-   scoped tests, inspect observed effects and rerun the same cases after a fix.
+The first source is local folders. A scan combines offline static triage with
+bounded LLM source discovery and skeptical validation. Static rules retain
+their agent-specific coverage. AI review can inspect ordinary Python,
+JavaScript and TypeScript code, with explicit coverage and limitations.
+Findings keep triage state, scan provenance and remediation evidence.
 
-The MVP combines static triage with red-teaming of the running agent. Triage
-comes first; [M6](#m6-red-team-harness-direct-input-in-progress) builds the
-red-team harness and tests direct input against a running target, and
-[M7](#m7-red-team-indirect-prompt-injection-planned) extends it to indirect
-prompt injection through content the agent reads. Both are adversarial tests at
-the agent level; model-level adversarial attacks are outside the MVP.
-Distribution is [M8](#m8-distribution-in-progress).
+The repair action generates instructions after a finding exists. Users choose
+when to hand those instructions to their coding agent. The dashboard does not
+execute the agent or apply patches. Local continuous scanning watches committed
+Git revisions while the service is open.
 
-**Product direction: capability and usability parity with promptfoo's
-red-teaming workflow.** The scope is adversarial security testing of AI
-applications and agents. Promptfoo is the primary reference; garak and Strix
-are additional references. The capability target includes connecting models
-and applications, a broader test catalogue, LLM-generated and adaptive
-attacks, multi-turn sessions, deterministic checks plus LLM judges, saved
-regression suites, comparisons and CI. M6 and M7 establish the initial
-harness; completing them alone does not establish parity. Progress is measured
-by setup effort, validated findings, false positives, evidence quality and
-execution cost on common target applications.
-
-Static triage and inventory support target discovery, attack selection and
-source evidence. They remain available on their own, but delivery priorities
-centre on the red-team journey. General prompt-quality evaluation, model
-benchmarking and non-security A/B experiments are outside this direction.
-Comparing models, prompts or builds stays in scope when rerunning the same
-security cases to assess a boundary or verify a fix.
-
-**Product goal: choose a project, click Start, get evidence.** For supported
-integrations, users do not write wrappers, change application code, copy
-event helpers, prepare mock tools or author configuration files. Plenger owns
-discovery, integration, test setup, observation and cleanup. Users select a
-project or endpoint, provide missing access when needed, and choose the test
-scope and budget in the dashboard. Saved profiles make repeat runs a single
-action; the CLI remains available for automation and CI. The no-code workflow
-is a release criterion for each supported integration, not a promise that
-every project shape can be instrumented. Runtime compatibility is published
-independently of static detection coverage. An unsupported integration is
-explained, never turned into an adapter-writing task or labelled as coverage.
+Read-only analysis is the current dashboard journey. The earlier managed
+red-team engine remains a separate CLI capability. Its retained direction and
+M6/M7 contracts below describe that engine rather than the new workspace UI.
+Availability and qualification are recorded in [STATUS.md](STATUS.md).
 
 ### Red-team capability target
 
@@ -77,8 +49,8 @@ Start → inspect outcomes and evidence → save cases and retest a fix.
 | Campaigns and evidence | Progress, cancellation, shared budgets, clean controls, scoped conclusions, observed effects | Delivered for the two profiles, including saved providers, repetitions, statistics, profiles and CLI gates |
 | Security regression | Save a failure as a reusable case, rerun against a fix, compare across builds, gate CI | Saved campaigns and before/after comparisons exist; reusable custom suites are planned |
 
-Target, attacker and judge models are distinct roles; choosing a provider
-today configures the target model only. The sequence is: qualify M6a, broaden
+Within managed red-team runs, target, attacker and judge models are distinct
+roles; choosing a provider configures the target model only. The sequence is: qualify M6a, broaden
 M6b, complete M6c, then M7, then the generated, adaptive, multi-turn and
 grading work as explicit checkpoints. One step was brought forward on
 2026-10-06: checkpoint 1 of [design/generated-attacks.md](design/generated-attacks.md),
@@ -121,7 +93,7 @@ built dashboard and container runtime recipes. The optional standalone binary
 also embeds Node.js through single executable applications.
 
 The dashboard is React and TypeScript with Vite, React Router 7, Tailwind CSS
-4, Base UI, Gravity icons, OverlayScrollbars and Torph, served by a loopback
+4, React Aria Components, Gravity icons, OverlayScrollbars and Torph, served by a loopback
 Node.js service that stores scans, plans, runs, campaigns, providers and
 preferences in SQLite. `plenger serve [path]` serves the bundled dashboard;
 `pnpm dashboard` runs the Vite development server with hot reload against the

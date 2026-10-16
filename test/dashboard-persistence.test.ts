@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DashboardScan, DashboardState } from "../src/dashboard/contract.ts";
 import type { ProjectPlan } from "../src/redteam/plan.ts";
 import * as scanner from "../src/scan.ts";
+import { SCHEMA_VERSION } from "../src/storage/migrations.ts";
 import { startTestDashboard, type TestDashboard } from "./support/dashboard.ts";
 import { fixturePath } from "./support/fixtures.ts";
 import { temporaryDir } from "./support/tmp.ts";
@@ -76,7 +77,7 @@ describe("SQLite dashboard persistence", () => {
     expect(await state()).toEqual(saved);
     const upgraded = new DatabaseSync(join(dataDir, "dashboard.sqlite"));
     try {
-      expect(upgraded.prepare("PRAGMA user_version").get()?.user_version).toBe(5);
+      expect(upgraded.prepare("PRAGMA user_version").get()?.user_version).toBe(SCHEMA_VERSION);
     } finally {
       upgraded.close();
     }
@@ -109,7 +110,7 @@ describe("SQLite dashboard persistence", () => {
     expect(await (await request("/api/providers")).json()).toEqual([]);
     const upgraded = new DatabaseSync(join(dataDir, "dashboard.sqlite"));
     try {
-      expect(upgraded.prepare("PRAGMA user_version").get()?.user_version).toBe(5);
+      expect(upgraded.prepare("PRAGMA user_version").get()?.user_version).toBe(SCHEMA_VERSION);
       const tables = upgraded
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
         .all()
@@ -118,10 +119,16 @@ describe("SQLite dashboard persistence", () => {
         "model_providers",
         "preferences",
         "projects",
+        "provider_model_catalogs",
+        "rea_evidence",
         "redteam_campaigns",
         "redteam_profiles",
         "redteam_runs",
         "scans",
+        "security_findings",
+        "security_repositories",
+        "security_reviews",
+        "security_scans",
         "sqlite_sequence",
         "workspace",
       ]);

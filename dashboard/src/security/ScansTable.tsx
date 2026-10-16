@@ -1,0 +1,61 @@
+import { Link } from "react-router";
+import type { SecurityScanSummary } from "../../../src/dashboard/contract.ts";
+import { MorphNumber } from "../shared/MorphNumber.tsx";
+import { costLabel } from "./ScanBilling.tsx";
+import { date, ScanDuration, ScanStatus } from "./ui.tsx";
+
+export function ScansTable({
+  scans,
+  names,
+  projectId,
+}: {
+  scans: SecurityScanSummary[];
+  names: Map<string, string>;
+  projectId?: string;
+}) {
+  return (
+    <div className="security-table-scroll">
+      <table className="security-table security-scans-table">
+        <caption className="sr-only">Security scans</caption>
+        <thead>
+          <tr>
+            <th scope="col">Started ↓</th>
+            <th scope="col">Source</th>
+            <th scope="col">Duration</th>
+            <th scope="col">Tokens used</th>
+            <th scope="col">Estimated cost</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {scans.map((scan) => (
+            <tr key={scan.id}>
+              <td className="security-date">{date(scan.startedAt)}</td>
+              <td>
+                <Link
+                  className="security-row-link"
+                  to={`/scans/${encodeURIComponent(scan.id)}${projectId ? `?project=${encodeURIComponent(projectId)}` : ""}`}
+                >
+                  {names.get(scan.repositoryId) ?? "Project"}
+                </Link>
+                <span className="security-cell-caption">
+                  {scan.revision.commit?.slice(0, 7) ?? "Local files"}
+                </span>
+              </td>
+              <td>
+                <ScanDuration scan={scan} />
+              </td>
+              <td className="security-number">
+                {scan.tokens === null ? "Unavailable" : <MorphNumber value={scan.tokens} />}
+              </td>
+              <td>{scan.cost ? <MorphNumber value={costLabel(scan.cost)} /> : "Unavailable"}</td>
+              <td>
+                <ScanStatus scan={scan} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

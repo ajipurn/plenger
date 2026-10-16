@@ -16,6 +16,7 @@ import {
   newStyleNonce,
   requireToken,
 } from "./security.ts";
+import { SecurityCoordinator } from "./security-coordinator.ts";
 import type { Services } from "./services.ts";
 import { dashboardAssets, staticFile } from "./static-assets.ts";
 import { resolveDirectory } from "./workspace.ts";
@@ -48,12 +49,14 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
   const store = await DashboardStore.open(options.dataDir);
   const token = newSessionToken();
   const supervisor = new OperationSupervisor();
+  const security = new SecurityCoordinator(store, supervisor);
   const chatgptLogin = new ChatgptLogin(store.providers);
   const services: Services = {
     workspace,
     token,
     store,
     supervisor,
+    security,
     chatgptLogin,
     folderPicker: options.folderPicker ?? chooseNativeFolder,
     runExecutor: options.runExecutor ?? executeRun,
@@ -104,6 +107,7 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
     });
     if (options.workspace !== undefined) store.selectProject(workspace);
   } catch (error) {
+    await security.close();
     server.close();
     server.closeAllConnections();
     store.close();
@@ -119,6 +123,7 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
     async close() {
       closing ??= (async () => {
         supervisor.abortAll();
+        await security.close();
         try {
           await new Promise<void>((resolveClose, reject) => {
             server.close((error) => (error ? reject(error) : resolveClose()));

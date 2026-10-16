@@ -8,6 +8,31 @@ import type { BudgetLimits } from "../redteam/budget.ts";
 import type { CampaignPolicy } from "../redteam/campaign.ts";
 import { REPETITION_RANGE } from "../redteam/constants.ts";
 import type { ProviderAccess } from "../redteam/provider.ts";
+import type { ProviderModel } from "../redteam/provider-models.ts";
+
+export type { ProviderModel } from "../redteam/provider-models.ts";
+
+import type { FixPromptDraft } from "../remediation/fix-prompt.ts";
+
+export type { ReviewFinding, SecurityReview } from "../assessment/review-model.ts";
+export { SECURITY_REVIEW_LIMITS } from "../assessment/review-model.ts";
+export type { ImportedReaEvidence } from "../evidence/rea-model.ts";
+export { REA_LIMITS } from "../evidence/rea-model.ts";
+export type {
+  FindingStatus,
+  LocalRepository,
+  ScanDepth,
+  SecurityFinding,
+  SecurityScan,
+  SecurityScanSummary,
+  SecurityWorkspace,
+  StartSecurityScan,
+} from "../security/model.ts";
+export {
+  FINDING_STATUSES,
+  SCAN_DEPTHS,
+  SECURITY_POLL_MS,
+} from "../security/model.ts";
 
 // --- Routes -----------------------------------------------------------------------
 
@@ -21,11 +46,23 @@ export const API = {
   folders: "/api/folders",
   chooseFolder: "/api/folders/choose",
   scan: "/api/scan",
+  generateFixPrompt: "/api/findings/fix-prompt",
+  securityReviews: "/api/security/reviews",
+  securityWorkspace: "/api/security/workspace",
+  repositories: "/api/security/repositories",
+  updateRepository: "/api/security/repositories/:id",
+  securityScans: "/api/security/scans",
+  securityScan: "/api/security/scans/:id",
+  cancelSecurityScan: "/api/security/scans/:id/cancel",
+  findingStatus: "/api/security/findings/:id/status",
+  reaEvidence: "/api/evidence/rea",
+  deleteReaEvidence: "/api/evidence/rea/delete",
   plan: "/api/plan",
   project: "/api/project",
   providers: "/api/providers",
   deleteProvider: "/api/providers/delete",
   testProvider: "/api/providers/test",
+  providerModels: "/api/providers/models",
   chatgptLogin: "/api/providers/chatgpt/login",
   chatgptLoginStatus: "/api/providers/chatgpt/login/status",
   cancelChatgptLogin: "/api/providers/chatgpt/login/cancel",
@@ -38,6 +75,8 @@ export const API = {
 
 /** The header carrying the per-process session token on authenticated requests. */
 export const TOKEN_HEADER = "X-Plenger-Token";
+/** Provider settings can include a bounded price table for up to 100 models. */
+export const PROVIDER_SETTINGS_BYTES = 128 * 1024;
 
 // --- Shared models ----------------------------------------------------------------
 
@@ -101,6 +140,68 @@ export interface ProviderTestResult {
   model: string;
   durationMs: number;
 }
+
+export interface ProviderModelsRequest {
+  id?: string;
+  provider: "openai" | "anthropic";
+  baseUrl: string;
+  apiKey?: string;
+  /** Explicitly replace a saved catalog with the provider's latest list. */
+  refresh?: boolean;
+}
+export interface ProviderModelsResult {
+  models: ProviderModel[];
+}
+
+export interface FixPromptRequest {
+  scanId: string;
+  fingerprint: string;
+  providerId: string;
+  reaEvidenceId?: string;
+  reviewId?: string;
+}
+
+export interface SecurityReviewRequest {
+  scanId: string;
+  providerId: string;
+}
+
+export const WORKSPACE_LIMITS = {
+  pathCharacters: 4096,
+  nameCharacters: 160,
+  environmentCharacters: 120,
+  contextCharacters: 2000,
+  recordIdCharacters: 128,
+  pageSize: 30,
+} as const;
+
+export interface AddRepositoryRequest {
+  path: string;
+  name?: string;
+  environment?: string;
+  notes?: string;
+}
+
+export interface UpdateRepositoryRequest {
+  environment?: string;
+  notes?: string;
+  pauseMonitoring?: true;
+}
+
+export interface ReaImportRequest {
+  scanId: string;
+  filename: string;
+  evidence: unknown;
+}
+
+export type FixPromptResult = FixPromptDraft & {
+  scanId: string;
+  fingerprint: string;
+  provider: { id: string; name: string; model: string };
+  createdAt: string;
+  reaEvidenceId?: string;
+  reviewId?: string;
+};
 
 export const CHATGPT_LOGIN_POLL_MS = 1000;
 export interface ChatgptLoginResult {

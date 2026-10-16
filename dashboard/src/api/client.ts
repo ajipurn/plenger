@@ -1,47 +1,59 @@
 import {
+  type AddRepositoryRequest,
   API,
   type CancelResult,
   type ChatgptLoginResult,
   type ChooseFolderResult,
-  type DashboardScan,
   type DashboardSession,
   type DashboardState,
   type DashboardTheme,
   type DeleteResult,
   type ErrorResponse,
-  type FolderListing,
+  type FindingStatus,
+  type FixPromptRequest,
+  type FixPromptResult,
+  type ImportedReaEvidence,
+  type LocalRepository,
+  type ProviderModelsRequest,
+  type ProviderModelsResult,
   type ProviderTestResult,
-  type StartCampaignRequest,
+  type ReaImportRequest,
+  type SecurityFinding,
+  type SecurityScan,
+  type SecurityWorkspace,
+  type StartSecurityScan,
   type ThemeResult,
   TOKEN_HEADER,
+  type UpdateRepositoryRequest,
 } from "../../../src/dashboard/contract.ts";
-import type { CampaignReport } from "../../../src/redteam/campaign.ts";
-import type { ProjectPlan } from "../../../src/redteam/plan.ts";
 import type { ProviderInput, SavedProvider } from "../../../src/redteam/provider-config.ts";
-import type { RedteamRun } from "../../../src/redteam/run.ts";
 
 export interface DashboardApi {
   session: DashboardSession;
+  securityWorkspace(): Promise<SecurityWorkspace>;
+  addRepository(input: AddRepositoryRequest): Promise<LocalRepository>;
+  updateRepository(id: string, input: UpdateRepositoryRequest): Promise<LocalRepository>;
+  startSecurityScan(input: StartSecurityScan): Promise<SecurityScan>;
+  securityScan(id: string): Promise<SecurityScan>;
+  cancelSecurityScan(id: string): Promise<CancelResult>;
+  setFindingStatus(id: string, status: FindingStatus): Promise<SecurityFinding>;
   initialState: DashboardState;
-  folders(path?: string): Promise<FolderListing>;
   chooseFolder(path: string, signal?: AbortSignal): Promise<ChooseFolderResult>;
-  scan(path: string): Promise<DashboardScan>;
-  plan(path: string, target?: string): Promise<ProjectPlan>;
-  selectProject(path: string): Promise<DashboardState>;
-  openScan(id: string): Promise<DashboardState>;
+  generateFixPrompt(input: FixPromptRequest, signal?: AbortSignal): Promise<FixPromptResult>;
+  reaEvidence(scanId: string, signal?: AbortSignal): Promise<ImportedReaEvidence[]>;
+  importReaEvidence(input: ReaImportRequest): Promise<ImportedReaEvidence>;
+  deleteReaEvidence(scanId: string, id: string): Promise<DeleteResult>;
   clear(): Promise<DashboardState>;
   setTheme(theme: DashboardTheme): Promise<ThemeResult>;
   providers(): Promise<SavedProvider[]>;
   saveProvider(input: ProviderInput): Promise<SavedProvider>;
   deleteProvider(id: string): Promise<DeleteResult>;
   testProvider(id: string): Promise<ProviderTestResult>;
+  providerModels(input: ProviderModelsRequest, signal?: AbortSignal): Promise<ProviderModelsResult>;
+  cachedProviderModels(id: string, signal?: AbortSignal): Promise<ProviderModelsResult | null>;
   startChatgptLogin(input: ProviderInput): Promise<ChatgptLoginResult>;
   chatgptLoginStatus(id: string): Promise<ChatgptLoginResult>;
   cancelChatgptLogin(id: string): Promise<ChatgptLoginResult>;
-  getRun(id: string): Promise<RedteamRun>;
-  startCampaign(config: StartCampaignRequest): Promise<CampaignReport>;
-  getCampaign(id: string): Promise<CampaignReport>;
-  cancelRun(id: string): Promise<CancelResult>;
 }
 
 function withId(path: string, id: string): string {
@@ -70,28 +82,47 @@ export async function connect(): Promise<DashboardApi> {
   }
   return {
     session,
+    securityWorkspace: () => request<SecurityWorkspace>(API.securityWorkspace),
+    addRepository: (input) => request<LocalRepository>(API.repositories, input),
+    updateRepository: (id, input) =>
+      request<LocalRepository>(API.updateRepository.replace(":id", encodeURIComponent(id)), input),
+    startSecurityScan: (input) => request<SecurityScan>(API.securityScans, input),
+    securityScan: (id) =>
+      request<SecurityScan>(API.securityScan.replace(":id", encodeURIComponent(id))),
+    cancelSecurityScan: (id) =>
+      request<CancelResult>(API.cancelSecurityScan.replace(":id", encodeURIComponent(id)), {}),
+    setFindingStatus: (id, status) =>
+      request<SecurityFinding>(API.findingStatus.replace(":id", encodeURIComponent(id)), {
+        status,
+      }),
     initialState: await request<DashboardState>(API.state),
-    folders: (path) =>
-      request<FolderListing>(
-        path ? `${API.folders}?path=${encodeURIComponent(path)}` : API.folders,
-      ),
     chooseFolder: (path, signal) => request<ChooseFolderResult>(API.chooseFolder, { path }, signal),
-    scan: (path) => request<DashboardScan>(API.scan, { path }),
-    plan: (path, target) => request<ProjectPlan>(API.plan, { path, ...(target ? { target } : {}) }),
-    selectProject: (path) => request<DashboardState>(API.project, { path }),
-    openScan: (id) => request<DashboardState>(API.openScan, { id }),
+    generateFixPrompt: (input, signal) =>
+      request<FixPromptResult>(API.generateFixPrompt, input, signal),
+    reaEvidence: (scanId, signal) =>
+      request<ImportedReaEvidence[]>(
+        `${API.reaEvidence}?scanId=${encodeURIComponent(scanId)}`,
+        undefined,
+        signal,
+      ),
+    importReaEvidence: (input) => request<ImportedReaEvidence>(API.reaEvidence, input),
+    deleteReaEvidence: (scanId, id) => request<DeleteResult>(API.deleteReaEvidence, { scanId, id }),
     clear: () => request<DashboardState>(API.clear, {}),
     setTheme: (theme) => request<ThemeResult>(API.theme, { theme }),
     providers: () => request<SavedProvider[]>(API.providers),
     saveProvider: (input) => request<SavedProvider>(API.providers, input),
     deleteProvider: (id) => request<DeleteResult>(API.deleteProvider, { id }),
     testProvider: (id) => request<ProviderTestResult>(API.testProvider, { id }),
+    providerModels: (input, signal) =>
+      request<ProviderModelsResult>(API.providerModels, input, signal),
+    cachedProviderModels: (id, signal) =>
+      request<ProviderModelsResult | null>(
+        `${API.providerModels}?id=${encodeURIComponent(id)}`,
+        undefined,
+        signal,
+      ),
     startChatgptLogin: (input) => request<ChatgptLoginResult>(API.chatgptLogin, input),
     chatgptLoginStatus: (id) => request<ChatgptLoginResult>(withId(API.chatgptLoginStatus, id)),
     cancelChatgptLogin: (id) => request<ChatgptLoginResult>(API.cancelChatgptLogin, { id }),
-    getRun: (id) => request<RedteamRun>(withId(API.run, id)),
-    startCampaign: (config) => request<CampaignReport>(API.startCampaign, config),
-    getCampaign: (id) => request<CampaignReport>(withId(API.campaign, id)),
-    cancelRun: (id) => request<CancelResult>(API.cancel, { id }),
   };
 }

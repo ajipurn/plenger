@@ -18,6 +18,7 @@ import {
   FaceRobot,
   FileCode,
   FileText,
+  Fingerprint,
   Flag,
   Folder,
   FolderArrowUp,
@@ -32,10 +33,9 @@ import {
   PlugWire,
   Plus,
   Shield,
-  SquareDashed,
   Sun,
+  TargetDart,
   TrashBin,
-  TriangleExclamation,
   Wrench,
   Xmark,
 } from "@gravity-ui/icons";
@@ -83,7 +83,7 @@ export type IconName =
   | "plus";
 const glyphs: Record<IconName, typeof Folder> = {
   overview: LayoutCellsLarge,
-  findings: TriangleExclamation,
+  findings: TargetDart,
   inventory: Layers,
   redteam: Shield,
   history: ClockArrowRotateLeft,
@@ -114,7 +114,7 @@ const glyphs: Record<IconName, typeof Folder> = {
   checklist: ListCheck,
   sun: Sun,
   moon: Moon,
-  scan: SquareDashed,
+  scan: Fingerprint,
   download: ArrowDownToLine,
   check: Check,
   search: Magnifier,

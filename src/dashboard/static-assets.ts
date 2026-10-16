@@ -117,7 +117,7 @@ export function sendAsset(
 ): void {
   let content = bytes;
   if (extname(name) === ".html") {
-    const meta = `<meta name="plenger-style-nonce" content="${styleNonce}">`;
+    const meta = `<meta property="csp-nonce" name="plenger-style-nonce" content="${styleNonce}">`;
     const html = applyThemeToHtml(content.toString("utf8"), theme);
     content = Buffer.from(
       html.includes("</head>") ? html.replace("</head>", `${meta}</head>`) : `${meta}${html}`,

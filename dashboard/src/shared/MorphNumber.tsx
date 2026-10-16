@@ -8,8 +8,8 @@ function subscribe(onChange: () => void) {
   return () => media.removeEventListener("change", onChange);
 }
 
-/** Animate changing numeric values while honoring the user's reduced-motion setting. */
-export function MorphNumber({ value }: { value: number }) {
+/** Torph Counter tick: changed places roll while unchanged digits and units stay still. */
+export function MorphNumber({ value }: { value: number | string }) {
   const reduce = useSyncExternalStore(
     subscribe,
     () => window.matchMedia(motionQuery).matches,
@@ -17,6 +17,7 @@ export function MorphNumber({ value }: { value: number }) {
   );
   return (
     <TextMorph
+      className="tabular-nums"
       duration={200}
       ease="cubic-bezier(0.77, 0, 0.175, 1)"
       scale={false}

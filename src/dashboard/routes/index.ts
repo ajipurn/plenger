@@ -1,10 +1,14 @@
 import type { Route } from "../router.ts";
 import type { Services } from "../services.ts";
+import { evidenceRoutes } from "./evidence.ts";
+import { fixPromptRoutes } from "./fix-prompt.ts";
 import { folderRoutes } from "./folders.ts";
 import { historyRoutes } from "./history.ts";
 import { providerRoutes } from "./providers.ts";
 import { redteamRoutes } from "./redteam.ts";
 import { scanRoutes } from "./scan.ts";
+import { securityReviewRoutes } from "./security-review.ts";
+import { securityWorkspaceRoutes } from "./security-workspace.ts";
 import { sessionRoutes } from "./session.ts";
 import { stateRoutes } from "./state.ts";
 import { themeRoutes } from "./theme.ts";
@@ -17,6 +21,10 @@ export function dashboardRoutes(services: Services): Route[] {
     ...themeRoutes(services),
     ...historyRoutes(services),
     ...scanRoutes(services),
+    ...securityReviewRoutes(services),
+    ...securityWorkspaceRoutes(services),
+    ...evidenceRoutes(services),
+    ...fixPromptRoutes(services),
     ...folderRoutes(services),
     ...providerRoutes(services),
     ...redteamRoutes(services),

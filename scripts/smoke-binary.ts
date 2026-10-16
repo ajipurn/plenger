@@ -212,7 +212,10 @@ async function main() {
       assert.equal(empty.plan, null);
       assert.deepEqual(empty.history, []);
       assert.deepEqual(empty.campaigns, []);
-      assert.deepEqual(await (await resumed.fetchPage("/api/providers", { headers })).json(), []);
+      assert.deepEqual(
+        await (await resumed.fetchPage("/api/providers", { headers })).json(),
+        providers,
+      );
       assert.equal(empty.theme, "light");
       await resumed.stop();
     } finally {

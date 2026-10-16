@@ -1,0 +1,169 @@
+import { randomUUID } from "node:crypto";
+import type {
+  FindingStatus,
+  LocalRepository,
+  SecurityFinding,
+  SecurityScan,
+  SecurityScanSummary,
+  SecurityWorkspace,
+} from "../security/model.ts";
+import { redactReport } from "../shared/secrets.ts";
+import { parsePayload, type Storage } from "./database.ts";
+
+export class SecurityRepository {
+  readonly #storage: Storage;
+  constructor(storage: Storage) {
+    this.#storage = storage;
+  }
+  repositories(): LocalRepository[] {
+    return this.#storage.database
+      .prepare("SELECT payload FROM security_repositories ORDER BY created_at, id")
+      .all()
+      .map((row) => parsePayload<LocalRepository>(row));
+  }
+  repository(id: string): LocalRepository | null {
+    return this.repositories().find((item) => item.id === id) ?? null;
+  }
+  saveRepository(repository: LocalRepository): LocalRepository {
+    const safe = structuredClone(repository);
+    redactReport(safe);
+    this.#storage.ensureProject(safe.path);
+    this.#storage.database
+      .prepare(
+        "INSERT INTO security_repositories (id, path, created_at, payload) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+      )
+      .run(safe.id, safe.path, safe.createdAt, JSON.stringify(safe));
+    return safe;
+  }
+  add(
+    path: string,
+    name: string,
+    revision: LocalRepository["revision"],
+    environment: LocalRepository["environment"],
+  ): LocalRepository {
+    const current = this.repositories().find((item) => item.path === path);
+    if (current) return current;
+    return this.saveRepository({
+      id: randomUUID(),
+      path,
+      name,
+      revision,
+      environment,
+      createdAt: new Date().toISOString(),
+      monitoring: {
+        enabled: false,
+        providerId: null,
+        depth: "standard",
+        lastCommit: revision.commit,
+        error: null,
+      },
+    });
+  }
+  scan(id: string): SecurityScan | null {
+    const row = this.#storage.database
+      .prepare("SELECT payload FROM security_scans WHERE id = ?")
+      .get(id);
+    return row ? parsePayload<SecurityScan>(row) : null;
+  }
+  saveScan(scan: SecurityScan): void {
+    const safe = structuredClone(scan);
+    redactReport(safe);
+    this.#storage.database
+      .prepare(
+        "INSERT INTO security_scans (id, repository_id, started_at, payload) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+      )
+      .run(safe.id, safe.repositoryId, safe.startedAt, JSON.stringify(safe));
+  }
+  /** Every saved finding of one project, for matching a new scan against triage state. */
+  findings(repositoryId: string): SecurityFinding[] {
+    return this.#storage.database
+      .prepare("SELECT payload FROM security_findings WHERE repository_id = ?")
+      .all(repositoryId)
+      .map((row) => parsePayload<SecurityFinding>(row));
+  }
+  /**
+   * Save a scan's findings with their triage state. A finding detected again after it was
+   * resolved is reopened; a dismissed one stays dismissed. `resolved` names saved findings
+   * the scan showed to be gone; they are marked resolved unless already closed.
+   */
+  saveFindings(scan: SecurityScan, resolved: readonly string[] = []): void {
+    this.#storage.transaction(() => {
+      for (const finding of scan.findings) {
+        const row = this.#storage.database
+          .prepare("SELECT payload FROM security_findings WHERE id = ?")
+          .get(finding.id);
+        if (row) {
+          const previous = parsePayload<SecurityFinding>(row);
+          finding.status = previous.status === "resolved" ? "new" : previous.status;
+          finding.detectedAt = previous.detectedAt;
+        }
+        redactReport(finding);
+        this.#storage.database
+          .prepare(
+            "INSERT INTO security_findings (id, repository_id, payload) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+          )
+          .run(finding.id, finding.repositoryId, JSON.stringify(finding));
+      }
+      for (const id of resolved) {
+        const row = this.#storage.database
+          .prepare("SELECT payload FROM security_findings WHERE id = ? AND repository_id = ?")
+          .get(id, scan.repositoryId);
+        if (!row) continue;
+        const finding = parsePayload<SecurityFinding>(row);
+        if (finding.status === "resolved" || finding.status === "dismissed") continue;
+        finding.status = "resolved";
+        finding.updatedAt = scan.finishedAt ?? new Date().toISOString();
+        this.#storage.database
+          .prepare("UPDATE security_findings SET payload = ? WHERE id = ?")
+          .run(JSON.stringify(finding), id);
+      }
+      this.saveScan(scan);
+    });
+  }
+  findingStatus(id: string, status: FindingStatus): SecurityFinding | null {
+    const row = this.#storage.database
+      .prepare("SELECT payload FROM security_findings WHERE id = ?")
+      .get(id);
+    if (!row) return null;
+    const finding = parsePayload<SecurityFinding>(row);
+    finding.status = status;
+    finding.updatedAt = new Date().toISOString();
+    this.#storage.database
+      .prepare("UPDATE security_findings SET payload = ? WHERE id = ?")
+      .run(JSON.stringify(finding), id);
+    return finding;
+  }
+  workspace(): SecurityWorkspace {
+    return {
+      repositories: this.repositories(),
+      scans: this.#storage.database
+        .prepare("SELECT payload FROM security_scans ORDER BY started_at DESC, id DESC")
+        .all()
+        .map((row): SecurityScanSummary => {
+          const {
+            findings: _findings,
+            reviews: _reviews,
+            ...summary
+          } = parsePayload<SecurityScan>(row);
+          return summary;
+        }),
+      findings: this.#storage.database
+        .prepare("SELECT payload FROM security_findings ORDER BY rowid DESC")
+        .all()
+        .map((row) => parsePayload<SecurityFinding>(row)),
+    };
+  }
+  recoverInterrupted(): void {
+    for (const item of this.workspace().scans)
+      if (item.status === "running") {
+        const scan = this.scan(item.id);
+        if (!scan) continue;
+        scan.status = "failed";
+        scan.phase = "finished";
+        scan.finishedAt = new Date().toISOString();
+        scan.error =
+          "The local service stopped before this scan finished. Start a new scan to continue.";
+        this.saveScan(scan);
+      }
+  }
+}

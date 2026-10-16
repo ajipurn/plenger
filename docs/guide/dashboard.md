@@ -1,7 +1,7 @@
 # Local dashboard
 
-`plenger serve` runs a local web dashboard for static scans, scan history,
-saved model connections and the managed red-team profiles. The npm package
+`plenger serve` runs a local web dashboard for local projects, source-based AI
+security scans, findings and saved model connections. The npm package
 includes the built frontend and the local service. What is available and
 qualified is tracked in [../STATUS.md](../STATUS.md); the visual design rules
 are in [../design/dashboard-ui.md](../design/dashboard-ui.md).
@@ -40,177 +40,254 @@ pnpm dev serve path/to/project --port 4180
 ```
 
 `pnpm dashboard` builds the frontend once, then starts Vite with hot reload and
-the local service. Its Vite server binds to `127.0.0.1` and defaults to port
+the local service. Frontend changes reload through Vite. Restart the command
+after changing service source code. Its Vite server binds to `127.0.0.1` and defaults to port
 5173; `--port` changes the Vite port, and the API service takes a free port.
 `pnpm dev serve` serves the last frontend build without Vite. See
 [../../CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## Navigation
 
-Views have browser routes: `/` for Overview, `/findings`, `/inventory`,
-`/redteam`, `/history` and `/settings/providers`. `/settings` and `/providers`
-redirect to `/settings/providers`; unknown routes return to `/`. Browser Back
-and Forward work. A priority finding opens `/findings?finding=<fingerprint>`.
-Old `#overview`, `#findings`, `#inventory`, `#redteam` and `#history` links are
-converted to routes when the page opens. Direct loads and refreshes restore the
-selected project's saved scan and preparation plan from SQLite.
+The Clerk-inspired header has a workspace row and an underlined navigation
+row. Header, navigation and main content share the same centered width.
+The main tabs are **Findings**, **Projects**, **Scans** and **Settings**.
+Each tab has an icon. Settings sits beside Scans and opens the provider
+connection settings. **New Scan** is available in the header
+and beside each project. Open **Settings > Appearance** to switch Dark mode on or off.
+The theme is saved in SQLite and applied before scripts load.
 
-The sidebar groups the views under Analyze, Test and Workspace; on narrow
-screens it becomes a header with a scrolling tab strip. The topbar shows where
-you are, when the open scan was taken, and **Export JSON** and **Scan project**
-(**Rescan project** once a scan exists) on every page.
+Routes are `/findings`, `/projects`, `/projects/:id`, `/scans`, `/scans/:id`,
+`/findings/:id`, `/settings/appearance`, `/settings/providers` and `/settings/data`.
+Browser Back, Forward and refresh
+work. `/history` redirects to Scans; `/repositories` and `/inventory` redirect to Projects.
+The `/redteam` route displays **Coming soon** and exposes no testing controls.
 
-The dashboard uses React Router 7, Tailwind CSS 4, Base UI, Gravity icons,
-OverlayScrollbars and Torph. Dark mode is the default; the sun/moon button at
-the bottom of the sidebar switches appearance. The choice is saved in SQLite for the data
-directory, across projects and restarts, and rendered into the page before
-scripts load. Fonts are bundled and served locally, including from the
-npm package. Layouts adapt to narrow screens, and keyboard focus and the project
-picker are available throughout.
+The workspace accepts local folders. It does not need a GitHub connection.
+Projects can be ordinary Python, JavaScript or TypeScript applications. Static
+agent-specific rules and source-based model analysis have different coverage.
+See [ai-security-review.md](ai-security-review.md).
 
-## Select a project
+## Add a project
 
-Press the project switcher at the top of the sidebar (**Select project** when
-none is chosen). The picker shows the current location as a breadcrumb with a dense
-folder list below. **Browse…** opens the operating system's folder chooser on
-the computer running `plenger serve`: macOS uses Finder's dialog, Windows uses
-FolderBrowserDialog, Linux uses an installed Zenity or KDialog. Cancelling the
-native dialog keeps the current folder. The dialog is a separate window:
-finish or cancel it there even if the page is closed or refreshed; one system
-chooser is allowed at a time. macOS may ask permission for the terminal to
-control Finder; the path input and in-app folder list work without it.
+Open **Projects > Add project**. Enter a local folder path, or use **Browse…**.
+The display name and review context are optional. Context can describe
+security assumptions, tenant boundaries and protected assets. Git is optional.
+Adding a project saves its configuration without making a model request.
 
-You can also edit the path and press Enter, or browse the parent and
-subfolders in the list. The in-app list shows non-hidden directories and omits
-directory symlinks. Confirm with **Open project**. The dashboard scans folders;
-use the CLI to scan a single file.
+Select a project name to open its detail page. **Findings** shows its saved
+findings and triage statuses. **Scans** lists that project's scan history.
+The side panel shows the local folder, review context and latest scan details.
+**View scan outputs** opens the latest scan's threat model and source coverage.
+**New Scan** selects the project automatically. Project links in scan and finding
+details return to the same project page.
 
-## Review a scan
+Browse opens the operating system's folder chooser on the computer running the
+service. Cancelling it keeps the path. If the chooser is unavailable, enter the
+path directly. Relative paths resolve from the service's launch directory.
+The dashboard scans folders; the CLI also accepts a single file.
 
-**Scan project** runs source analysis. No wrapper, configuration or
-credentials are needed. Analysis reads Python, JavaScript and TypeScript
-without importing or executing the project, installing dependencies or
-contacting a model. The scanner's exclusions and `.gitignore` handling apply.
+## Start a scan
 
-- **Overview** shows finding, agent, tool and source counts, priority findings,
-  frameworks, connection counts and scan coverage.
-- **Findings** has text search, severity filters and a sort select. Selecting a
-  row opens a drawer with the source, numbered evidence trace with expandable
-  code context, confidence, exposure, risk explanation, review notes,
-  remediation and OWASP/CWE mapping. Escape closes it and returns focus to the
-  row.
-- **Inventory** shows models, LLM calls, agents, tools, MCP connections,
-  prompts, data stores and HTTP entry points in a table beside a category
-  sidebar (a select on narrow screens). Search filters the selected category by
-  name, configuration or source file; a framework filter narrows it further.
-  Pages hold 20 declarations. Rows show configuration chips, linked tool
-  counts and the source file and line, so repeated constructors can be told
-  apart. Selecting a row opens a drawer with full metadata, the captured prompt
-  and capabilities. Frameworks sit in an expandable summary above the table.
-- **Scan history** lists saved completed scans across projects and launches
-  in a table: project, scan time, source files and findings. Search filters by
-  project name or path; pages hold 20 scans. The scan open in the workspace is
-  marked. Reopening a scan shows its captured result and persists the
-  selection; **Rescan project** reads current source.
+1. Save a model connection under **Settings > Providers**.
+2. Press **New Scan** and choose a local project. Check the displayed folder path.
+3. Choose a provider, model and **Standard** or **Deep** depth. The saved model is
+   selected initially. Choosing another model applies to this scan only. Use
+   **Load models** if the provider's saved catalog needs refreshing.
+4. Optionally edit **Review context**. It is saved for subsequent scans.
+5. Press **Start Scan**. This sends redacted source and context to the provider
+   and consumes API usage.
 
-**Export JSON** downloads the selected scan's results, including inventory,
-findings and evidence. The export contains `id`, `createdAt`, `scan` and
-`rules`; it is distinct from the CLI's versioned `scan --json` report. Secrets
-are redacted by the scanner before results reach the page or the export;
-redaction is not exhaustive. See [reports-ci.md](reports-ci.md) for CLI report
-contracts and [../RULES.md](../RULES.md) for the rules.
+Each job first runs the offline scanner, then source-based AI discovery,
+STRIDE threat modeling and a second source review of any candidates. The
+**Standard** depth uses one bounded source batch with at most two model calls.
+**Deep** uses up to three independent batches, skips files already sent whole,
+continues excerpted files with their unsent functions, and makes at most six calls. It does not establish complete project coverage.
+Exact source and omission counts are saved in Outputs.
 
-## Red-team
+The job continues in the local service when you navigate away or close the
+page. Scans and scan details show its current phase. **Cancel scan** explicitly
+requests cancellation. Provider failures and refusals stop further requests. Response validation
+errors name the failed stage and field when available. Completed static
+findings remain visible if the AI review fails.
+Stopping the service cancels its active job; an interrupted persisted job is
+reported as failed on restart.
 
-**Review test setup** (later **Refresh test setup**) prepares the project
-offline: supported targets, source coverage, dependency declarations and
-preparation gaps. A sole candidate is selected automatically; otherwise choose
-**Review this target**. Preparation uses a temporary private snapshot, removes
-it afterwards, and never executes project code, installs dependencies or calls
-a provider. `preparation.status: "ready"` means the source policy passed;
-`executionReady` stays `false` until a run is configured. The plan and
-selected target are saved per project; a new scan clears the cached plan.
+No project code, package scripts or model tools execute. The service reads
+source and uses fixed read-only Git metadata commands. It does not install
+project dependencies or probe a running application. For an offline scan with
+no model usage, use `plenger scan path/to/project`.
 
-**Run a security test** configures a saved connection from Settings →
-Providers or run-only OpenAI, Gemini or Ollama access, the repetition count
-and the shared call, token and deadline limits, then **Start test** starts the
-selected profile. Docker is used when available, otherwise Podman; plenger
-builds its pinned runtime image on first use. The llmfy profile needs a
-compatible file-write tool for its clean control. The Next.js booking profile
-prepares SQLite, validates the backend handlers directly and runs the booking,
-price-override and zero-payment trials; it shows the captured import closure
-and managed dependency versions. Keys entered only for a run stay in memory.
-Settings are remembered per project, and results, including partial results,
-are stored in SQLite. Refresh reconnects to an active run.
+## Review findings and outputs
 
-Results appear above the configuration. While a test runs, **Progress** shows
-the current repetition and check, the model calls made, the last worker event,
-the elapsed time against the deadline and a matrix with one square per check
-and repetition: not started, running, completed without violation, violation
-observed or no conclusion. The latest worker events of the current check are
-listed below it. Select a square to open that repetition under **Evidence by
-repetition**. The headline distinguishes observed
-weaknesses, incomplete testing and a scoped negative result; finishing a run
-is not a safety verdict. Each attack shows the model outcome, any direct
-backend check, the observed effect and a recommended fix. A refused model
-attack does not override an observed backend weakness. Scripted integration
-runs are labelled separately from real model evidence. Coverage and exclusions
-stay visible; conversations, tool events, committed SQLite snapshots and
-runtime provenance are under **Technical evidence**. A result from a different
-source snapshot or target is flagged rather than presented as evidence about
-the current code. **Configure another test** starts a new configuration,
-**Export test profile** saves the non-secret plan for `plenger redteam run`,
-and **Compare with a previous test** opens an explicit before/after
-comparison that can be exported separately. Profiles, gates, statistics and
-the CLI are described in [redteam.md](redteam.md).
+**Findings** combines saved static and AI findings across local projects. Search,
+project, severity and status filters update the table and severity-to-status
+diagram. The initial view includes New, Triaged and In progress findings.
+Open a row to see its summary, root cause, attack path, validation, remediation,
+affected source locations and captured evidence.
+
+The status selector saves **New**, **Triaged**, **In progress**, **Resolved** or
+**Dismissed**. A finding reported again keeps its status and first detection
+date. An AI finding counts as reported again when a later review gives the same
+STRIDE category and overlapping source evidence, even under a new title. A
+resolved finding that is reported again reopens as **New**; a dismissed one stays
+dismissed. A complete static scan resolves static findings it no longer reports,
+unless the scan was truncated or skipped their file. AI findings are never
+resolved by absence, because each review covers one source batch.
+AI review outcomes such as Source-supported and Needs review describe the
+source analysis; they are separate from this workflow status.
+
+**Scans** lists start time, source, initiator, duration, reported tokens and job
+status. Open a scan for its findings and an **Outputs** tab containing
+architecture, assets, trust boundaries, all six STRIDE categories, source
+coverage and limitations. The right column records the observed revision,
+environment snapshot and provider. Git metadata names the commit and branch at
+start; it does not freeze the files. Plenger does not read working-tree status,
+because Git would run the filter commands that a project's own Git configuration
+names. Included file digests identify what the
+model actually received. Anthropic dollar estimates use the selected model's
+saved manual prices. **Token usage and cost details** shows each request's
+uncached input, output, cache writes and cache hits. Missing prices or usage are
+unavailable. Partial totals are labeled **At least**.
+
+**Export scan** downloads the redacted job, its findings and review records.
+It is distinct from the CLI's versioned `scan --json` report. Dismissed model
+candidates remain in the review records even though they are absent from the
+finding table.
+
+### Generate a fix prompt
+
+Open a finding and press **Fix with a coding agent**. Choose a saved provider
+and press **Generate fix prompt**. One explicit model request uses that saved
+finding's redacted evidence, review notes and remediation. It does not send
+complete files, other findings or the absolute repository path. **Copy prompt**
+provides instructions to paste into your coding agent.
+
+The prompt asks the agent to verify the current code, confirm the finding,
+make a focused fix and add suitable regression coverage. It includes provenance
+so the agent can detect stale assumptions. Plenger does not run the agent,
+edit code or create a pull request.
+
+Generation has a 60-second deadline, a 2,048-token output allowance and a 24 KiB
+evidence limit. A saved per-call output limit for red-team runs does not apply. Automatic output settings for OpenAI
+and Claude send that allowance as the output ceiling. Refusals and errors stop without
+retrying. Prompts are displayed in the drawer without being saved to scan
+history. Closing the drawer or leaving the page cancels unfinished generation.
+
+For external JavaScript or Electron analysis, import complete REA JSON under
+**Scans > scan > Outputs > REA evidence**. Explicitly select an import in the
+fix drawer to include it. Nothing is selected by default. See
+[rea-evidence.md](rea-evidence.md).
+
+## Manual local scans
+
+Scans run only after an explicit **Start Scan** action. A Git commit or file
+change does not trigger a scan. To review new changes, start another scan of the
+saved project. Remote repository connections and continuous scanning are not
+available. See [../STATUS.md](../STATUS.md).
+
+Earlier saved monitoring settings are disabled when the service starts. Scan
+history and finding triage remain readable. The API accepts the older
+`scope: "repository"` value as a manual local scan for compatibility and rejects
+`scope: "continuous"` before calling a provider. New clients omit `scope`.
 
 ## Provider settings
 
-**Settings → Providers** lists named connections with provider and model,
-endpoint, saved-key presence and actions. **Add provider** opens a drawer for
-an Ollama, OpenAI or Gemini connection with model, base URL, temperature
-(blank uses the model default) and maximum output tokens per call. Actions are
-Edit, **Test saved connection** (one bounded model call without project
-source), **Make default** and Delete with confirmation. Connections are shared
-across projects. Choose a connection by name in Red-team; per-test limits
-still apply. Results snapshot the connection's non-secret settings, so editing
-or deleting a provider does not rewrite earlier evidence; a deleted provider
-that a saved configuration referenced must be replaced explicitly. Changing a
-cloud provider's endpoint requires entering its key again.
+**Settings > Providers** retains named connections, model and endpoint settings, key
+storage, connection tests and the default provider. Ollama, OpenAI, Gemini,
+Anthropic Claude and the experimental ChatGPT connection use the existing
+provider implementation. API keys are entered here, never in scan forms.
+**Test saved connection** makes one bounded call without project source.
+Editing or deleting a provider does not rewrite earlier scan evidence.
+Changing a cloud provider's endpoint requires entering its key again.
+
+For Anthropic and OpenAI, enter an API key, press **Load models**, and choose
+a **Default model** from the provider's catalog. Editing a saved connection can use its
+existing key. Loading models makes authenticated catalog requests without generating
+text or saving the draft. Changing the key, provider or endpoint clears the draft catalog.
+Claude catalog pagination is followed automatically. The catalog comes from the
+[Anthropic Models API](https://platform.claude.com/docs/en/api/beta/models/list)
+or the [OpenAI Models API](https://developers.openai.com/api/reference/resources/models/methods/list).
+
+Successful model lists are saved locally. Reopening the editor or restarting the
+dashboard restores the list without contacting the provider. Select **Reload
+models** to replace it with the latest list. A failed reload keeps the saved list.
+Each list belongs to the same provider, base URL and API key. Changing any of these
+requires loading a matching list. Loading draft models saves the list without
+saving the API key; saving the provider makes that list available in its editor.
+
+These two providers have no temperature or output controls in the editor.
+Saving uses the model's default temperature and automatic output settings.
+OpenAI requests omit the optional output limit. Their reported token use is
+checked after completion, so a response can exceed the operation's threshold.
+Claude requires an output limit. Plenger reads the selected model's limit and
+caps it by the operation allowance. Older compatible endpoints without model
+limit metadata use the operation allowance. Existing explicit generation settings
+remain supported; saving an Anthropic or OpenAI connection in the editor resets them
+to automatic settings.
+
+### Claude model pricing
+
+The Anthropic Models API provides model metadata without unit prices. Its
+[Usage and Cost API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api)
+reports historical organization usage and charges, and requires an Admin API key.
+It is not a model price catalog.
+
+In the provider editor, open **Model pricing**, choose a **Model** and enable
+**Set prices for this model**. **Connection** holds the API key, default model
+and advanced endpoint settings. Switching tabs keeps unsaved edits. **Save
+provider** and **Cancel** stay in the footer. Saving incomplete prices opens the
+affected model and focuses its first invalid field.
+
+Enter USD per million tokens for uncached input, output, 5-minute cache writes,
+1-hour cache writes and cache hits. Each model has its own price table. All five
+fields are required; enter zero explicitly for a free category. An optional
+long-prompt tier has its own threshold and all five prices. Use your effective
+rates from the [Claude pricing documentation](https://platform.claude.com/docs/en/about-claude/pricing).
+Plenger does not infer prices from model names.
+
+Estimates sum each token category once per request. Long-prompt tiers compare
+the request's total input, including cache reads and writes, with the saved
+threshold. The higher tier applies only above that threshold. Usage without
+cache-write lifetimes cannot be priced reliably. Changing a provider's prices
+affects future scans; earlier scans keep their original price snapshot.
+
+Setting cache prices does not enable prompt caching. Current scan requests do
+not set cache-control breakpoints. Reported cache usage is still accounted for
+when present. Estimates exclude taxes, discounts and other service charges.
+They are not invoices. See [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+for Anthropic's token accounting rules.
 
 API keys are encrypted with AES-256-GCM in SQLite. The 32-byte `provider-key`
-file in the same data directory has owner-only permissions. This is local
-encryption at rest, not an OS keychain: someone with both files can decrypt
-saved keys. Keys are never returned to the browser or included in exports.
-Deleting a provider removes that connection and its key. **Clear saved data**
-keeps providers (see [below](#saved-data-and-clearing)).
+file in the same directory has owner-only permissions. This is local encryption
+at rest. Someone with both files can decrypt saved keys. Full keys are never returned
+to the browser or included in exports. The editor shows a masked preview with only
+the last four characters. Keys shorter than 12 characters stay fully masked.
+The preview is derived locally and excluded from stored settings and exports.
+Leave the key field blank to keep the saved key. Deleting a provider removes its key.
+Claude's native Messages transport also supports the facts-only `assess`
+command. See [assessment.md](assessment.md).
 
-## Local service and session
+## Local service and saved data
 
-The service binds to `127.0.0.1` and checks the request Host and any Origin
-against its exact local address. Folder, state, scan, plan, provider and run
-requests require a token generated for each launch. No CORS access is enabled.
-Run-scoped model credentials stay in the host broker and never enter a worker.
-The page uses a Content Security Policy with scripts restricted to its origin;
-runtime styles use a per-response nonce (OverlayScrollbars, Base UI and the
-drawer scroll lock) and hashes for the stylesheets the pinned Torph and Vaul
-inject. Upgrading either library means updating `src/dashboard/style-policy.ts`;
-a test recomputes the Vaul hash from the installed package.
+Open **Settings > Data** and press **Clear data** to remove all saved projects,
+scans, findings, reviews, imported evidence, red-team results and run settings.
+Confirm the deletion in the dialog. This cannot be undone. Providers, their
+credentials, saved model lists and the theme are kept. Project files and exported reports stay
+unchanged. Finish or cancel active scans before clearing data.
 
-## Saved data and clearing
+The service binds to `127.0.0.1` and checks Host and Origin against its local
+address. Requests require a token generated per launch. No CORS access is
+enabled. The page enforces a Content Security Policy. Fonts are bundled locally.
+The frontend uses React Router, React Aria Components, Tailwind and Gravity icons.
 
-Scanning and storage stay on this computer; explicit red-team runs send model
-messages to the selected provider through the host broker. SQLite stores
-completed scan snapshots and history, each project's selected scan and
-preparation plan, red-team runs and campaigns with their evidence, non-secret
-run settings, saved providers (shared across projects), the active project and
-the theme. Keys entered for one run and full model request payloads are never
-persisted. Saving completes before an operation reports success; failed scans
-keep previously committed results. Refreshing, changing the port or
-restarting keeps this state; no browser storage is used.
+SQLite stores local projects, review context, scan jobs,
+reviews, finding statuses and existing project history. Provider connections
+and the theme remain shared across projects. The first workspace startup
+imports earlier static scans with the latest saved AI review for each scan.
+Existing provider credentials and legacy evidence remain stored.
+Refreshing the page, changing ports and restarting do not clear this data.
 
-The default database is `dashboard.sqlite` in the OS application data
-directory:
+The default database is `dashboard.sqlite` in the OS application data directory:
 
 | OS | Directory |
 | --- | --- |
@@ -218,21 +295,13 @@ directory:
 | Linux | `${XDG_DATA_HOME:-~/.local/share}/plenger` |
 | Windows | `%LOCALAPPDATA%\plenger` (or `~/AppData/Local/plenger`) |
 
-`--data-dir <folder>` selects a separate directory. New directories are
-private (`0700`) and the database uses `0600` on Unix. SQLite comes from the
-installed Node.js runtime; its Node 22 experimental warning may appear when
-`serve` starts.
+`--data-dir <folder>` selects a separate directory. New directories use `0700`
+and the database uses `0600` on Unix. Node 22 may print its experimental SQLite
+warning. To move an installation, stop the service and move its complete data
+directory, keeping `provider-key` with the database.
 
-**Clear saved data** is in **Scan history**. After confirmation it removes, for
-the whole data directory: all saved scans and history, preparation plans,
-red-team runs and campaigns with their evidence, run settings and project
-selections. Saved providers and their encrypted keys remain, as do the theme
-preference and the `provider-key` file. Project source files and
-downloaded exports are unchanged. Clearing is unavailable while a project
-operation or run is active, and the service rejects conflicting requests. The
-dashboard returns to the launch workspace and stays empty after a restart; a
-later scan starts a new history.
-
-Saved snapshots can contain project details and source evidence. The
-scanner's redaction is applied before persistence, with the same limits as
-JSON exports.
+Saved snapshots and exports contain source evidence and project details.
+Known secret patterns are redacted before storage and model dispatch. Redaction
+does not recognize every application-specific secret. Review exported evidence
+before sharing it. Qualification and availability are tracked in
+[../STATUS.md](../STATUS.md).

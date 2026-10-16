@@ -29,15 +29,6 @@ body > .os-theme-plenger.os-scrollbar {
   z-index: 40;
 }
 
-.sidebar-nav .os-scrollbar-horizontal {
-  --os-size: 5px;
-  --os-padding-perpendicular: 1px;
-}
-
-.sidebar-nav:focus-visible {
-  outline-offset: -2px;
-}
-
 /* The host clips its viewport; inset rings stay visible at the scroll edges. */
 .scroll-area[data-overlayscrollbars] [data-overlayscrollbars-viewport]:focus-visible,
 .scroll-area :where(button, a, summary):focus-visible {

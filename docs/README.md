@@ -10,9 +10,12 @@ repeating milestone status.
 | --- | --- |
 | [guide/install.md](guide/install.md) | Install through npm, run with npx and start the dashboard |
 | [guide/scanning.md](guide/scanning.md) | Understand `plenger scan` output: inventory, capabilities, findings, facts |
+| [guide/assessment.md](guide/assessment.md) | Review scoped, redacted scan evidence with Claude and export a STRIDE assessment |
+| [guide/ai-security-review.md](guide/ai-security-review.md) | Discover source-based AI findings, review all six STRIDE categories and inspect the second review |
+| [guide/rea-evidence.md](guide/rea-evidence.md) | Import external REA JavaScript/Electron evidence and select it for a fix prompt |
 | [guide/reports-ci.md](guide/reports-ci.md) | Produce JSON, SARIF or Markdown reports; use baselines, suppressions, the CI gate and the GitHub Action |
-| [guide/dashboard.md](guide/dashboard.md) | Use `plenger serve`: project selection, scan review, providers, red-team runs, saved data |
-| [guide/redteam.md](guide/redteam.md) | Run the managed red-team profiles from the dashboard or CLI; campaigns, gates, comparisons |
+| [guide/dashboard.md](guide/dashboard.md) | Use local repositories, background scans, finding triage, fix prompts and provider settings |
+| [guide/redteam.md](guide/redteam.md) | Run the managed red-team profiles from the CLI; campaigns, gates, comparisons |
 | [RULES.md](RULES.md) | Look up a rule id, its severity, mapping and fix (generated; do not edit) |
 
 ## For contributors and reviewers

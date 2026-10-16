@@ -3,6 +3,7 @@ import type { ProjectPlan } from "../redteam/plan.ts";
 import type { ProviderInput, SavedProvider } from "../redteam/provider-config.ts";
 import type { RedteamRun } from "../redteam/run.ts";
 import { Storage } from "./database.ts";
+import { EvidenceRepository } from "./evidence-repository.ts";
 import { ProviderRepository, type ResolvedProvider } from "./provider-repository.ts";
 import { providerEncryptionKey } from "./provider-secrets.ts";
 import type {
@@ -12,7 +13,9 @@ import type {
   WorkspaceSnapshot,
 } from "./records.ts";
 import { RedteamRepository } from "./redteam-repository.ts";
+import { ReviewRepository } from "./review-repository.ts";
 import { ScanRepository } from "./scan-repository.ts";
+import { SecurityRepository } from "./security-repository.ts";
 
 export { dashboardDataDirectory } from "./database.ts";
 export { StoreValidationError } from "./errors.ts";
@@ -20,13 +23,16 @@ export { ProviderRepository, type ResolvedProvider } from "./provider-repository
 
 /**
  * Disk-backed dashboard state, independent of the server's port or browser session.
- * One SQLite connection shared by three repositories; this facade keeps the surface
+ * One SQLite connection shared by feature repositories; this facade keeps the surface
  * the server and tests use in one place.
  */
 export class DashboardStore {
   readonly scans: ScanRepository;
   readonly redteam: RedteamRepository;
   readonly providers: ProviderRepository;
+  readonly evidence: EvidenceRepository;
+  readonly reviews: ReviewRepository;
+  readonly security: SecurityRepository;
   readonly #storage: Storage;
 
   private constructor(storage: Storage, providerKey: Buffer) {
@@ -34,6 +40,9 @@ export class DashboardStore {
     this.scans = new ScanRepository(storage);
     this.redteam = new RedteamRepository(storage);
     this.providers = new ProviderRepository(storage, providerKey);
+    this.evidence = new EvidenceRepository(storage);
+    this.reviews = new ReviewRepository(storage);
+    this.security = new SecurityRepository(storage);
   }
 
   /**
@@ -47,6 +56,7 @@ export class DashboardStore {
       const providerKey = await providerEncryptionKey(storage.directory);
       const store = new DashboardStore(storage, providerKey);
       store.redteam.recoverInterrupted();
+      store.security.recoverInterrupted();
       return store;
     } catch (error) {
       storage.close();
@@ -113,8 +123,8 @@ export class DashboardStore {
     return this.redteam.readRunProfile(project);
   }
 
-  readProviders(): SavedProvider[] {
-    return this.providers.readProviders();
+  readProviders(options: { keyPreviews?: boolean } = {}): SavedProvider[] {
+    return this.providers.readProviders(options);
   }
   saveProvider(value: ProviderInput): SavedProvider {
     return this.providers.saveProvider(value);

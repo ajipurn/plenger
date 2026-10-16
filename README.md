@@ -1,22 +1,22 @@
 # plenger
 
-Red-teaming and static triage for agentic AI projects written in Python,
-JavaScript and TypeScript. One CLI and one local dashboard.
+Source-based security review, STRIDE threat modeling and static triage for
+Python, JavaScript and TypeScript projects. One CLI and one local dashboard.
 
 `plenger scan` reads source code only. It never runs, imports or installs the
 project and needs no network access. It reports the agent inventory, what each
 tool and entry point can do, and ranked findings with the code that supports
 them. `plenger redteam run` tests supported projects inside networkless
 containers after an explicit start, with a model connection and budget you
-choose. The product direction is capability parity with promptfoo's red-teaming
-workflow; see the [roadmap](docs/ROADMAP.md).
+choose. The dashboard reviews local folders with Findings,
+Projects, Scans, Settings and coding agent fix prompts. See the [roadmap](docs/ROADMAP.md).
 
 ## Status
 
 | Area | State |
 | --- | --- |
 | Static scan, reports, CI gate, GitHub Action | Available (M0 to M5 done) |
-| Local dashboard with scan history, providers and red-team runs | Available |
+| Local dashboard with repositories, AI scans, STRIDE, findings and providers | Available; see [qualification status](docs/STATUS.md) |
 | Managed red-team profiles: llmfy file canary, Next.js booking/SQLite | Available; synthetic qualification plus one live-model record |
 | CLI campaigns (`redteam run`) and before/after comparisons (`redteam compare`) | Available |
 | npm package | CLI, dashboard and red-team recipes in one package; see [release status](docs/STATUS.md) |
@@ -57,9 +57,9 @@ plenger redteam run path/to/project --provider "Local security tests" --repeat 2
 plenger redteam compare before.json after.json --change "Require approval before a price override"
 ```
 
-`serve` prints a `http://127.0.0.1:<port>` address. Open it, select a project
-and scan it. Save a model connection under Settings → Providers before a
-red-team run. Each command accepts only its own options; `plenger <command> --help`
+`serve` prints a `http://127.0.0.1:<port>` address. Open it, add a local project and save a model connection under
+Settings > Providers. New Scan runs static analysis and a bounded source-based AI review.
+Use a finding's Fix with a coding agent action to generate a remediation prompt. Each command accepts only its own options; `plenger <command> --help`
 lists them.
 
 ## Static scan
