@@ -60,6 +60,8 @@ async function main() {
         .stdout,
     ) as Packed[];
     assert.ok(packed);
+    assert.equal(pkg.name, "plenger");
+    assert.equal(packed.filename, `plenger-${pkg.version}.tgz`);
     const files = new Set(packed.files.map((file) => file.path));
     for (const path of [
       "LICENSE",
@@ -167,6 +169,7 @@ async function main() {
     const fixture = join(temporary, "project");
     await cp(fixturePath("mixed-agent"), fixture, { recursive: true });
     const report = JSON.parse((await run(["scan", fixture, "--json"])).stdout) as Report;
+    assert.deepEqual(report.tool, { name: "plenger", version: pkg.version });
     assert.equal(report.files.length, 6);
     assert.ok(report.inventory.models.length > 0);
     assert.ok(report.inventory.llmCalls.length > 0);
@@ -195,6 +198,7 @@ async function main() {
       const home = await server.fetchPage("/");
       assert.equal(home.status, 200);
       const html = await home.text();
+      assert.match(html, /<title>Plenger \| Agent security workspace<\/title>/);
       assert.match(html, /id="root"/);
       const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(
         (match) => match[1],

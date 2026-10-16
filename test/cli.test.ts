@@ -155,7 +155,7 @@ describe("plenger facts", () => {
 
 describe("--no-gitignore", () => {
   it("includes files that .gitignore leaves out", async () => {
-    const root = await mkdtemp(join(tmpdir(), "plenger-"));
+    const root = await mkdtemp(join(tmpdir(), "plenger-cli-"));
     try {
       await writeFile(join(root, ".gitignore"), "generated.py\n");
       await writeFile(join(root, "generated.py"), "x = 1\n");

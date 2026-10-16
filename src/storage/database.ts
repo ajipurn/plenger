@@ -7,12 +7,15 @@ import { migrate } from "./migrations.ts";
 
 export type Row = Record<string, SQLOutputValue>;
 
-export function dashboardDataDirectory(): string {
-  if (process.platform === "darwin")
-    return join(homedir(), "Library/Application Support/plenger");
+function applicationData(name: string): string {
+  if (process.platform === "darwin") return join(homedir(), "Library/Application Support", name);
   if (process.platform === "win32")
-    return join(process.env.LOCALAPPDATA || join(homedir(), "AppData/Local"), "plenger");
-  return join(process.env.XDG_DATA_HOME || join(homedir(), ".local/share"), "plenger");
+    return join(process.env.LOCALAPPDATA || join(homedir(), "AppData/Local"), name);
+  return join(process.env.XDG_DATA_HOME || join(homedir(), ".local/share"), name);
+}
+
+export function dashboardDataDirectory(): string {
+  return applicationData("plenger");
 }
 
 /** The JSON document stored in `column` (default `payload`) of a row. */
@@ -45,8 +48,8 @@ export class Storage {
   }
 
   /** Create or open `<dataDir>/dashboard.sqlite` (private file) and migrate it. */
-  static async open(dataDir = dashboardDataDirectory()): Promise<Storage> {
-    const directory = resolve(dataDir);
+  static async open(dataDir?: string): Promise<Storage> {
+    const directory = resolve(dataDir ?? dashboardDataDirectory());
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const file = join(directory, "dashboard.sqlite");
     try {

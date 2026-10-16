@@ -45,6 +45,7 @@ describe("collectSourceFiles", () => {
       "src/types.d.ts": "export declare const a: number;\n",
       "src/big.js": "x".repeat(2048),
       "notes.txt": "not code\n",
+      ".plenger/runs/generated.ts": "export const evidence = {};\n",
       "node_modules/pkg/index.js": "module.exports = 1;\n",
       "packages/web/node_modules/pkg/index.js": "module.exports = 1;\n",
       "env/pyvenv.cfg": "home = /usr/bin\n",
@@ -77,6 +78,7 @@ describe("collectSourceFiles", () => {
       { path: "src/types.d.ts", reason: "declaration" },
     ]);
     expect(result.excludedDirs).toEqual([
+      { path: ".plenger", reason: "default" },
       { path: "env", reason: "virtualenv" },
       { path: "node_modules", reason: "default" },
       { path: "packages/web/node_modules", reason: "default" },

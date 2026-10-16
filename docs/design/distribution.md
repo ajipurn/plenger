@@ -9,8 +9,9 @@ Release availability and platform evidence are in [../STATUS.md](../STATUS.md).
 
 ## npm package contents
 
-The package is named `plenger` because the `plenger` package name and the
-`@plenger` scope belong to other npm accounts. `package.json` maps the
+The public CLI package is named `plenger`. The `@plenger` npm organisation
+is registered. The private dashboard workspace is named `@plenger/dashboard`.
+`package.json` maps the
 `plenger` command to `dist/bin.js`. Node.js 22.18 or newer runs the compiled
 JavaScript. npm only warns about `engines`, so `dist/bin.js` checks the Node.js
 version before it loads the CLI. The package contains:
