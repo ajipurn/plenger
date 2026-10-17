@@ -110,8 +110,10 @@ offline. `--provider <saved name>` also runs the AI review of that connection
 run; `--validator` adds a separate second-review connection. A live run sends
 the redacted corpus to the provider and needs `--yes`; it makes at most two model
 requests per case and run. Write records with `--output
-docs/qualifications/<name>.md`. `test/evaluation.test.ts` fails when the static
-results drift from the labels.
+docs/qualifications/<name>.md`. `--json <file>` writes every outcome, including
+each finding at a labeled location with its title, STRIDE category, severity,
+second-review verdict and reason, to see why a safe case was reported.
+`test/evaluation.test.ts` fails when the static results drift from the labels.
 
 ```sh
 pnpm evaluate

@@ -147,6 +147,16 @@ describe("AI review evaluation", () => {
       verdicts: ["dismissed"],
       unlabeled: 0,
     });
+    // The JSON keeps what each finding at the label claims and why it was decided.
+    expect(outcome("ts-idor-route-scoped").findings).toEqual([
+      {
+        title: expect.any(String),
+        category: expect.any(String),
+        severity: expect.any(String),
+        verdict: "dismissed",
+        reason: expect.stringMatching(/\S/),
+      },
+    ]);
     expect(result.metrics[0]).toEqual({
       truePositives: 1,
       falsePositives: 0,

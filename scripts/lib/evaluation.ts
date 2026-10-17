@@ -57,6 +57,14 @@ export interface AiOutcome {
   detected: boolean;
   /** Second-review verdicts of the findings at the labeled location, dismissed ones included. */
   verdicts: string[];
+  /** Those findings, with what they claim and why the second review decided as it did. */
+  findings: {
+    title: string;
+    category: string;
+    severity: string;
+    verdict: string;
+    reason: string;
+  }[];
   /** Findings that were not dismissed and cite none of the labeled lines. */
   unlabeled: number;
   tokens: number | null;
@@ -146,6 +154,13 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
     status: review.status,
     detected: kept.some(at),
     verdicts: review.findings.filter(at).map((finding) => finding.validation),
+    findings: review.findings.filter(at).map((finding) => ({
+      title: finding.title,
+      category: finding.category,
+      severity: finding.severity,
+      verdict: finding.validation,
+      reason: finding.validationReason,
+    })),
     unlabeled: kept.filter((finding) => !at(finding)).length,
     tokens: usage ? usage.inputTokens + usage.outputTokens + usage.additionalTokens : null,
     costUsd: costs.every((cost) => cost === undefined)

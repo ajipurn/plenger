@@ -32,6 +32,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   [detection-claude-haiku-2026-10-17](docs/qualifications/detection-claude-haiku-2026-10-17.md):
   precision 0.62 and recall 0.95, with one dismissal in 263 second-review verdicts.
 
+- `pnpm evaluate --json` keeps each finding at a labeled location with its
+  title, STRIDE category, severity, second-review verdict and reason, so a
+  reported safe case can be read.
+
 - The evaluation corpus has 72 cases: a vulnerable case and a safe near-miss for
   every one of the 26 rules and for each kind of check. Static precision is 1.00
   and recall 0.97 on it, against 0.76 and 0.94 for the previous scanner; the
@@ -156,6 +160,14 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - Project picker breadcrumbs split Windows paths on backslashes.
 
 ### Changed
+
+- The second review traces each candidate's path and dismisses it when the
+  supplied code holds a control that defeats the described attack, names checks
+  that do not count, and keeps needs-review for decisions that depend on code that
+  was not supplied. On the corpus
+  ([record](docs/qualifications/detection-claude-haiku-2026-10-17-validation.md))
+  precision is 0.63 against 0.62 and recall 0.96, and source-supported findings
+  reach recall 0.85 instead of 0.50.
 
 - TypeScript and TSX type syntax that tree-sitter-typescript 0.23.2 rejects
   (`export type * from`, type arguments and `[]` after an import type, `in` and
