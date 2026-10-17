@@ -498,11 +498,19 @@ const STOP_TEXT: Record<NonNullable<NonNullable<SecurityScan["coverage"]>["stop"
   quick: "one batch",
 };
 
-/** Depth, why batches stopped, and what the limit charged. */
+/** Depth and mode, why batches stopped, and what the limit charged. */
 function coverageNote(scan: SecurityScan): string {
   const coverage = scan.coverage;
-  const parts: string[] = [SCAN_DEPTHS[scan.depth].label];
-  if (coverage?.stop) parts.push(STOP_TEXT[coverage.stop]);
+  const explore = scan.mode === "explore";
+  const parts: string[] = [SCAN_DEPTHS[scan.depth].label, ...(explore ? ["Explore"] : [])];
+  if (coverage?.stop)
+    parts.push(
+      explore
+        ? coverage.stop === "complete"
+          ? "every file was read"
+          : "the files the model chose to read"
+        : STOP_TEXT[coverage.stop],
+    );
   if (coverage && scan.budget)
     parts.push(
       scan.budget.kind === "tokens"

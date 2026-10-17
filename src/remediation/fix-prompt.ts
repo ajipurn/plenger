@@ -28,7 +28,7 @@ export interface FixPromptContext {
     kind: "ai-security-review";
     reviewId: string;
     sourceCapturedAt: string;
-    validation: "source-supported" | "needs-review";
+    validation: "source-supported" | "needs-review" | "unvalidated";
     validationReason: string;
     architecture: string;
     impact: string;

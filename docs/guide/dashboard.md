@@ -92,8 +92,10 @@ The dashboard scans folders; the CLI also accepts a single file.
 
 1. Save a model connection under **Settings > Providers**.
 2. Press **New Scan** and choose a local project. Check the displayed folder path.
-3. Choose a provider, model and **Quick** or **Full coverage**. For Full
-   coverage, set a limit in tokens or in USD. The saved model is
+3. Choose a provider, model, a review mode and **Quick** or **Full
+   coverage**. **Batch** sends source the scan packs; **Explore** lets the model
+   read the project through read-only tools and runs as one Quick review. For
+   Full coverage, set a limit in tokens or in USD. The saved model is
    selected initially. Choosing another model applies to this scan only. Use
    **Load models** if the provider's saved catalog needs refreshing. Optionally
    choose another saved connection under **Second review** to check candidates
@@ -105,7 +107,8 @@ The dashboard scans folders; the CLI also accepts a single file.
 Each job first runs the offline scanner, then source-based AI discovery,
 STRIDE threat modeling and a second source review of any candidates.
 **Quick** reviews one batch, the files on traced paths first, with at most two
-model calls. **Full coverage** reviews batch after batch until no unsent source
+model calls. In Explore mode it runs one exploring review of at most 18 model
+calls instead; see [Explore mode](ai-security-review.md#explore-mode). **Full coverage** reviews batch after batch until no unsent source
 that fits a batch remains, the limit is reached, or 100 batches have run. Later
 batches skip files already sent whole and continue excerpted files with their
 unsent parts.

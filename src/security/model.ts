@@ -1,4 +1,5 @@
 import {
+  type ReviewMode,
   SECURITY_REVIEW_LIMITS,
   type SecurityReview,
   type SpendingLimit,
@@ -110,6 +111,8 @@ export interface SecurityScanSummary {
   initiatedBy: "Local user" | "Continuous scanning" | "Imported history";
   scope: "local" | "repository" | "continuous";
   depth: ScanDepth;
+  /** How its reviews read the source; absent on scans from before exploration, which ran batches. */
+  mode?: ReviewMode;
   provider: { id: string; name: string; model: string } | null;
   /** The saved connection that ran second reviews, when it was not `provider`. */
   validator?: { id: string; name: string; model: string };
@@ -143,6 +146,8 @@ export interface StartSecurityScan {
   /** A saved connection for second reviews, with its saved model; omit to use `providerId`. */
   validatorProviderId?: string;
   depth: SelectableScanDepth;
+  /** Batch when omitted. Explore runs one exploring review, so it needs Quick. */
+  mode?: ReviewMode;
   /** Required for Full coverage; optional for Quick. */
   budget?: ScanBudget;
 }

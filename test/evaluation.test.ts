@@ -62,7 +62,7 @@ function discovery(cite: { path: string; line: number; endLine: number } | null)
 describe("evaluation corpus", () => {
   it("pairs a vulnerable case with a safe near-miss for every weakness", async () => {
     const cases = await loadCorpus(fixturePath("evaluation"));
-    expect(cases).toHaveLength(85);
+    expect(cases).toHaveLength(86);
     for (const cwe of new Set(cases.map((item) => item.cwe))) {
       const kinds = cases.filter((item) => item.cwe === cwe).map((item) => item.kind);
       expect(kinds, cwe).toContain("vulnerable");
@@ -79,12 +79,12 @@ describe("evaluation corpus", () => {
       expect(outcome.unlabeled, item.id).toEqual([]);
     }
     expect(metrics(outcomes)).toEqual({
-      truePositives: 37,
+      truePositives: 38,
       falsePositives: 0,
       falseNegatives: 6,
       trueNegatives: 42,
       precision: 1,
-      recall: 37 / 43,
+      recall: 38 / 44,
     });
     // Every rule has at least one vulnerable case in the corpus.
     expect(ruleMetrics(outcomes)).toHaveLength(26);
@@ -186,7 +186,9 @@ describe("AI review evaluation", () => {
       max: 0.5,
     });
     const markdown = formatEvaluation(cases, await evaluateStatic(cases), [result], "2026-10-16");
-    expect(markdown).toContain(`Prompt digest \`${REVIEW_PROMPT_DIGEST.slice(0, 12)}\``);
+    expect(markdown).toContain(
+      `Batch mode, prompt digest \`${REVIEW_PROMPT_DIGEST.slice(0, 12)}\``,
+    );
     expect(markdown).toContain(
       "| ts-idor-route | vulnerable | 2/2 | source-supported, source-supported | 0 |",
     );

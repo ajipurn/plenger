@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import type { ReviewMode } from "../../assessment/review-model.ts";
 import { reviewSourceSize } from "../../assessment/review-source.ts";
 import { validateProviderSettings } from "../../redteam/provider-config.ts";
 import { sourceRevision } from "../../security/git.ts";
@@ -138,6 +139,7 @@ export function securityWorkspaceRoutes({
             "budget",
             "model",
             "validatorProviderId",
+            "mode",
           ],
           "Choose a local project, provider and scan depth.",
         );
@@ -150,6 +152,10 @@ export function securityWorkspaceRoutes({
           !SCAN_DEPTHS[body.depth as keyof typeof SCAN_DEPTHS].selectable
         )
           throw new HttpError(400, "Choose Quick or Full coverage.");
+        if (body.mode !== undefined && body.mode !== "batch" && body.mode !== "explore")
+          throw new HttpError(400, "Choose Explore or Batch review mode.");
+        if (body.mode === "explore" && body.depth !== "quick")
+          throw new HttpError(400, "An exploring review runs once. Choose Quick for Explore mode.");
         const budget = body.budget === undefined ? undefined : scanBudget(body.budget);
         if (body.depth === "full" && budget === undefined)
           throw new HttpError(400, "Set a token or USD limit for a Full coverage scan.");
@@ -172,6 +178,7 @@ export function securityWorkspaceRoutes({
               max: WORKSPACE_LIMITS.recordIdCharacters,
             }),
             depth: body.depth as SelectableScanDepth,
+            ...(body.mode === undefined ? {} : { mode: body.mode as ReviewMode }),
             ...(budget ? { budget } : {}),
             ...(body.model === undefined ? {} : { model: body.model as string }),
             ...(body.validatorProviderId === undefined

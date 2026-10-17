@@ -40,7 +40,9 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
           <p className="security-scan-progress-kicker">
             <span>{SCAN_DEPTHS[scan.depth].label} scan</span>
             <span aria-hidden="true">·</span>
-            <span>Source batch {batch}</span>
+            <span>
+              {scan.mode === "explore" ? "Exploring with read-only tools" : `Source batch ${batch}`}
+            </span>
           </p>
           <h2>{cancelling ? "Cancelling scan" : phaseLabel[scan.phase]}</h2>
           <p className="muted">

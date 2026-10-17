@@ -99,7 +99,12 @@ ids. It canonicalizes known enum casing while preserving exact source scope.
 Validation failures identify the stage and JSON field without echoing model values.
 Native Claude reviews pass a host-owned output schema through the provider.
 Its transport converts unsupported schema bounds to descriptions; the host
-parser remains authoritative. The host supplies snippets from captured source. No model tools are exposed.
+parser remains authoritative. The host supplies snippets from captured source.
+A batch review exposes no model tools. An exploring review runs each pass as one
+conversation in `review-explore.ts`: `list_files`, `read_file`, `search` and
+`outline` over the same reader, a submit tool whose arguments the same parsers
+check, a read log that bounds citations, and per-session limits with a closing
+turn. Its limits live in `EXPLORE_LIMITS` in `review-model.ts`.
 `storage/review-repository.ts` persists per-scan results. The explicit dashboard
 route `routes/security-review.ts` remains available. The repository workspace
 coordinates new jobs through `security-coordinator.ts` and exposes coverage,

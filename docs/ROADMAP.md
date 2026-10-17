@@ -332,6 +332,11 @@ later Full coverage batches continue. CI definitions are the only hidden paths
 reviewed.
 See [guide/ai-security-review.md](guide/ai-security-review.md).
 
+**In progress:** M9b. The tool loop and the second review with tools work as
+the dashboard's Explore mode on Claude, with Unvalidated candidates in both
+modes and `pnpm evaluate --mode`. See [STATUS.md](STATUS.md) for what is
+measured and what remains.
+
 | Checkpoint | Deliverable | Acceptance |
 | --- | --- | --- |
 | M9a Every text file | Text files in any language enter the review under the same ignore, size, sensitive-path and redaction rules as parsed source. Files without a parser are sent whole or as line windows, ordered after traced files by path hints, and cited by line | A repository without Python, JavaScript or TypeScript gets a review with checked citations. Coverage lists the files sent and skipped. Lockfiles, binaries, minified and generated files stay out |

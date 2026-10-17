@@ -9,7 +9,9 @@ facts-only `assess` CLI command. See [../STATUS.md](../STATUS.md) for qualificat
 
 1. Add a local folder under **Projects**.
 2. Save a model connection under **Settings > Providers**.
-3. Press **New Scan**, choose the project, provider, model and depth.
+3. Press **New Scan**, choose the project, provider, model, review mode and
+   depth. **Batch** sends source the scan packs. **Explore** lets the model read
+   the project through read-only tools; see [Explore mode](#explore-mode).
 4. Press **Start Scan**. The job first captures an offline scan, then sends
    redacted source and context to that provider and consumes model usage.
 
@@ -141,6 +143,17 @@ best names its weakness, or none. The host normalises the id to `CWE-<n>`, and
 the finding page links it to the CWE entry. The host validates all cited paths
 and line ranges and supplies code excerpts from captured source.
 
+Discovery is told to leave out generic best practices. Hardening items are not
+findings: rate limits, timeouts, request size, token or cost limits, logging and
+audit trails, monitoring and security headers. They belong in the STRIDE
+mitigations. A missing iteration or turn limit is reported only for an agent
+loop or multi-agent conversation without a stop condition. Supply-chain
+weaknesses stay findings: code, packages, models or servers fetched and run
+without a pinned version or integrity check, and credentials in source. Prompt
+injection is reported when untrusted text, retrieved documents and tool results
+included, reaches a system or developer message, or steers a model whose tools
+or output reach a privileged effect.
+
 When candidates exist, a second request reviews them against the same source.
 It checks callers, guards, sanitization, scope and counterevidence. Each receives
 one outcome:
@@ -148,6 +161,8 @@ one outcome:
 - **Source-supported**: the second review supports the path in the supplied code.
 - **Needs review**: an essential assumption or control needs more context.
 - **Dismissed**: the candidate is contradicted, duplicated or unsupported.
+- **Unvalidated**: the second review stopped before it decided. The candidate
+  is kept with the reason, and never counts as source-supported.
 
 Guards and callers often live outside the batch, so the second request also
 reads related files that discovery did not see. These are project files a cited
@@ -163,12 +178,79 @@ By default the second pass uses the same model with a separate review
 instruction. **Second review** in New Scan can pick another saved connection,
 which runs with its saved model; a different model is less likely to repeat the
 first model's mistakes. Its usage and estimated cost are reported separately.
-The second pass is not an independent detection service or runtime validation. A refusal,
-invalid citation, incomplete decision set or provider failure stops the review.
-There are no model retries. No candidates means one request. The limit per batch is
-two requests, 400,000 accounted tokens and 120 seconds. A deep scan makes at
-most six requests and stops further batches after a failed or refused review. Output is capped at the
-smaller of the provider setting and 8,192 tokens per request.
+The second pass is not an independent detection service or runtime validation.
+A refusal stops the review. Any other failure of the second pass, such as an
+invalid reply, an incomplete decision set, a provider error or a limit, keeps
+its candidates as Unvalidated and adds a limitation with the reason; the review
+still completes. A failed discovery request fails the review. There are no
+model retries. No candidates means one request. The limit per batch is two
+requests, 400,000 accounted tokens and 120 seconds. Full coverage stops further
+batches after a failed or refused review. Output is capped at the smaller of
+the provider setting and 8,192 tokens per request.
+
+## Explore mode
+
+In Explore mode the model chooses what to read. Each pass is one conversation
+with four read-only tools over the scan's allowlist:
+
+| Tool | What it returns |
+| --- | --- |
+| `list_files` | Allowlisted paths under a prefix, with kind, lines and bytes, 300 per page |
+| `read_file` | Redacted, line-numbered lines, at most 300 lines and 16 KiB per call |
+| `search` | Lines that contain a literal string, on redacted text, at most 40 matches |
+| `outline` | Definitions and imports of a parsed Python, JavaScript or TypeScript file |
+
+Discovery ends by calling `submit_discovery`, the second review by calling
+`submit_decisions`. Their parameters are the batch response schemas. On Claude
+the submit tools are strict, so the provider holds their arguments to the
+schema as it does for a batch answer; the host checks them in every case. The first
+discovery message holds a repository map (up to 24 KiB), hints from the static
+scan (entry points, tools, their effects and the calls the trace could not
+follow), the environment notes and a first set of files packed as a batch, up
+to 48 KiB. The first validation message holds the candidates and their cited
+lines, a small file whole and a larger one as its cited ranges with 20 lines of
+context, up to 32 KiB. Static findings are not sent.
+
+The host checks every call:
+
+- A path must match an allowlisted path exactly. Excluded, missing and
+  malformed paths all get the same answer, "not in the review allowlist", and
+  the map never lists excluded paths.
+- Search runs on redacted text, so a redacted value never matches, and the
+  query is redacted before it is saved.
+- Lines already in the conversation are not sent again; the result says which.
+- A citation must lie inside a range the session received, in its first
+  message or from `read_file`. Search hits and outlines cannot be cited. A
+  rejected submission gets its errors back once; a second rejection fails
+  discovery, or leaves the candidates Unvalidated in the second review.
+
+| Limit | Discovery | Second review |
+| --- | --- | --- |
+| Model calls | 12 | 6 |
+| Tool calls per turn | 8 | 8 |
+| Bytes returned by tools | 160 KiB | 64 KiB |
+| Request size | 192 KiB | 128 KiB |
+| Accounted tokens | 1,000,000 | 400,000 |
+| Time | 10 minutes | 5 minutes |
+
+A model with a smaller input window gets a smaller request cap. Near a limit,
+the host asks for the submission and refuses other tools for a closing turn,
+so a session that is about to run out can still answer. Every request is also
+checked against the scan's token or USD limit before it is sent. Every turn
+resends the conversation, so an exploring review uses more tokens than a batch.
+
+Explore runs one review: choose **Quick**. Reviews record `mode`, and for
+Explore `exploration`: per session the stop reason, model calls, tool calls by
+name, bytes returned, the files and ranges read with their digests, the
+searches, and the host's reasons for any rejected submission (field locations,
+never model values). The review's scope lists the files and ranges read, and its
+limitations say how many files the model read and searched.
+
+Text in the repository can address the model, for example asking it to read an
+excluded file or to report nothing. The tools cannot leave the allowlist, and
+the provider is still the only recipient of what is read. Such text can waste
+the session's budget or suppress findings, which no source review can rule
+out. The read log in the review record shows what was read.
 
 ## Measuring detection
 
@@ -204,7 +286,8 @@ The local service keeps scans running when you leave the page. **Cancel scan**
 requests cancellation and saves the outcome. Model refusals and errors stop
 without retries. All scans start manually; see [dashboard.md](dashboard.md#manual-local-scans).
 
-Reviews expose no model tools, terminal, application execution or active target
-requests. The dashboard does not run a coding agent or apply patches. Source
+Batch reviews expose no model tools. Explore reviews expose only the four
+read-only tools above. Neither has a terminal, application execution, network
+access or active target requests. The dashboard does not run a coding agent or apply patches. Source
 review is evidence for human assessment and does not prove runtime exploitability
 or establish that a repository is secure.

@@ -85,7 +85,9 @@ export function createAnthropicProvider(
       return {
         name: fn.name,
         ...(fn.description === undefined ? {} : { description: fn.description }),
-        input_schema: fn.parameters,
+        // A strict schema must stay in the structured-output subset; the host still
+        // enforces the bounds it moves into descriptions.
+        input_schema: fn.strict === true ? structuredSchema(record(fn.parameters)) : fn.parameters,
         ...(fn.strict === undefined ? {} : { strict: fn.strict }),
       };
     });

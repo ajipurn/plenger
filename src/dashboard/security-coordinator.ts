@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import {
   batchCostBound,
   batchTokenBound,
+  exploreCostBound,
+  exploreTokenBound,
   type ReviewSourceFile,
   reviewBudget,
   type SpendingLimit,
@@ -85,9 +87,15 @@ export class SecurityCoordinator {
         resolved.access.apiKey,
         model,
       );
-      // The most one batch can charge, for the limit checks before each batch.
+      const mode = input.mode ?? "batch";
+      if (mode === "explore" && input.depth !== "quick")
+        throw new HttpError(400, "An exploring review runs once. Choose Quick for Explore mode.");
+      // The most one batch, or one exploring review, can charge, for the limit checks.
       const sizes = reviewBudget([inputTokens, ...(validator ? [validator.inputTokens] : [])]);
-      const most = { tokens: batchTokenBound(sizes).total, usd: Number.POSITIVE_INFINITY };
+      const most = {
+        tokens: mode === "explore" ? exploreTokenBound().total : batchTokenBound(sizes).total,
+        usd: Number.POSITIVE_INFINITY,
+      };
       if (input.budget?.kind === "usd") {
         const priced =
           resolved.access.provider === "anthropic" &&
@@ -98,17 +106,20 @@ export class SecurityCoordinator {
             400,
             "A USD limit needs saved Claude prices for every model in this scan. Use a token limit, or add prices under Settings > Providers.",
           );
-        most.usd = batchCostBound(sizes, pricing, secondPricing ?? pricing);
+        most.usd =
+          mode === "explore"
+            ? exploreCostBound(pricing, secondPricing ?? pricing)
+            : batchCostBound(sizes, pricing, secondPricing ?? pricing);
         if (input.budget.usd < most.usd)
           throw new HttpError(
             400,
-            `The limit is below one batch's maximum of USD ${most.usd.toFixed(2)}. Raise it, or choose a model with a smaller window.`,
+            `The limit is below ${mode === "explore" ? "one exploring review's" : "one batch's"} maximum of USD ${most.usd.toFixed(2)}. Raise it, or choose a model with a smaller window.`,
           );
       }
       if (input.budget?.kind === "tokens" && input.budget.tokens < most.tokens)
         throw new HttpError(
           400,
-          `The limit is below one batch's maximum of ${most.tokens.toLocaleString("en-US")} tokens.`,
+          `The limit is below ${mode === "explore" ? "one exploring review's" : "one batch's"} maximum of ${most.tokens.toLocaleString("en-US")} tokens.`,
         );
       const revision = await sourceRevision(repository.path);
       if (this.#closed) throw new HttpError(503, "The service is shutting down.");
@@ -126,6 +137,7 @@ export class SecurityCoordinator {
         initiatedBy: "Local user",
         scope: "local",
         depth: input.depth,
+        mode,
         ...(input.budget ? { budget: structuredClone(input.budget) } : {}),
         provider: { id: resolved.saved.id, name: resolved.saved.name, model },
         ...(validator ? { validator: validator.provider } : {}),
@@ -200,6 +212,7 @@ export class SecurityCoordinator {
                 inputTokens,
                 ...(validator ? { validator } : {}),
                 ...(limit ? { limit } : {}),
+                mode,
                 environment: repository.environment,
                 onPhase: (phase) => {
                   job.phase = phase;

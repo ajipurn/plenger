@@ -14,10 +14,13 @@ export type { ProviderModel } from "../redteam/provider-models.ts";
 
 import type { FixPromptDraft } from "../remediation/fix-prompt.ts";
 
-export type { ReviewFinding, SecurityReview } from "../assessment/review-model.ts";
+export type { ReviewFinding, ReviewMode, SecurityReview } from "../assessment/review-model.ts";
 export {
   batchCostBound,
   batchTokenBound,
+  EXPLORE_LIMITS,
+  exploreCostBound,
+  exploreTokenBound,
   reviewBudget,
   SECURITY_REVIEW_LIMITS,
 } from "../assessment/review-model.ts";

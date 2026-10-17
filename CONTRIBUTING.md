@@ -107,9 +107,11 @@ git diff test/fixtures/*/expected-*.json
 weakness, described in its README. Without options it scores the static rules
 offline. `--provider <saved name>` also runs the AI review of that connection
 `--runs` times (default 3) and reports precision, recall and their spread per
-run; `--validator` adds a separate second-review connection. A live run sends
-the redacted corpus to the provider and needs `--yes`; it makes at most two model
-requests per case and run. Write records with `--output
+run; `--validator` adds a separate second-review connection. `--mode explore`
+runs exploring reviews, where the model reads each case through read-only tools,
+instead of the default `--mode batch`. A live run sends the redacted corpus to
+the provider and needs `--yes`; a batch review makes at most two model requests
+per case and run, an exploring one at most 18. Write records with `--output
 docs/qualifications/<name>.md`. `--json <file>` writes every outcome, including
 each finding at a labeled location with its title, STRIDE category, CWE,
 severity, second-review verdict and reason, to see why a safe case was reported.
@@ -123,7 +125,8 @@ keeps a second weakness at the same lines from counting for the labeled one.
 
 ```sh
 pnpm evaluate
-pnpm evaluate -- --provider "Claude review" --runs 3 --yes --output docs/qualifications/detection-claude-2026-10-16.md
+pnpm evaluate --provider "Claude review" --runs 3 --yes --output docs/qualifications/detection-claude-2026-10-16.md
+pnpm evaluate --provider "Claude review" --runs 1 --mode explore --yes --json explore.json
 ```
 
 `--write` replaces the expected files with the current output. Review every

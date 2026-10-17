@@ -284,9 +284,13 @@ describe("source-based AI security review", () => {
       { scanId: "scan", provider, access },
       unknown.dispatch,
     );
-    expect(second.reason).toContain("Validation response");
-    expect(second.reason).toContain("decisions[0].id");
-    expect(second.findings).toEqual([]);
+    // A rejected second review keeps its candidates, undecided.
+    expect(second.status).toBe("completed");
+    expect(second.findings.map((item) => item.validation)).toEqual(["unvalidated"]);
+    expect(second.findings[0]?.validationReason).toContain("Validation response rejected");
+    expect(second.findings[0]?.validationReason).toContain("decisions[0].id");
+    expect(second.findings[0]?.validationReason).not.toContain("Asserted by model");
+    expect(second.limitations.at(-1)).toContain("kept as unvalidated");
     expect(unknown.bodies).toHaveLength(2);
   });
 
@@ -393,8 +397,8 @@ describe("source-based AI security review", () => {
       { scanId: "scan", provider, access },
       invalid.dispatch,
     );
-    expect(failure.status).toBe("failed");
-    expect(failure.findings).toEqual([]);
+    expect(failure.status).toBe("completed");
+    expect(failure.findings.map((item) => item.validation)).toEqual(["unvalidated"]);
     expect(invalid.bodies).toHaveLength(2);
   });
 

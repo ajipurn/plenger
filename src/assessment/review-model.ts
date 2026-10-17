@@ -41,6 +41,39 @@ export const SECURITY_REVIEW_LIMITS = {
   maxRelatedBytes: 48 * 1024,
 } as const;
 
+/** Bounds of an exploring review's sessions; the evaluation tunes them. */
+export const EXPLORE_LIMITS = {
+  discovery: {
+    modelCalls: 12,
+    toolBytes: 160 * 1024,
+    requestBytes: 192 * 1024,
+    tokens: 1_000_000,
+    timeMs: 600_000,
+  },
+  validation: {
+    modelCalls: 6,
+    toolBytes: 64 * 1024,
+    requestBytes: 128 * 1024,
+    tokens: 400_000,
+    timeMs: 300_000,
+  },
+  /** The first set of files in the discovery message, packed as a batch. */
+  firstBytes: 48 * 1024,
+  /** Cited ranges the second review's first message re-reads. */
+  citedBytes: 32 * 1024,
+  toolsPerTurn: 8,
+  readLines: 300,
+  readBytes: 16 * 1024,
+  listEntries: 300,
+  searchMatches: 40,
+  searchFiles: 2000,
+  searchBytes: 32 * 1024 * 1024,
+  queryMin: 3,
+  queryMax: 200,
+  mapBytes: 24 * 1024,
+  hintsBytes: 8 * 1024,
+} as const;
+
 /** What one batch may submit, and the related bytes its second review may add. */
 export interface ReviewBudget {
   contextBytes: number;
@@ -129,6 +162,40 @@ export function batchCostBound(
   );
 }
 
+/**
+ * The most an exploring review can charge: each session's token limit, priced with
+ * every allowed output token at the output rate and the rest at the dearest prompt rate.
+ */
+export function exploreTokenBound(): {
+  discovery: RequestTokenBound;
+  validation: RequestTokenBound;
+  total: number;
+} {
+  const L = SECURITY_REVIEW_LIMITS;
+  const phase = (limits: { modelCalls: number; tokens: number }) => {
+    const output = limits.modelCalls * L.outputTokens;
+    return { prompt: limits.tokens - output, output };
+  };
+  const discovery = phase(EXPLORE_LIMITS.discovery);
+  const validation = phase(EXPLORE_LIMITS.validation);
+  return {
+    discovery,
+    validation,
+    total: EXPLORE_LIMITS.discovery.tokens + EXPLORE_LIMITS.validation.tokens,
+  };
+}
+
+export function exploreCostBound(
+  pricing: ModelPricing,
+  validatorPricing: ModelPricing = pricing,
+): number {
+  const bound = exploreTokenBound();
+  return (
+    worstCaseCost(pricing, bound.discovery.prompt, bound.discovery.output) +
+    worstCaseCost(validatorPricing, bound.validation.prompt, bound.validation.output)
+  );
+}
+
 export interface ReviewCitation {
   path: string;
   line: number;
@@ -151,7 +218,11 @@ export interface ReviewCandidate {
 }
 export interface ReviewFinding extends ReviewCandidate {
   id: string;
-  validation: "source-supported" | "needs-review" | "dismissed";
+  /**
+   * The second review's verdict. `unvalidated`: the second review stopped before it
+   * decided, so the candidate is kept undecided; it never counts as source-supported.
+   */
+  validation: "source-supported" | "needs-review" | "dismissed" | "unvalidated";
   validationReason: string;
   evidence: (ReviewCitation & { snippet: string })[];
 }
@@ -213,6 +284,37 @@ export interface RelatedSourceFile extends ReviewSourceFile {
   /** The cited file that imports it, or that it calls. */
   via: string;
 }
+/** A phase of an exploring review: its own conversation with read tools. */
+export type ExplorePhase = "discovery" | "validation";
+
+/** Why an exploring session ended. */
+export type ExploreStop =
+  | "submitted"
+  | "model-calls"
+  | "tool-bytes"
+  | "request-size"
+  | "time"
+  | "tokens"
+  | "invalid"
+  | "failed";
+
+/** What one exploring session did, saved with the review. Paths and queries are redacted. */
+export interface ExploreSessionRecord {
+  phase: ExplorePhase;
+  stop: ExploreStop;
+  modelCalls: number;
+  toolCalls: Record<string, number>;
+  bytesReturned: number;
+  /** Files the session received, with the ranges read (null: the whole file). */
+  reads: { path: string; ranges: ReviewRange[] | null; digest: string }[];
+  searches: { query: string; prefix: string | null; matches: number }[];
+  /** The host's reasons for rejected submissions: field locations, never model values. */
+  rejected?: string[];
+}
+
+/** How a review read the source: one host-packed batch, or model-chosen reads. */
+export type ReviewMode = "batch" | "explore";
+
 export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findings"> {
   schemaVersion: 1;
   id: string;
@@ -220,6 +322,10 @@ export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findin
   createdAt: string;
   kind: "ai-security-review";
   status: "completed" | "refused" | "failed" | "cancelled";
+  /** Absent on reviews from before exploration, which are batch reviews. */
+  mode?: ReviewMode;
+  /** For an exploring review: its sessions, in order. */
+  exploration?: ExploreSessionRecord[];
   provider: { id: string; name: string; model: string };
   /** The connection that ran the second review, when it was not `provider`. */
   validator?: { id: string; name: string; model: string };

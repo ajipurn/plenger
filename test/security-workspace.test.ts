@@ -106,6 +106,25 @@ beforeEach(async () => {
       entry.evidence = [{ ...citation }, { ...citation, endLine: 35 }];
       content = discovery;
     }
+    // An exploring review answers through its submit tool.
+    const submit = (body.tools as { name: string }[] | undefined)?.find((tool) =>
+      tool.name.startsWith("submit_"),
+    );
+    if (submit && mode === "normal") {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          type: "message",
+          role: "assistant",
+          stop_reason: "tool_use",
+          content: [
+            { type: "tool_use", id: `toolu_${bodies.length}`, name: submit.name, input: content },
+          ],
+          usage: { input_tokens: 500, output_tokens: 500 },
+        }),
+      );
+      return;
+    }
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(
       JSON.stringify({
@@ -677,6 +696,39 @@ describe("local project security workspace", () => {
     expect(scan.reviews[0]?.validator).toEqual(scan.validator);
     expect(bodies.map((body) => body.model)).toEqual(["claude-test", "claude-validator"]);
     expect(scan.modelCalls).toBe(2);
+  });
+
+  it("runs an exploring review as one Quick scan and refuses Explore with Full coverage", async () => {
+    const repo = await repository();
+    const full = await dashboard.request(API.securityScans, {
+      repositoryId: repo.id,
+      providerId: provider.id,
+      mode: "explore",
+      ...FULL,
+    });
+    expect(full.status).toBe(400);
+    expect(await full.text()).toContain("Choose Quick for Explore mode");
+    const unknown = await dashboard.request(API.securityScans, {
+      repositoryId: repo.id,
+      providerId: provider.id,
+      depth: "quick",
+      mode: "agentic",
+    });
+    expect(unknown.status).toBe(400);
+    const scan = await finished((await start(repo.id, { mode: "explore" })).id);
+    expect(scan.status).toBe("completed");
+    expect(scan.mode).toBe("explore");
+    expect(scan.reviews).toHaveLength(1);
+    expect(scan.reviews[0]?.mode).toBe("explore");
+    expect(scan.reviews[0]?.exploration?.map((item) => [item.phase, item.stop])).toEqual([
+      ["discovery", "submitted"],
+      ["validation", "submitted"],
+    ]);
+    expect(bodies).toHaveLength(2);
+    expect(bodies.every((body) => Array.isArray(body.tools))).toBe(true);
+    expect(scan.findings.filter((item) => item.origin === "ai")).toHaveLength(1);
+    // The first set held every file of this small project.
+    expect(scan.coverage?.stop).toBe("complete");
   });
 
   it("stops at refusal and retains the failure outcome without leaking upstream credentials", async () => {

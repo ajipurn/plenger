@@ -1,9 +1,9 @@
 # Read-only review exploration (design)
 
-Status: design only. This is checkpoint M9b of
-[M9](../ROADMAP.md#m9-review-for-any-language-in-progress). Nothing here is
-implemented yet. Current capabilities are in [../STATUS.md](../STATUS.md); the
-current review is described in [../guide/ai-security-review.md](../guide/ai-security-review.md).
+Status: partly implemented as the dashboard's Explore mode. This is checkpoint
+M9b of [M9](../ROADMAP.md#m9-review-for-any-language-in-progress). What works
+and what is qualified is in [../STATUS.md](../STATUS.md); the review as built is
+described in [../guide/ai-security-review.md](../guide/ai-security-review.md#explore-mode).
 
 ## Why
 
@@ -91,8 +91,9 @@ every citation against what was actually read.
 4. The model calls `submit_discovery`. The host parses it and checks every
    citation against the read log. A rejected submission returns the errors as
    the tool result and allows one corrected submission.
-5. When the conversation nears a limit, the host answers the pending tool
-   calls with a notice and offers only the submit tool for a closing turn. One
+5. When the conversation nears a limit, the host adds a notice and answers
+   any tool call but the submit tool with a refusal for a closing turn. Every
+   turn keeps the same tool definitions, so earlier tool use stays valid. One
    call and its output allowance stay reserved for this.
 
 ### Validation
@@ -203,7 +204,7 @@ request byte.
 | --- | --- |
 | Invalid submission | Errors returned as the tool result; one correction within the budget |
 | Second invalid submission in discovery | Review failed, as today |
-| Limit near | Closing turn with only the submit tool |
+| Limit near | Closing turn that asks for the submission; other tool calls are refused |
 | Limit reached without a submission | Discovery: review failed with the stop reason. Validation: candidates kept as `unvalidated` |
 | Provider error or refusal in validation | Refusal ends the review as today; other errors keep candidates as `unvalidated` |
 | Tool call for a disallowed path | Tool result `not in the review allowlist`; logged; counts toward limits |

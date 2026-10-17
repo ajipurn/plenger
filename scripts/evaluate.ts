@@ -2,14 +2,15 @@
 // of each saved provider when asked. Developer-only; the CLI never runs it.
 // Usage: pnpm evaluate [--provider <name|id>]... [--validator <name|id>] [--runs <n>]
 //                      [--corpus <dir>] [--data-dir <dir>] [--output <file.md>]
-//                      [--json <file>] [--yes]
+//                      [--json <file>] [--mode batch|explore] [--yes]
 //   Without --provider only the static scanner is evaluated, offline.
 //   With --provider, redacted corpus source is sent to that connection: up to two model
-//   requests per case and run. --yes is required to send it.
+//   requests per case and run in batch mode, and up to the session limits in explore
+//   mode, where the model reads the case through read-only tools. --yes is required.
 
 import { writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
-import { SECURITY_REVIEW_LIMITS } from "../src/assessment/review-model.ts";
+import { EXPLORE_LIMITS, SECURITY_REVIEW_LIMITS } from "../src/assessment/review-model.ts";
 import { ProviderRepository } from "../src/storage/provider-repository.ts";
 import {
   type AiConnection,
@@ -31,9 +32,12 @@ const { values } = parseArgs({
     "data-dir": { type: "string" },
     output: { type: "string" },
     json: { type: "string" },
+    mode: { type: "string" },
     yes: { type: "boolean" },
   },
 });
+const mode = values.mode ?? "batch";
+if (mode !== "batch" && mode !== "explore") throw new Error("Use --mode batch or explore.");
 const runs = Number(values.runs ?? 3);
 if (!Number.isSafeInteger(runs) || runs < 1 || runs > 10) throw new Error("Use --runs 1 to 10.");
 const cases = await loadCorpus(values.corpus ?? "test/fixtures/evaluation");
@@ -42,7 +46,11 @@ const staticOutcomes = await evaluateStatic(cases);
 const evaluations: AiEvaluation[] = [];
 const names = values.provider ?? [];
 if (names.length) {
-  const calls = names.length * cases.length * runs * SECURITY_REVIEW_LIMITS.calls;
+  const perReview =
+    mode === "explore"
+      ? EXPLORE_LIMITS.discovery.modelCalls + EXPLORE_LIMITS.validation.modelCalls
+      : SECURITY_REVIEW_LIMITS.calls;
+  const calls = names.length * cases.length * runs * perReview;
   console.log(
     `AI review: ${names.length} ${names.length === 1 ? "provider" : "providers"} × ${cases.length} cases × ${runs} runs, at most ${calls} model requests.`,
   );
@@ -73,6 +81,7 @@ if (names.length) {
           connection: connection(name),
           ...(validator ? { validator } : {}),
           runs,
+          mode,
           onReview: (item, run, outcome) =>
             console.log(
               `run ${run} ${item.id}: ${outcome.status}${outcome.detected ? ", detected" : ""}`,

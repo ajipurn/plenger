@@ -9,16 +9,38 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- **Explore** review mode (M9b): New Scan offers Explore next to Batch. The
+  model reads the project through four read-only tools over the scan's
+  allowlist (`list_files`, `read_file`, `search` on redacted text, `outline`)
+  and answers through a submit tool, strict on Claude, checked by the same
+  parsers. Citations must lie in lines the session received. Each pass is one
+  bounded conversation with a closing turn before its limits. Reviews record
+  `mode` and, per session, the stop reason, tool calls, files and ranges read
+  and the searches. Explore runs as one Quick review. `pnpm evaluate --mode
+  explore` measures it.
+
+- A second review that stops before it decides keeps its candidates as
+  **Unvalidated**, in both modes, with the reason. It used to fail the review.
+
 - AI findings name a CWE id, shown and linked on the finding page. `pnpm
   evaluate` adds a count of findings that name the labeled weakness. On one run
   of 85 cases it gave precision 0.91 and recall 0.91, against 0.68 and 0.95 for
   any finding at the labeled lines; see
   [detection-claude-haiku-2026-10-17-cwe](docs/qualifications/detection-claude-haiku-2026-10-17-cwe.md).
 
+- Discovery is told that hardening items (rate limits, timeouts, size and cost
+  limits, logging, monitoring, headers) are not findings, that supply-chain
+  weaknesses and credentials in source are, and when prompt injection is one.
+  On one run of 86 cases this raised precision from 0.68 to 0.82 at recall
+  0.95. Explore mode, with strict submit tools on Claude, reached 0.83 and 0.98
+  on the same corpus for 38% more cost; every case fit its first message. See
+  [detection-claude-haiku-2026-10-17-explore](docs/qualifications/detection-claude-haiku-2026-10-17-explore.md).
+
 - The static scan follows pathlib joins (`NOTES / name`) and methods called on
   a parenthesized expression, detects a project's own tool base classes, and
   lists compiled files (native libraries, executables, WebAssembly, JVM
-  bytecode, Python packages) with size and SHA-256 under `binaries`.
+  bytecode, Python packages) with size and SHA-256 under `binaries`. The corpus
+  adds a pathlib traversal case, 86 cases in all.
 
 - REA imports accept files up to 64 MiB. The semantic graph and raw result are
   dropped before the bounds apply, and limitations beyond 256 are counted

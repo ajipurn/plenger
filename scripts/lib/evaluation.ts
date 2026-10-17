@@ -3,8 +3,12 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SecurityReview } from "../../src/assessment/review-model.ts";
-import { REVIEW_PROMPT_DIGEST, reviewProject } from "../../src/assessment/security-review.ts";
+import type { ReviewMode, SecurityReview } from "../../src/assessment/review-model.ts";
+import {
+  REVIEW_EXPLORE_PROMPT_DIGEST,
+  REVIEW_PROMPT_DIGEST,
+  reviewProject,
+} from "../../src/assessment/security-review.ts";
 import type { ModelPricing } from "../../src/redteam/model-pricing.ts";
 import type { ProviderAccess } from "../../src/redteam/provider.ts";
 import type { Finding } from "../../src/rules/model.ts";
@@ -54,6 +58,8 @@ export interface AiOutcome {
   id: string;
   kind: EvaluationCase["kind"];
   status: SecurityReview["status"];
+  /** Why a review did not complete. */
+  reason?: string;
   detected: boolean;
   /** Second-review verdicts of the findings at the labeled location, dismissed ones included. */
   verdicts: string[];
@@ -70,6 +76,11 @@ export interface AiOutcome {
   }[];
   /** Findings that were not dismissed and cite none of the labeled lines. */
   unlabeled: number;
+  /** Model requests the review made, and tool calls by name in an exploring review. */
+  calls: number;
+  toolCalls?: Record<string, number>;
+  /** Why the host rejected exploring submissions, when it did. */
+  rejected?: string[];
   tokens: number | null;
   costUsd: number | null;
 }
@@ -77,6 +88,8 @@ export interface AiOutcome {
 export interface AiEvaluation {
   provider: SecurityReview["provider"];
   validator?: SecurityReview["provider"];
+  /** Absent on evaluations from before exploration, which were batch reviews. */
+  mode?: ReviewMode;
   promptDigest: string;
   runs: AiOutcome[][];
   metrics: Metrics[];
@@ -182,6 +195,7 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
     id: item.id,
     kind: item.kind,
     status: review.status,
+    ...(review.status !== "completed" && review.reason ? { reason: review.reason } : {}),
     detected: kept.some(at),
     matched: kept.some((finding) => at(finding) && sameWeakness(item.cwe, finding.cwe)),
     verdicts: review.findings.filter(at).map((finding) => finding.validation),
@@ -195,6 +209,19 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
       reason: finding.validationReason,
     })),
     unlabeled: kept.filter((finding) => !at(finding)).length,
+    calls: review.request.calls,
+    ...(review.exploration
+      ? {
+          toolCalls: review.exploration.reduce<Record<string, number>>((sum, session) => {
+            for (const [name, count] of Object.entries(session.toolCalls))
+              sum[name] = (sum[name] ?? 0) + count;
+            return sum;
+          }, {}),
+        }
+      : {}),
+    ...(review.exploration?.some((session) => session.rejected?.length)
+      ? { rejected: review.exploration.flatMap((session) => session.rejected ?? []) }
+      : {}),
     tokens: usage ? usage.inputTokens + usage.outputTokens + usage.additionalTokens : null,
     costUsd: costs.every((cost) => cost === undefined)
       ? null
@@ -248,8 +275,9 @@ export interface AiConnection {
 }
 
 /**
- * Reviews every case `runs` times, one case at a time, and scores each run. Each review
- * makes at most two model requests; nothing is retried.
+ * Reviews every case `runs` times, one case at a time, and scores each run. A batch
+ * review makes at most two model requests; an exploring one stays within its sessions'
+ * limits. Nothing is retried.
  */
 export async function evaluateAi(
   cases: readonly EvaluationCase[],
@@ -257,6 +285,7 @@ export async function evaluateAi(
     connection: AiConnection;
     validator?: AiConnection;
     runs: number;
+    mode?: ReviewMode;
     onReview?: (item: EvaluationCase, run: number, outcome: AiOutcome) => void;
   },
   dispatch: typeof fetch = fetch,
@@ -281,6 +310,7 @@ export async function evaluateAi(
           access: connection.access,
           ...(connection.pricing ? { pricing: connection.pricing } : {}),
           inputTokens: connection.inputTokens ?? null,
+          mode: options.mode ?? "batch",
           ...(validator
             ? {
                 validator: {
@@ -303,7 +333,8 @@ export async function evaluateAi(
   return {
     provider: options.connection.provider,
     ...(options.validator ? { validator: options.validator.provider } : {}),
-    promptDigest: REVIEW_PROMPT_DIGEST,
+    mode: options.mode ?? "batch",
+    promptDigest: options.mode === "explore" ? REVIEW_EXPLORE_PROMPT_DIGEST : REVIEW_PROMPT_DIGEST,
     runs,
     metrics: runs.map((outcomes) => metrics(outcomes)),
   };
@@ -379,6 +410,14 @@ export function formatEvaluation(
     const outcomes = evaluation.runs.flat();
     const failed = outcomes.filter((item) => item.status !== "completed").length;
     const costs = outcomes.map((item) => item.costUsd).filter((cost) => cost !== null);
+    const requests = outcomes.reduce((sum, item) => sum + item.calls, 0);
+    const tools = Object.entries(
+      outcomes.reduce<Record<string, number>>((sum, item) => {
+        for (const [name, count] of Object.entries(item.toolCalls ?? {}))
+          sum[name] = (sum[name] ?? 0) + count;
+        return sum;
+      }, {}),
+    ).sort(([a], [b]) => a.localeCompare(b));
     const range = (value: ReturnType<typeof spread>) =>
       value === null
         ? "n/a"
@@ -387,7 +426,7 @@ export function formatEvaluation(
       "",
       `## AI review: ${evaluation.provider.model}${evaluation.validator ? `, second review ${evaluation.validator.model}` : ""}`,
       "",
-      `Prompt digest \`${evaluation.promptDigest.slice(0, 12)}\`, ${evaluation.runs.length} ${evaluation.runs.length === 1 ? "run" : "runs"}, Standard depth. ${failed} of ${outcomes.length} reviews did not complete.${costs.length ? ` Estimated cost USD ${costs.reduce((sum, cost) => sum + cost, 0).toFixed(4)}.` : ""}`,
+      `${evaluation.mode === "explore" ? "Explore" : "Batch"} mode, prompt digest \`${evaluation.promptDigest.slice(0, 12)}\`, ${evaluation.runs.length} ${evaluation.runs.length === 1 ? "run" : "runs"}, Standard depth. ${failed} of ${outcomes.length} reviews did not complete.${costs.length ? ` Estimated cost USD ${costs.reduce((sum, cost) => sum + cost, 0).toFixed(4)}.` : ""} ${requests} model requests${tools.length ? `; tool calls: ${tools.map(([name, count]) => `${name} ${count}`).join(", ")}` : ""}.`,
       "",
       `Precision ${range(precision)}. Recall ${range(recall)}. Counting only source-supported findings: precision ${range(strictPrecision)}, recall ${range(strictRecall)}. Counting only findings that name the labeled weakness: precision ${range(weaknessPrecision)}, recall ${range(weaknessRecall)}.`,
       "",

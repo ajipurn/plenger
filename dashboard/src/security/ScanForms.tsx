@@ -4,8 +4,12 @@ import { Link } from "react-router";
 import {
   batchCostBound,
   batchTokenBound,
+  EXPLORE_LIMITS,
+  exploreCostBound,
+  exploreTokenBound,
   type LocalRepository,
   type RepositorySource,
+  type ReviewMode,
   reviewBudget,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
@@ -36,6 +40,19 @@ const DEPTH_COPY: Record<SelectableScanDepth, { description: string; calls: stri
   full: {
     description: "Reviews batch after batch until every file is covered or your limit is reached.",
     calls: "Stops at your limit",
+  },
+};
+const MODE_COPY: Record<ReviewMode, { label: string; description: string; calls: string }> = {
+  batch: {
+    label: "Batch",
+    description: "Sends the most relevant files in batches the scan packs.",
+    calls: `${SECURITY_REVIEW_LIMITS.calls} model calls per batch`,
+  },
+  explore: {
+    label: "Explore",
+    description:
+      "The model reads the project through read-only tools and follows paths across files.",
+    calls: `Up to ${EXPLORE_LIMITS.discovery.modelCalls + EXPLORE_LIMITS.validation.modelCalls} model calls, Quick only`,
   },
 };
 /** Rendered source is larger than file bytes: line numbers and JSON escaping. */
@@ -231,7 +248,10 @@ export function NewScanForm({
   const [providerId, setProviderId] = useState(
     (providers.find((item) => item.isDefault) ?? providers[0])?.id ?? "",
   );
-  const [depth, setDepth] = useState<SelectableScanDepth>("quick");
+  const [mode, setMode] = useState<ReviewMode>("batch");
+  const [chosenDepth, setDepth] = useState<SelectableScanDepth>("quick");
+  // An exploring review runs once.
+  const depth = mode === "explore" ? "quick" : chosenDepth;
   const [limitKind, setLimitKind] = useState<ScanBudget["kind"]>("tokens");
   const [tokenLimit, setTokenLimit] = useState(String(SCAN_BUDGET_LIMITS.defaultTokens));
   const [usdLimit, setUsdLimit] = useState(SCAN_BUDGET_LIMITS.defaultUsd.toFixed(2));
@@ -288,9 +308,11 @@ export function NewScanForm({
       ? { discovery: selectedPricing, validation: validatorPricing ?? selectedPricing }
       : undefined;
   const kind = usdPricing ? limitKind : "tokens";
-  const mostTokens = batchTokenBound(budget).total;
+  const mostTokens = mode === "explore" ? exploreTokenBound().total : batchTokenBound(budget).total;
   const mostUsd = usdPricing
-    ? batchCostBound(budget, usdPricing.discovery, usdPricing.validation)
+    ? mode === "explore"
+      ? exploreCostBound(usdPricing.discovery, usdPricing.validation)
+      : batchCostBound(budget, usdPricing.discovery, usdPricing.validation)
     : null;
   const limitValue = Number(kind === "tokens" ? tokenLimit : usdLimit);
   const limitError = (() => {
@@ -336,6 +358,7 @@ export function NewScanForm({
         providerId: provider.id,
         model: model.trim(),
         depth,
+        mode,
         ...(depth === "full"
           ? {
               budget:
@@ -518,10 +541,12 @@ export function NewScanForm({
                 Used for this scan only. Your provider's default stays the same.
               </p>
               <p className="muted">
-                {budget.inputTokens === null
-                  ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch. Load models to size it to this model's context window.`
-                  : `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch for this model's ${budget.inputTokens.toLocaleString()}-token window.`}
-                {validator
+                {mode === "explore"
+                  ? `Explore starts from up to ${Math.round(Math.min(budget.contextBytes, EXPLORE_LIMITS.firstBytes) / 1024)} KiB of source and reads the rest through tools.`
+                  : budget.inputTokens === null
+                    ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch. Load models to size it to this model's context window.`
+                    : `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch for this model's ${budget.inputTokens.toLocaleString()}-token window.`}
+                {validator && mode === "batch"
                   ? " A second-review model with a smaller or unknown window lowers it."
                   : ""}
               </p>
@@ -568,6 +593,39 @@ export function NewScanForm({
         </fieldset>
         <RadioGroup
           className="security-scan-depth"
+          name="mode"
+          value={mode}
+          onChange={(value) => setMode(value as ReviewMode)}
+          isDisabled={busy}
+        >
+          <Label>Review mode</Label>
+          <div className="security-scan-depth-options">
+            {(["batch", "explore"] as const).map((value) => (
+              <Radio
+                key={value}
+                value={value}
+                className="security-scan-depth-option"
+                aria-labelledby={`${id}-mode-${value}-label`}
+                aria-describedby={`${id}-mode-${value}-description ${id}-mode-${value}-calls`}
+              >
+                <span className="security-scan-depth-indicator" aria-hidden="true" />
+                <span className="security-scan-depth-copy">
+                  <span id={`${id}-mode-${value}-label`} className="security-scan-depth-name">
+                    {MODE_COPY[value].label}
+                  </span>
+                  <span id={`${id}-mode-${value}-description`} className="muted">
+                    {MODE_COPY[value].description}
+                  </span>
+                  <span id={`${id}-mode-${value}-calls`} className="security-scan-depth-calls">
+                    {MODE_COPY[value].calls}
+                  </span>
+                </span>
+              </Radio>
+            ))}
+          </div>
+        </RadioGroup>
+        <RadioGroup
+          className="security-scan-depth"
           name="depth"
           value={depth}
           onChange={(value) => setDepth(value as SelectableScanDepth)}
@@ -579,6 +637,7 @@ export function NewScanForm({
               <Radio
                 key={value}
                 value={value}
+                isDisabled={value === "full" && mode === "explore"}
                 className="security-scan-depth-option"
                 aria-labelledby={`${id}-${value}-label`}
                 aria-describedby={`${id}-${value}-description ${id}-${value}-calls`}
@@ -592,7 +651,9 @@ export function NewScanForm({
                     {DEPTH_COPY[value].description}
                   </span>
                   <span id={`${id}-${value}-calls`} className="security-scan-depth-calls">
-                    {DEPTH_COPY[value].calls}
+                    {value === "quick" && mode === "explore"
+                      ? "One exploring review"
+                      : DEPTH_COPY[value].calls}
                   </span>
                 </span>
               </Radio>
@@ -604,9 +665,11 @@ export function NewScanForm({
             {source.files.toLocaleString()} {source.files === 1 ? "file" : "files"} (
             {sizeText(source.bytes)}) can be reviewed
             {source.truncated ? ", counted up to the file limit" : ""}.{" "}
-            {needed === 1
-              ? "One batch can cover them."
-              : `Full coverage needs about ${needed?.toLocaleString()} batches.`}
+            {mode === "explore"
+              ? "The model chooses which of them to read."
+              : needed === 1
+                ? "One batch can cover them."
+                : `Full coverage needs about ${needed?.toLocaleString()} batches.`}
           </p>
         )}
         {depth === "full" && (
