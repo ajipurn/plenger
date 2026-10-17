@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A LangChain requests toolkit keeps arbitrary requests disabled.",
+  "cwe": "CWE-918",
+  "location": {
+    "path": "toolkit.py",
+    "line": 4,
+    "endLine": 4
+  },
+  "static": []
+}

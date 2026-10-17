@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A calculator tool evaluates the model's expression with eval.",
+  "cwe": "CWE-94",
+  "location": {
+    "path": "tools.py",
+    "line": 5,
+    "endLine": 7
+  },
+  "static": [
+    "PLG103"
+  ]
+}

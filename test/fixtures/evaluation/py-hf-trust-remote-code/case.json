@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A Hugging Face model is loaded with its repository's code trusted.",
+  "cwe": "CWE-494",
+  "location": {
+    "path": "model.py",
+    "line": 3,
+    "endLine": 3
+  },
+  "static": [
+    "PLG703"
+  ]
+}

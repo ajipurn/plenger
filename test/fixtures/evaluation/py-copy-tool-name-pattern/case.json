@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool copies a template only when its name matches letters, digits, `_` and `-`.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 12,
+    "endLine": 18
+  },
+  "static": []
+}

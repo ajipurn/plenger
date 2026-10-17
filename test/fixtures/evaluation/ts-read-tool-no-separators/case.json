@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool reads a note only when its name contains neither `/` nor `..`.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.ts",
+    "line": 8,
+    "endLine": 11
+  },
+  "static": []
+}

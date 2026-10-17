@@ -25,6 +25,12 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   table the code fills at run time stays a trace gap. Call facts carry such a
   callee as `lookup`.
 
+- The evaluation corpus has 72 cases: a vulnerable case and a safe near-miss for
+  every one of the 26 rules and for each kind of check. Static precision is 1.00
+  and recall 0.97 on it, against 0.76 and 0.94 for the previous scanner; the
+  [record](docs/qualifications/detection-static-2026-10-17.md) also covers six
+  open-source projects.
+
 - New Scan offers **Quick** and **Full coverage** instead of Standard and Deep.
   Quick reviews one batch. Full coverage reviews batches until no unsent source
   that fits a batch remains, stopping at a token or USD limit the user sets;
@@ -99,6 +105,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   against a fixed allowlist, a name pattern or a confining base before the
   effect, such as the confined `readNote` and `read_note` tools of the risks
   fixture and a template-copying tool in crewAI's examples.
+
+- `pnpm evaluate -- --provider ...` no longer fails on the `--` that pnpm 10
+  passes through to the script.
 
 - A stopped run now names its cause, such as "Stopped at the model call limit
   of 12 calls.", instead of "Run stopped by its budget, deadline or

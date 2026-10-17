@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The OpenAI SDK runs on the server with the key from the environment.",
+  "cwe": "CWE-522",
+  "location": {
+    "path": "chat.ts",
+    "line": 3,
+    "endLine": 3
+  },
+  "static": []
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool deletes a directory only when the model asks for the one fixed area.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 7,
+    "endLine": 11
+  },
+  "static": []
+}

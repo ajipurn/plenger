@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "An agent's cache-deleting tool requires human approval.",
+  "cwe": "CWE-862",
+  "location": {
+    "path": "agent.py",
+    "line": 6,
+    "endLine": 13
+  },
+  "static": []
+}

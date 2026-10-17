@@ -78,13 +78,13 @@ Records live in [qualifications/](qualifications/).
 | Next.js booking profile, live model | [2026-10-03, Autocare, `gemma4:31b-cloud`](qualifications/autocare-live-2026-10-03.md) | Repetition-based success-rate estimates |
 | FastAPI profile, build and import (checkpoint 1) | [2026-10-06, Dayatech assessment center, Docker, `linux/amd64`](qualifications/fastapi-prepare-dayatech-2026-10-06.md) | Podman; case packs, broker calls and oracles (checkpoints 2 to 4) |
 | AI review, evaluation corpus, live model | [2026-10-16, Claude Haiku 5.5, 3 runs: precision 0.59, recall 0.92; source-supported only 0.87 and 0.75](qualifications/detection-claude-haiku-2026-10-16.md) | Other models, separate second-review model, Full coverage, real projects |
-| Static rules, evaluation corpus | [2026-10-16, 16 labeled cases, precision 0.78, recall 0.88](qualifications/detection-static-2026-10-16.md) | Real projects; rules without corpus pairs |
+| Static rules, evaluation corpus | [2026-10-17, 72 labeled cases covering all 26 rules, precision 1.00, recall 0.97; six open-source projects scanned](qualifications/detection-static-2026-10-17.md); earlier [2026-10-16](qualifications/detection-static-2026-10-16.md) | A corpus not written alongside the rules; projects built on their own agent framework |
 | REA import, live CLI export | [2026-10-17, REA 6.4.0: 11-file fixture imports, 347-file project rejected by size and limitation bounds](qualifications/rea-import-2026-10-17.md) | Exports above the bounds; Electron applications and ASAR archives |
 | npm package smoke test | macOS Apple Silicon locally (Node.js 22.23.2, npm 10.9.8); Ubuntu 24.04, macOS 15 and Windows 2022 in CI (Node.js 22.18.0) | Intel macOS and other Node.js versions |
 
-Every qualification used the bundled fixture or one user project. None
-establishes support for arbitrary projects, provider billing caps or protection
-against malicious project code.
+Every qualification used bundled fixtures, the evaluation corpus or a few named
+projects. None establishes support for arbitrary projects, provider billing caps or
+protection against malicious project code.
 
 ## Exit codes at a glance
 

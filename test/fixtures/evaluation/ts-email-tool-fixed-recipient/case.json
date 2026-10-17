@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool emails only the fixed operations address.",
+  "cwe": "CWE-284",
+  "location": {
+    "path": "tools.ts",
+    "line": 7,
+    "endLine": 12
+  },
+  "static": []
+}

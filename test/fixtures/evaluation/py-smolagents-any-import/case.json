@@ -1,0 +1,14 @@
+{
+  "kind": "vulnerable",
+  "summary": "A smolagents CodeAgent may import any module and runs its code locally.",
+  "cwe": "CWE-94",
+  "location": {
+    "path": "coder.py",
+    "line": 4,
+    "endLine": 4
+  },
+  "static": [
+    "PLG202",
+    "PLG701"
+  ]
+}

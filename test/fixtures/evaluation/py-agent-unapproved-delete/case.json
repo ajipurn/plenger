@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "An agent can delete the application cache through a tool with no approval step.",
+  "cwe": "CWE-862",
+  "location": {
+    "path": "agent.py",
+    "line": 6,
+    "endLine": 13
+  },
+  "static": [
+    "PLG201"
+  ]
+}

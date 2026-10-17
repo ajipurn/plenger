@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool deletes the directory the model names and checks the name only afterwards.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 7,
+    "endLine": 11
+  },
+  "static": [
+    "PLG104"
+  ]
+}

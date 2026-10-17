@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A smolagents CodeAgent may import numpy only and runs its code in Docker.",
+  "cwe": "CWE-94",
+  "location": {
+    "path": "coder.py",
+    "line": 4,
+    "endLine": 4
+  },
+  "static": []
+}

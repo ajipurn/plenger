@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "An MCP client starts a stdio server with uvx without a version.",
+  "cwe": "CWE-829",
+  "location": {
+    "path": "assistant.py",
+    "line": 4,
+    "endLine": 4
+  },
+  "static": [
+    "PLG602"
+  ]
+}

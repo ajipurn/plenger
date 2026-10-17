@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The source holds AWS's documented example key; the client reads real credentials from the environment.",
+  "cwe": "CWE-798",
+  "location": {
+    "path": "storage.py",
+    "line": 4,
+    "endLine": 6
+  },
+  "static": []
+}

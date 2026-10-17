@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "An AWS access key is written in the source.",
+  "cwe": "CWE-798",
+  "location": {
+    "path": "storage.py",
+    "line": 3,
+    "endLine": 5
+  },
+  "static": [
+    "PLG502"
+  ]
+}

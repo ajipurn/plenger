@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool unpickles state the model passes in.",
+  "cwe": "CWE-502",
+  "location": {
+    "path": "tools.py",
+    "line": 8,
+    "endLine": 10
+  },
+  "static": [
+    "PLG107"
+  ]
+}

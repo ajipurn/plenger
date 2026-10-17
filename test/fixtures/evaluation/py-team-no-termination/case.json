@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A two-agent team has no termination condition.",
+  "cwe": "CWE-834",
+  "location": {
+    "path": "team.py",
+    "line": 9,
+    "endLine": 9
+  },
+  "static": [
+    "PLG203"
+  ]
+}

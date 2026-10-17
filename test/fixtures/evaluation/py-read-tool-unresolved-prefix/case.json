@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool checks the unresolved path's prefix, which `notes/../secret` passes.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 9,
+    "endLine": 15
+  },
+  "static": [
+    "PLG104"
+  ]
+}

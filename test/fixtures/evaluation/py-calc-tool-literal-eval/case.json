@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool reads the model's input with ast.literal_eval, which evaluates only literals.",
+  "cwe": "CWE-94",
+  "location": {
+    "path": "tools.py",
+    "line": 7,
+    "endLine": 9
+  },
+  "static": []
+}

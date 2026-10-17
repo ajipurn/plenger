@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "Retrieved documents are passed in the user message, below a fixed system prompt.",
+  "cwe": "CWE-1427",
+  "location": {
+    "path": "rag.py",
+    "line": 10,
+    "endLine": 19
+  },
+  "static": []
+}

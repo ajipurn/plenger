@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A CrewAI agent runs the code it writes in its Docker sandbox.",
+  "cwe": "CWE-94",
+  "location": {
+    "path": "crew.py",
+    "line": 3,
+    "endLine": 9
+  },
+  "static": []
+}

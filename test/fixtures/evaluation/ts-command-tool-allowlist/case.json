@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool runs a program only when it is in a fixed list.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "tools.ts",
+    "line": 10,
+    "endLine": 13
+  },
+  "static": []
+}

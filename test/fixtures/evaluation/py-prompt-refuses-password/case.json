@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A system prompt mentions passwords only to refuse sharing them.",
+  "cwe": "CWE-200",
+  "location": {
+    "path": "support.py",
+    "line": 5,
+    "endLine": 7
+  },
+  "static": []
+}

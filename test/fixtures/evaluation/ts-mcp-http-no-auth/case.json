@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "An MCP server offers a command-running tool over HTTP with no authentication.",
+  "cwe": "CWE-306",
+  "location": {
+    "path": "server.ts",
+    "line": 5,
+    "endLine": 12
+  },
+  "static": [
+    "PLG601"
+  ]
+}

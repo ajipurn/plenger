@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A FAISS index is loaded with pickle deserialization allowed.",
+  "cwe": "CWE-502",
+  "location": {
+    "path": "index.py",
+    "line": 4,
+    "endLine": 4
+  },
+  "static": [
+    "PLG702"
+  ]
+}

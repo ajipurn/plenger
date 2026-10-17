@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool splits its input into a path and content and writes only after checking the resolved path stays in the working directory.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 9,
+    "endLine": 22
+  },
+  "static": []
+}

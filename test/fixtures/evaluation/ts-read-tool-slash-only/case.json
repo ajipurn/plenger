@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool rejects `/` but not `..`, so the name can read the parent directory's files.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.ts",
+    "line": 8,
+    "endLine": 11
+  },
+  "static": [
+    "PLG104"
+  ]
+}

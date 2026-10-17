@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool passes a ref to git only when it is one of the fixed branches.",
+  "cwe": "CWE-88",
+  "location": {
+    "path": "tools.ts",
+    "line": 7,
+    "endLine": 14
+  },
+  "static": []
+}

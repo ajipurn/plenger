@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A route passes request text to a model call whose only tool tells the time.",
+  "cwe": "CWE-1427",
+  "location": {
+    "path": "app/api/agent/route.ts",
+    "line": 11,
+    "endLine": 19
+  },
+  "static": []
+}

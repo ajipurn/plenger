@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool runs a program when it is in an allowlist the model also supplies.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "tools.ts",
+    "line": 8,
+    "endLine": 11
+  },
+  "static": [
+    "PLG101"
+  ]
+}

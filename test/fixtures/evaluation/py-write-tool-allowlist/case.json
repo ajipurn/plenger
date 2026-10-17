@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool writes a report only after checking its name against a fixed set.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 9,
+    "endLine": 13
+  },
+  "static": []
+}

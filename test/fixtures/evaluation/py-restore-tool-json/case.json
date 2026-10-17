@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool restores state the model passes in as JSON.",
+  "cwe": "CWE-502",
+  "location": {
+    "path": "tools.py",
+    "line": 8,
+    "endLine": 10
+  },
+  "static": []
+}

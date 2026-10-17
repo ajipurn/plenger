@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool reads a note only after resolving its path and checking it stays in the notes directory.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 9,
+    "endLine": 15
+  },
+  "static": []
+}

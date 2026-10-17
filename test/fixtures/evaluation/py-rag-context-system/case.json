@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "Retrieved documents are placed in the system prompt.",
+  "cwe": "CWE-1427",
+  "location": {
+    "path": "rag.py",
+    "line": 10,
+    "endLine": 19
+  },
+  "static": [
+    "PLG303"
+  ]
+}

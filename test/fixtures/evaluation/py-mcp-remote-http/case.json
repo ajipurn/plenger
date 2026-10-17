@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "An MCP client connects to a remote server over plain HTTP.",
+  "cwe": "CWE-319",
+  "location": {
+    "path": "assistant.py",
+    "line": 4,
+    "endLine": 4
+  },
+  "static": [
+    "PLG603"
+  ]
+}

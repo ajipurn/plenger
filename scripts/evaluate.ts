@@ -21,6 +21,8 @@ import {
 } from "./lib/evaluation.ts";
 
 const { values } = parseArgs({
+  // pnpm 10 passes the `--` of `pnpm evaluate -- --provider x` through to the script.
+  args: process.argv.slice(2).filter((arg, index) => index > 0 || arg !== "--"),
   options: {
     provider: { type: "string", multiple: true },
     validator: { type: "string" },

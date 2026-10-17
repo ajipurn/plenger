@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool maps the model's choice to a fixed command with a dictionary lookup.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "tools.py",
+    "line": 12,
+    "endLine": 17
+  },
+  "static": []
+}

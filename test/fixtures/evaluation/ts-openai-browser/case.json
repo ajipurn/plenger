@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "The OpenAI SDK is allowed to run in the browser with the API key.",
+  "cwe": "CWE-522",
+  "location": {
+    "path": "chat.ts",
+    "line": 3,
+    "endLine": 3
+  },
+  "static": [
+    "PLG704"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A Hugging Face model is loaded with remote code disabled.",
+  "cwe": "CWE-494",
+  "location": {
+    "path": "model.py",
+    "line": 3,
+    "endLine": 3
+  },
+  "static": []
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A two-agent team stops after ten messages.",
+  "cwe": "CWE-834",
+  "location": {
+    "path": "team.py",
+    "line": 10,
+    "endLine": 10
+  },
+  "static": []
+}

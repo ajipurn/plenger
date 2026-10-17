@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool's name check also allows `.` and `/`, so the name can climb out of the templates directory.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 12,
+    "endLine": 18
+  },
+  "static": [
+    "PLG104"
+  ]
+}

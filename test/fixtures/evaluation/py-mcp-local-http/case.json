@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "An MCP client connects to a server on localhost over HTTP.",
+  "cwe": "CWE-319",
+  "location": {
+    "path": "assistant.py",
+    "line": 4,
+    "endLine": 4
+  },
+  "static": []
+}

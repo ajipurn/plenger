@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool passes the model's ref to git's arguments, where it can become an option.",
+  "cwe": "CWE-88",
+  "location": {
+    "path": "tools.ts",
+    "line": 5,
+    "endLine": 9
+  },
+  "static": [
+    "PLG102"
+  ]
+}

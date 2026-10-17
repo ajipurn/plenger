@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A FAISS index is rebuilt from fixed texts instead of loaded from a pickle.",
+  "cwe": "CWE-502",
+  "location": {
+    "path": "index.py",
+    "line": 6,
+    "endLine": 6
+  },
+  "static": []
+}
