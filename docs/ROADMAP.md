@@ -315,9 +315,11 @@ See [guide/ai-security-review.md](guide/ai-security-review.md).
 | M9a Every text file | Text files in any language enter the review under the same ignore, size, sensitive-path and redaction rules as parsed source. Files without a parser are sent whole or as line windows, ordered after traced files by path hints, and cited by line | A repository without Python, JavaScript or TypeScript gets a review with checked citations. Coverage lists the files sent and skipped. Lockfiles, binaries, minified and generated files stay out |
 | M9b Read-only exploration | The model lists, reads and searches the redacted allowlist through bounded tools, with the static facts as starting hints. The second review can read further files to confirm or dismiss a candidate. Format errors get one bounded retry, and candidates that cannot be validated stay unvalidated | Tool calls work on every supported provider. The model budget bounds every turn. Coverage equals the recorded reads. The evaluation corpus gains cross-file cases, and precision and recall are recorded before and after |
 
-M9b changes the review architecture and gets a design document before it is
-built. Static parsing stays with Python, JavaScript and TypeScript; a new
-grammar is added only for static rules in another language.
+M9b changes the review architecture. Its design, with limits, failure handling
+and five delivery checkpoints, is in
+[design/review-exploration.md](design/review-exploration.md). Static parsing
+stays with Python, JavaScript and TypeScript; a new grammar is added only for
+static rules in another language.
 
 ## Risks
 

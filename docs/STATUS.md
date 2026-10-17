@@ -14,7 +14,7 @@ repeating milestone status. Last reviewed: 2026-10-17.
 | M6c: MCP and CI | Postponed | Campaigns, statistics, gates, comparisons and CLI reports exist; MCP adapter pending |
 | M7: indirect prompt injection | Postponed | See [ROADMAP.md](ROADMAP.md#m7-red-team-indirect-prompt-injection-postponed) |
 | M8: distribution | In progress | npm package checks pass in CI on Linux, macOS and Windows; public release pending. The standalone binary was dropped |
-| M9: review for any language | In progress | M9a done: dashboard reviews read text files in any language, templates and configuration as plain text. M9b, read-only exploration by the model, is designed next. See [ROADMAP.md](ROADMAP.md#m9-review-for-any-language-in-progress) |
+| M9: review for any language | In progress | M9a done: dashboard reviews read text files in any language, templates and configuration as plain text. M9b, read-only exploration by the model, is designed in [design/review-exploration.md](design/review-exploration.md) and not implemented. See [ROADMAP.md](ROADMAP.md#m9-review-for-any-language-in-progress) |
 
 ## Capability matrix
 

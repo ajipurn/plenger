@@ -128,7 +128,8 @@ composite [GitHub Action](action.yml) writes SARIF and a job summary.
 - Guides: [scanning](docs/guide/scanning.md), [reports and CI](docs/guide/reports-ci.md),
   [dashboard](docs/guide/dashboard.md), [red-teaming](docs/guide/redteam.md),
   [install](docs/guide/install.md)
-- Design: [red-team contracts](docs/design/redteam-contracts.md),
+- Design: [review exploration](docs/design/review-exploration.md),
+  [red-team contracts](docs/design/redteam-contracts.md),
   [worker protocol](docs/design/worker-protocol.md),
   [red-team engine](docs/design/redteam-engine.md),
   [llmfy runtime](docs/design/llmfy-runtime.md),
