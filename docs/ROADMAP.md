@@ -155,6 +155,27 @@ managed test instance through built-in integrations. Endpoint-only mode (not
 implemented yet) runs request/response cases without source access and can
 observe internal actions only through a supported integration surface.
 
+**REA in red-team work.** [REA](https://rea.tools) maps applications without
+their source. Today its JSON import only adds context to fix prompts. It does
+not feed the source review: on a repository with source, its output repeats
+what the static scan finds
+([check of 2026-10-17](qualifications/rea-import-2026-10-17.md)). Red-team
+work has three planned roles for it:
+
+- **Endpoint reconnaissance.** Endpoint-only mode has no static scan. REA's
+  analysis of a website, HAR capture, Electron application, ASAR or APK
+  supplies the endpoints, request shapes and IPC channels that select cases.
+- **Runtime observation.** REA's runtime capture can record requests and
+  processes during a trial, as evidence beside plenger's hooks. This narrows
+  the dynamic observation gap listed under [Risks](#risks).
+- **Build comparison.** `compare_application_versions` shows what changed
+  between two builds, so a retest can choose which saved cases to rerun.
+
+REA would run inside the red-team runtime images, pinned like their other
+dependencies, and never on the host or in the npm package. Each role keeps
+only the facts it needs from REA's output. Endpoint reconnaissance and
+observation stay within the target scope saved in the profile.
+
 **Delivery checkpoints.** Each checkpoint is completed and reviewed
 separately; M6 is done only when all three are complete. An unresolved part of
 the llmfy path blocks M6a; it is not deferred to M6b or made a user task.
