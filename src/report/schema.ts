@@ -283,7 +283,7 @@ const definitions: Record<string, Schema> = {
         },
         { truncated: yes },
       ),
-      object({ kind: { const: "other" }, text }, { parts: values }),
+      object({ kind: { const: "other" }, text }, { parts: values, subscript: yes }),
     ],
   },
   argument: object({ keyword: nullable(text), value: ref("value") }, { spread: yes }),
@@ -337,7 +337,10 @@ const definitions: Record<string, Schema> = {
         ),
       ),
       assignments: array(
-        object({ target: text, value: ref("value"), ...definitionSpan }, { member: text }),
+        object(
+          { target: text, value: ref("value"), ...definitionSpan },
+          { member: text, mutated: yes },
+        ),
       ),
       calls: array(
         object(
@@ -348,11 +351,24 @@ const definitions: Record<string, Schema> = {
             arguments: array(ref("argument")),
             ...definitionSpan,
           },
-          { receiver: natural },
+          { receiver: natural, lookup: ref("value") },
         ),
       ),
     },
-    { defaultExport: text },
+    {
+      guards: array(
+        object(
+          {
+            scope: nullable(text),
+            subject: ref("value"),
+            allowed: ref("value"),
+            region: ref("span"),
+          },
+          { test: choices("matches", "excludes", "within") },
+        ),
+      ),
+      defaultExport: text,
+    },
   ),
 };
 

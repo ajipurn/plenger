@@ -8,6 +8,7 @@ import {
   hasChild,
   type LanguageHooks,
   LIMITS,
+  type Limit,
   LOOP_ITEM,
   listValue,
   otherValue,
@@ -51,6 +52,92 @@ const WRAPPERS = new Set([
   "satisfies_expression",
   "non_null_expression",
 ]);
+/** Statements that leave the enclosing block. */
+const EXITS = new Set([
+  "return_statement",
+  "throw_statement",
+  "continue_statement",
+  "break_statement",
+]);
+/**
+ * The block whose rest an exiting `if` protects: the one it is in, or, when that is the
+ * body of a `try` whose `catch` exits too (or that has none), the block around the `try`.
+ */
+function protectedBlock(node: Node): Node | null {
+  let block = node.parent;
+  for (let owner = block?.parent; owner?.type === "try_statement"; owner = block?.parent) {
+    if (owner.childForFieldName("body")?.id !== block?.id) break;
+    const handler = owner.childForFieldName("handler")?.childForFieldName("body");
+    const last = handler?.namedChildren.filter((child) => child?.type !== "comment").at(-1);
+    if (handler != null && (last == null || !EXITS.has(last.type))) break;
+    block = owner.parent;
+  }
+  return block;
+}
+
+/** Methods that test membership: `HOSTS.has(host)`, `LIST.includes(name)`, `OBJ.hasOwnProperty(key)`. */
+const MEMBERSHIP = /^(?:has|includes|hasOwnProperty)$/;
+
+/**
+ * The values an `if` test limits while it is `truth`: `S.has(x)`, `S.includes(x)`,
+ * `x in S`, `x === "a"`, `/^[a-z]+$/.test(x)` and `x.startsWith(BASE)` when they hold,
+ * `x !== "a"` and `x.includes("..")` when they fail, through `!`, parentheses, `&&`
+ * (holding) and `||` (failing).
+ */
+function limits(node: Node, truth: boolean): Limit[] {
+  if (WRAPPERS.has(node.type)) {
+    const inner = node.namedChildren[0];
+    return inner == null ? [] : limits(inner, truth);
+  }
+  switch (node.type) {
+    case "unary_expression": {
+      const argument = node.childForFieldName("argument");
+      return node.childForFieldName("operator")?.type !== "!" || argument === null
+        ? []
+        : limits(argument, !truth);
+    }
+    case "binary_expression": {
+      const operator = node.childForFieldName("operator")?.type;
+      const left = node.childForFieldName("left");
+      const right = node.childForFieldName("right");
+      if (left === null || right === null) return [];
+      if (operator === "&&" || operator === "||")
+        return (operator === "&&" && truth) || (operator === "||" && !truth)
+          ? [...limits(left, truth), ...limits(right, truth)]
+          : [];
+      if (operator === "in") return truth ? [{ subject: left, allowed: right }] : [];
+      const equal = operator === "===" || operator === "==";
+      if (!((equal && truth) || ((operator === "!==" || operator === "!=") && !truth))) return [];
+      return LITERALS.has(left.type) || left.type === "string"
+        ? [{ subject: right, allowed: left }]
+        : [{ subject: left, allowed: right }];
+    }
+    case "call_expression": {
+      const callee = node.childForFieldName("function");
+      const args = node.childForFieldName("arguments")?.namedChildren ?? [];
+      const [argument] = args;
+      const object = callee?.childForFieldName("object");
+      const method = nameText(callee?.childForFieldName("property") ?? null) ?? "";
+      if (
+        callee?.type !== "member_expression" ||
+        args.length !== 1 ||
+        argument == null ||
+        object == null
+      )
+        return [];
+      // `name.includes("..")` failing: the name does not contain that text.
+      if (method === "includes" && argument.type === "string" && !truth)
+        return [{ subject: object, allowed: argument, test: "excludes" }];
+      if (!truth) return [];
+      if (method === "test") return [{ subject: argument, allowed: object, test: "matches" }];
+      if (method === "startsWith") return [{ subject: object, allowed: argument, test: "within" }];
+      return MEMBERSHIP.test(method) ? [{ subject: argument, allowed: object }] : [];
+    }
+    default:
+      return [];
+  }
+}
+
 /** Type-level syntax with no runtime behaviour. */
 const TYPE_ONLY = new Set([
   "type_annotation",
@@ -123,6 +210,20 @@ class JavaScriptExtractor implements LanguageHooks {
       case "assignment_expression":
         this.assignment(node, scope);
         return;
+      case "augmented_assignment_expression": {
+        const left = node.childForFieldName("left");
+        if (left?.type === "subscript_expression" || left?.type === "member_expression")
+          this.cx.markMutated(left.childForFieldName("object"), scope);
+        break;
+      }
+      case "unary_expression":
+        // `delete HOSTS[key]`
+        if (node.childForFieldName("operator")?.type === "delete") {
+          const target = node.childForFieldName("argument");
+          if (target?.type === "subscript_expression" || target?.type === "member_expression")
+            this.cx.markMutated(target.childForFieldName("object"), scope);
+        }
+        break;
       case "for_in_statement": {
         const left = node.childForFieldName("left");
         const right = node.childForFieldName("right");
@@ -149,6 +250,25 @@ class JavaScriptExtractor implements LanguageHooks {
       case "return_statement": {
         const value = node.namedChildren[0];
         if (value != null) this.cx.addReturn(value, scope);
+        break;
+      }
+      case "if_statement": {
+        const condition = node.childForFieldName("condition");
+        const body = node.childForFieldName("consequence");
+        if (condition === null) break;
+        const last =
+          body?.type === "statement_block"
+            ? body.namedChildren.filter((child) => child?.type !== "comment").at(-1)
+            : body;
+        const exits = last != null && EXITS.has(last.type);
+        this.cx.addGuards(
+          node,
+          scope,
+          body,
+          limits(condition, true),
+          exits ? limits(condition, false) : null,
+          protectedBlock(node),
+        );
         break;
       }
     }
@@ -555,6 +675,8 @@ class JavaScriptExtractor implements LanguageHooks {
     const left = node.childForFieldName("left");
     const right = node.childForFieldName("right");
     if (left === null || right === null) return;
+    if (left.type === "subscript_expression" || left.type === "member_expression")
+      this.cx.markMutated(left.childForFieldName("object"), scope);
     if (left.type !== "identifier" && left.type !== "member_expression") {
       this.bindPattern(left, scope, node.endIndex);
       this.visit(right, scope);
@@ -827,7 +949,46 @@ class JavaScriptExtractor implements LanguageHooks {
     };
     const receiver = callee === null ? undefined : this.receiver(callee, scope);
     if (receiver !== undefined) fact.receiver = receiver;
+    const lookup =
+      callee === null || isNew || (fact.ref !== null && fact.ref.kind !== "global")
+        ? undefined
+        : this.lookup(callee, scope);
+    if (lookup !== undefined) fact.lookup = lookup;
     return fact;
+  }
+
+  /**
+   * The callee as a value when it is read from an object or array variable:
+   * `HANDLERS[name]`, `TOOLS.run`, `const fn = TOOLS[name]`, `const fn = TOOLS.get(name)`.
+   */
+  lookup(callee: Node, scope: Scope): Value | undefined {
+    // The object is a variable holding an object, array or `new Map(...)` literal.
+    const collection = (node: Node | null) => {
+      if (node?.type !== "identifier") return false;
+      const binding = this.cx.lookup(node.text, scope, node.startIndex);
+      return (
+        binding?.kind === "value" &&
+        binding.path === "" &&
+        (binding.node.type === "object" ||
+          binding.node.type === "array" ||
+          binding.node.type === "new_expression")
+      );
+    };
+    const member = (node: Node) =>
+      (node.type === "subscript_expression" || node.type === "member_expression") &&
+      collection(node.childForFieldName("object"));
+    if (member(callee)) return this.value(callee, scope, 0);
+    if (callee.type !== "identifier") return undefined;
+    const binding = this.cx.lookup(callee.text, scope, callee.startIndex);
+    if (binding?.kind !== "value" || binding.path !== "") return undefined;
+    const source = binding.node;
+    const getter =
+      source.type === "call_expression" &&
+      source.childForFieldName("function")?.type === "member_expression" &&
+      nameText(source.childForFieldName("function")?.childForFieldName("property") ?? null) ===
+        "get" &&
+      collection(source.childForFieldName("function")?.childForFieldName("object") ?? null);
+    return member(source) || getter ? this.value(callee, scope, 0) : undefined;
   }
 
   /** The assignment of the innermost variable or `this` member a member chain starts from. */

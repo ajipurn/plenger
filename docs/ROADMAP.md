@@ -346,11 +346,13 @@ static rules in another language.
 ## Risks
 
 - **TypeScript grammar.** `tree-sitter-typescript` has had no release since
-  0.23.2 (November 2024) and does not parse some TypeScript 5 type syntax
-  (`export type * from`, `import("x").T[]` in type positions, `in`/`out`
-  variance annotations). tree-sitter recovers around these, so runtime facts
-  are unaffected so far, but the gap will grow. Options: oxc-parser for JS/TS,
-  or building the grammar from a maintained fork.
+  0.23.2 (November 2024), and its main branch has had no grammar change since. It
+  does not parse some TypeScript 5 type syntax: `export type * from`, type
+  arguments and `[]` after an import type, and `in`/`out` variance annotations.
+  The fixes are open pull requests (#358, #360). Since that syntax does nothing
+  at run time, the parser blanks it before parsing, keeping every position
+  (`src/source/typescript-syntax.ts`). New type syntax needs the same treatment
+  until the grammar moves; oxc-parser for JS/TS remains the larger option.
 - **Dynamic observation gaps.** Responses alone cannot establish whether a
   tool ran or a protected document was read. Trace sampling, missing tool
   arguments and failed fixture delivery must reduce coverage rather than

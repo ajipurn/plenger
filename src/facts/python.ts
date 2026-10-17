@@ -9,6 +9,7 @@ import {
   hasChild,
   type LanguageHooks,
   LIMITS,
+  type Limit,
   LOOP_ITEM,
   listValue,
   otherValue,
@@ -35,6 +36,120 @@ export function extractPython(root: Node): FileFacts {
 
 const LITERALS = new Set(["integer", "float", "true", "false", "none", "ellipsis"]);
 const PATTERN_TARGETS = new Set(["pattern_list", "tuple_pattern", "list_pattern", "tuple", "list"]);
+/** Statements that leave the enclosing block. */
+const EXITS = new Set([
+  "return_statement",
+  "raise_statement",
+  "continue_statement",
+  "break_statement",
+]);
+
+/**
+ * The values an `if` test limits while it is `truth`: `x in S` and `x == "a"` when it
+ * holds, `x not in S` and `x != "a"` when it fails, `re.match(P, x)` and
+ * `x.startswith(BASE)` when they hold, `".." in x` when it fails, through `not`,
+ * parentheses, `and` (holding) and `or` (failing).
+ */
+function limits(node: Node, truth: boolean): Limit[] {
+  switch (node.type) {
+    case "parenthesized_expression": {
+      const inner = node.namedChildren[0];
+      return inner == null ? [] : limits(inner, truth);
+    }
+    case "not_operator": {
+      const argument = node.childForFieldName("argument");
+      return argument === null ? [] : limits(argument, !truth);
+    }
+    case "boolean_operator": {
+      const operator = node.childForFieldName("operator")?.type;
+      const left = node.childForFieldName("left");
+      const right = node.childForFieldName("right");
+      if (left === null || right === null) return [];
+      return (operator === "and" && truth) || (operator === "or" && !truth)
+        ? [...limits(left, truth), ...limits(right, truth)]
+        : [];
+    }
+    case "comparison_operator": {
+      const operands = node.namedChildren.filter((child): child is Node => child !== null);
+      const operators = node.childrenForFieldName("operators");
+      const [left, right] = operands;
+      if (operands.length !== 2 || operators.length !== 1 || !left || !right) return [];
+      const operator = operators[0]?.type;
+      // `".." in name` failing: the name does not contain that text.
+      if (
+        left.type === "string" &&
+        ((operator === "in" && !truth) || (operator === "not in" && truth))
+      )
+        return [{ subject: right, allowed: left, test: "excludes" }];
+      const holds =
+        ((operator === "in" || operator === "==") && truth) ||
+        ((operator === "not in" || operator === "!=") && !truth);
+      if (!holds) return [];
+      if (operator === "in" || operator === "not in") return [{ subject: left, allowed: right }];
+      return LITERALS.has(left.type) || left.type === "string"
+        ? [{ subject: right, allowed: left }]
+        : [{ subject: left, allowed: right }];
+    }
+    case "call": {
+      if (!truth) return [];
+      const callee = node.childForFieldName("function");
+      const args = (node.childForFieldName("arguments")?.namedChildren ?? []).filter(
+        (arg): arg is Node => arg !== null && arg.type !== "comment",
+      );
+      const object = callee?.type === "attribute" ? callee.childForFieldName("object") : null;
+      const method = callee?.childForFieldName("attribute")?.text;
+      if (object === null || object === undefined) return [];
+      // `re.match(PATTERN, name)`, `PATTERN.fullmatch(name)`
+      const [pattern, value] = args;
+      if (object.text === "re" && REGEX_TESTS.has(method ?? "") && pattern && value)
+        return [{ subject: value, allowed: pattern, test: "matches" }];
+      if (REGEX_TESTS.has(method ?? "") && method !== "search" && args.length === 1 && pattern)
+        return [{ subject: pattern, allowed: object, test: "matches" }];
+      // `str(path).startswith(str(BASE))`, `path.is_relative_to(BASE)`
+      if ((method === "startswith" || method === "is_relative_to") && args.length === 1 && pattern)
+        return [{ subject: unwrapStr(object), allowed: unwrapStr(pattern), test: "within" }];
+      return [];
+    }
+    default:
+      return [];
+  }
+}
+
+const REGEX_TESTS = new Set(["match", "fullmatch", "search"]);
+
+/** Whether a block's last statement leaves it. */
+function exits(block: Node | null | undefined): boolean {
+  const last = block?.namedChildren.filter((child) => child?.type !== "comment").at(-1);
+  return last != null && EXITS.has(last.type);
+}
+
+/**
+ * The block whose rest an exiting `if` protects: the one it is in, or, when that is the
+ * body of a `try` whose handlers all exit too, the block around the `try`.
+ */
+function protectedBlock(node: Node): Node | null {
+  let block = node.parent;
+  for (let owner = block?.parent; owner?.type === "try_statement"; owner = block?.parent) {
+    if (owner.childForFieldName("body")?.id !== block?.id) break;
+    const handlers = owner.namedChildren.filter(
+      (child) => child?.type === "except_clause" || child?.type === "except_group_clause",
+    );
+    if (!handlers.every((handler) => exits(handler?.namedChildren.at(-1)))) break;
+    block = owner.parent;
+  }
+  return block;
+}
+
+/** `x` for `str(x)`, the node itself otherwise. */
+function unwrapStr(node: Node): Node {
+  const args = node.childForFieldName("arguments")?.namedChildren ?? [];
+  return node.type === "call" &&
+    node.childForFieldName("function")?.text === "str" &&
+    args.length === 1 &&
+    args[0] != null
+    ? args[0]
+    : node;
+}
 
 class PythonExtractor implements LanguageHooks {
   readonly cx = new Context("python");
@@ -101,6 +216,34 @@ class PythonExtractor implements LanguageHooks {
       case "return_statement": {
         const value = node.namedChildren[0];
         if (value != null) this.cx.addReturn(value, scope);
+        break;
+      }
+      case "augmented_assignment": {
+        const left = node.childForFieldName("left");
+        if (left?.type === "subscript") this.cx.markMutated(left.childForFieldName("value"), scope);
+        break;
+      }
+      case "delete_statement":
+        for (const target of node.namedChildren.flatMap((child) =>
+          child?.type === "expression_list" ? child.namedChildren : [child],
+        ))
+          if (target?.type === "subscript")
+            this.cx.markMutated(target.childForFieldName("value"), scope);
+        break;
+      case "if_statement": {
+        const condition = node.childForFieldName("condition");
+        const body = node.childForFieldName("consequence");
+        if (condition === null) break;
+        const last = body?.namedChildren.filter((child) => child?.type !== "comment").at(-1);
+        const exits = last != null && EXITS.has(last.type);
+        this.cx.addGuards(
+          node,
+          scope,
+          body,
+          limits(condition, true),
+          exits ? limits(condition, false) : null,
+          protectedBlock(node),
+        );
         break;
       }
     }
@@ -320,7 +463,9 @@ class PythonExtractor implements LanguageHooks {
       const owner = object === null ? null : this.receiverOf(object, scope);
       if (owner !== null && attribute !== null) addBinding(owner.members, attribute.text, binding);
     } else if (PATTERN_TARGETS.has(target.type)) {
-      this.bindUnknown(target, scope, offset);
+      this.bindItems(target, value, scope, offset);
+    } else if (target.type === "subscript") {
+      this.cx.markMutated(target.childForFieldName("value"), scope);
     }
   }
 
@@ -333,6 +478,37 @@ class PythonExtractor implements LanguageHooks {
     if (!PATTERN_TARGETS.has(target.type)) return;
     for (const child of target.namedChildren)
       if (child !== null) this.bindLoop(child, right, scope, offset);
+  }
+
+  /**
+   * Unpacking: `a, b = x, y` binds each name to its item; `path, body = data.split("|")`
+   * binds each name to an item of the value, so what the value comes from carries over.
+   */
+  bindItems(target: Node, value: Node, scope: Scope, offset: number): void {
+    const named = (node: Node) =>
+      node.namedChildren.filter(
+        (child): child is Node => child !== null && child.type !== "comment",
+      );
+    const targets = named(target);
+    const values =
+      PATTERN_TARGETS.has(value.type) || value.type === "expression_list" ? named(value) : null;
+    const exact =
+      values !== null &&
+      values.length === targets.length &&
+      !targets.some((child) => child.type === "list_splat_pattern") &&
+      !values.some((child) => child.type === "list_splat");
+    targets.forEach((child, index) => {
+      const item = exact ? values?.[index] : undefined;
+      if (item !== undefined) {
+        this.bindTarget(child, item, scope, offset);
+        return;
+      }
+      const name = child.type === "list_splat_pattern" ? child.namedChildren[0] : child;
+      if (name?.type === "identifier")
+        scope.bind(name.text, this.cx.assign(name, value, scope, offset, LOOP_ITEM));
+      else if (name != null && PATTERN_TARGETS.has(name.type))
+        this.bindItems(name, value, scope, offset);
+    });
   }
 
   bindUnknown(target: Node, scope: Scope, offset: number): void {
@@ -423,10 +599,12 @@ class PythonExtractor implements LanguageHooks {
       case "identifier":
       case "attribute":
         return this.name(node, scope);
-      case "subscript":
-        return stringKey(node.childForFieldName("subscript")) === null
-          ? this.composite(node, scope, depth)
-          : this.name(node, scope);
+      case "subscript": {
+        if (stringKey(node.childForFieldName("subscript")) !== null) return this.name(node, scope);
+        const lookup = this.composite(node, scope, depth);
+        if (lookup.kind === "other" && lookup.parts !== undefined) lookup.subscript = true;
+        return lookup;
+      }
       case "call": {
         const index = this.cx.callIndex(node);
         return index === undefined ? otherValue(node) : { kind: "call", call: index };
@@ -593,7 +771,38 @@ class PythonExtractor implements LanguageHooks {
     };
     const receiver = callee === null ? undefined : this.receiver(callee, scope);
     if (receiver !== undefined) fact.receiver = receiver;
+    const lookup = callee === null || fact.ref !== null ? undefined : this.lookup(callee, scope);
+    if (lookup !== undefined) fact.lookup = lookup;
     return fact;
+  }
+
+  /** The callee as a value when it is read from a dict: `HANDLERS[name]`, `fn = TOOLS.get(name)`. */
+  lookup(callee: Node, scope: Scope): Value | undefined {
+    // The collection is a variable holding a dict, list or tuple literal.
+    const collection = (node: Node | null) => {
+      if (node?.type !== "identifier") return false;
+      const binding = this.cx.lookup(node.text, scope, node.startIndex);
+      return (
+        binding?.kind === "value" &&
+        binding.path === "" &&
+        (binding.node.type === "dictionary" ||
+          binding.node.type === "list" ||
+          binding.node.type === "tuple")
+      );
+    };
+    const subscript = (node: Node) =>
+      node.type === "subscript" && collection(node.childForFieldName("value"));
+    if (subscript(callee)) return this.value(callee, scope, 0);
+    if (callee.type !== "identifier") return undefined;
+    const binding = this.cx.lookup(callee.text, scope, callee.startIndex);
+    if (binding?.kind !== "value" || binding.path !== "") return undefined;
+    const source = binding.node;
+    const method = source.type === "call" ? source.childForFieldName("function") : null;
+    const getter =
+      method?.type === "attribute" &&
+      method.childForFieldName("attribute")?.text === "get" &&
+      collection(method.childForFieldName("object"));
+    return subscript(source) || getter ? this.value(callee, scope, 0) : undefined;
   }
 
   decorator(node: Node, scope: Scope): Decorator {

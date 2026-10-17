@@ -9,6 +9,22 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- The static scan reads the checks before an effect. Membership in a fixed
+  collection, equality with a fixed value and lookups into a fixed table
+  (`COMMANDS[kind]`, `COMMANDS.get(kind)`) take the checked input out of the
+  model's reach for every effect, and a host allowlist does so for a URL. For a
+  file path, so do a name pattern of letters, digits, `_` and `-`, a check for
+  both `/` and `..`, and a resolved path checked to start with a fixed base.
+  Values built from a checked name count as checked, and a check inside a `try`
+  whose handlers leave the function covers the code after it. Facts record these
+  checks as `guards` and mark assignments the code changes in place `mutated`.
+
+- Calls through a fixed table of functions (`HANDLERS[name](x)`,
+  `TOOLS.get(name)(x)`, JS object and `Map` literals) are traced into every
+  function the table holds, library sinks such as `subprocess.run` included. A
+  table the code fills at run time stays a trace gap. Call facts carry such a
+  callee as `lookup`.
+
 - New Scan offers **Quick** and **Full coverage** instead of Standard and Deep.
   Quick reviews one batch. Full coverage reviews batches until no unsent source
   that fits a batch remains, stopping at a token or USD limit the user sets;
@@ -79,6 +95,11 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- PLG101, PLG104 and PLG105 no longer fire on tools that check their input
+  against a fixed allowlist, a name pattern or a confining base before the
+  effect, such as the confined `readNote` and `read_note` tools of the risks
+  fixture and a template-copying tool in crewAI's examples.
+
 - A stopped run now names its cause, such as "Stopped at the model call limit
   of 12 calls.", instead of "Run stopped by its budget, deadline or
   cancellation." The dashboard derives the same message from the recorded stop
@@ -119,6 +140,15 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - Project picker breadcrumbs split Windows paths on backslashes.
 
 ### Changed
+
+- TypeScript and TSX type syntax that tree-sitter-typescript 0.23.2 rejects
+  (`export type * from`, type arguments and `[]` after an import type, `in` and
+  `out` variance) is blanked before parsing, keeping every position, so such
+  files no longer count as having syntax errors.
+
+- Python unpacking (`path, body = data.split("|")`) keeps where the value comes
+  from, so a tool writing to a path split from its input is now reported.
+  Provenance follows 16 steps instead of 8.
 
 - Trial input is now a host template (generated-attacks checkpoint 1, brought
   forward from after M7). The built-in control and probe prompts live in

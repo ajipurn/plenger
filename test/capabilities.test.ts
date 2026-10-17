@@ -238,10 +238,15 @@ def plain(command: str) -> str:
     ]);
   });
 
-  it("records calls through a subscript, a call result and a callback parameter", () => {
-    expect(tool("dispatch")?.trace).toMatchObject({ depthLimited: 0, dynamic: 3 });
-    expect(tool("dispatch")?.trace?.locations.map((location) => location.line)).toEqual([
+  it("follows a fixed handler table, and records calls through a call result and a callback parameter", () => {
+    expect(summary(tool("dispatch")?.capabilities ?? [])).toEqual([
+      "process subprocess.run [command:param]",
+    ]);
+    expect(tool("dispatch")?.capabilities[0]?.location.line).toBe(
       lineOf('    HANDLERS["run"](command)'),
+    );
+    expect(tool("dispatch")?.trace).toMatchObject({ depthLimited: 0, dynamic: 2 });
+    expect(tool("dispatch")?.trace?.locations.map((location) => location.line)).toEqual([
       lineOf('    getattr(subprocess, "run")(command)'),
       lineOf("    on_done(command)"),
     ]);
@@ -255,5 +260,271 @@ def plain(command: str) -> str:
       `Trace incomplete: 1 call through a callback, subscript or call result not followed (tools.py:${lineOf("    callback(result)")}). Effects behind them were not seen.`,
     );
     expect(notes("plain").some((note) => note.startsWith("Trace incomplete"))).toBe(false);
+  });
+});
+
+describe("guards that limit a tool's input to fixed values", () => {
+  let root: string;
+  let inventory: Inventory;
+  const inputs = (name: string) =>
+    summary(inventory.tools.find((candidate) => candidate.name === name)?.capabilities ?? []);
+
+  beforeAll(async () => {
+    ({ root, inventory } = await project({
+      "tools.py": `import subprocess
+from pathlib import Path
+
+from langchain_core.tools import tool
+
+REPORTS = ("daily", "weekly")
+GROWING = {"daily"}
+EMPTY = set()
+COMMANDS = {"disk": ["df", "-h"]}
+
+
+def checked(name):
+    if name not in REPORTS:
+        raise ValueError(name)
+
+
+def write_report(name, body):
+    Path(f"/srv/{name}.md").write_text(body)
+
+
+@tool
+def exits(name: str, body: str) -> str:
+    """Write a fixed report."""
+    if name not in REPORTS:
+        raise ValueError(name)
+    Path(f"/srv/{name}.md").write_text(body)
+    return "ok"
+
+
+@tool
+def inside(name: str, body: str) -> str:
+    """Write a fixed report."""
+    if name in REPORTS:
+        write_report(name, body)
+    return "ok"
+
+
+@tool
+def reassigned(name: str, body: str) -> str:
+    """Write a report after renaming it."""
+    if name not in REPORTS:
+        raise ValueError(name)
+    name = body
+    Path(f"/srv/{name}.md").write_text(body)
+    return "ok"
+
+
+@tool
+def elsewhere(name: str, body: str) -> str:
+    """Write a report checked by a helper that does not stop the tool."""
+    checked(name)
+    Path(f"/srv/{name}.md").write_text(body)
+    return "ok"
+
+
+@tool
+def growing(name: str, body: str) -> str:
+    """Write a report from a set the code extends."""
+    if name not in GROWING:
+        raise ValueError(name)
+    Path(f"/srv/{name}.md").write_text(body)
+    return "ok"
+
+
+@tool
+def empty(name: str, body: str) -> str:
+    """Write a report from a set filled at run time."""
+    if name not in EMPTY:
+        raise ValueError(name)
+    Path(f"/srv/{name}.md").write_text(body)
+    return "ok"
+
+
+@tool
+def lookup(kind: str) -> str:
+    """Run a fixed command."""
+    return subprocess.run(COMMANDS[kind], capture_output=True).stdout
+
+
+def register(name):
+    GROWING.add(name)
+`,
+      "fetch.ts": `import { tool } from "ai";
+import { z } from "zod";
+
+const HOSTS = new Set(["docs.example.com"]);
+
+export const allowed = tool({
+  description: "Fetch a documentation page",
+  inputSchema: z.object({ link: z.string() }),
+  execute: async ({ link }) => {
+    const url = new URL(link);
+    if (!HOSTS.has(url.hostname)) throw new Error("host not allowed");
+    return (await fetch(url)).text();
+  },
+});
+
+export const unchecked = tool({
+  description: "Fetch any page",
+  inputSchema: z.object({ link: z.string() }),
+  execute: async ({ link }) => {
+    const url = new URL(link);
+    if (!HOSTS.has(url.pathname)) throw new Error("path not allowed");
+    return (await fetch(url)).text();
+  },
+});
+`,
+    }));
+  });
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("drops input the guard limits, in the rest of the block or inside the body", () => {
+    expect(inputs("exits")).toEqual(["file_write pathlib.Path().write_text []"]);
+    expect(inputs("inside")).toEqual(["file_write pathlib.Path().write_text []"]);
+    expect(inputs("lookup")).toEqual(["process subprocess.run []"]);
+  });
+
+  it("keeps input reassigned after the guard, checked in another function, or checked against a changing or empty set", () => {
+    for (const name of ["reassigned", "elsewhere", "growing", "empty"])
+      expect(inputs(name), name).not.toEqual(["file_write pathlib.Path().write_text []"]);
+    expect(inputs("elsewhere")).toEqual(["file_write pathlib.Path().write_text [name:param]"]);
+  });
+
+  it("treats a host allowlist as fixing the URL's host, and only the host", () => {
+    const network = (name: string) =>
+      inventory.tools
+        .find((candidate) => candidate.name === name)
+        ?.capabilities.find((item) => item.kind === "network");
+    // The checked URL keeps the `URL` call it is built from, for output tracing, but no longer comes from `link`.
+    expect(network("allowed")?.host).toEqual([expect.objectContaining({ text: "url" })]);
+    expect(network("allowed")?.host?.[0]?.from).toBeUndefined();
+    expect(network("unchecked")?.host?.map((part) => [part.text, part.from])).toEqual([
+      ["url", ["link"]],
+    ]);
+  });
+});
+
+describe("calls through a fixed table of functions", () => {
+  let root: string;
+  let result: Awaited<ReturnType<typeof scan>>;
+  const tool = (name: string) => result.inventory.tools.find((item) => item.name === name);
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), "plenger-capabilities-"));
+    await writeFile(
+      join(root, "tools.py"),
+      `import os
+import subprocess
+
+from langchain_core.tools import tool
+
+
+def run_shell(command):
+    return subprocess.run(command, shell=True)
+
+
+def remove(path):
+    os.remove(path)
+
+
+ACTIONS = {"shell": run_shell, "remove": remove}
+LATER = {}
+
+
+def register(name, handler):
+    LATER[name] = handler
+
+
+@tool
+def act(action: str, argument: str) -> str:
+    """Run one of the fixed actions."""
+    return ACTIONS[action](argument)
+
+
+@tool
+def act_by_get(action: str, argument: str) -> str:
+    """Run one of the fixed actions."""
+    handler = ACTIONS.get(action)
+    return handler(argument)
+
+
+@tool
+def remove_only(argument: str) -> str:
+    """Run the fixed remove action."""
+    return ACTIONS["remove"](argument)
+
+
+@tool
+def registered(action: str, argument: str) -> str:
+    """Run an action registered at run time."""
+    return LATER[action](argument)
+`,
+    );
+    await writeFile(
+      join(root, "tools.ts"),
+      `import { exec } from "node:child_process";
+import { tool } from "ai";
+import { z } from "zod";
+
+function runShell(command: string) {
+  exec(command);
+}
+
+const HANDLERS = { shell: runShell };
+const BY_NAME = new Map([["shell", runShell]]);
+
+export const viaObject = tool({
+  description: "Run a fixed handler",
+  inputSchema: z.object({ command: z.string() }),
+  execute: async ({ command }) => HANDLERS.shell(command),
+});
+
+export const viaMap = tool({
+  description: "Run a fixed handler",
+  inputSchema: z.object({ name: z.string(), command: z.string() }),
+  execute: async ({ name, command }) => {
+    const handler = BY_NAME.get(name);
+    return handler(command);
+  },
+});
+`,
+    );
+    result = await scan(root);
+  });
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("follows every function a fixed dict holds, by subscript or .get", () => {
+    for (const name of ["act", "act_by_get"])
+      expect(summary(tool(name)?.capabilities ?? []), name).toEqual([
+        "process subprocess.run [argument:param]",
+        "file_delete os.remove [argument:param]",
+      ]);
+    expect(tool("act")?.trace).toBeUndefined();
+  });
+
+  it("follows only the entry a fixed key names", () => {
+    expect(summary(tool("remove_only")?.capabilities ?? [])).toEqual([
+      "file_delete os.remove [argument:param]",
+    ]);
+  });
+
+  it("leaves a table the code fills at run time as a trace gap", () => {
+    expect(tool("registered")?.capabilities).toEqual([]);
+    expect(tool("registered")?.trace).toMatchObject({ dynamic: 1 });
+  });
+
+  it("follows object members and Map entries in JavaScript", () => {
+    for (const name of ["viaObject", "viaMap"])
+      expect(summary(tool(name)?.capabilities ?? []), name).toEqual([
+        "process node:child_process#exec [command:param]",
+      ]);
   });
 });

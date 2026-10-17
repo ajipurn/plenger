@@ -7,6 +7,7 @@ import {
   type Decorator,
   type DefinitionFact,
   type FileFacts,
+  type GuardFact,
   type ImportFact,
   type Ref,
   type Span,
@@ -99,6 +100,18 @@ interface AssignmentDraft {
   span: Span;
 }
 
+/** A value an `if` test limits, and to what; see `GuardFact`. */
+export interface Limit {
+  subject: Node;
+  allowed: Node;
+  test?: GuardFact["test"];
+}
+
+interface GuardDraft extends Limit {
+  scope: Scope;
+  region: Span;
+}
+
 /** What each language provides to turn syntax into facts. */
 export interface LanguageHooks {
   resolve(node: Node, scope: Scope, depth: number): Ref | null;
@@ -121,6 +134,8 @@ export class Context {
   readonly #assignments: AssignmentDraft[] = [];
   readonly #calls: { node: Node; scope: Scope }[] = [];
   readonly #returns: { node: Node; scope: Scope }[] = [];
+  readonly #guards: GuardDraft[] = [];
+  readonly #mutated = new Set<number>();
   /** JS/TS: the name `export default` refers to. */
   defaultExport: string | undefined;
   readonly #callIndex = new Map<number, number>();
@@ -172,6 +187,13 @@ export class Context {
     return binding?.kind === "value" ? binding.assignment : undefined;
   }
 
+  /** Records that the code changes what `node` (an identifier) holds in place: `node[k] = v`. */
+  markMutated(node: Node | null, scope: Scope): void {
+    if (node?.type !== "identifier") return;
+    const assignment = this.assignmentOf(this.lookup(node.text, scope, node.startIndex));
+    if (assignment !== undefined) this.#mutated.add(assignment);
+  }
+
   memberBinding(owner: ClassInfo, name: string): Binding | undefined {
     const bindings = owner.members.get(name);
     return bindings?.[bindings.length - 1];
@@ -185,6 +207,31 @@ export class Context {
   /** Records a value returned directly by the function that opens `scope`. */
   addReturn(node: Node, scope: Scope): void {
     if (scope.kind === "function" && scope.definition !== null) this.#returns.push({ node, scope });
+  }
+
+  /**
+   * Records the limits an `if` statement sets: `whileTrue` hold in its body, and
+   * `afterExit` in the rest of `block` (the enclosing block by default) when the body
+   * always leaves it.
+   */
+  addGuards(
+    node: Node,
+    scope: Scope,
+    body: Node | null,
+    whileTrue: Limit[],
+    afterExit: Limit[] | null,
+    block: Node | null = node.parent,
+  ): void {
+    if (body !== null)
+      for (const limit of whileTrue) this.#guards.push({ ...limit, scope, region: spanOf(body) });
+    if (afterExit === null || block === null) return;
+    const region: Span = {
+      line: node.endPosition.row + 1,
+      column: node.endPosition.column + 1,
+      endLine: block.endPosition.row + 1,
+      endColumn: block.endPosition.column + 1,
+    };
+    for (const limit of afterExit) this.#guards.push({ ...limit, scope, region });
   }
 
   callIndex(node: Node): number | undefined {
@@ -291,7 +338,7 @@ export class Context {
       decorators: decorators.map((node) => hooks.decorator(node, scope)),
       bases: bases.map((node) => hooks.value(node, scope, 0)),
     }));
-    const assignments = this.#assignments.map((draft) => {
+    const assignments = this.#assignments.map((draft, index) => {
       const fact: AssignmentFact = {
         target: draft.target,
         scope: draft.scope.definition,
@@ -299,6 +346,7 @@ export class Context {
         span: draft.span,
       };
       if (draft.member !== "") fact.member = draft.member;
+      if (this.#mutated.has(index)) fact.mutated = true;
       return fact;
     });
     const calls = this.#calls.map(({ node, scope }) => hooks.call(node, scope));
@@ -310,6 +358,17 @@ export class Context {
       if (definition.returns.length < 10) definition.returns.push(hooks.value(node, scope, 0));
     }
     const facts: FileFacts = { imports: this.imports, definitions, assignments, calls };
+    const guards = this.#guards.map(({ subject, allowed, test, scope, region }): GuardFact => {
+      const fact: GuardFact = {
+        scope: scope.definition,
+        subject: hooks.value(subject, scope, 0),
+        allowed: hooks.value(allowed, scope, 0),
+        region,
+      };
+      if (test !== undefined) fact.test = test;
+      return fact;
+    });
+    if (guards.length > 0) facts.guards = guards;
     if (this.defaultExport !== undefined) facts.defaultExport = this.defaultExport;
     return facts;
   }

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { Language, Parser, type Tree } from "web-tree-sitter";
 import type { Grammar } from "./languages.ts";
+import { maskTypeOnlySyntax } from "./typescript-syntax.ts";
 
 export const GRAMMAR_FILE: Record<Grammar, string> = {
   python: "tree-sitter-python.wasm",
@@ -40,9 +41,14 @@ export class SourceParser {
     return new SourceParser(new Parser());
   }
 
+  /**
+   * Parses `text`. For TypeScript and TSX, type-only syntax the grammar does not know is
+   * blanked first (see `maskTypeOnlySyntax`); positions in the tree stay those of `text`.
+   */
   async parse(grammar: Grammar, text: string): Promise<Tree> {
     this.#parser.setLanguage(await loadLanguage(grammar));
-    const tree = this.#parser.parse(text);
+    const source = grammar === "typescript" || grammar === "tsx" ? maskTypeOnlySyntax(text) : text;
+    const tree = this.#parser.parse(source);
     if (tree === null) throw new Error(`tree-sitter returned no tree for ${grammar} source`);
     return tree;
   }

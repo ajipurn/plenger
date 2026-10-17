@@ -4,14 +4,16 @@
  * functions it calls, with the caller's arguments bound to the callee's parameters.
  */
 
-import type { CallFact, FileFacts, Span, Value } from "../facts/model.ts";
+import type { CallFact, FileFacts, GuardFact, Span, Value } from "../facts/model.ts";
 import {
   callsStartingAt,
   type DynamicPart,
   definitionOf,
   deref,
   dynamicPart,
+  isFixed,
   literalString,
+  lookupValues,
   provenanceOf,
   select,
   summarizeText,
@@ -155,24 +157,68 @@ export class EffectTracer {
     if (run !== undefined) {
       effects.push({ kind: "agent", target: run.agent.id, location, via: [], inputs: run.inputs });
     }
-    const name = call.ref?.name;
-    if (name !== undefined && call.ref?.kind !== "local") {
-      const sqlite = this.sqliteEffect(file, call, location);
+    // What guards around the call check, for file effects and for the others.
+    const limits = limitsAt(file.facts, call);
+    const checked = new Map<boolean, ReadonlySet<string> | undefined>();
+    const limitedFor = (kind: CapabilityKind) => {
+      const forFile = FILE_KINDS.has(kind);
+      if (!checked.has(forFile))
+        checked.set(
+          forFile,
+          limits.length === 0
+            ? undefined
+            : coveredNames(file.facts, call, safeSubjects(kind, limits, file.facts)),
+        );
+      return checked.get(forFile);
+    };
+    // A call through a fixed table (`HANDLERS[name](x)`) runs one of the functions it holds.
+    const target = this.#index.calledFunction(file, call);
+    const entries =
+      target === null && call.lookup !== undefined && call.ref?.kind !== "import"
+        ? lookupValues(call.lookup, file.facts).map((value) => deref(value, file.facts))
+        : [];
+    const callees = [
+      call,
+      ...entries.flatMap((entry) =>
+        entry.kind === "name" && entry.ref !== null ? [{ ...call, ref: entry.ref }] : [],
+      ),
+    ];
+    for (const callee of callees) {
+      const name = callee.ref?.name;
+      if (name === undefined || callee.ref?.kind === "local") continue;
+      const sqlite = this.sqliteEffect(file, callee, location, limitedFor("database"));
       if (sqlite !== null) effects.push(sqlite);
       const match = sinksFor(file.language).find(({ pattern }) => pattern.test(name));
-      if (match !== undefined) effects.push(this.sinkEffect(file, call, match.sink, location));
+      if (match !== undefined)
+        effects.push(this.sinkEffect(file, callee, match.sink, location, limitedFor));
     }
-    const target = this.#index.calledFunction(file, call);
+    const targets =
+      target !== null
+        ? [target]
+        : [
+            ...entries.flatMap((entry) =>
+              entry.kind === "function" ? [{ path: file.path, definition: entry.definition }] : [],
+            ),
+            ...callees.slice(1).flatMap((callee) => this.#index.calledFunction(file, callee) ?? []),
+          ];
     const visit = this.#tracing.at(-1);
-    if (target === null) {
-      if (visit !== undefined && effects.length === 0 && dynamicCall(file, call))
-        visit.dynamic.set(locationKey(location), location);
-    } else if (depth + 1 > MAX_DEPTH && !this.#memo.has(`${target.path}|${target.definition}`)) {
-      visit?.depthLimited.set(locationKey(location), location);
-    } else {
+    if (
+      targets.length === 0 &&
+      visit !== undefined &&
+      effects.length === 0 &&
+      dynamicCall(file, call)
+    )
+      visit.dynamic.set(locationKey(location), location);
+    for (const target of targets) {
+      if (depth + 1 > MAX_DEPTH && !this.#memo.has(`${target.path}|${target.definition}`)) {
+        visit?.depthLimited.set(locationKey(location), location);
+        continue;
+      }
       visit?.callees.add(`${target.path}|${target.definition}`);
-      const bindings = this.bindArguments(file, call, target);
+      const fileBindings = this.bindArguments(file, call, target, limitedFor("file_write"));
+      const otherBindings = this.bindArguments(file, call, target, limitedFor("process"));
       for (const effect of this.effects(target.path, target.definition, depth + 1)) {
+        const bindings = FILE_KINDS.has(effect.kind) ? fileBindings : otherBindings;
         const bound: Capability = {
           ...effect,
           via: [location, ...effect.via],
@@ -191,11 +237,18 @@ export class EffectTracer {
         effects.push(bound);
       }
     }
-    return effects;
+    return limits.length === 0
+      ? effects
+      : effects.map((effect) => narrowed(effect, limits, file.facts, call));
   }
 
   /** Preparing SQL does not execute it; bind data separately from the SQL text. */
-  sqliteEffect(file: ProjectFile, call: CallFact, location: Location): Capability | null {
+  sqliteEffect(
+    file: ProjectFile,
+    call: CallFact,
+    location: Location,
+    limited?: ReadonlySet<string>,
+  ): Capability | null {
     const name = call.ref?.name ?? "";
     if (!/^(?:better-sqlite3(?:#default)?\(\)|node:sqlite#Database(?:Sync)?\(\))/.test(name))
       return null;
@@ -223,8 +276,12 @@ export class EffectTracer {
       via: [],
       query: true,
       operation: operation ?? "unknown",
-      inputs: uniqueParts(queries.flatMap((value) => inputsOf(value, file.facts, call.scope))),
-      dataInputs: uniqueParts(data.flatMap((value) => inputsOf(value, file.facts, call.scope))),
+      inputs: uniqueParts(
+        queries.flatMap((value) => inputsOf(value, file.facts, call.scope, limited)),
+      ),
+      dataInputs: uniqueParts(
+        data.flatMap((value) => inputsOf(value, file.facts, call.scope, limited)),
+      ),
     };
   }
 
@@ -236,6 +293,7 @@ export class EffectTracer {
     file: ProjectFile,
     call: CallFact,
     target: { path: string; definition: string },
+    limited?: ReadonlySet<string>,
   ): Map<string, Bound> {
     const callee = this.#project.files.get(target.path);
     const definition =
@@ -256,27 +314,34 @@ export class EffectTracer {
       const name = arg.keyword ?? params[position++];
       if (name === undefined) continue;
       bindings.set(name, {
-        inputs: inputsOf(arg.value, file.facts, call.scope),
-        host: hostInputs(arg.value, file.facts, call.scope),
+        inputs: inputsOf(arg.value, file.facts, call.scope, limited),
+        host: hostInputs(arg.value, file.facts, call.scope, limited),
       });
     }
     return bindings;
   }
 
-  sinkEffect(file: ProjectFile, call: CallFact, sink: Sink, location: Location): Capability {
+  sinkEffect(
+    file: ProjectFile,
+    call: CallFact,
+    sink: Sink,
+    location: Location,
+    limitedFor: (kind: CapabilityKind) => ReadonlySet<string> | undefined = () => undefined,
+  ): Capability {
     const facts = file.facts;
     let kind = sink.kind;
     if (sink.mode !== undefined) {
       const [mode] = select(call.arguments, facts, sink.mode);
       if (/[wax+]/.test(literalString(mode, facts) ?? "r")) kind = "file_write";
     }
+    const limited = limitedFor(kind);
     let values: Value[] = sink.input === undefined ? [] : select(call.arguments, facts, sink.input);
     if (sink.chainInput) {
       const head = chainHead(facts, call);
       values = head === undefined ? [] : select(head.arguments, facts, "#0");
     }
     const partsOf = (items: Value[]) =>
-      uniqueParts(items.flatMap((value) => inputsOf(value, facts, call.scope)));
+      uniqueParts(items.flatMap((value) => inputsOf(value, facts, call.scope, limited)));
     const capability: Capability = {
       kind,
       target: call.ref?.name ?? call.callee,
@@ -313,7 +378,7 @@ export class EffectTracer {
     }
     if (sink.query) capability.query = true;
     if ((kind === "network" || kind === "browser") && values[0] !== undefined) {
-      const host = hostInputs(values[0], facts, call.scope);
+      const host = hostInputs(values[0], facts, call.scope, limited);
       if (host.length > 0) capability.host = host;
     }
     return capability;
@@ -397,6 +462,226 @@ function dynamicCall(file: ProjectFile, call: CallFact): boolean {
   );
 }
 
+/**
+ * The guards that hold where `call` runs: same function, inside the guarded code, and
+ * the checked value not assigned again in between.
+ */
+function limitsAt(facts: FileFacts, call: CallFact): GuardFact[] {
+  return (facts.guards ?? []).filter(
+    (guard) =>
+      guard.scope === call.scope &&
+      guard.subject.kind === "name" &&
+      within(call.span, guard.region) &&
+      !reassigned(facts, guard, call),
+  );
+}
+
+const FILE_KINDS: ReadonlySet<CapabilityKind> = new Set(["file_read", "file_write", "file_delete"]);
+
+/**
+ * The checked values an effect of `kind` cannot be steered through: fixed alternatives
+ * for every effect, and for a file path a name matching a pattern of letters, digits,
+ * `_` and `-`, a value with neither `/` nor `..`, or a resolved path checked to start
+ * with a fixed base.
+ */
+function safeSubjects(kind: CapabilityKind, guards: GuardFact[], facts: FileFacts): Set<string> {
+  const safe = new Set<string>();
+  const excluded = new Map<string, Set<string>>();
+  const file = FILE_KINDS.has(kind);
+  for (const guard of guards) {
+    const subject = guard.subject.kind === "name" ? guard.subject.text : "";
+    switch (guard.test) {
+      case undefined:
+        if (isFixed(guard.allowed, facts)) safe.add(subject);
+        break;
+      case "matches":
+        if (file && namePattern(guard.allowed, facts)) safe.add(subject);
+        break;
+      case "excludes": {
+        const text = literalString(guard.allowed, facts);
+        if (!file || text === null) break;
+        excluded.set(subject, new Set([...(excluded.get(subject) ?? []), text]));
+        break;
+      }
+      case "within":
+        if (
+          file &&
+          resolvedPath(guard.subject, facts) &&
+          provenanceOf(guard.allowed, facts, guard.scope).params.size === 0
+        )
+          safe.add(subject);
+        break;
+    }
+  }
+  for (const [subject, texts] of excluded) if (texts.has("/") && texts.has("..")) safe.add(subject);
+  return safe;
+}
+
+/**
+ * A regular expression that admits only names: `^`, one class of letters, digits, `_`
+ * and `-` (or `\w`, `\d`), a repetition and `$`. Such a name cannot hold `/`, `\` or `.`.
+ */
+function namePattern(value: Value, facts: FileFacts): boolean {
+  const target = deref(value, facts);
+  const compiled = target.kind === "call" ? facts.calls[target.call] : undefined;
+  const pattern =
+    literalString(value, facts) ??
+    (compiled !== undefined && /(?:^|\.)compile$/.test(compiled.ref?.name ?? compiled.callee)
+      ? literalString(compiled.arguments[0]?.value, facts)
+      : null) ??
+    (target.kind === "literal" ? (/^\/(.*)\/[a-z]*$/s.exec(target.text)?.[1] ?? null) : null);
+  const match =
+    pattern === null
+      ? null
+      : /^\^(\[[^\]]*\]|\\w|\\d)(?:[+*]|\{\d+(?:,\d*)?\})(?:\$|\\Z|\\z)$/.exec(pattern);
+  const body = match?.[1];
+  if (body === undefined) return false;
+  if (!body.startsWith("[")) return true;
+  const inner = body.slice(1, -1);
+  return (
+    !inner.startsWith("^") &&
+    inner
+      .replace(/\\[wd_-]/g, "")
+      .replace(/[a-z]-[a-z]|[A-Z]-[A-Z]|[0-9]-[0-9]/g, "")
+      .replace(/[\w-]/g, "") === ""
+  );
+}
+
+/** Whether a value is a path made absolute: `p.resolve()`, `os.path.realpath(p)`, `path.resolve(BASE, name)`. */
+function resolvedPath(value: Value, facts: FileFacts): boolean {
+  const target = deref(value, facts);
+  const call = target.kind === "call" ? facts.calls[target.call] : undefined;
+  return (
+    call !== undefined &&
+    /(?:^|[.#])(?:resolve|realpath|realpathSync|abspath|normpath)$/.test(
+      call.ref?.name ?? call.callee,
+    )
+  );
+}
+
+/**
+ * The names in `call`'s function whose values come only from `safe` names and fixed
+ * values, `safe` included: a variable built from a checked name is checked too.
+ */
+function coveredNames(facts: FileFacts, call: CallFact, safe: Set<string>): Set<string> {
+  const names = new Set(safe);
+  if (names.size === 0) return names;
+  const at = position(call.span.line, call.span.column);
+  const clean = new Map<string, boolean>();
+  for (const assignment of facts.assignments) {
+    const { target } = assignment;
+    if (
+      assignment.scope !== call.scope ||
+      assignment.member !== undefined ||
+      safe.has(target) ||
+      !/^[\w$]+$/.test(target) ||
+      position(assignment.span.line, assignment.span.column) >= at
+    )
+      continue;
+    const provenance = provenanceOf(assignment.value, facts, call.scope, names);
+    const fixed =
+      provenance.params.size === 0 && provenance.requests.size === 0 && clean.get(target) !== false;
+    clean.set(target, fixed);
+    if (fixed) names.add(target);
+    else names.delete(target);
+  }
+  return names;
+}
+
+function position(line: number, column: number): number {
+  return line * 1e6 + column;
+}
+
+function within(span: Span, region: Span): boolean {
+  const at = position(span.line, span.column);
+  return (
+    at >= position(region.line, region.column) && at <= position(region.endLine, region.endColumn)
+  );
+}
+
+function reassigned(facts: FileFacts, guard: GuardFact, call: CallFact): boolean {
+  const subject = guard.subject.kind === "name" ? guard.subject.text : "";
+  const root = /^[\w$]+/.exec(subject)?.[0];
+  const from = position(guard.region.line, guard.region.column);
+  const to = position(call.span.line, call.span.column);
+  return facts.assignments.some((assignment) => {
+    const at = position(assignment.span.line, assignment.span.column);
+    return (
+      assignment.scope === guard.scope &&
+      (assignment.target === root || assignment.target === subject) &&
+      at >= from &&
+      at < to
+    );
+  });
+}
+
+/** A URL's host as code reads it: `url.hostname`, `parsed.netloc`, `new URL(u).host`. */
+const HOST_PART = /^(.+)\.(?:hostname|host|origin|netloc)$/;
+const URL_PARSERS =
+  /^(?:URL|urllib\.parse\.(?:urlparse|urlsplit)|(?:node:)?url#(?:parse|URL)|yarl\.URL|httpx\.URL)$/;
+
+/**
+ * The URLs whose host a guard's subject is: `url` for `url.hostname`, and the text
+ * parsed into it (`urlparse(url).hostname`, `parsed = urlparse(url)`).
+ */
+function hostSources(subject: Value, facts: FileFacts): string[] {
+  const value = deref(subject, facts);
+  if (value.kind !== "name") return [];
+  const base = HOST_PART.exec(value.text)?.[1];
+  if (base === undefined) return [];
+  const sources = [base];
+  const holder: Value | undefined =
+    value.of !== undefined
+      ? { kind: "call", call: value.of }
+      : value.base !== undefined
+        ? facts.assignments[value.base]?.value
+        : undefined;
+  const parsed = holder === undefined ? undefined : deref(holder, facts);
+  const parser = parsed?.kind === "call" ? facts.calls[parsed.call] : undefined;
+  const [url] = parser?.arguments ?? [];
+  if (url !== undefined && URL_PARSERS.test(parser?.ref?.name ?? ""))
+    sources.push(dynamicPart(url.value, facts).text);
+  return sources;
+}
+
+/**
+ * Takes the parts of an effect's input that guards check where it runs out of the
+ * caller's reach: a part computed from a call keeps the call, for model output
+ * tracing, and loses where it comes from; any other part is dropped.
+ */
+function narrowed(
+  effect: Capability,
+  limits: GuardFact[],
+  facts: FileFacts,
+  call: CallFact,
+): Capability {
+  const names = coveredNames(facts, call, safeSubjects(effect.kind, limits, facts));
+  const hosts = new Set(
+    limits.flatMap((guard) =>
+      guard.test === undefined && isFixed(guard.allowed, facts)
+        ? hostSources(guard.subject, facts)
+        : [],
+    ),
+  );
+  const narrow = (parts: DynamicPart[], checked: (part: DynamicPart) => boolean) =>
+    parts.flatMap((part) => {
+      if (!checked(part)) return [part];
+      if (part.calls === undefined) return [];
+      const { from: _from, ...rest } = part;
+      return [rest];
+    });
+  const covered = (part: DynamicPart) => names.has(part.text);
+  const result: Capability = { ...effect, inputs: narrow(effect.inputs, covered) };
+  if (effect.systemInputs !== undefined) result.systemInputs = narrow(effect.systemInputs, covered);
+  if (effect.dataInputs !== undefined) result.dataInputs = narrow(effect.dataInputs, covered);
+  if (effect.host !== undefined) {
+    const host = narrow(effect.host, (part) => covered(part) || hosts.has(part.text));
+    if (host.length > 0) result.host = host;
+    else delete result.host;
+  }
+  return result;
+}
+
 /** Unknown/compound SQL stays conservative; a fixed SELECT is not a write. */
 function sqlOperation(query: string | null): NonNullable<Capability["operation"]> {
   if (query === null) return "unknown";
@@ -466,16 +751,26 @@ function chainHead(facts: FileFacts, call: CallFact): CallFact | undefined {
     .sort((a, b) => a.span.endLine - b.span.endLine || a.span.endColumn - b.span.endColumn)[0];
 }
 
-/** Non-constant parts of an effect's input; for a command list, of each item. */
-export function inputsOf(value: Value, facts: FileFacts, scope: string | null): DynamicPart[] {
-  const summary = summarizeText(value, facts, scope);
+/**
+ * Non-constant parts of an effect's input; for a command list, of each item. Names in
+ * `limited` are values a guard checked where the effect runs (see `provenanceOf`).
+ */
+export function inputsOf(
+  value: Value,
+  facts: FileFacts,
+  scope: string | null,
+  limited?: ReadonlySet<string>,
+): DynamicPart[] {
+  const summary = summarizeText(value, facts, scope, limited);
   if (summary !== null) return summary.dynamic;
   const target = deref(value, facts);
-  if (target.kind === "list") return target.items.flatMap((item) => inputsOf(item, facts, scope));
-  if (target.kind === "name" || target.kind === "call") return [dynamicPart(target, facts, scope)];
+  if (target.kind === "list")
+    return target.items.flatMap((item) => inputsOf(item, facts, scope, limited));
+  if (target.kind === "name" || target.kind === "call")
+    return [dynamicPart(target, facts, scope, limited)];
   if (target.kind === "other") {
     // `args[0]`, `cmd or "ls"`: an input when it comes from somewhere plenger can name.
-    const part = dynamicPart(target, facts, scope);
+    const part = dynamicPart(target, facts, scope, limited);
     return part.from !== undefined || part.calls !== undefined ? [part] : [];
   }
   return [];
@@ -487,9 +782,14 @@ export function inputsOf(value: Value, facts: FileFacts, scope: string | null): 
  * otherwise the first interpolated value decides it, and a URL that is one value is
  * decided entirely by it.
  */
-function hostInputs(value: Value, facts: FileFacts, scope: string | null): DynamicPart[] {
-  const summary = summarizeText(value, facts, scope);
-  if (summary === null) return inputsOf(value, facts, scope);
+function hostInputs(
+  value: Value,
+  facts: FileFacts,
+  scope: string | null,
+  limited?: ReadonlySet<string>,
+): DynamicPart[] {
+  const summary = summarizeText(value, facts, scope, limited);
+  if (summary === null) return inputsOf(value, facts, scope, limited);
   const first = summary.text.search(/\$?\{/);
   const prefix = first === -1 ? summary.text : summary.text.slice(0, first);
   if (prefix.startsWith("/") || /^[a-z][\w+.-]*:\/\/[^/?#@]+[/?#]/i.test(prefix)) return [];

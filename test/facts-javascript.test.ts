@@ -278,3 +278,88 @@ describe("JS/TS facts: syntax coverage", () => {
     callTo(facts, "@ai-sdk/react#useChat().messages.map");
   });
 });
+
+describe("JavaScript facts: guards and fixed collections", () => {
+  const guards = (facts: Awaited<ReturnType<typeof factsOf>>) =>
+    (facts.guards ?? []).map((guard) => [
+      guard.subject.kind === "name" ? guard.subject.text : guard.subject.kind,
+      guard.allowed.kind,
+      `${guard.region.line}-${guard.region.endLine}`,
+    ]);
+
+  it("records what membership and equality tests limit", async () => {
+    const facts = await factsOf(
+      "typescript",
+      [
+        "function f(url: URL, name: string, key: string) {",
+        '  if (url.protocol !== "https:" || !HOSTS.has(url.hostname)) throw new Error("no");',
+        "  if (!LIST.includes(name)) { return; }",
+        '  if (key in TABLE && name === "a") {',
+        "    run(key);",
+        "  }",
+        "  if (!LIST.includes(name)) log(name);",
+        "  run(name);",
+        "}",
+      ].join("\n"),
+    );
+    expect(guards(facts)).toEqual([
+      ["url.protocol", "string", "2-9"],
+      ["url.hostname", "name", "2-9"],
+      ["name", "name", "3-9"],
+      ["key", "name", "4-6"],
+      ["name", "string", "4-6"],
+    ]);
+  });
+
+  it("records name patterns, excluded text and path prefixes", async () => {
+    const facts = await factsOf(
+      "typescript",
+      [
+        "function read(name: string, target: string) {",
+        '  if (!/^[\\w-]+$/.test(name) || name.includes("..")) throw new Error("bad name");',
+        "  if (!target.startsWith(NOTES)) return;",
+        "}",
+      ].join("\n"),
+    );
+    expect(
+      (facts.guards ?? []).map((guard) => [
+        guard.test,
+        guard.subject.kind === "name" ? guard.subject.text : guard.subject.kind,
+        guard.allowed.kind === "literal" || guard.allowed.kind === "name"
+          ? guard.allowed.text
+          : guard.allowed.kind === "string"
+            ? guard.allowed.value
+            : guard.allowed.kind,
+      ]),
+    ).toEqual([
+      ["matches", "name", "/^[\\w-]+$/"],
+      ["excludes", "name", ".."],
+      ["within", "target", "NOTES"],
+    ]);
+  });
+
+  it("marks collections changed in place", async () => {
+    const facts = await factsOf(
+      "javascript",
+      [
+        'const FIXED = { a: "ls" };',
+        'const SET_LATER = { a: "ls" };',
+        'SET_LATER.b = "rm";',
+        'const INDEXED = { a: "ls" };',
+        'INDEXED["b"] = "rm";',
+        'const REMOVED = { a: "ls" };',
+        "delete REMOVED.a;",
+      ].join("\n"),
+    );
+    expect(
+      facts.assignments
+        .filter((item) => /^[A-Z_]+$/.test(item.target))
+        .map((item) => [item.target, item.mutated ?? false]),
+    ).toEqual([
+      ["FIXED", false],
+      ["SET_LATER", true],
+      ["INDEXED", true],
+      ["REMOVED", true],
+    ]);
+  });
+});

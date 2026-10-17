@@ -5,7 +5,7 @@
  */
 
 import { looksLikeSecret } from "../shared/secrets.ts";
-import type { Argument, DefinitionFact, FileFacts, Value } from "./model.ts";
+import type { Argument, CallFact, DefinitionFact, FileFacts, Value } from "./model.ts";
 
 const DEREF_DEPTH = 6;
 
@@ -59,6 +59,145 @@ export function deref(value: Value, facts: FileFacts): Value {
     current = assignment.value;
   }
   return current;
+}
+
+/** Calls that build a collection from their arguments: `new Set([...])`, `frozenset({...})`. */
+const COLLECTIONS = /^(?:Set|Map|Object\.freeze|Array\.of|frozenset|set|tuple|list|dict)$/;
+
+/**
+ * Whether a value is fixed in the code: literals, and lists, dicts, sets and frozen
+ * collections of them (`CHECKS.keys()` included), following names to their values.
+ * A lookup into a fixed collection is fixed whatever the key.
+ */
+export function isFixed(value: Value, facts: FileFacts, depth = 0): boolean {
+  if (depth > DEREF_DEPTH) return false;
+  // A collection the code fills or changes later is not fixed, nor is an empty one.
+  if (value.kind === "name" && value.assignment !== undefined && mutated(facts, value.assignment))
+    return false;
+  const target = deref(value, facts);
+  const fixed = (item: Value) => isFixed(item, facts, depth + 1);
+  switch (target.kind) {
+    case "string":
+      return target.template === undefined && target.truncated !== true;
+    case "literal":
+      return true;
+    case "list":
+      return target.truncated !== true && target.items.length > 0 && target.items.every(fixed);
+    case "object":
+      return (
+        target.truncated !== true &&
+        target.entries.length > 0 &&
+        target.entries.every((entry) => entry.key !== null && fixed(entry.value))
+      );
+    case "other":
+      return target.subscript === true && target.parts?.[0] !== undefined && fixed(target.parts[0]);
+    case "call": {
+      const call = facts.calls[target.call];
+      if (call === undefined) return false;
+      if (COLLECTIONS.test(call.ref?.name ?? ""))
+        return (
+          call.arguments.length > 0 &&
+          call.arguments.every((arg) => arg.spread !== true && fixed(arg.value))
+        );
+      return (
+        call.arguments.length === 0 && fixedReceiver(call, facts, /\.(?:keys|values|items)$/, depth)
+      );
+    }
+    default:
+      return false;
+  }
+}
+
+/**
+ * The values a lookup into a literal collection can give (`HANDLERS[name]`,
+ * `TOOLS.run`, `TOOLS.get(name)`, `new Map([...]).get(name)`, also through a variable
+ * holding the lookup): the entry a fixed key names, or every entry. Empty when the
+ * collection is not a literal or the code changes it in place.
+ */
+export function lookupValues(lookup: Value, facts: FileFacts): Value[] {
+  const value = deref(lookup, facts);
+  let holder: number | undefined;
+  let key: string | null = null;
+  if (value.kind === "other" && value.subscript === true) {
+    const [collection, index] = value.parts ?? [];
+    if (collection?.kind !== "name" || collection.assignment === undefined) return [];
+    holder = collection.assignment;
+    key = literalString(index, facts);
+  } else if (value.kind === "name" && value.base !== undefined) {
+    const target = facts.assignments[value.base]?.target ?? "";
+    const rest = value.text.startsWith(target) ? value.text.slice(target.length) : "";
+    const member =
+      /^\.([\w$]+)$/.exec(rest)?.[1] ?? /^\[\s*(["'`])([^"'`]*)\1\s*\]$/.exec(rest)?.[2];
+    if (member === undefined && !/^\[[^\]]+\]$/.test(rest)) return [];
+    holder = value.base;
+    key = member ?? null;
+  } else if (value.kind === "call") {
+    const call = facts.calls[value.call];
+    if (call?.receiver === undefined || !/^[\w$]+\.get$/.test(call.callee)) return [];
+    holder = call.receiver;
+    key = literalString(call.arguments.find((arg) => arg.keyword === null)?.value, facts);
+  }
+  if (holder === undefined || mutated(facts, holder)) return [];
+  const assigned = facts.assignments[holder];
+  if (assigned === undefined || assigned.member !== undefined) return [];
+  let collection = deref(assigned.value, facts);
+  if (collection.kind === "call") {
+    // `new Map([["run", run]])` holds the pairs of its first argument.
+    const call = facts.calls[collection.call];
+    const pairs = call?.ref?.name === "Map" ? call.arguments[0]?.value : undefined;
+    const list = pairs === undefined ? undefined : deref(pairs, facts);
+    if (list?.kind !== "list" || list.truncated === true) return [];
+    collection = {
+      kind: "object",
+      entries: list.items.map((item) => {
+        const pair = deref(item, facts);
+        const [name, entry] = pair.kind === "list" ? pair.items : [];
+        return {
+          key: literalString(name, facts),
+          value: entry ?? { kind: "other", text: "" },
+        };
+      }),
+    };
+  }
+  if (collection.kind === "object" && collection.truncated !== true)
+    return collection.entries
+      .filter((entry) => entry.key !== null && (key === null || entry.key === key))
+      .map((entry) => entry.value);
+  if (collection.kind === "list" && collection.truncated !== true && key === null)
+    return collection.items;
+  return [];
+}
+
+/** Methods that change a collection in place. */
+const MUTATORS =
+  /\.(?:add|append|extend|insert|update|setdefault|pop|popitem|remove|discard|clear|set|delete|push|unshift|splice)$/;
+const mutatedIndex = new WeakMap<FileFacts, Set<number>>();
+
+/** Whether the code changes what an assignment holds in place, by assigning into it or calling a mutator. */
+function mutated(facts: FileFacts, assignment: number): boolean {
+  let index = mutatedIndex.get(facts);
+  if (index === undefined) {
+    index = new Set(
+      facts.assignments.flatMap((fact, position) => (fact.mutated === true ? [position] : [])),
+    );
+    for (const call of facts.calls)
+      if (call.receiver !== undefined && MUTATORS.test(call.callee)) index.add(call.receiver);
+    mutatedIndex.set(facts, index);
+  }
+  return index.has(assignment);
+}
+
+/** Whether `call` is a method matching `method` on a variable holding a fixed collection. */
+function fixedReceiver(call: CallFact, facts: FileFacts, method: RegExp, depth = 0): boolean {
+  if (call.receiver === undefined || !method.test(call.callee)) return false;
+  const assigned = facts.assignments[call.receiver];
+  return (
+    assigned !== undefined &&
+    assigned.member === undefined &&
+    /^[\w$]+\.[\w$]+$/.test(call.callee) &&
+    !mutated(facts, call.receiver) &&
+    isFixed(assigned.value, facts, depth + 1)
+  );
 }
 
 /** Whether an option is present and is not explicitly disabled or empty. */
@@ -174,7 +313,7 @@ interface Provenance {
   requests: Set<string>;
 }
 
-const PROVENANCE_DEPTH = 8;
+const PROVENANCE_DEPTH = 16;
 const REQUEST_GLOBAL = /^((?:flask|quart|bottle)\.request)(?:\.|\(|$)/;
 const RECEIVER = /^(?:self|cls)$/;
 const IDENTIFIER = /(?<![\w$.])[A-Za-z_$][\w$]*/g;
@@ -202,9 +341,15 @@ function paramsOf(facts: FileFacts, scope: string | null): Set<string> {
  * Traces a value back through variables (loop variables included), calls (their
  * receivers and arguments) and string building to the parameters, calls and request
  * objects it is computed from. Over-approximates: a call's result is taken to depend
- * on everything passed to it.
+ * on everything passed to it. Names in `limited` (variables or parameters of `scope`
+ * that a guard has checked) count as fixed and are not followed.
  */
-export function provenanceOf(value: Value, facts: FileFacts, scope: string | null): Provenance {
+export function provenanceOf(
+  value: Value,
+  facts: FileFacts,
+  scope: string | null,
+  limited?: ReadonlySet<string>,
+): Provenance {
   const params = paramsOf(facts, scope);
   const result: Provenance = { params: new Set(), calls: new Set(), requests: new Set() };
   const seen = new Set<string>();
@@ -226,6 +371,7 @@ export function provenanceOf(value: Value, facts: FileFacts, scope: string | nul
       case "name": {
         request(current.ref?.name);
         const root = /^[\w$]+/.exec(current.text)?.[0] ?? "";
+        if (local && limited?.has(current.text)) return;
         if (current.param) {
           if (local && params.has(root)) result.params.add(root);
         } else if (current.assignment !== undefined) {
@@ -243,9 +389,16 @@ export function provenanceOf(value: Value, facts: FileFacts, scope: string | nul
         const call = facts.calls[current.call];
         if (call === undefined) return;
         request(call.ref?.name);
+        // `CHECKS.get(name, default)`: one of the fixed values, or the default.
+        if (fixedReceiver(call, facts, /\.get$/)) {
+          for (const arg of call.arguments.slice(1)) visit(arg.value, call.scope, depth + 1);
+          return;
+        }
         const root = /^[\w$]+/.exec(call.callee)?.[0] ?? "";
-        if (call.scope === scope && params.has(root)) result.params.add(root);
-        if (call.receiver !== undefined) assignment(call.receiver, depth);
+        // `name.strip()` of a checked name is as limited as the name.
+        const checked = call.scope === scope && limited?.has(root) === true;
+        if (call.scope === scope && params.has(root) && !checked) result.params.add(root);
+        if (call.receiver !== undefined && !checked) assignment(call.receiver, depth);
         for (const arg of call.arguments) visit(arg.value, call.scope, depth + 1);
         // A chained call (`docs.map(...).join()`) is computed from the calls before it.
         for (const index of chainOf(facts, current.call))
@@ -265,6 +418,8 @@ export function provenanceOf(value: Value, facts: FileFacts, scope: string | nul
         for (const entry of current.entries) visit(entry.value, here, depth + 1);
         return;
       case "other":
+        // A lookup into a fixed collection is one of its values, whatever the key.
+        if (isFixed(current, facts)) return;
         if (current.parts !== undefined) {
           for (const part of current.parts) visit(part, here, depth + 1);
         } else if (local) {
@@ -326,16 +481,18 @@ interface TextSummary {
 
 /**
  * Summarises a string-like value: fixed text, with dynamic parts as `{expression}`.
- * `scope` is the function the value is evaluated in, for tracing dynamic parts.
+ * `scope` is the function the value is evaluated in, for tracing dynamic parts;
+ * `limited` names checked values there (see `provenanceOf`).
  */
 export function summarizeText(
   value: Value,
   facts: FileFacts,
   scope: string | null = null,
+  limited?: ReadonlySet<string>,
 ): TextSummary | null {
   const origin = originOf(value, facts);
   const summary: TextSummary = { text: "", dynamic: [], truncated: false, fixed: [], origin };
-  return appendText(summary, value, facts, scope, 0) ? summary : null;
+  return appendText(summary, value, facts, scope, 0, limited) ? summary : null;
 }
 
 function appendText(
@@ -344,6 +501,7 @@ function appendText(
   facts: FileFacts,
   scope: string | null,
   depth: number,
+  limited: ReadonlySet<string> | undefined,
 ): boolean {
   const target = depth < DEREF_DEPTH ? deref(value, facts) : value;
   // A constant from another variable is evaluated where that variable was assigned.
@@ -357,13 +515,13 @@ function appendText(
       summary.fixed.push(target.value);
       if (target.truncated) summary.truncated = true;
       for (const part of target.template ?? [])
-        summary.dynamic.push(dynamicPart(part, facts, here));
+        summary.dynamic.push(dynamicPart(part, facts, here, limited));
       return true;
     }
     case "concat":
       for (const part of target.parts) {
-        if (!appendText(summary, part, facts, here, depth + 1)) {
-          const dynamic = dynamicPart(part, facts, here);
+        if (!appendText(summary, part, facts, here, depth + 1, limited)) {
+          const dynamic = dynamicPart(part, facts, here, limited);
           summary.text += `{${dynamic.text}}`;
           summary.dynamic.push(dynamic);
         }
@@ -372,7 +530,7 @@ function appendText(
     case "name":
     case "call": {
       if (depth > 0) return false;
-      const dynamic = dynamicPart(value, facts, scope);
+      const dynamic = dynamicPart(value, facts, scope, limited);
       summary.text += `{${dynamic.text}}`;
       summary.dynamic.push(dynamic);
       return true;
@@ -387,6 +545,7 @@ export function dynamicPart(
   value: Value,
   facts: FileFacts,
   scope: string | null = null,
+  limited?: ReadonlySet<string>,
 ): DynamicPart {
   let part: DynamicPart;
   switch (value.kind) {
@@ -410,7 +569,7 @@ export function dynamicPart(
     default:
       part = { text: value.kind, source: "other" };
   }
-  const provenance = provenanceOf(value, facts, scope);
+  const provenance = provenanceOf(value, facts, scope, limited);
   const from = [...provenance.params, ...provenance.requests];
   if (from.length > 0) part.from = from;
   const calls: string[] = [];

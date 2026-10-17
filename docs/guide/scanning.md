@@ -23,7 +23,9 @@ it excluded: dependencies, build output, virtualenvs (detected by `pyvenv.cfg`),
 and whatever the project's `.gitignore` files ignore. `--no-gitignore` turns the
 last rule off. The walker never follows symlinks and applies size and
 file-count limits. Type declarations and minified bundles are skipped with a
-reason.
+reason. TypeScript 5 type syntax the bundled grammar does not know
+(`export type * from`, type arguments after an import type, `in`/`out` variance)
+is blanked before parsing; it has no runtime effect and positions are kept.
 
 A completed scan is not proof of safety. Syntax errors, truncation, skipped
 files and incomplete handler traces leave gaps, and the report shows them. A rule that finds nothing proves
@@ -84,15 +86,36 @@ points report the models and agents they reach and with what input. Framework
 built-in tools map to known capabilities, marked `hosted` when they run at the
 provider.
 
-Data flow is name-based, not field- or path-sensitive. Dynamic dispatch,
-callbacks passed in from other files and framework-internal effects are not
-followed. A handler whose trace stopped short carries a `trace` entry in the JSON
+Data flow is name-based, not field- or path-sensitive. Unpacked names
+(`path, body = data.split("|")`) carry what the value comes from. A call through a
+fixed table of functions (`HANDLERS[name](x)`, `TOOLS.get(name)`, a JS object or
+`Map` literal) follows every function the table holds, or the one a fixed key names;
+a table the code fills or changes at run time is not followed. Other dynamic
+dispatch, callbacks passed in from other files and framework-internal effects are
+not followed.
+
+A check before an effect takes the input it limits out of the model's reach, when
+it leaves the function or the block on failure (`if name not in REPORTS: raise`) or
+holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
+
+- for every effect: membership in a fixed collection, equality with a fixed value,
+  or a lookup into a fixed table (`COMMANDS[kind]`, `COMMANDS.get(kind)`)
+- for a URL: its host (`url.hostname`, `urlparse(u).hostname`) in a fixed allowlist
+- for a file path: a name matching a pattern of letters, digits, `_` and `-`, a
+  value checked for both `/` and `..`, or a resolved path (`realpath`, `resolve`)
+  checked to start with a fixed base
+
+Values built from a checked name are checked too. A collection is fixed when it is
+a non-empty literal the code never changes in place. A check inside a `try` also
+covers the code after it when every handler leaves the function.
+
+A handler whose trace stopped short carries a `trace` entry in the JSON
 inventory: calls past the depth limit, and calls whose target is chosen at run
-time, such as a callback parameter, a subscript (`handlers[name](args)`) or a
-call's result (`getattr(tools, name)(args)`). Up to ten of those calls are listed
-by location. The coverage section of every report lists these handlers, and
-findings about them, or about an agent using them, carry a "Trace incomplete"
-note. Effects behind those calls are not seen.
+time, such as a callback parameter, a subscript of a table that is not fixed
+(`handlers[name](args)`) or a call's result (`getattr(tools, name)(args)`). Up to
+ten of those calls are listed by location. The coverage section of every report
+lists these handlers, and findings about them, or about an agent using them, carry
+a "Trace incomplete" note. Effects behind those calls are not seen.
 
 ## Findings
 
@@ -122,7 +145,9 @@ active findings; `--all` shows every one. Each finding has:
 `plenger rules` lists the 26 rules; [RULES.md](../RULES.md) describes each one
 with its remediation. An approval or input check done by a proxy, middleware or
 configuration outside the code is not seen and leaves a finding at medium
-confidence. Checks are recognised by name, not verified.
+confidence. Checks other than the ones under [Capabilities](#capabilities), such as
+a call to a sanitizer, are recognised by name, not verified, and lower confidence
+instead of removing the finding.
 
 ## JSON output and redaction
 

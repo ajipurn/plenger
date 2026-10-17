@@ -101,7 +101,7 @@ describe("findings output", () => {
       "CRITICAL 100  `POST /ops` passes request input to agent `ops_agent`, which can run commands",
     );
     expect(stdout).toContain("python/web_agents.py:16  PLG301 · high confidence · exposed");
-    expect(stdout).toMatch(/… 45 more findings; use --all/);
+    expect(stdout).toMatch(/… 43 more findings; use --all/);
     expect((await run("scan", risks, "--all")).stdout).not.toContain("more findings");
   });
 

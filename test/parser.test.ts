@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Grammar } from "../src/source/languages.ts";
 import { GRAMMAR_FILE, SourceParser } from "../src/source/parser.ts";
+import { maskTypeOnlySyntax } from "../src/source/typescript-syntax.ts";
 
 const grammarDir = new URL("../grammars/", import.meta.url);
 
@@ -71,5 +72,57 @@ describe("SourceParser", () => {
       tsx.delete();
       ts.delete();
     }
+  });
+});
+
+describe("TypeScript 5 type syntax the grammar does not know", () => {
+  let parser: SourceParser;
+
+  beforeAll(async () => {
+    parser = await SourceParser.create();
+  });
+
+  afterAll(() => {
+    parser.dispose();
+  });
+
+  it.each([
+    ['export type * from "./model.ts";\nexport const a = 1;\n'],
+    ['export type * as Model from "./model.ts";\n'],
+    ['type A = import("./x").T[];\nlet b: import("./x").Item<string>[][] = [];\n'],
+    ["interface Box<in out T> { value: T }\nclass Sink<in T, out U extends string> {}\n"],
+    [
+      "export declare abstract class Reader<out T = () => void> {}\ntype F<in A> = (a: A) => void;\n",
+    ],
+  ])("parses %j without errors", async (source) => {
+    for (const grammar of ["typescript", "tsx"] as const) {
+      const tree = await parser.parse(grammar, source);
+      try {
+        expect(tree.rootNode.hasError, grammar).toBe(false);
+      } finally {
+        tree.delete();
+      }
+    }
+  });
+
+  it("keeps lengths, line breaks and runtime code as they are", () => {
+    const source = [
+      'export type * from "./model.ts"; // 🙂',
+      "interface Box<in out T> { value: T }",
+      'const text = "class A<in B> {}";',
+      "for (const key in table) use(key);",
+      "type Named<out> = out;",
+      "const modules = [import('./a')];",
+    ].join("\n");
+    const masked = maskTypeOnlySyntax(source);
+    expect(masked).toHaveLength(source.length);
+    expect(masked.split("\n").map((line) => line.trimEnd())).toEqual([
+      "                                 // 🙂",
+      "interface Box<       T> { value: T }",
+      'const text = "class A<in B> {}";',
+      "for (const key in table) use(key);",
+      "type Named<out> = out;",
+      "const modules = [import('./a')];",
+    ]);
   });
 });

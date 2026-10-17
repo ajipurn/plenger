@@ -73,8 +73,9 @@ export type Value =
   /**
    * Any other expression. `parts` are the values it is computed from, for operators,
    * conditionals, subscripts and comprehensions (`a or b`, `data[i]`, `[d.text for d in docs]`).
+   * `subscript` marks a lookup (`CHECKS[name]`): the first part is the collection.
    */
-  | { kind: "other"; text: string; parts?: Value[] };
+  | { kind: "other"; text: string; parts?: Value[]; subscript?: true };
 
 export interface Argument {
   /** Python keyword argument name; null for positional arguments. */
@@ -148,6 +149,8 @@ export interface AssignmentFact {
   value: Value;
   /** For destructuring (`const { text } = value`): the member of `value` the target receives. */
   member?: string;
+  /** The code later changes the value in place (`CHECKS[k] = v`, `del CHECKS[k]`, `HOSTS.add(h)`). */
+  mutated?: true;
   span: Span;
 }
 
@@ -166,7 +169,36 @@ export interface CallFact {
   /** Id of the innermost enclosing definition; null at module level. */
   scope: string | null;
   arguments: Argument[];
+  /**
+   * For an unresolved callee read from a collection (`HANDLERS[name](x)`, `TOOLS.run(x)`
+   * on a dict or object, `fn = TOOLS.get(name); fn(x)`): the callee as a value, so
+   * tracing can follow the functions a fixed collection holds.
+   */
+  lookup?: Value;
   span: Span;
+}
+
+/**
+ * An `if` test that limits a value to fixed alternatives in the code it protects: the
+ * rest of the block after an `if` whose body always leaves it
+ * (`if name not in CHECKS: raise`), or the body of an `if` that runs only while the
+ * test holds (`if (HOSTS.has(url.hostname)) { ... }`).
+ */
+export interface GuardFact {
+  scope: string | null;
+  /** The value the test limits (`name`, `url.hostname`). */
+  subject: Value;
+  /**
+   * What the test establishes, with `allowed` as its operand. Absent: the subject is in
+   * the collection `allowed`, or equals it. `matches`: it fully matches the regular
+   * expression `allowed` (`re.match(r"^[a-z]+$", name)`). `excludes`: it does not
+   * contain the text `allowed` (`".." not in name`). `within`: it starts with `allowed`
+   * (`str(path).startswith(str(BASE))`).
+   */
+  test?: "matches" | "excludes" | "within";
+  allowed: Value;
+  /** The code that runs only while the limit holds. */
+  region: Span;
 }
 
 export interface FileFacts {
@@ -174,6 +206,8 @@ export interface FileFacts {
   definitions: DefinitionFact[];
   assignments: AssignmentFact[];
   calls: CallFact[];
+  /** Present when the file has any. */
+  guards?: GuardFact[];
   /** JS/TS: the module-level name `export default` refers to (`default` for an anonymous one). */
   defaultExport?: string;
 }

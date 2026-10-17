@@ -51,11 +51,14 @@ code:
 1. `source/files.ts` walks the tree, applies `.gitignore` and the built-in
    exclusions, and classifies files by language.
 2. `source/read.ts` reads each file and skips binaries, non-UTF-8 and minified
-   output; `source/parser.ts` parses with the vendored tree-sitter WASM grammars.
-3. `facts/` extracts imports, definitions, assignments and calls per file
-   (`python.ts`, `javascript.ts`) into the shapes in `facts/model.ts`.
-   `facts/query.ts` holds the generic queries over facts (dereferencing values,
-   selecting arguments, provenance, literal credentials).
+   output; `source/parser.ts` parses with the vendored tree-sitter WASM grammars,
+   after `source/typescript-syntax.ts` blanks TypeScript 5 type syntax the
+   TypeScript grammar does not know.
+3. `facts/` extracts imports, definitions, assignments, calls and the guards of
+   `if` statements per file (`python.ts`, `javascript.ts`) into the shapes in
+   `facts/model.ts`. `facts/query.ts` holds the generic queries over facts
+   (dereferencing values, selecting arguments, provenance, fixed collections and
+   lookups, literal credentials).
 4. `project/project.ts` links the files of a project so imports resolve to the
    definitions they point at. `Project.link()` is the only constructor, so a
    project is never used unlinked. `project/index.ts` is the shared per-file call
@@ -67,8 +70,10 @@ code:
    instance and tool registries, prompt collection, constructors, relations, MCP
    members and routes.
 6. `capabilities/` traces what each tool, agent and entry point can reach
-   (`effects.ts`), which approvals guard it (`approvals.ts`) and which outputs it
-   produces (`output.ts`), using the sink catalog in `sinks.ts`/`catalog.ts`.
+   (`effects.ts`, which also follows fixed tables of functions and drops input the
+   guards around a call limit), which approvals guard it (`approvals.ts`) and which
+   outputs it produces (`output.ts`), using the sink catalog in
+   `sinks.ts`/`catalog.ts`.
 7. `rules/engine.ts` evaluates the checks in `rules/checks/` with a `RuleContext`,
    then `rules/scoring.ts` scores, fingerprints and de-duplicates the findings.
    `rules/snippets.ts` attaches source lines.

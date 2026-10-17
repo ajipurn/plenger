@@ -78,17 +78,17 @@ describe("evaluation corpus", () => {
     }
     expect(metrics(outcomes)).toEqual({
       truePositives: 7,
-      falsePositives: 2,
+      falsePositives: 0,
       falseNegatives: 1,
-      trueNegatives: 6,
-      precision: 7 / 9,
+      trueNegatives: 8,
+      precision: 1,
       recall: 7 / 8,
     });
     expect(ruleMetrics(outcomes).find((row) => row.rule === "PLG101")).toEqual({
       rule: "PLG101",
       vulnerable: 1,
-      safe: 1,
-      precision: 0.5,
+      safe: 0,
+      precision: 1,
     });
   });
 });

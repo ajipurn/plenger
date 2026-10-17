@@ -7,8 +7,5 @@
     "line": 12,
     "endLine": 17
   },
-  "static": [
-    "PLG101"
-  ],
-  "note": "PLG101 fires: the rule does not model a fixed command table indexed by the model's choice."
+  "static": []
 }

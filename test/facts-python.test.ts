@@ -272,3 +272,159 @@ describe("Python facts: resolution rules", () => {
     expect(facts.assignments[0]?.value).toMatchObject({ kind: "string", truncated: true });
   });
 });
+
+describe("Python facts: guards and fixed collections", () => {
+  const guards = (facts: Awaited<ReturnType<typeof factsOf>>) =>
+    (facts.guards ?? []).map((guard) => [
+      guard.scope,
+      guard.subject.kind === "name" ? guard.subject.text : guard.subject.kind,
+      guard.allowed.kind,
+      `${guard.region.line}-${guard.region.endLine}`,
+    ]);
+
+  it("records what an exiting `if` limits in the rest of its block", async () => {
+    const facts = await factsOf(
+      "python",
+      [
+        "def save(name, mode, url):",
+        "    if name not in REPORTS or mode != 'w':",
+        "        raise ValueError()",
+        "    if not (url in HOSTS):",
+        "        return None",
+        "    write(name, mode)",
+        "    for item in name:",
+        "        if item not in REPORTS:",
+        "            continue",
+        "        write(item)",
+        "",
+      ].join("\n"),
+    );
+    expect(guards(facts)).toEqual([
+      ["save", "name", "name", "3-10"],
+      ["save", "mode", "string", "3-10"],
+      ["save", "url", "name", "5-10"],
+      ["save", "item", "name", "9-10"],
+    ]);
+  });
+
+  it("records what a test limits inside its body, and nothing after one that does not exit", async () => {
+    const facts = await factsOf(
+      "python",
+      [
+        "def run(kind, other):",
+        "    if kind in COMMANDS and 'ok' == other:",
+        "        execute(kind)",
+        "    if kind not in COMMANDS:",
+        "        print('unknown', kind)",
+        "    if kind in COMMANDS or other in COMMANDS:",
+        "        execute(kind)",
+        "",
+      ].join("\n"),
+    );
+    expect(guards(facts)).toEqual([
+      ["run", "kind", "name", "3-3"],
+      ["run", "other", "string", "3-3"],
+    ]);
+  });
+
+  it("records name patterns, excluded text and path prefixes", async () => {
+    const facts = await factsOf(
+      "python",
+      [
+        "def read(name, path):",
+        "    if not re.match(r'^[a-z0-9_-]+$', name):",
+        "        return None",
+        "    if '..' in name or '/' in name:",
+        "        return None",
+        "    if not str(path).startswith(str(BASE)):",
+        "        raise ValueError(path)",
+        "    if SAFE.fullmatch(path):",
+        "        open(path)",
+        "",
+      ].join("\n"),
+    );
+    expect(
+      (facts.guards ?? []).map((guard) => [
+        guard.test,
+        guard.subject.kind === "name" ? guard.subject.text : guard.subject.kind,
+        guard.allowed.kind === "string" ? guard.allowed.value : guard.allowed.kind,
+      ]),
+    ).toEqual([
+      ["matches", "name", "^[a-z0-9_-]+$"],
+      ["excludes", "name", ".."],
+      ["excludes", "name", "/"],
+      ["within", "path", "name"],
+      ["matches", "path", "name"],
+    ]);
+  });
+
+  it("lets a guard in a try body protect the code after the try when every handler exits", async () => {
+    const facts = await factsOf(
+      "python",
+      [
+        "def save(name):",
+        "    try:",
+        "        if name not in REPORTS:",
+        "            return None",
+        "    except KeyError:",
+        "        return None",
+        "    write(name)",
+        "    try:",
+        "        if name not in REPORTS:",
+        "            return None",
+        "    except KeyError:",
+        "        log(name)",
+        "    write(name)",
+        "",
+      ].join("\n"),
+    );
+    expect((facts.guards ?? []).map((guard) => [guard.region.line, guard.region.endLine])).toEqual([
+      [4, 13],
+      [10, 10],
+    ]);
+  });
+
+  it("binds unpacked names to items of the value", async () => {
+    const facts = await factsOf(
+      "python",
+      "def f(data):\n    path, body = data.split('|', 1)\n    a, b = 1, data\n",
+    );
+    expect(
+      facts.assignments.map((item) => [item.target, item.member ?? "", item.value.kind]),
+    ).toEqual([
+      ["path", "[*]", "call"],
+      ["body", "[*]", "call"],
+      ["a", "", "literal"],
+      ["b", "", "name"],
+    ]);
+  });
+
+  it("marks lookups and collections changed in place", async () => {
+    const facts = await factsOf(
+      "python",
+      [
+        "FIXED = {'a': ['ls']}",
+        "CHANGED = {'a': ['ls']}",
+        "CHANGED['b'] = ['rm']",
+        "SHRUNK = {'a': 1}",
+        "del SHRUNK['a']",
+        "COUNTS = {'a': 1}",
+        "COUNTS['a'] += 1",
+        "def f(key):",
+        "    return FIXED[key]",
+        "",
+      ].join("\n"),
+    );
+    expect(facts.assignments.map((item) => [item.target, item.mutated ?? false])).toEqual([
+      ["FIXED", false],
+      ["CHANGED", true],
+      ["SHRUNK", true],
+      ["COUNTS", true],
+    ]);
+    expect(definition(facts, "f").returns?.[0]).toMatchObject({
+      kind: "other",
+      text: "FIXED[key]",
+      subscript: true,
+    });
+  });
+});

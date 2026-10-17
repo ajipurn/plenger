@@ -1559,6 +1559,9 @@
               "items": {
                 "$ref": "#/definitions/value"
               }
+            },
+            "subscript": {
+              "const": true
             }
           },
           "required": ["kind", "text"]
@@ -1814,6 +1817,9 @@
               },
               "member": {
                 "type": "string"
+              },
+              "mutated": {
+                "const": true
               }
             },
             "required": ["target", "value", "scope", "span"]
@@ -1863,9 +1869,45 @@
               "receiver": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "lookup": {
+                "$ref": "#/definitions/value"
               }
             },
             "required": ["callee", "ref", "new", "arguments", "scope", "span"]
+          }
+        },
+        "guards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "scope": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "subject": {
+                "$ref": "#/definitions/value"
+              },
+              "allowed": {
+                "$ref": "#/definitions/value"
+              },
+              "region": {
+                "$ref": "#/definitions/span"
+              },
+              "test": {
+                "type": "string",
+                "enum": ["matches", "excludes", "within"]
+              }
+            },
+            "required": ["scope", "subject", "allowed", "region"]
           }
         },
         "defaultExport": {
