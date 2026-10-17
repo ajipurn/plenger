@@ -281,7 +281,8 @@ dashboard, parser WASM assets and managed runtime recipes. npm and npx expose
 `plenger scan`, `serve` and `redteam` through one CLI. A prepack build prepares
 the package. The installed-package check verifies global installation, npm
 command resolution, scanning, offline planning and the dashboard outside the
-checkout. Installed-package CI jobs cover Linux, macOS and Windows.
+checkout. Installed-package CI jobs cover Linux on every push, and macOS and
+Windows on pull requests and manual runs.
 
 npm is the only distribution; the standalone binary build was dropped. See
 [design/distribution.md](design/distribution.md), [guide/install.md](guide/install.md)

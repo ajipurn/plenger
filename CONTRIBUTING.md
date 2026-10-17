@@ -221,7 +221,8 @@ and the locally packed production dependency closure in a temporary directory
 without registry access. It fails on runtime files outside `RUNTIME_FILES` and
 on compiled files without a matching source. It checks npm command resolution, all four grammars, offline
 Next.js preparation and `serve` with the real frontend and authenticated scans.
-The npm package workflow runs it on Linux, macOS and Windows.
+The npm package workflow runs it on Linux for pushes to main, and on Linux,
+macOS and Windows for pull requests and manual runs. It keeps no artifact.
 
 See [docs/design/distribution.md](docs/design/distribution.md).
 

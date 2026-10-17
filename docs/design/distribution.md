@@ -80,5 +80,9 @@ access. From that directory it checks:
 - packaged third-party notices without a bundled Node.js runtime
 
 The [npm package workflow](../../.github/workflows/package.yml) runs this check
-on Ubuntu 24.04, macOS 15 and Windows 2022. It saves the npm archive as an
-artifact for 7 days. Publishing to the registry is a separate maintainer action.
+on Ubuntu 24.04 for pushes to main, and on Ubuntu 24.04, macOS 15 and Windows
+2022 for pull requests and manual runs. macOS and Windows minutes count several
+times against a private repository's quota. The workflow keeps no artifact: the
+archive is the same on every platform, and `pnpm test:package` writes it to
+`dist/npm/` locally when a build needs to be shared before a release.
+Publishing to the registry is a separate maintainer action.
