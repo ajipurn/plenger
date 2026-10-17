@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The admin routes carry no middleware themselves; requireAdmin is applied where the router is mounted in server.ts.",
+  "cwe": "CWE-862",
+  "location": {
+    "path": "routes/admin.ts",
+    "line": 10,
+    "endLine": 13
+  },
+  "static": []
+}

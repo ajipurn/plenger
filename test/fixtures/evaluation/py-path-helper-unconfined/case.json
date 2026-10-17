@@ -1,0 +1,12 @@
+{
+  "kind": "vulnerable",
+  "summary": "A route opens the file a helper in another module joins from the request's name, with no confinement.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 8,
+    "endLine": 11
+  },
+  "static": [],
+  "note": "No static rule covers request input reaching a file path; only the AI review can find this."
+}

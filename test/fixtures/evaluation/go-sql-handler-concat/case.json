@@ -1,0 +1,12 @@
+{
+  "kind": "vulnerable",
+  "summary": "A Go handler concatenates a query parameter into SQL.",
+  "cwe": "CWE-89",
+  "location": {
+    "path": "main.go",
+    "line": 13,
+    "endLine": 15
+  },
+  "static": [],
+  "note": "plenger has no parser for Go; only the AI review reads it."
+}

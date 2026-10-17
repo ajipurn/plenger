@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same handler calls a repository method that filters by the caller's tenant.",
+  "cwe": "CWE-639",
+  "location": {
+    "path": "app.py",
+    "line": 10,
+    "endLine": 12
+  },
+  "static": []
+}

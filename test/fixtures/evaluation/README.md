@@ -15,4 +15,8 @@ Labeled cases for `pnpm evaluate`. Each folder is one small project with a
 - `note`: why the static result differs from the ground truth, when it does.
 
 Cases come in pairs. Keep each one small and free of unrelated issues: a finding
-outside the labeled location counts as unlabeled.
+outside the labeled location counts as unlabeled. When a pair needs more than one
+file (a guard in another module, middleware mounted elsewhere), label the route
+or handler a finding would cite, the matching lines in both cases, and keep comments
+from giving the answer away. Pairs in a language without a parser (Go, Java) have
+no static result; only the AI review reads them.

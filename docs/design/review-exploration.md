@@ -291,6 +291,12 @@ file, and a pair in a language without a parser:
 | Path helper | A route passes a name to a helper that joins it into a path | The helper confines the result to its base directory |
 | Go SQL | A handler concatenates a query parameter into SQL | The handler uses a placeholder |
 
+These pairs, and a Java path pair, are in the corpus. The batch-mode baseline on
+it is [detection-claude-haiku-2026-10-17](../qualifications/detection-claude-haiku-2026-10-17.md):
+the tenant pair was right in every run, while the router-level middleware, the
+confining helper and the Go placeholder were reported in every run with their
+guard in the batch.
+
 `pnpm evaluate` gains `--mode explore|batch`. A qualification record compares
 both modes on the same model and corpus over three runs: precision and recall
 with their spread, verdicts per case, model calls, tool calls, tokens and

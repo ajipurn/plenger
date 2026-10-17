@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A Spring endpoint normalizes the path and refuses one outside the reports directory.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "src/main/java/com/example/reports/ReportController.java",
+    "line": 16,
+    "endLine": 23
+  },
+  "static": []
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A Go handler passes the query parameter as a placeholder argument.",
+  "cwe": "CWE-89",
+  "location": {
+    "path": "main.go",
+    "line": 13,
+    "endLine": 15
+  },
+  "static": []
+}

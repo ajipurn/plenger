@@ -25,6 +25,13 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   table the code fills at run time stays a trace gap. Call facts carry such a
   callee as `lookup`.
 
+- The corpus adds the four pairs the M9b design asks for (route authorization
+  and tenant scoping across files, a path helper in another module, SQL in Go)
+  and a Java path pair, 82 cases in all. A live baseline of the AI review on them,
+  Claude Haiku 5.5 over three runs, is in
+  [detection-claude-haiku-2026-10-17](docs/qualifications/detection-claude-haiku-2026-10-17.md):
+  precision 0.62 and recall 0.95, with one dismissal in 263 second-review verdicts.
+
 - The evaluation corpus has 72 cases: a vulnerable case and a safe near-miss for
   every one of the 26 rules and for each kind of check. Static precision is 1.00
   and recall 0.97 on it, against 0.76 and 0.94 for the previous scanner; the

@@ -1,0 +1,12 @@
+{
+  "kind": "vulnerable",
+  "summary": "A handler returns any invoice by id: the repository method it calls ignores the caller's tenant.",
+  "cwe": "CWE-639",
+  "location": {
+    "path": "app.py",
+    "line": 10,
+    "endLine": 12
+  },
+  "static": [],
+  "note": "No static rule covers tenant scoping; only the AI review can find this."
+}

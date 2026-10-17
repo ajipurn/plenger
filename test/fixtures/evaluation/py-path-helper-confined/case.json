@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same route uses a helper that resolves the path and keeps it in the reports directory.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 8,
+    "endLine": 11
+  },
+  "static": []
+}

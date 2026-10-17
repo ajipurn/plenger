@@ -1,0 +1,12 @@
+{
+  "kind": "vulnerable",
+  "summary": "One admin route is registered without the requireAdmin middleware the other admin route uses.",
+  "cwe": "CWE-862",
+  "location": {
+    "path": "routes/admin.ts",
+    "line": 11,
+    "endLine": 14
+  },
+  "static": [],
+  "note": "No static rule covers route authorization; only the AI review can find this."
+}
