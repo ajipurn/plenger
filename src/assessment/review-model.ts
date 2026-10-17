@@ -1,5 +1,5 @@
 import type { TokenUsage } from "../redteam/budget.ts";
-import type { ReviewBilling } from "../redteam/model-pricing.ts";
+import { type ModelPricing, type ReviewBilling, worstCaseCost } from "../redteam/model-pricing.ts";
 import { SEVERITIES, type Severity } from "../rules/model.ts";
 import { isRecord } from "../shared/guards.ts";
 import { STRIDE } from "./model.ts";
@@ -25,7 +25,8 @@ export const SECURITY_REVIEW_LIMITS = {
   outputTokens: 8192,
   tokens: 400_000,
   timeoutMs: 120_000,
-  perScan: 12,
+  /** Reviews one static scan can hold: the batches of a Full coverage scan. */
+  perScan: 100,
   calls: 2,
   /** Largest request a review sends, so a scaled batch fits the provider transport. */
   requestBytes: 256 * 1024,
@@ -81,6 +82,51 @@ export function reviewBudget(windows: readonly (number | null | undefined)[]): R
     relatedBytes: Math.max(2 * 1024, Math.min(L.maxRelatedBytes, Math.floor(request * 0.3))),
     inputTokens,
   };
+}
+
+/**
+ * A spending limit across every connection a review uses: accounted tokens, or USD
+ * estimated from saved prices.
+ */
+export type SpendingLimit = { kind: "tokens"; tokens: number } | { kind: "usd"; usd: number };
+
+/** A request's prompt token bound and output allowance. */
+export interface RequestTokenBound {
+  prompt: number;
+  output: number;
+}
+
+/**
+ * The most one batch's two requests can reserve, at one token per request byte: the
+ * discovery request holds the batch and the instructions; the validation request adds
+ * related files and candidates. `requestOverheadBytes` covers the rest and the margin.
+ */
+export function batchTokenBound(sizes: ReviewBudget): {
+  discovery: RequestTokenBound;
+  validation: RequestTokenBound;
+  total: number;
+} {
+  const L = SECURITY_REVIEW_LIMITS;
+  const discovery = { prompt: sizes.contextBytes + L.requestOverheadBytes, output: L.outputTokens };
+  const validation = {
+    prompt: sizes.contextBytes + sizes.relatedBytes + L.requestOverheadBytes,
+    output: L.outputTokens,
+  };
+  const total = discovery.prompt + discovery.output + validation.prompt + validation.output;
+  return { discovery, validation, total };
+}
+
+/** The most one batch can cost in USD at saved prices, with the second review's prices. */
+export function batchCostBound(
+  sizes: ReviewBudget,
+  pricing: ModelPricing,
+  validatorPricing: ModelPricing = pricing,
+): number {
+  const bound = batchTokenBound(sizes);
+  return (
+    worstCaseCost(pricing, bound.discovery.prompt, bound.discovery.output) +
+    worstCaseCost(validatorPricing, bound.validation.prompt, bound.validation.output)
+  );
 }
 
 export interface ReviewCitation {
@@ -198,6 +244,14 @@ export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findin
     billing?: ReviewBilling;
     /** Claude usage and cost of a separate second-review connection. */
     validatorBilling?: ReviewBilling;
+    /**
+     * What this batch charged against the scan's limit: accounted tokens, which keep the
+     * reservation of a call without reported usage, and the matching USD when every
+     * request was priced. Absent on older reviews.
+     */
+    charged?: { tokens: number; usd: number | null };
+    /** The scan's limit stopped this batch before one of its requests. */
+    limitReached?: true;
   };
   findings: ReviewFinding[];
 }

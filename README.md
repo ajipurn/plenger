@@ -8,7 +8,8 @@ offline static analysis with a bounded AI review of the source, in any
 language, on a model connection you choose: candidate findings, a second
 skeptical review, STRIDE threat modeling, source evidence and a prompt a coding
 agent can use to fix a finding. Source leaves the machine only for the selected
-provider, after redaction and within the budget you set.
+provider, after redaction. A Quick scan makes at most two model calls; Full
+coverage stops at the token or USD limit you set.
 
 Static analysis reads source code only. It never runs, imports or installs the
 project and needs no network access. Its specialty is agentic AI code in

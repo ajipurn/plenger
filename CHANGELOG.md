@@ -9,6 +9,16 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- New Scan offers **Quick** and **Full coverage** instead of Standard and Deep.
+  Quick reviews one batch. Full coverage reviews batches until no unsent source
+  that fits a batch remains, stopping at a token or USD limit the user sets;
+  USD needs saved Claude prices for every model in the scan. A batch starts
+  only when its maximum fits what remains, and every request is checked again
+  before it is sent. New Scan shows how many files the review can read and how
+  many batches full coverage needs. Scans record their limit, the files
+  covered, why batches stopped and what the limit was charged. Older Standard
+  and Deep scans keep their labels.
+
 - Dashboard reviews read text files without a parser: code in other languages,
   shell, SQL, templates, configuration, Terraform and Dockerfiles, plus CI
   definitions under `.github/workflows`. They come after the traced and

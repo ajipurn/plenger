@@ -2,12 +2,17 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Label, Radio, RadioGroup } from "react-aria-components";
 import { Link } from "react-router";
 import {
+  batchCostBound,
+  batchTokenBound,
   type LocalRepository,
+  type RepositorySource,
   reviewBudget,
+  SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
-  type ScanDepth,
+  type ScanBudget,
   SECURITY_REVIEW_LIMITS,
   type SecurityScan,
+  type SelectableScanDepth,
   WORKSPACE_LIMITS,
 } from "../../../src/dashboard/contract.ts";
 import {
@@ -23,6 +28,24 @@ import { Button, Input, Select, TextArea } from "../shared/ui.tsx";
 
 /** The second review uses the discovery provider and model. */
 const SAME_VALIDATOR = "same";
+const DEPTH_COPY: Record<SelectableScanDepth, { description: string; calls: string }> = {
+  quick: {
+    description: "Reviews the most important files in one batch.",
+    calls: `Up to ${SECURITY_REVIEW_LIMITS.calls} model calls`,
+  },
+  full: {
+    description: "Reviews batch after batch until every file is covered or your limit is reached.",
+    calls: "Stops at your limit",
+  },
+};
+/** Rendered source is larger than file bytes: line numbers and JSON escaping. */
+const RENDER_OVERHEAD = 1.2;
+
+function sizeText(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MiB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KiB`;
+}
 export function ProjectForm({
   open,
   onClose,
@@ -208,7 +231,11 @@ export function NewScanForm({
   const [providerId, setProviderId] = useState(
     (providers.find((item) => item.isDefault) ?? providers[0])?.id ?? "",
   );
-  const [depth, setDepth] = useState<ScanDepth>("standard");
+  const [depth, setDepth] = useState<SelectableScanDepth>("quick");
+  const [limitKind, setLimitKind] = useState<ScanBudget["kind"]>("tokens");
+  const [tokenLimit, setTokenLimit] = useState(String(SCAN_BUDGET_LIMITS.defaultTokens));
+  const [usdLimit, setUsdLimit] = useState(SCAN_BUDGET_LIMITS.defaultUsd.toFixed(2));
+  const [source, setSource] = useState<RepositorySource | null>(null);
   const [validatorId, setValidatorId] = useState(SAME_VALIDATOR);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -239,6 +266,62 @@ export function NewScanForm({
   const contextWindow = catalog.models.find((item) => item.id === model)?.maxInputTokens;
   const budget = reviewBudget([contextWindow]);
   const [notes, setNotes] = useState(project?.environment.notes ?? "");
+  const projectId = project?.id;
+  useEffect(() => {
+    setSource(null);
+    if (!open || !api || !projectId) return;
+    const controller = new AbortController();
+    api
+      .repositorySource(projectId, controller.signal)
+      .then(setSource)
+      .catch(() => {
+        /* The estimate is optional; the scan reports what it covered. */
+      });
+    return () => controller.abort();
+  }, [open, api, projectId]);
+  // A USD limit needs saved Claude prices for every model the scan uses.
+  const validatorPricing = validator?.modelPricing?.find((item) => item.model === validator.model);
+  const usdPricing =
+    provider?.provider === "anthropic" &&
+    selectedPricing &&
+    (!validator || (validator.provider === "anthropic" && validatorPricing))
+      ? { discovery: selectedPricing, validation: validatorPricing ?? selectedPricing }
+      : undefined;
+  const kind = usdPricing ? limitKind : "tokens";
+  const mostTokens = batchTokenBound(budget).total;
+  const mostUsd = usdPricing
+    ? batchCostBound(budget, usdPricing.discovery, usdPricing.validation)
+    : null;
+  const limitValue = Number(kind === "tokens" ? tokenLimit : usdLimit);
+  const limitError = (() => {
+    if (depth !== "full") return "";
+    const L = SCAN_BUDGET_LIMITS;
+    if (kind === "tokens") {
+      if (!Number.isSafeInteger(limitValue) || limitValue < L.minTokens || limitValue > L.maxTokens)
+        return `Enter whole tokens from ${L.minTokens.toLocaleString()} to ${L.maxTokens.toLocaleString()}.`;
+      if (limitValue < mostTokens)
+        return `One batch can charge up to ${mostTokens.toLocaleString()} tokens. Raise the limit.`;
+      return "";
+    }
+    if (!Number.isFinite(limitValue) || limitValue < L.minUsd || limitValue > L.maxUsd)
+      return `Enter USD from ${L.minUsd} to ${L.maxUsd.toLocaleString()}.`;
+    if (mostUsd !== null && limitValue < mostUsd)
+      return `One batch can cost up to USD ${mostUsd.toFixed(2)}. Raise the limit.`;
+    return "";
+  })();
+  const guaranteed =
+    kind === "tokens"
+      ? Math.floor(limitValue / mostTokens)
+      : mostUsd
+        ? Math.floor(limitValue / mostUsd)
+        : 0;
+  const needed = source
+    ? Math.max(
+        1,
+        Math.ceil((source.bytes * RENDER_OVERHEAD) / budget.contextBytes),
+        Math.ceil(source.files / budget.files),
+      )
+    : null;
   async function submit() {
     if (!api || !project || !provider || !model.trim()) return;
     setBusy(true);
@@ -253,6 +336,14 @@ export function NewScanForm({
         providerId: provider.id,
         model: model.trim(),
         depth,
+        ...(depth === "full"
+          ? {
+              budget:
+                kind === "tokens"
+                  ? { kind: "tokens", tokens: limitValue }
+                  : { kind: "usd", usd: Math.round(limitValue * 100) / 100 },
+            }
+          : {}),
         ...(validator ? { validatorProviderId: validator.id } : {}),
       });
       onStarted(scan);
@@ -298,7 +389,15 @@ export function NewScanForm({
             type="submit"
             form={`${id}-form`}
             className="button button-primary"
-            disabled={busy || !api || !project || !provider || !model.trim() || catalog.loading}
+            disabled={
+              busy ||
+              !api ||
+              !project ||
+              !provider ||
+              !model.trim() ||
+              catalog.loading ||
+              Boolean(limitError)
+            }
           >
             {busy ? "Starting scan…" : "Start Scan"}
           </Button>
@@ -471,12 +570,12 @@ export function NewScanForm({
           className="security-scan-depth"
           name="depth"
           value={depth}
-          onChange={(value) => setDepth(value as ScanDepth)}
+          onChange={(value) => setDepth(value as SelectableScanDepth)}
           isDisabled={busy}
         >
           <Label>Scan depth</Label>
           <div className="security-scan-depth-options">
-            {Object.entries(SCAN_DEPTHS).map(([value, item]) => (
+            {(["quick", "full"] as const).map((value) => (
               <Radio
                 key={value}
                 value={value}
@@ -487,21 +586,85 @@ export function NewScanForm({
                 <span className="security-scan-depth-indicator" aria-hidden="true" />
                 <span className="security-scan-depth-copy">
                   <span id={`${id}-${value}-label`} className="security-scan-depth-name">
-                    {item.label}
+                    {SCAN_DEPTHS[value].label}
                   </span>
                   <span id={`${id}-${value}-description`} className="muted">
-                    {value === "standard"
-                      ? "Reviews one source batch."
-                      : `Reviews up to ${item.batches} independent source batches.`}
+                    {DEPTH_COPY[value].description}
                   </span>
                   <span id={`${id}-${value}-calls`} className="security-scan-depth-calls">
-                    Up to {SECURITY_REVIEW_LIMITS.calls * item.batches} model calls
+                    {DEPTH_COPY[value].calls}
                   </span>
                 </span>
               </Radio>
             ))}
           </div>
         </RadioGroup>
+        {source && (
+          <p className="muted security-scan-estimate">
+            {source.files.toLocaleString()} {source.files === 1 ? "file" : "files"} (
+            {sizeText(source.bytes)}) can be reviewed
+            {source.truncated ? ", counted up to the file limit" : ""}.{" "}
+            {needed === 1
+              ? "One batch can cover them."
+              : `Full coverage needs about ${needed?.toLocaleString()} batches.`}
+          </p>
+        )}
+        {depth === "full" && (
+          <div className="security-form-block security-scan-limit">
+            <RadioGroup
+              className="security-scan-limit-kind"
+              orientation="horizontal"
+              value={kind}
+              onChange={(value) => setLimitKind(value as ScanBudget["kind"])}
+              isDisabled={busy}
+            >
+              <Label>Limit</Label>
+              <div className="security-scan-limit-options">
+                <Radio value="tokens" className="security-scan-depth-option">
+                  <span className="security-scan-depth-indicator" aria-hidden="true" />
+                  <span className="security-scan-depth-name">Tokens</span>
+                </Radio>
+                <Radio value="usd" className="security-scan-depth-option" isDisabled={!usdPricing}>
+                  <span className="security-scan-depth-indicator" aria-hidden="true" />
+                  <span className="security-scan-depth-name">USD</span>
+                </Radio>
+              </div>
+            </RadioGroup>
+            <label htmlFor={`${id}-limit`} className="sr-only">
+              {kind === "tokens" ? "Token limit" : "USD limit"}
+            </label>
+            <Input
+              id={`${id}-limit`}
+              type="number"
+              inputMode={kind === "tokens" ? "numeric" : "decimal"}
+              min={kind === "tokens" ? SCAN_BUDGET_LIMITS.minTokens : SCAN_BUDGET_LIMITS.minUsd}
+              max={kind === "tokens" ? SCAN_BUDGET_LIMITS.maxTokens : SCAN_BUDGET_LIMITS.maxUsd}
+              step={kind === "tokens" ? 1000 : 0.01}
+              value={kind === "tokens" ? tokenLimit : usdLimit}
+              onChange={(event) =>
+                kind === "tokens"
+                  ? setTokenLimit(event.target.value)
+                  : setUsdLimit(event.target.value)
+              }
+              aria-invalid={Boolean(limitError)}
+              aria-describedby={`${id}-limit-help`}
+              disabled={busy}
+            />
+            <p id={`${id}-limit-help`} className={limitError ? "error-message" : "muted"}>
+              {limitError ||
+                `Each batch charges at most ${
+                  kind === "tokens"
+                    ? `${mostTokens.toLocaleString()} tokens`
+                    : `USD ${mostUsd?.toFixed(2)} at saved prices`
+                }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "batch" : "batches"}. Most batches charge less. A batch starts only when its maximum fits what remains.`}
+            </p>
+            {!usdPricing && (
+              <p className="muted">
+                USD limits need saved Claude prices for every model in this scan.
+              </p>
+            )}
+          </div>
+        )}
         <details className="security-review-context security-scan-context">
           <summary>
             <Icon name="chevron" />

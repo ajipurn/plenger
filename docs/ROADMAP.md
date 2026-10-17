@@ -306,7 +306,8 @@ never read. M9 removes that limit in two checkpoints, reviewed separately.
 **Delivered:** M9a. Dashboard scans list text files without a parser, and the
 review reads them as plain text after the traced and focused files: code before
 configuration, tests and fixtures last. Large files go as 80-line windows that
-later Deep batches continue. CI definitions are the only hidden paths reviewed.
+later Full coverage batches continue. CI definitions are the only hidden paths
+reviewed.
 See [guide/ai-security-review.md](guide/ai-security-review.md).
 
 | Checkpoint | Deliverable | Acceptance |

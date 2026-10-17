@@ -1,15 +1,18 @@
 import { basename } from "node:path";
+import { reviewSourceSize } from "../../assessment/review-source.ts";
 import { validateProviderSettings } from "../../redteam/provider-config.ts";
 import { sourceRevision } from "../../security/git.ts";
 import {
   FINDING_STATUSES,
   type FindingStatus,
+  SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
-  type ScanDepth,
+  type ScanBudget,
+  type SelectableScanDepth,
 } from "../../security/model.ts";
 import { StoreValidationError } from "../../storage/store.ts";
-import { API, WORKSPACE_LIMITS } from "../contract.ts";
-import { expectKeys, HttpError, jsonRequest, requireString } from "../http.ts";
+import { API, type RepositorySource, WORKSPACE_LIMITS } from "../contract.ts";
+import { expectKeys, HttpError, jsonRequest, requireInt, requireString } from "../http.ts";
 import type { Route } from "../router.ts";
 import type { Services } from "../services.ts";
 import { resolveDirectory } from "../workspace.ts";
@@ -74,6 +77,21 @@ export function securityWorkspaceRoutes({
       },
     },
     {
+      method: "GET",
+      path: API.repositorySource,
+      handler: async ({ params }) => {
+        const repository = store.security.repository(params.id ?? "");
+        if (!repository) throw new HttpError(404, "Project not found.");
+        let body: RepositorySource;
+        try {
+          body = await reviewSourceSize(repository.path);
+        } catch {
+          throw new HttpError(409, "The project folder is no longer available.");
+        }
+        return { status: 200, body };
+      },
+    },
+    {
       method: "POST",
       path: API.updateRepository,
       handler: async ({ request, params }) => {
@@ -112,14 +130,29 @@ export function securityWorkspaceRoutes({
         const body = await jsonRequest(request);
         expectKeys(
           body,
-          ["repositoryId", "providerId", "scope", "depth", "model", "validatorProviderId"],
+          [
+            "repositoryId",
+            "providerId",
+            "scope",
+            "depth",
+            "budget",
+            "model",
+            "validatorProviderId",
+          ],
           "Choose a local project, provider and scan depth.",
         );
         // Accept earlier local-scan clients, without enabling any automatic mode.
         if (body.scope !== undefined && body.scope !== "local" && body.scope !== "repository")
           throw new HttpError(400, "Only manual scans of local folders are supported.");
-        if (typeof body.depth !== "string" || !Object.hasOwn(SCAN_DEPTHS, body.depth))
-          throw new HttpError(400, "Choose a supported scan depth.");
+        if (
+          typeof body.depth !== "string" ||
+          !Object.hasOwn(SCAN_DEPTHS, body.depth) ||
+          !SCAN_DEPTHS[body.depth as keyof typeof SCAN_DEPTHS].selectable
+        )
+          throw new HttpError(400, "Choose Quick or Full coverage.");
+        const budget = body.budget === undefined ? undefined : scanBudget(body.budget);
+        if (body.depth === "full" && budget === undefined)
+          throw new HttpError(400, "Set a token or USD limit for a Full coverage scan.");
         if (body.model !== undefined) {
           try {
             // The coordinator checks the selected connection too. No access overrides are accepted.
@@ -138,7 +171,8 @@ export function securityWorkspaceRoutes({
               min: 1,
               max: WORKSPACE_LIMITS.recordIdCharacters,
             }),
-            depth: body.depth as ScanDepth,
+            depth: body.depth as SelectableScanDepth,
+            ...(budget ? { budget } : {}),
             ...(body.model === undefined ? {} : { model: body.model as string }),
             ...(body.validatorProviderId === undefined
               ? {}
@@ -190,4 +224,31 @@ export function securityWorkspaceRoutes({
       },
     },
   ];
+}
+
+/** A spending limit from a request body: whole tokens, or USD to the cent. */
+function scanBudget(value: unknown): ScanBudget {
+  const L = SCAN_BUDGET_LIMITS;
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new HttpError(400, "Set the limit as tokens or USD.");
+  const budget = value as Record<string, unknown>;
+  if (budget.kind === "tokens") {
+    expectKeys(budget, ["kind", "tokens"], "Set the limit as tokens or USD.");
+    const message = `Set a token limit from ${L.minTokens.toLocaleString("en-US")} to ${L.maxTokens.toLocaleString("en-US")}.`;
+    return { kind: "tokens", tokens: requireInt(budget.tokens, L.minTokens, L.maxTokens, message) };
+  }
+  if (budget.kind === "usd") {
+    expectKeys(budget, ["kind", "usd"], "Set the limit as tokens or USD.");
+    const usd = budget.usd;
+    if (
+      typeof usd !== "number" ||
+      !Number.isFinite(usd) ||
+      usd < L.minUsd ||
+      usd > L.maxUsd ||
+      Math.round(usd * 100) / 100 !== usd
+    )
+      throw new HttpError(400, `Set a USD limit from ${L.minUsd} to ${L.maxUsd}, in cents.`);
+    return { kind: "usd", usd };
+  }
+  throw new HttpError(400, "Set the limit as tokens or USD.");
 }

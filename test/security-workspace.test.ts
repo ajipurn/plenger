@@ -6,7 +6,12 @@ import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   API,
+  batchCostBound,
+  batchTokenBound,
   type LocalRepository,
+  type RepositorySource,
+  reviewBudget,
+  SCAN_BUDGET_LIMITS,
   type SecurityScan,
   type SecurityWorkspace,
   TOKEN_HEADER,
@@ -25,6 +30,11 @@ import {
 import { temporaryDir } from "./support/tmp.ts";
 
 const execute = promisify(execFile);
+/** Full coverage under the default token limit. */
+const FULL = {
+  depth: "full",
+  budget: { kind: "tokens", tokens: SCAN_BUDGET_LIMITS.defaultTokens },
+} as const;
 const pathFor = (path: string, id: string) => path.replace(":id", encodeURIComponent(id));
 const key = "owned-workspace-provider-key";
 let dashboard: TestDashboard;
@@ -146,7 +156,7 @@ async function start(id: string, patch = {}): Promise<SecurityScan> {
   const response = await dashboard.request(API.securityScans, {
     repositoryId: id,
     providerId: provider.id,
-    depth: "standard",
+    depth: "quick",
     ...patch,
   });
   expect(response.status, await response.clone().text()).toBe(202);
@@ -226,7 +236,7 @@ describe("local project security workspace", () => {
           await dashboard.request(API.securityScans, {
             repositoryId: repo.id,
             providerId: provider.id,
-            depth: "standard",
+            depth: "quick",
             model,
           })
         ).status,
@@ -370,6 +380,14 @@ describe("local project security workspace", () => {
       { providerId: "missing" },
       { scope: "shell" },
       { depth: "unlimited" },
+      { depth: "deep" },
+      { depth: "full" },
+      { depth: "full", budget: { kind: "tokens", tokens: 5 } },
+      { depth: "full", budget: { kind: "tokens", tokens: 1.5e6 + 0.5 } },
+      { depth: "full", budget: { kind: "usd", usd: 0.001 } },
+      { depth: "full", budget: { kind: "usd", usd: 5 } },
+      { depth: "full", budget: { kind: "tokens", tokens: 2e6, usd: 5 } },
+      { depth: "full", budget: "2000000" },
       { apiKey: "untrusted" },
       { path: "/" },
     ]) {
@@ -377,7 +395,7 @@ describe("local project security workspace", () => {
         repositoryId: repo.id,
         providerId: provider.id,
         scope: "repository",
-        depth: "standard",
+        depth: "quick",
         ...patch,
       });
       expect(response.status).toBeGreaterThanOrEqual(400);
@@ -387,7 +405,7 @@ describe("local project security workspace", () => {
       repositoryId: repo.id,
       providerId: provider.id,
       scope: "continuous",
-      depth: "standard",
+      depth: "quick",
     });
     expect(continuous.status).toBe(400);
     expect(await continuous.text()).toContain("Only manual scans of local folders");
@@ -422,7 +440,7 @@ describe("local project security workspace", () => {
           repositoryId: repo.id,
           providerId: provider.id,
           scope: "repository",
-          depth: "standard",
+          depth: "quick",
         })
       ).status,
     ).toBe(409);
@@ -467,7 +485,7 @@ describe("local project security workspace", () => {
     for (let i = 0; i < 50; i++)
       await writeFile(join(project, `module-${i}.ts`), `export const value${i} = ${i};\n`);
     const repo = await repository();
-    const scan = await finished((await start(repo.id, { depth: "deep" })).id);
+    const scan = await finished((await start(repo.id, FULL)).id);
     expect(scan.status).toBe("completed");
     expect(scan.reviews).toHaveLength(3);
     const paths = scan.reviews.flatMap((review) => review.scope.files.map((file) => file.path));
@@ -493,7 +511,86 @@ describe("local project security workspace", () => {
     expect(JSON.stringify(bodies[0])).toContain("1: package main");
   });
 
-  it("continues a file too large for one batch with its unsent functions in later deep batches", async () => {
+  it("stops Full coverage when the next batch's maximum no longer fits the token limit", async () => {
+    for (let i = 0; i < 50; i++)
+      await writeFile(join(project, `module-${i}.ts`), `export const value${i} = ${i};\n`);
+    const repo = await repository();
+    const most = batchTokenBound(reviewBudget([])).total;
+    const low = await dashboard.request(API.securityScans, {
+      repositoryId: repo.id,
+      providerId: provider.id,
+      depth: "full",
+      budget: { kind: "tokens", tokens: most - 1 },
+    });
+    expect(low.status).toBe(400);
+    expect(await low.text()).toContain("below one batch's maximum");
+    const budget = { kind: "tokens", tokens: most } as const;
+    const scan = await finished((await start(repo.id, { depth: "full", budget })).id);
+    expect(scan.status).toBe("completed");
+    expect(scan.budget).toEqual(budget);
+    // One batch fits; after it charged anything, the next batch's maximum does not.
+    expect(scan.reviews).toHaveLength(1);
+    expect(scan.coverage).toMatchObject({ stop: "budget", eligibleFiles: 52, sentFiles: 24 });
+    expect(scan.coverage?.charged.tokens).toBe(scan.reviews[0]?.request.charged?.tokens);
+    expect(scan.coverage?.charged.tokens).toBeGreaterThan(0);
+  });
+
+  it("limits Full coverage in USD only with saved prices for every model", async () => {
+    for (let i = 0; i < 50; i++)
+      await writeFile(join(project, `module-${i}.ts`), `export const value${i} = ${i};\n`);
+    const repo = await repository();
+    const unpriced = await dashboard.request(API.securityScans, {
+      repositoryId: repo.id,
+      providerId: provider.id,
+      depth: "full",
+      budget: { kind: "usd", usd: 5 },
+    });
+    expect(unpriced.status).toBe(400);
+    expect(await unpriced.text()).toContain("saved Claude prices");
+    const pricing = {
+      model: provider.model,
+      rates: { input: 2, output: 10, cacheWrite5m: 2.5, cacheWrite1h: 4, cacheRead: 0.1 },
+    };
+    const saved = await dashboard.request(API.providers, {
+      id: provider.id,
+      name: provider.name,
+      provider: provider.provider,
+      model: provider.model,
+      baseUrl: provider.baseUrl,
+      temperature: provider.temperature,
+      maxOutputTokens: provider.maxOutputTokens,
+      modelPricing: [pricing],
+    });
+    expect(saved.status).toBe(200);
+    const most = batchCostBound(reviewBudget([]), pricing);
+    const budget = { kind: "usd", usd: Math.ceil(most * 100) / 100 } as const;
+    const scan = await finished((await start(repo.id, { depth: "full", budget })).id);
+    expect(scan.status).toBe("completed");
+    expect(scan.reviews).toHaveLength(1);
+    expect(scan.coverage?.stop).toBe("budget");
+    // Two calls of 500 input and 500 output tokens at the saved prices.
+    expect(scan.coverage?.charged.usd).toBeCloseTo(0.012, 12);
+    expect(scan.cost?.totalUsd).toBeCloseTo(0.012, 12);
+  });
+
+  it("estimates what a review could read before a scan starts", async () => {
+    await writeFile(join(project, "main.go"), "package main\n");
+    await mkdir(join(project, ".github", "workflows"), { recursive: true });
+    await writeFile(join(project, ".github", "workflows", "ci.yml"), "on: push\n");
+    await mkdir(join(project, ".vscode"), { recursive: true });
+    await writeFile(join(project, ".vscode", "settings.json"), "{}\n");
+    const repo = await repository();
+    const response = await dashboard.request(pathFor(API.repositorySource, repo.id));
+    expect(response.status).toBe(200);
+    const source = (await response.json()) as RepositorySource;
+    // server.ts, store.ts, main.go and the CI workflow; hidden settings stay out.
+    expect(source).toMatchObject({ files: 4, truncated: false });
+    expect(source.bytes).toBeGreaterThan(0);
+    expect((await dashboard.request(pathFor(API.repositorySource, "missing"))).status).toBe(404);
+    expect(bodies).toHaveLength(0);
+  });
+
+  it("continues a file too large for one batch until Full coverage has sent all of it", async () => {
     const helpers = Array.from({ length: 1000 }, (_, index) =>
       [`export function helper${index}(value: number) {`, `  return value + ${index};`, "}"].join(
         "\n",
@@ -504,21 +601,26 @@ describe("local project security workspace", () => {
       ['import { join } from "node:path";', "", ...helpers, ""].join("\n"),
     );
     const repo = await repository();
-    // Three batches over a large file can take seconds on a shared CI runner.
-    const scan = await finished((await start(repo.id, { depth: "deep" })).id, 15_000);
+    // Several batches over a large file can take seconds on a shared CI runner.
+    const scan = await finished((await start(repo.id, FULL)).id, 15_000);
     expect(scan.status).toBe("completed");
-    expect(scan.reviews).toHaveLength(3);
-    const sent = scan.reviews.map((review) => {
+    expect(scan.reviews.length).toBeGreaterThan(3);
+    expect(scan.coverage).toMatchObject({ stop: "complete", sentFiles: 3, eligibleFiles: 3 });
+    const sent = scan.reviews.flatMap((review) => {
       const file = review.scope.files.find((item) => item.path === "helpers.ts");
-      expect(file?.ranges).toBeDefined();
-      return (file?.ranges ?? []).flatMap((range) =>
-        Array.from({ length: range.endLine - range.line + 1 }, (_, index) => range.line + index),
-      );
+      if (!file) return [];
+      expect(file.ranges).toBeDefined();
+      return [
+        (file.ranges ?? []).flatMap((range) =>
+          Array.from({ length: range.endLine - range.line + 1 }, (_, index) => range.line + index),
+        ),
+      ];
     });
-    // Only the import line is sent again; each batch adds functions the earlier ones did not.
+    // Only the import line is sent again; together the batches send every function.
     const all = sent.flat().filter((line) => line !== 1);
     expect(new Set(all).size).toBe(all.length);
-    expect(sent.every((lines) => lines.length > 100)).toBe(true);
+    for (let index = 0; index < 1000; index++) expect(all).toContain(3 + index * 3);
+    expect(scan.coverage?.charged.tokens).toBeGreaterThan(0);
   }, 20_000);
 
   it("sizes the batch from the input window in the provider's saved model catalog", async () => {
@@ -535,7 +637,7 @@ describe("local project security workspace", () => {
       const started = await coordinator.start({
         repositoryId: repo.id,
         providerId: provider.id,
-        depth: "standard",
+        depth: "quick",
       });
       await supervisor.settled();
       expect(store.security.scan(started.id)?.reviews[0]?.scope.budget).toMatchObject({
@@ -580,7 +682,7 @@ describe("local project security workspace", () => {
   it("stops at refusal and retains the failure outcome without leaking upstream credentials", async () => {
     const repo = await repository();
     mode = "refusal";
-    const scan = await finished((await start(repo.id, { depth: "deep" })).id);
+    const scan = await finished((await start(repo.id, FULL)).id);
     expect(scan.status).toBe("failed");
     expect(scan.reviews[0]?.status).toBe("refused");
     expect(bodies).toHaveLength(1);
@@ -611,7 +713,7 @@ describe("local project security workspace", () => {
       repositoryId: repo.id,
       providerId: provider.id,
       scope: "continuous",
-      depth: "standard",
+      depth: "quick",
     });
     expect(rejected.status).toBe(400);
     expect(await rejected.text()).toContain("Only manual scans of local folders");
@@ -622,7 +724,7 @@ describe("local project security workspace", () => {
     repo.monitoring = {
       enabled: true,
       providerId: provider.id,
-      depth: "standard",
+      depth: "quick",
       lastCommit: null,
       error: null,
     };
@@ -637,7 +739,7 @@ describe("local project security workspace", () => {
       const started = await coordinator.start({
         repositoryId: repo.id,
         providerId: provider.id,
-        depth: "standard",
+        depth: "quick",
       });
       await supervisor.settled();
       expect(store.security.scan(started.id)).toMatchObject({

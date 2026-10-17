@@ -9,6 +9,7 @@ import {
   selectExcerpt,
 } from "../src/assessment/review-excerpt.ts";
 import {
+  batchTokenBound,
   type ReviewSourceFile,
   reviewBudget,
   SECURITY_REVIEW_LIMITS,
@@ -502,6 +503,70 @@ describe("AI review source selection", () => {
       expect(((ranges[0]?.endLine ?? 0) - (ranges[0]?.line ?? 0) + 1) % 80).toBe(0);
       if (index > 0) expect(ranges[0]?.line).toBe((sent[index - 1]?.[0]?.endLine ?? 0) + 1);
     }
+  });
+
+  it("keeps both requests within the batch bound that limits are checked against", async () => {
+    const root = join(await temporaryDir(), "project");
+    const lines = await writeRouteProject(root, [...fillers("before", 1500), ...SINK]);
+    const sink = lines.indexOf("def execute(cmd):") + 1;
+    const snapshot = await scan(root);
+    for (const window of [undefined, 1_000_000]) {
+      const bound = batchTokenBound(reviewBudget([window]));
+      const model = stub(routeDiscovery(sink, sink + 1));
+      const review = await reviewProject(
+        snapshot,
+        {
+          scanId: "scan",
+          provider,
+          access,
+          inputTokens: window ?? null,
+          environment: { name: "Staging", notes: "é".repeat(2000) },
+        },
+        model.dispatch,
+      );
+      expect(review.status, String(window)).toBe("completed");
+      // Each reservation is the request's bytes plus a 4,096-token margin.
+      const [discovery, validation] = model.bodies.map(
+        (body) => Buffer.byteLength(JSON.stringify(body)) + 4096,
+      );
+      expect(discovery).toBeLessThanOrEqual(bound.discovery.prompt);
+      expect(validation).toBeLessThanOrEqual(bound.validation.prompt);
+      expect(review.request.charged).toEqual({ tokens: 2000, usd: null });
+    }
+  });
+
+  it("sends no request whose maximum does not fit what remains of the limit", async () => {
+    const root = join(await temporaryDir(), "project");
+    const lines = await writeRouteProject(root, SINK);
+    const sink = lines.indexOf("def execute(cmd):") + 1;
+    const snapshot = await scan(root);
+    const pricing = {
+      model: access.model,
+      rates: { input: 2, output: 10, cacheWrite5m: 2.5, cacheWrite1h: 4, cacheRead: 0.1 },
+    };
+    const run = (limit: Parameters<typeof reviewProject>[1]["limit"]) => {
+      const model = stub(routeDiscovery(sink, sink + 1));
+      return reviewProject(
+        snapshot,
+        { scanId: "scan", provider, access, pricing, ...(limit ? { limit } : {}) },
+        model.dispatch,
+      ).then((review) => ({ review, bodies: model.bodies }));
+    };
+    for (const limit of [
+      { kind: "tokens", tokens: 1000 },
+      { kind: "usd", usd: 0.0001 },
+    ] as const) {
+      const { review, bodies } = await run(limit);
+      expect(review).toMatchObject({ status: "failed", request: { calls: 0, limitReached: true } });
+      expect(review.reason).toContain(limit.kind === "tokens" ? "token limit" : "USD limit");
+      expect(bodies).toHaveLength(0);
+    }
+    // Within the limit, the batch charges the reported usage at saved prices.
+    const { review } = await run({ kind: "usd", usd: 5 });
+    expect(review.status).toBe("completed");
+    expect(review.request.limitReached).toBeUndefined();
+    expect(review.request.charged?.tokens).toBe(2000);
+    expect(review.request.charged?.usd).toBeCloseTo(0.012, 12);
   });
 
   it("does not submit an excerpt that holds only imports", () => {

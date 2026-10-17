@@ -71,14 +71,18 @@ and files that change while reading are excluded. CI definitions are the one
 hidden exception: `.github/workflows/*.yml`, `.github/actions/**/action.yml`,
 `.gitlab-ci.yml` and `.circleci/config.yml` are reviewed, after redaction.
 
-**Standard** uses one batch. **Deep** uses up to three independent batches.
-Later batches skip files an earlier batch sent whole. A file sent as an excerpt
+**Quick** uses one batch. **Full coverage** keeps adding independent batches
+until no unsent source that fits a batch remains, the scan's token or USD limit
+cannot hold another batch's maximum, or 100 batches have run; see
+[dashboard.md](dashboard.md#start-a-scan). Later batches skip files an earlier
+batch sent whole. A file sent as an excerpt
 continues: a later batch sends its definitions that were not sent yet, with the
-module imports again for context, or the line windows after the last one sent. Module-level code outside definitions is sent
-only where the scan located something. A file that changed after a batch sent
+module imports again for context, or the line windows after the last one sent.
+Module-level code outside definitions is sent only where the scan located
+something. A file that changed after a batch sent
 part of it does not continue. Each batch has its own discovery and
-validation context. Deep broadens file coverage without establishing analysis
-across every batch boundary or complete repository coverage. Choose a smaller
+validation context. Full coverage sends every file it can, but each batch is
+reviewed on its own: a path that crosses batches is not analysed as one path. Choose a smaller
 source folder when related files do not fit. Included paths, omissions and
 limitations are visible in **Scan > Outputs**.
 

@@ -7,6 +7,7 @@ import {
   sumCosts,
   tokenCost,
   validateModelPricing,
+  worstCaseCost,
 } from "../src/redteam/model-pricing.ts";
 
 const pricing: ModelPricing = {
@@ -65,6 +66,26 @@ describe("model token pricing", () => {
     const twice = reviewBilling(tiered, [exact, exact], 2);
     expect(twice.cost?.totalUsd).toBeCloseTo((tokenCost(tiered, exact)?.totalUsd ?? 0) * 2, 12);
     expect(twice.cost?.complete).toBe(true);
+  });
+
+  it("bounds a request's cost by its dearest prompt rate and whole output allowance", () => {
+    // 1,000 prompt tokens at the 1-hour cache write rate, 100 output tokens.
+    expect(worstCaseCost(pricing, 1000, 100)).toBeCloseTo((1000 * 6 + 100 * 15) / 1e6, 12);
+    const tiered: ModelPricing = {
+      ...pricing,
+      longContext: {
+        threshold: 200_000,
+        rates: { input: 6, output: 22.5, cacheWrite5m: 7.5, cacheWrite1h: 12, cacheRead: 0.6 },
+      },
+    };
+    expect(worstCaseCost(tiered, 200_000, 0)).toBeCloseTo((200_000 * 6) / 1e6, 12);
+    expect(worstCaseCost(tiered, 200_001, 10)).toBeCloseTo((200_001 * 12 + 10 * 22.5) / 1e6, 12);
+    // No reported usage can cost more than the bound.
+    const details = parseClaudeTokenUsage(usage);
+    const prompt = details.inputTokens + details.cacheReadTokens + details.cacheCreationTokens;
+    expect(tokenCost(pricing, details)?.totalUsd).toBeLessThanOrEqual(
+      worstCaseCost(pricing, prompt, details.outputTokens),
+    );
   });
 
   it("does not guess cache write lifetimes or missing usage, while retaining a partial estimate", () => {

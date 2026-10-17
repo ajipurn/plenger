@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import type { ReviewSourceFile } from "../assessment/review-model.ts";
+import {
+  batchCostBound,
+  batchTokenBound,
+  type ReviewSourceFile,
+  reviewBudget,
+  type SpendingLimit,
+} from "../assessment/review-model.ts";
 import { reviewPaths } from "../assessment/review-source.ts";
 import { reviewProject } from "../assessment/security-review.ts";
 import { sumCosts } from "../redteam/model-pricing.ts";
@@ -8,7 +14,13 @@ import { RULES } from "../rules/index.ts";
 import { scan } from "../scan.ts";
 import { scanFindings, vanishedStaticFindings } from "../security/findings.ts";
 import { sourceRevision } from "../security/git.ts";
-import { SCAN_DEPTHS, type SecurityScan, type StartSecurityScan } from "../security/model.ts";
+import {
+  SCAN_DEPTHS,
+  type ScanBudget,
+  type ScanCoverage,
+  type SecurityScan,
+  type StartSecurityScan,
+} from "../security/model.ts";
 import type { DashboardStore } from "../storage/store.ts";
 import { HttpError } from "./http.ts";
 import type { OperationSupervisor } from "./operations.ts";
@@ -73,6 +85,31 @@ export class SecurityCoordinator {
         resolved.access.apiKey,
         model,
       );
+      // The most one batch can charge, for the limit checks before each batch.
+      const sizes = reviewBudget([inputTokens, ...(validator ? [validator.inputTokens] : [])]);
+      const most = { tokens: batchTokenBound(sizes).total, usd: Number.POSITIVE_INFINITY };
+      if (input.budget?.kind === "usd") {
+        const priced =
+          resolved.access.provider === "anthropic" &&
+          pricing !== undefined &&
+          (!second || (second.access.provider === "anthropic" && secondPricing !== undefined));
+        if (!priced || !pricing)
+          throw new HttpError(
+            400,
+            "A USD limit needs saved Claude prices for every model in this scan. Use a token limit, or add prices under Settings > Providers.",
+          );
+        most.usd = batchCostBound(sizes, pricing, secondPricing ?? pricing);
+        if (input.budget.usd < most.usd)
+          throw new HttpError(
+            400,
+            `The limit is below one batch's maximum of USD ${most.usd.toFixed(2)}. Raise it, or choose a model with a smaller window.`,
+          );
+      }
+      if (input.budget?.kind === "tokens" && input.budget.tokens < most.tokens)
+        throw new HttpError(
+          400,
+          `The limit is below one batch's maximum of ${most.tokens.toLocaleString("en-US")} tokens.`,
+        );
       const revision = await sourceRevision(repository.path);
       if (this.#closed) throw new HttpError(503, "The service is shutting down.");
       repository.revision = revision;
@@ -89,6 +126,7 @@ export class SecurityCoordinator {
         initiatedBy: "Local user",
         scope: "local",
         depth: input.depth,
+        ...(input.budget ? { budget: structuredClone(input.budget) } : {}),
         provider: { id: resolved.saved.id, name: resolved.saved.name, model },
         ...(validator ? { validator: validator.provider } : {}),
         revision,
@@ -119,6 +157,13 @@ export class SecurityCoordinator {
             job.sourceScanId = result.id;
             this.#store.security.saveScan(job);
             const paths = reviewPaths(result.scan);
+            const coverage: ScanCoverage = {
+              eligibleFiles: paths.length,
+              sentFiles: 0,
+              stop: null,
+              charged: { tokens: 0, usd: 0 },
+            };
+            job.coverage = coverage;
             if (!paths.length) {
               job.status = "failed";
               job.error =
@@ -126,12 +171,25 @@ export class SecurityCoordinator {
             }
             // Earlier batches' files: whole ones are skipped, excerpts continue.
             const submitted: ReviewSourceFile[] = [];
-            for (let batch = 0; batch < SCAN_DEPTHS[input.depth].batches; batch++) {
+            let stop: ScanCoverage["stop"] = null;
+            for (let batch = 0; ; batch++) {
               controller.signal.throwIfAborted();
               const whole = new Set(
                 submitted.filter((file) => !file.ranges).map((file) => file.path),
               );
-              if (paths.every((path) => whole.has(path))) break;
+              if (paths.every((path) => whole.has(path))) {
+                stop = "complete";
+                break;
+              }
+              if (batch >= SCAN_DEPTHS[input.depth].batches) {
+                stop = input.depth === "quick" ? "quick" : "limit";
+                break;
+              }
+              const limit = remainingLimit(input.budget, coverage.charged);
+              if (limit && !fitsLimit(limit, most)) {
+                stop = "budget";
+                break;
+              }
               const review = await reviewProject(result.scan, {
                 scanId: result.id,
                 provider: job.provider ?? { id: "", name: "", model: "" },
@@ -141,6 +199,7 @@ export class SecurityCoordinator {
                 submitted,
                 inputTokens,
                 ...(validator ? { validator } : {}),
+                ...(limit ? { limit } : {}),
                 environment: repository.environment,
                 onPhase: (phase) => {
                   job.phase = phase;
@@ -153,8 +212,10 @@ export class SecurityCoordinator {
                 review.status === "failed" &&
                 review.request.calls === 0 &&
                 !review.scope.files.length
-              )
+              ) {
+                stop = "complete";
                 break;
+              }
               this.#store.reviews.save(review);
               job.reviews.push(review);
               job.cost = sumCosts(
@@ -164,13 +225,29 @@ export class SecurityCoordinator {
                 ]),
               );
               job.modelCalls += review.request.calls;
+              const charged = review.request.charged;
+              coverage.charged = {
+                tokens: coverage.charged.tokens + (charged?.tokens ?? 0),
+                usd:
+                  coverage.charged.usd === null || charged?.usd == null
+                    ? null
+                    : coverage.charged.usd + charged.usd,
+              };
               if (review.status !== "completed") {
+                // A limit reached inside a later batch ends coverage; earlier batches stand.
+                if (review.request.limitReached && batch > 0) {
+                  stop = "budget";
+                  break;
+                }
                 job.status = review.status === "cancelled" ? "cancelled" : "failed";
                 job.error = review.reason ?? review.summary;
                 break;
               }
               submitted.push(...review.scope.files);
+              coverage.sentFiles = new Set(submitted.map((file) => file.path)).size;
+              this.#store.security.saveScan(job);
             }
+            if (job.status === "running") coverage.stop = stop;
             const usage = job.reviews.map((review) => review.request.usage);
             job.tokens =
               usage.length && usage.every(Boolean)
@@ -262,4 +339,20 @@ export class SecurityCoordinator {
       );
     }
   }
+}
+
+/** What remains of a scan's limit after `charged`, or undefined without a limit. */
+function remainingLimit(
+  budget: ScanBudget | undefined,
+  charged: ScanCoverage["charged"],
+): SpendingLimit | undefined {
+  if (!budget) return undefined;
+  if (budget.kind === "tokens")
+    return { kind: "tokens", tokens: Math.max(0, budget.tokens - charged.tokens) };
+  return { kind: "usd", usd: charged.usd === null ? 0 : Math.max(0, budget.usd - charged.usd) };
+}
+
+/** Whether one more batch's maximum fits what remains. */
+function fitsLimit(limit: SpendingLimit, most: { tokens: number; usd: number }): boolean {
+  return limit.kind === "tokens" ? limit.tokens >= most.tokens : limit.usd >= most.usd;
 }

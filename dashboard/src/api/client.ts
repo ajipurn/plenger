@@ -18,6 +18,7 @@ import {
   type ProviderModelsResult,
   type ProviderTestResult,
   type ReaImportRequest,
+  type RepositorySource,
   type SecurityFinding,
   type SecurityScan,
   type SecurityWorkspace,
@@ -33,6 +34,7 @@ export interface DashboardApi {
   securityWorkspace(): Promise<SecurityWorkspace>;
   addRepository(input: AddRepositoryRequest): Promise<LocalRepository>;
   updateRepository(id: string, input: UpdateRepositoryRequest): Promise<LocalRepository>;
+  repositorySource(id: string, signal?: AbortSignal): Promise<RepositorySource>;
   startSecurityScan(input: StartSecurityScan): Promise<SecurityScan>;
   securityScan(id: string): Promise<SecurityScan>;
   cancelSecurityScan(id: string): Promise<CancelResult>;
@@ -86,6 +88,12 @@ export async function connect(): Promise<DashboardApi> {
     addRepository: (input) => request<LocalRepository>(API.repositories, input),
     updateRepository: (id, input) =>
       request<LocalRepository>(API.updateRepository.replace(":id", encodeURIComponent(id)), input),
+    repositorySource: (id, signal) =>
+      request<RepositorySource>(
+        API.repositorySource.replace(":id", encodeURIComponent(id)),
+        undefined,
+        signal,
+      ),
     startSecurityScan: (input) => request<SecurityScan>(API.securityScans, input),
     securityScan: (id) =>
       request<SecurityScan>(API.securityScan.replace(":id", encodeURIComponent(id))),

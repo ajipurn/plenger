@@ -136,6 +136,33 @@ export function tokenCost(pricing: ModelPricing, usage: ClaudeTokenUsage) {
   return Number.isFinite(totalUsd) ? { amounts, totalUsd, longContext } : null;
 }
 
+/**
+ * The most one request can cost: every prompt token at the dearest prompt rate of the
+ * tiers it can fall in, and its whole output allowance at the output rate.
+ */
+export function worstCaseCost(
+  pricing: ModelPricing,
+  promptTokens: number,
+  outputTokens: number,
+): number {
+  const tiers = [
+    pricing.rates,
+    ...(pricing.longContext && promptTokens > pricing.longContext.threshold
+      ? [pricing.longContext.rates]
+      : []),
+  ];
+  const prompt = Math.max(
+    ...tiers.flatMap((rates) => [
+      rates.input,
+      rates.cacheWrite5m,
+      rates.cacheWrite1h,
+      rates.cacheRead,
+    ]),
+  );
+  const output = Math.max(...tiers.map((rates) => rates.output));
+  return (promptTokens * prompt + outputTokens * output) / MODEL_PRICING_LIMITS.perMillion;
+}
+
 export function reviewBilling(
   pricing: ModelPricing | null,
   usage: ClaudeTokenUsage[],

@@ -5,6 +5,8 @@ import {
   type ClaudeTokenUsage,
   type ModelPricing,
   reviewBilling,
+  tokenCost,
+  worstCaseCost,
 } from "../redteam/model-pricing.ts";
 import {
   createRunProvider,
@@ -25,6 +27,7 @@ import {
   type ReviewSourceFile,
   reviewBudget,
   type SecurityReview,
+  type SpendingLimit,
 } from "./review-model.ts";
 import { captureRelatedSource } from "./review-related.ts";
 import {
@@ -67,6 +70,9 @@ export const REVIEW_PROMPT_DIGEST = createHash("sha256")
   .update(VALIDATION)
   .digest("hex");
 
+/** A request was not sent because its maximum does not fit the scan's remaining limit. */
+class ReviewLimitError extends Error {}
+
 /** The settings a review request is sent with; mirrors `providerFor` below. */
 function sampling(access: ProviderAccess): ReviewSampling {
   return {
@@ -100,6 +106,11 @@ export async function reviewProject(
     /** The discovery model's input window in tokens, when its catalog reports one. */
     inputTokens?: number | null;
     environment?: { name: string; notes: string };
+    /**
+     * What remains of the scan's spending limit for this batch. A request whose maximum
+     * does not fit is not sent. A USD limit needs prices for every connection used.
+     */
+    limit?: SpendingLimit;
     onPhase?: (phase: "reading" | "discovering" | "validating") => void;
   },
   dispatch: typeof fetch = fetch,
@@ -147,10 +158,25 @@ export async function reviewProject(
       }`,
     ],
   };
+  const limit = options.limit;
   const budget = new ModelBudget(
-    { maxModelCalls: LIMITS.calls, maxTokens: LIMITS.tokens, timeoutMs: LIMITS.timeoutMs },
+    {
+      maxModelCalls: LIMITS.calls,
+      maxTokens:
+        limit?.kind === "tokens"
+          ? Math.max(1, Math.min(LIMITS.tokens, limit.tokens))
+          : LIMITS.tokens,
+      timeoutMs: LIMITS.timeoutMs,
+    },
     options.signal ? { signal: options.signal } : {},
   );
+  const prices = {
+    discovery: options.pricing,
+    validation: validator ? validator.pricing : options.pricing,
+  };
+  // USD charged against the limit: reported usage at saved prices, or a request's
+  // maximum when its usage is unknown. Null once a request had no prices.
+  let chargedUsd: number | null = 0;
   const windows = [options.inputTokens, ...(validator ? [validator.inputTokens] : [])];
   const sizes = reviewBudget(windows);
   let phase: "discovery" | "validation" = "discovery";
@@ -213,20 +239,36 @@ export async function reviewProject(
             }
           : {}),
       };
-      const reply = await budget.execute(
-        provider.reservation(request, "setup"),
-        async (allowance) => {
-          admitted[account] += 1;
-          try {
-            const result = await provider.generate(request, allowance);
-            if (result.tokenDetails) usage[account].push(result.tokenDetails);
-            return result;
-          } catch (error) {
-            if (error instanceof AnthropicResponseError) usage[account].push(error.tokenDetails);
-            throw error;
-          }
-        },
-      );
+      const reservation = provider.reservation(request, "setup");
+      const pricing = prices[account];
+      const worst = pricing
+        ? worstCaseCost(pricing, reservation.inputTokensUpperBound, reservation.maxOutputTokens)
+        : null;
+      if (limit?.kind === "usd" && (worst === null || (chargedUsd ?? 0) + worst > limit.usd)) {
+        review.request.limitReached = true;
+        throw new ReviewLimitError(
+          `Stopped before the ${phase === "validation" ? "second review" : "discovery"} request: its maximum cost does not fit what remains of the scan's USD limit.`,
+        );
+      }
+      const charge = (details: ClaudeTokenUsage | undefined) => {
+        const cost = pricing && details ? tokenCost(pricing, details)?.totalUsd : undefined;
+        chargedUsd = chargedUsd === null || worst === null ? null : chargedUsd + (cost ?? worst);
+      };
+      const reply = await budget.execute(reservation, async (allowance) => {
+        admitted[account] += 1;
+        try {
+          const result = await provider.generate(request, allowance);
+          if (result.tokenDetails) usage[account].push(result.tokenDetails);
+          charge(result.tokenDetails);
+          return result;
+        } catch (error) {
+          if (error instanceof AnthropicResponseError) {
+            usage[account].push(error.tokenDetails);
+            charge(error.tokenDetails);
+          } else charge(undefined);
+          throw error;
+        }
+      });
       if (reply.refusal) {
         review.status = "refused";
         review.reason = redact(reply.refusal, secrets).slice(0, LIMITS.text);
@@ -333,16 +375,25 @@ export async function reviewProject(
         options.signal?.aborted
           ? "cancelled"
           : "failed";
-      review.reason =
-        error instanceof BudgetStoppedError
-          ? `Security review stopped: ${error.reason}.`
-          : error instanceof ModelProviderHttpError
-            ? `The provider returned HTTP ${error.status}. Check its model and access settings.`
-            : error instanceof ReviewResponseError
-              ? `${phase === "validation" ? "Validation" : "Discovery"} response rejected. ${error.message}`
-              : error instanceof ReviewSourceError
-                ? error.message
-                : "Unable to complete the source review. Check source coverage, provider settings, and structured response support.";
+      const scanLimit =
+        error instanceof BudgetStoppedError &&
+        error.reason === "token-limit" &&
+        limit?.kind === "tokens" &&
+        limit.tokens < LIMITS.tokens;
+      if (scanLimit) review.request.limitReached = true;
+      review.reason = scanLimit
+        ? "Stopped before a request: its maximum does not fit what remains of the scan's token limit."
+        : error instanceof ReviewLimitError
+          ? error.message
+          : error instanceof BudgetStoppedError
+            ? `Security review stopped: ${error.reason}.`
+            : error instanceof ModelProviderHttpError
+              ? `The provider returned HTTP ${error.status}. Check its model and access settings.`
+              : error instanceof ReviewResponseError
+                ? `${phase === "validation" ? "Validation" : "Discovery"} response rejected. ${error.message}`
+                : error instanceof ReviewSourceError
+                  ? error.message
+                  : "Unable to complete the source review. Check source coverage, provider settings, and structured response support.";
     }
   } finally {
     budget.finish();
@@ -359,6 +410,7 @@ export async function reviewProject(
   }
   const ledger = budget.snapshot();
   const usages = ledger.calls.map((call) => call.usage);
+  const limitReached = review.request.limitReached;
   review.request = {
     calls: ledger.callsAdmitted,
     usage:
@@ -385,6 +437,8 @@ export async function reviewProject(
           ),
         }
       : {}),
+    charged: { tokens: ledger.accountedTokens, usd: chargedUsd },
+    ...(limitReached ? { limitReached } : {}),
   };
   redactReport(review, secrets);
   return review;

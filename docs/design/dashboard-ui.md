@@ -85,7 +85,9 @@ Scans shows start time, local source, duration, reported tokens and status.
 Search and state filters operate on saved jobs. Scan details have Findings and
 Outputs tabs with metadata beside them. Outputs includes architecture, assets,
 trust boundaries, all six STRIDE categories, source coverage and optional REA
-imports. Deep scans expose their independent batches and limitations.
+imports. Scans with several batches expose their independent batches and
+limitations. The summary shows files covered, why batches stopped and what the
+limit was charged.
 
 Scan details place the project, status and actions in one header. A compact
 summary shows elapsed time, saved findings and scan depth. Metadata groups source,
@@ -119,7 +121,9 @@ The form selects a saved local project, provider, model and scan depth. Start
 with the provider's default model. A scan's model choice does not change that
 default. Show the selected folder path. Keep optional review context in a disclosure.
 Use a simple vertical form without environment or scan-scope selectors.
-Standard and Deep describe actual review coverage and model-call bounds.
+Quick and Full coverage describe actual review coverage. Full coverage asks
+for a token or USD limit and shows how many batches the limit guarantees and
+how many the project needs.
 Static checks, AI code review and STRIDE threat modeling remain included.
 
 All scans start manually. The service does not watch commits or start scheduled

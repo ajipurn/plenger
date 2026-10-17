@@ -450,6 +450,25 @@ function previousCoverage(
   return coverage;
 }
 
+/**
+ * How many files a review of `root` could read and their size, listed under the scan's
+ * ignore and source rules without reading contents. An estimate: binary, minified or
+ * changed files are only found when read.
+ */
+export async function reviewSourceSize(
+  root: string,
+): Promise<{ files: number; bytes: number; truncated: boolean }> {
+  const collected = await collectSourceFiles(root, { texts: true });
+  const readable = [...collected.files, ...collected.texts].filter(
+    (file) => !isSensitiveSourcePath(file.path) || CI_DEFINITION.test(file.path),
+  );
+  return {
+    files: readable.length,
+    bytes: readable.reduce((sum, file) => sum + file.bytes, 0),
+    truncated: collected.truncated,
+  };
+}
+
 /** Parsed source files and listed text files: every path a review may read. */
 export function reviewPaths(snapshot: ScanResult): string[] {
   return [

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import {
   type ImportedReaEvidence,
+  SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
   SECURITY_POLL_MS,
   type SecurityScan,
@@ -152,9 +153,16 @@ export function ScanDetailPage({
         </div>
         <div>
           <dt>
-            <Icon name="inventory" /> Scan depth
+            <Icon name="inventory" /> Coverage
           </dt>
-          <dd>{SCAN_DEPTHS[scan.depth].label}</dd>
+          <dd>
+            {scan.coverage && scan.coverage.eligibleFiles > 0
+              ? `${scan.coverage.sentFiles.toLocaleString()} of ${scan.coverage.eligibleFiles.toLocaleString()} files`
+              : SCAN_DEPTHS[scan.depth].label}
+          </dd>
+          {scan.coverage && (
+            <p className="muted security-scan-summary-note">{coverageNote(scan)}</p>
+          )}
         </div>
       </dl>
       <div className="security-detail-layout security-scan-layout">
@@ -322,7 +330,7 @@ export function ScanDetailPage({
                     : "This scan has no AI outputs. Start a new scan with a saved provider to generate STRIDE and source analysis."}
                 </p>
               )}
-              {scan.depth === "deep" && (
+              {scan.reviews.length > 1 && (
                 <p className="muted">
                   Source batches are reviewed independently. Paths crossing batch boundaries may
                   need additional context.
@@ -481,4 +489,25 @@ function samplingText(
   sampling: NonNullable<SecurityScan["reviews"][number]["generation"]>["discovery"],
 ): string {
   return `${label} ${sampling.model}, ${sampling.temperature === null ? "default temperature" : `temperature ${sampling.temperature}`}, ${sampling.maxOutputTokens === null ? "model output limit" : `up to ${sampling.maxOutputTokens.toLocaleString()} output tokens`}`;
+}
+
+const STOP_TEXT: Record<NonNullable<NonNullable<SecurityScan["coverage"]>["stop"]>, string> = {
+  complete: "all source that fits a batch was sent",
+  budget: "stopped at the limit",
+  limit: `stopped at ${SCAN_BUDGET_LIMITS.fullBatches} batches`,
+  quick: "one batch",
+};
+
+/** Depth, why batches stopped, and what the limit charged. */
+function coverageNote(scan: SecurityScan): string {
+  const coverage = scan.coverage;
+  const parts: string[] = [SCAN_DEPTHS[scan.depth].label];
+  if (coverage?.stop) parts.push(STOP_TEXT[coverage.stop]);
+  if (coverage && scan.budget)
+    parts.push(
+      scan.budget.kind === "tokens"
+        ? `${coverage.charged.tokens.toLocaleString()} of ${scan.budget.tokens.toLocaleString()} tokens charged`
+        : `USD ${(coverage.charged.usd ?? 0).toFixed(2)} of ${scan.budget.usd.toFixed(2)} charged`,
+    );
+  return parts.join(" · ");
 }

@@ -15,21 +15,30 @@ export type { ProviderModel } from "../redteam/provider-models.ts";
 import type { FixPromptDraft } from "../remediation/fix-prompt.ts";
 
 export type { ReviewFinding, SecurityReview } from "../assessment/review-model.ts";
-export { reviewBudget, SECURITY_REVIEW_LIMITS } from "../assessment/review-model.ts";
+export {
+  batchCostBound,
+  batchTokenBound,
+  reviewBudget,
+  SECURITY_REVIEW_LIMITS,
+} from "../assessment/review-model.ts";
 export type { ImportedReaEvidence } from "../evidence/rea-model.ts";
 export { REA_LIMITS } from "../evidence/rea-model.ts";
 export type {
   FindingStatus,
   LocalRepository,
+  ScanBudget,
+  ScanCoverage,
   ScanDepth,
   SecurityFinding,
   SecurityScan,
   SecurityScanSummary,
   SecurityWorkspace,
+  SelectableScanDepth,
   StartSecurityScan,
 } from "../security/model.ts";
 export {
   FINDING_STATUSES,
+  SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
   SECURITY_POLL_MS,
 } from "../security/model.ts";
@@ -51,6 +60,7 @@ export const API = {
   securityWorkspace: "/api/security/workspace",
   repositories: "/api/security/repositories",
   updateRepository: "/api/security/repositories/:id",
+  repositorySource: "/api/security/repositories/:id/source",
   securityScans: "/api/security/scans",
   securityScan: "/api/security/scans/:id",
   cancelSecurityScan: "/api/security/scans/:id/cancel",
@@ -180,6 +190,14 @@ export interface AddRepositoryRequest {
   name?: string;
   environment?: string;
   notes?: string;
+}
+
+/** What a review of a project could read, listed without reading file contents. */
+export interface RepositorySource {
+  files: number;
+  bytes: number;
+  /** Listing stopped at the scan's file limit; the project holds more. */
+  truncated: boolean;
 }
 
 export interface UpdateRepositoryRequest {

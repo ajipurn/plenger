@@ -425,6 +425,19 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-scan-depth-calls {
   @apply mt-1 text-muted tabular-nums;
 }
+.security-scan-estimate {
+  @apply m-0 text-[12px] leading-relaxed;
+}
+.security-scan-limit-kind {
+  @apply grid gap-2 min-w-0;
+}
+.security-scan-limit-options {
+  @apply grid gap-3;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.security-scan-form .security-scan-limit-options .security-scan-depth-option {
+  @apply items-center py-2;
+}
 .security-review-context.security-scan-context {
   @apply m-0 p-0;
 }
@@ -674,6 +687,9 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 }
 .security-scan-summary dd {
   @apply m-0 mt-1.5 text-[18px] leading-6 font-medium tabular-nums;
+}
+.security-scan-summary-note {
+  @apply m-0 mt-1 text-[12px] leading-relaxed;
 }
 .security-scan-layout {
   grid-template-columns: minmax(0, 1fr) 296px;
