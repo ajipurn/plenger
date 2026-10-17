@@ -337,8 +337,19 @@ export class EffectTracer {
     const limited = limitedFor(kind);
     let values: Value[] = sink.input === undefined ? [] : select(call.arguments, facts, sink.input);
     if (sink.chainInput) {
+      // The path the method acts on: the first call of its chain (`Path(p).read_text()`),
+      // the expression it is called on (`(BASE / p).read_text()`), or the variable's value.
       const head = chainHead(facts, call);
-      values = head === undefined ? [] : select(head.arguments, facts, "#0");
+      const holder = call.receiver === undefined ? undefined : facts.assignments[call.receiver];
+      values =
+        head !== undefined
+          ? select(head.arguments, facts, "#0")
+          : call.object !== undefined
+            ? [call.object]
+            : holder !== undefined && holder.member === undefined && call.receiver !== undefined
+              ? // The variable itself, so a guard that checked it applies.
+                [{ kind: "name", text: holder.target, ref: null, assignment: call.receiver }]
+              : [];
     }
     const partsOf = (items: Value[]) =>
       uniqueParts(items.flatMap((value) => inputsOf(value, facts, call.scope, limited)));

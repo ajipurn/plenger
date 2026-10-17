@@ -563,3 +563,132 @@ export const viaMap = tool({
       ]);
   });
 });
+
+describe("pathlib paths built with the division operator", () => {
+  let root: string;
+  let inventory: Inventory;
+  const inputs = (name: string) =>
+    summary(inventory.tools.find((candidate) => candidate.name === name)?.capabilities ?? []);
+
+  beforeAll(async () => {
+    ({ root, inventory } = await project({
+      "tools.py": `from pathlib import Path
+
+from langchain_core.tools import tool
+
+NOTES = Path("notes").resolve()
+
+
+@tool
+def joined(name: str) -> str:
+    """Read a note."""
+    target = NOTES / name
+    return target.read_text()
+
+
+@tool
+def inline(name: str) -> str:
+    """Read a note."""
+    return (NOTES / name).read_text()
+
+
+@tool
+def confined(name: str) -> str:
+    """Read a note inside the notes directory."""
+    target = (NOTES / name).resolve()
+    if not target.is_relative_to(NOTES):
+        raise ValueError(name)
+    return target.read_text()
+`,
+    }));
+  });
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("sees reads through a joined variable or a parenthesized join, and their input", () => {
+    expect(inputs("joined")).toEqual([
+      "file_read pathlib.Path().resolve().read_text [NOTES / name:other]",
+    ]);
+    expect(inputs("inline")).toEqual([
+      "file_read pathlib.Path().resolve().read_text [NOTES / name:other]",
+    ]);
+  });
+
+  it("applies a guard on the joined variable", () => {
+    expect(inputs("confined")).toEqual([
+      "file_read pathlib.Path().resolve().resolve().read_text []",
+    ]);
+  });
+});
+
+describe("tool classes on a base the project defines", () => {
+  let root: string;
+  let inventory: Inventory;
+  const tool = (name: string) => inventory.tools.find((candidate) => candidate.name === name);
+
+  beforeAll(async () => {
+    ({ root, inventory } = await project({
+      "framework/base.py": `from abc import ABC, abstractmethod
+
+
+class BaseTool(ABC):
+    name: str = ""
+    description: str = ""
+
+    @abstractmethod
+    def _execute(self, *args):
+        ...
+
+
+class BaseFileTool(BaseTool):
+    root: str = "/srv"
+
+
+class Helper:
+    def run(self, path):
+        return open(path).read()
+`,
+      "tools/files.py": `from framework.base import BaseFileTool, BaseTool, Helper
+
+
+class DeleteFile(BaseFileTool):
+    name = "Delete File"
+    description = "Delete a file"
+
+    def _execute(self, file_name: str):
+        import os
+
+        os.remove(file_name)
+
+
+class Abstract(BaseTool):
+    name = "Not a tool yet"
+
+
+class NotATool(Helper):
+    def run(self, path):
+        return open(path).read()
+`,
+    }));
+  });
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("finds a subclass that implements the run method, through an intermediate base", () => {
+    expect(tool("Delete File")).toMatchObject({
+      framework: "project-tools",
+      via: "class",
+      params: ["file_name"],
+      description: "Delete a file",
+    });
+    expect(summary(tool("Delete File")?.capabilities ?? [])).toEqual([
+      "file_delete os.remove [file_name:param]",
+    ]);
+  });
+
+  it("leaves out the abstract bases, a subclass without the method and classes on other bases", () => {
+    expect(inventory.tools.map((item) => item.name).sort()).toEqual(["Delete File"]);
+  });
+});

@@ -21,6 +21,29 @@ describe("REA JavaScript evidence import", () => {
     expect(input).toEqual(before);
   });
 
+  it("does not count the semantic graph and raw result it discards, and caps long limitation lists", () => {
+    const input = reaEvidence() as ReturnType<typeof reaEvidence> & {
+      normalized_result: Record<string, unknown>;
+    };
+    // A semantic graph above the read limit, which a mid-sized project's export has.
+    input.normalized_result.semantic_graph = {
+      nodes: ["x".repeat(REA_LIMITS.text)].concat(
+        Array.from({ length: Math.ceil(REA_LIMITS.readBytes / REA_LIMITS.text) }, () =>
+          "y".repeat(REA_LIMITS.text - 1),
+        ),
+      ),
+    };
+    input.limitations = Array.from(
+      { length: REA_LIMITS.limitations + 5 },
+      (_, index) => `Limit ${index}.`,
+    );
+    const analysis = parseReaEvidence(input);
+    expect(JSON.stringify(analysis)).not.toContain("yyyy");
+    expect(analysis.limitations).toContain("Limit 0.");
+    expect(analysis.limitations).not.toContain(`Limit ${REA_LIMITS.limitations}.`);
+    expect(analysis.limitations).toContain("5 more not kept by the import.");
+  });
+
   it("redacts credential fields and recognized secrets before records can be saved", () => {
     const input = reaEvidence();
     const secret = `sk-ant-api03-${"N7aQ2xP4".repeat(6)}`;

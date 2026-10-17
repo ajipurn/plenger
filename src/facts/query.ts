@@ -394,6 +394,7 @@ export function provenanceOf(
           for (const arg of call.arguments.slice(1)) visit(arg.value, call.scope, depth + 1);
           return;
         }
+        if (call.object !== undefined) visit(call.object, call.scope, depth + 1);
         const root = /^[\w$]+/.exec(call.callee)?.[0] ?? "";
         // `name.strip()` of a checked name is as limited as the name.
         const checked = call.scope === scope && limited?.has(root) === true;

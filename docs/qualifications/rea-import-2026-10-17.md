@@ -83,3 +83,14 @@ manual import for fix prompts and is not run during scans. Its planned
 red-team roles are in [ROADMAP.md](../ROADMAP.md#m6-red-team-harness-direct-input-postponed).
 Electron applications and ASAR archives, where REA's summary counts apply,
 were not tested.
+
+## Recheck after the bounds change
+
+The importer now drops `raw_result` and the semantic graph before it measures
+the record, accepts files up to 64 MiB with 16 MiB for the parts it reads and
+500,000 values, and keeps 256 limitations per list with the rest counted in one
+closing entry. Fed the same 347-file export (29.5 MiB) on 2026-10-17, still
+with REA 6.4.0, `parseReaEvidence` accepted it: 1,222 nodes, 1,699 edges and
+257 limitations, the last one counting those not kept. The working tree export
+(831.8 MiB) stays above the file limit. The conclusion above does not change:
+REA remains a manual import.

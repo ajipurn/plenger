@@ -1,7 +1,7 @@
-import type { CallFact, FileFacts, Value } from "../../facts/model.ts";
+import type { CallFact, DefinitionFact, FileFacts, Value } from "../../facts/model.ts";
 import { select } from "../../facts/query.ts";
 import type { Language } from "../../source/languages.ts";
-import type { AgentRule, DetectorRule } from "../detectors.ts";
+import type { AgentRule, DetectorRule, ToolClassRule } from "../detectors.ts";
 import { FRAMEWORKS, frameworkOfModule, unsupportedModule } from "../frameworks.ts";
 import { type Agent, emptyInventory, type Inventory, type Prompt, type Tool } from "../model.ts";
 import { AGENT_INVOCATION, type Compiled, inPhase, type Phase, rulesFor } from "./compile.ts";
@@ -25,6 +25,14 @@ import { PromptCollector } from "./prompts.ts";
 import { Relations } from "./relations.ts";
 import { routeCall, routeDecorator, routeFiles } from "./routes.ts";
 import { ToolRegistry } from "./tools.ts";
+
+/** Tool classes on a project-defined base: the methods that run them. */
+const PROJECT_TOOL: ToolClassRule = {
+  kind: "tool_class",
+  framework: "project-tools",
+  bases: [],
+  methods: ["_execute", "execute", "_run", "run", "_arun", "arun"],
+};
 
 /**
  * Detects the components of one file. The rule handlers live in the sibling modules
@@ -142,7 +150,30 @@ export class FileDetector {
           if (bases?.test(name) && rule.kind === "tool_class") toolClass(this, rule, definition);
         }
       }
+      if (this.tools.toolForClass(definition.id) === undefined && this.projectTool(definition))
+        toolClass(this, PROJECT_TOOL, definition);
     }
+  }
+
+  /**
+   * A class built on a tool base the project defines itself (`class Search(BaseTool)`,
+   * BaseTool in another project file), which implements the method that runs it.
+   */
+  projectTool(definition: DefinitionFact): boolean {
+    const local = definition.bases.some(
+      (base) =>
+        base.kind === "name" &&
+        base.ref?.kind === "local" &&
+        base.ref.path === "" &&
+        /Tool$/.test(base.ref.definition.split(".").at(-1) ?? ""),
+    );
+    return (
+      local &&
+      this.facts.definitions.some(
+        (method) =>
+          method.parent === definition.id && PROJECT_TOOL.methods.includes(method.name ?? ""),
+      )
+    );
   }
 
   matchCall(call: CallFact, index: number, phase: Phase): void {

@@ -321,6 +321,10 @@ export function toMarkdown(
         `- Trace incomplete: ${markdownText(name)} (${markdownText(sourcePath(location.path, prefix))}:${location.line}): ${traceGapText(trace)}`,
     ),
     ...report.skipped.map((file) => `- Skipped: ${markdownText(file.path)} (${file.reason})`),
+    ...(report.binaries ?? []).map(
+      (file) =>
+        `- Binary not analysed: ${markdownText(file.path)} (${file.kind}, ${file.bytes} bytes${file.sha256 ? `, SHA-256 \`${file.sha256}\`` : ""})`,
+    ),
     ...report.excludedDirs.map(
       (dir) => `- Excluded directory: ${markdownText(dir.path)} (${dir.reason})`,
     ),

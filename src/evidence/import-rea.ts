@@ -13,12 +13,14 @@ const digestPattern = /^[a-f0-9]{64}$/;
 
 /** Parse a complete CLI Evidence record. No paths, commands, URLs or modules are opened. */
 export function parseReaEvidence(input: unknown): ReaAnalysis {
-  checkBounds(input);
-  if (Buffer.byteLength(JSON.stringify(input)) > REA_LIMITS.fileBytes)
+  // The semantic graph and the raw result are discarded below, so they are not read.
+  const read = withoutDiscarded(input);
+  checkBounds(read);
+  if (Buffer.byteLength(JSON.stringify(read)) > REA_LIMITS.readBytes)
     throw new ReaImportError(
       "The REA result exceeds the import size limit. Export a smaller application analysis.",
     );
-  const value = record(input);
+  const value = record(read);
   if (
     value.operation !== "analyze_javascript_application" ||
     value.predicate_type !== "rea.javascript-application-analysis"
@@ -107,6 +109,15 @@ export function parseReaEvidence(input: unknown): ReaAnalysis {
   return sanitize(analysis as unknown as ReaJson) as unknown as ReaAnalysis;
 }
 
+/** The record without the parts the import never keeps. */
+function withoutDiscarded(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  const { raw_result: _raw, ...rest } = input;
+  if (!isRecord(rest.normalized_result)) return rest;
+  const { semantic_graph: _semantic, ...result } = rest.normalized_result;
+  return { ...rest, normalized_result: result };
+}
+
 function checkBounds(value: unknown): void {
   const pending: { value: unknown; depth: number }[] = [{ value, depth: 0 }];
   let visited = 0;
@@ -163,9 +174,12 @@ function id(value: unknown, prefix: string): string {
   if (!new RegExp(`^${prefix}_[a-f0-9]{64}$`).test(result)) throw invalid();
   return result;
 }
+/** A list of texts; a long list keeps the first `REA_LIMITS.limitations` and counts the rest. */
 function strings(value: unknown): string[] {
-  if (!Array.isArray(value) || value.length > 256) throw invalid();
-  return value.map((item) => text(item));
+  if (!Array.isArray(value)) throw invalid();
+  const kept = value.slice(0, REA_LIMITS.limitations).map((item) => text(item));
+  const more = value.length - kept.length;
+  return more > 0 ? [...kept, `${more} more not kept by the import.`] : kept;
 }
 function objects(value: unknown, maximum: number): Record<string, unknown>[] {
   if (!Array.isArray(value) || value.length > maximum) throw invalid();

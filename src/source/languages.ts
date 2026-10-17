@@ -96,6 +96,35 @@ export function textKindOf(path: string): TextKind | null {
   return (dot > 0 && TEXT_KIND_BY_EXTENSION.get(name.slice(dot))) || null;
 }
 
+/** A compiled or packaged file the scan lists but cannot read. */
+export type BinaryKind =
+  | "native library"
+  | "executable"
+  | "WebAssembly"
+  | "JVM bytecode"
+  | "Python package";
+
+const BINARY_EXTENSIONS: Record<BinaryKind, string> = {
+  "native library": ".so .dylib .dll .pyd .node .a .lib .o",
+  executable: ".exe .bin .elf .appimage",
+  WebAssembly: ".wasm",
+  "JVM bytecode": ".jar .war .class",
+  "Python package": ".whl .egg",
+};
+const BINARY_KIND_BY_EXTENSION = new Map(
+  (Object.entries(BINARY_EXTENSIONS) as [BinaryKind, string][]).flatMap(([kind, list]) =>
+    list.split(" ").map((extension) => [extension, kind] as const),
+  ),
+);
+
+/** What kind of binary a file name names (`libssl.so.3` included), or null. */
+export function binaryKindOf(path: string): BinaryKind | null {
+  const name = path.slice(path.lastIndexOf("/") + 1).toLowerCase();
+  if (/\.so(?:\.\d+)+$/.test(name)) return "native library";
+  const dot = name.lastIndexOf(".");
+  return (dot > 0 && BINARY_KIND_BY_EXTENSION.get(name.slice(dot))) || null;
+}
+
 /** Source files plenger recognises but does not analyse, and why. */
 export type IgnoredSourceReason = "declaration" | "minified";
 

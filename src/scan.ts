@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { analyzeCapabilities } from "./capabilities/analyze.ts";
@@ -16,7 +18,7 @@ import {
   type ExcludedDir,
   type SkipReason,
 } from "./source/files.ts";
-import { LANGUAGE_OF, type Language, type TextKind } from "./source/languages.ts";
+import { type BinaryKind, LANGUAGE_OF, type Language, type TextKind } from "./source/languages.ts";
 import { SourceParser } from "./source/parser.ts";
 import { countLines, looksMinified, type ReadSkipReason, readSource } from "./source/read.ts";
 
@@ -38,6 +40,18 @@ export interface ListedTextFile {
   bytes: number;
 }
 
+/** A compiled or packaged file in the project, listed so a reader knows it was not analysed. */
+export interface ListedBinary {
+  path: string;
+  kind: BinaryKind;
+  bytes: number;
+  /** Of the file's contents; null above `HASH_LIMIT` bytes or when it cannot be read. */
+  sha256: string | null;
+}
+
+/** Binaries larger than this are listed without a hash. */
+const HASH_LIMIT = 64 * 1024 * 1024;
+
 export interface ScanOptions extends CollectOptions {
   /** Extract imports, definitions, assignments and calls from every file. */
   facts?: boolean;
@@ -53,6 +67,8 @@ export interface ScanResult {
    * text. Present when the scan was asked for them with `texts`.
    */
   textFiles?: ListedTextFile[];
+  /** Compiled or packaged files the scan cannot read; present when there are any. */
+  binaries?: ListedBinary[];
   skipped: { path: string; reason: ScanSkipReason }[];
   excludedDirs: ExcludedDir[];
   truncated: boolean;
@@ -114,12 +130,21 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   await attachSnippets(collected.root, findings);
 
   skipped.sort((a, b) => compareStrings(a.path, b.path));
+  const binaries: ListedBinary[] = [];
+  for (const file of collected.binaries)
+    binaries.push({
+      path: file.path,
+      kind: file.kind,
+      bytes: file.bytes,
+      sha256: file.bytes <= HASH_LIMIT ? await sha256(file.absolutePath) : null,
+    });
   const result: ScanResult = {
     root: collected.root,
     files,
     ...(options.texts
       ? { textFiles: collected.texts.map(({ path, kind, bytes }) => ({ path, kind, bytes })) }
       : {}),
+    ...(binaries.length > 0 ? { binaries } : {}),
     skipped,
     excludedDirs: collected.excludedDirs,
     truncated: collected.truncated,
@@ -130,6 +155,17 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   redactReport(result, literalCredentials(parsed));
   result.durationMs = Math.round(performance.now() - started);
   return result;
+}
+
+/** SHA-256 of a file read as a stream, or null when it cannot be read. */
+async function sha256(path: string): Promise<string | null> {
+  try {
+    const hash = createHash("sha256");
+    for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
+    return hash.digest("hex");
+  } catch {
+    return null;
+  }
 }
 
 /** A file's text, or undefined when it is missing or unreadable. */

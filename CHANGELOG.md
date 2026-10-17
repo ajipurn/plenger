@@ -9,6 +9,16 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- The static scan follows pathlib joins (`NOTES / name`) and methods called on
+  a parenthesized expression, detects a project's own tool base classes, and
+  lists compiled files (native libraries, executables, WebAssembly, JVM
+  bytecode, Python packages) with size and SHA-256 under `binaries`.
+
+- REA imports accept files up to 64 MiB. The semantic graph and raw result are
+  dropped before the bounds apply, and limitations beyond 256 are counted
+  instead of rejecting the import. The 347-file export from the REA check now
+  imports.
+
 - The static scan reads the checks before an effect. Membership in a fixed
   collection, equality with a fixed value and lookups into a fixed table
   (`COMMANDS[kind]`, `COMMANDS.get(kind)`) take the checked input out of the

@@ -590,6 +590,13 @@ class PythonExtractor implements LanguageHooks {
         const inner = node.namedChildren[0];
         return inner == null ? null : this.resolve(inner, scope, depth + 1);
       }
+      case "binary_operator": {
+        // `BASE / name` on a pathlib path is another path of the same class.
+        const left = node.childForFieldName("left");
+        if (node.childForFieldName("operator")?.text !== "/" || left === null) return null;
+        const base = this.resolve(left, scope, depth + 1);
+        return base?.name.startsWith("pathlib.") ? base : null;
+      }
       default:
         return null;
     }
@@ -786,6 +793,9 @@ class PythonExtractor implements LanguageHooks {
     };
     const receiver = callee === null ? undefined : this.receiver(callee, scope);
     if (receiver !== undefined) fact.receiver = receiver;
+    // `(BASE / name).read_text()`: the expression the method is called on.
+    const object = callee?.type === "attribute" ? callee.childForFieldName("object") : null;
+    if (object?.type === "parenthesized_expression") fact.object = this.value(object, scope, 0);
     const lookup = callee === null || fact.ref !== null ? undefined : this.lookup(callee, scope);
     if (lookup !== undefined) fact.lookup = lookup;
     return fact;

@@ -15,8 +15,10 @@ rea analyze-javascript-application /path/to/application --json > rea-evidence.js
 ```
 
 In Plenger, scan the repository and open **Scans > scan > Outputs > REA evidence**. Choose the
-JSON file and press **Import evidence**. The file limit is 2 MiB. A scan holds up
-to eight imports. Remove an import to free a slot. Importing the same redacted
+JSON file and press **Import evidence**. The file limit is 64 MiB. REA's
+separate semantic graph and raw result, which make up most of a large export,
+are dropped before the other bounds apply; the parts the importer reads may
+hold up to 16 MiB. A scan holds up to eight imports. Remove an import to free a slot. Importing the same redacted
 projection again reuses its existing record.
 
 The importer reads JSON only. It does not install REA, launch a subprocess, open
@@ -40,7 +42,8 @@ validation. Imports do not add static findings or change the scan gate.
 
 The retained projection includes reported provider and artifact identity,
 summary counts, statistics, graph nodes and relationships, coverage and
-limitations. It discards raw provider output, analysis profiles, request
+limitations, up to 256 limitation strings per list with the rest counted in
+one closing entry. It discards raw provider output, analysis profiles, request
 parameters and the separate semantic graph. Known secret patterns and
 credential-named fields are redacted before storage. Absolute path values are
 omitted. Review the redacted export before sharing it. Redaction is not a

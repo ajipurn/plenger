@@ -1,10 +1,15 @@
 /** Import and delivery bounds, shared by the host and dashboard contract. */
 export const REA_LIMITS = {
-  fileBytes: 2 * 1024 * 1024,
-  requestBytes: 2 * 1024 * 1024 + 8192,
+  /** The chosen file; REA's semantic graph, which the import discards, is most of it. */
+  fileBytes: 64 * 1024 * 1024,
+  requestBytes: 64 * 1024 * 1024 + 8192,
+  /** The parts the import reads: everything but the semantic graph and the raw result. */
+  readBytes: 16 * 1024 * 1024,
   perScan: 8,
   depth: 32,
-  values: 100_000,
+  values: 500_000,
+  /** Limitations kept per list; the rest are counted in one closing entry. */
+  limitations: 256,
   text: 32_768,
   nodes: 5000,
   edges: 10_000,

@@ -351,7 +351,7 @@ const definitions: Record<string, Schema> = {
             arguments: array(ref("argument")),
             ...definitionSpan,
           },
-          { receiver: natural, lookup: ref("value") },
+          { receiver: natural, object: ref("value"), lookup: ref("value") },
         ),
       ),
     },
@@ -374,47 +374,65 @@ const definitions: Record<string, Schema> = {
 
 export const REPORT_SCHEMA = document(
   "plenger report v1",
-  object({
-    schemaVersion: { const: 1 },
-    tool: object({ name: { const: "plenger" }, version: text }),
-    root: text,
-    files: array(
-      object(
-        {
-          path: text,
-          language: choices("python", "javascript", "typescript"),
-          bytes: natural,
-          lines: natural,
-          syntaxErrors: boolean,
-        },
-        { facts: ref("facts") },
-      ),
-    ),
-    skipped: array(
-      object({
-        path: text,
-        reason: choices(
-          "declaration",
-          "minified",
-          "gitignored",
-          "symlink",
-          "too_large",
-          "unreadable",
-          "binary",
-          "not_utf8",
+  object(
+    {
+      schemaVersion: { const: 1 },
+      tool: object({ name: { const: "plenger" }, version: text }),
+      root: text,
+      files: array(
+        object(
+          {
+            path: text,
+            language: choices("python", "javascript", "typescript"),
+            bytes: natural,
+            lines: natural,
+            syntaxErrors: boolean,
+          },
+          { facts: ref("facts") },
         ),
-      }),
-    ),
-    excludedDirs: array(
-      object({ path: text, reason: choices("default", "virtualenv", "gitignore") }),
-    ),
-    truncated: boolean,
-    inventory: ref("inventory"),
-    findings: array(ref("finding")),
-    durationMs: natural,
-    rules: array(ref("rule")),
-    review: object({ active: natural, suppressed: natural, unchanged: natural, new: natural }),
-  }),
+      ),
+      skipped: array(
+        object({
+          path: text,
+          reason: choices(
+            "declaration",
+            "minified",
+            "gitignored",
+            "symlink",
+            "too_large",
+            "unreadable",
+            "binary",
+            "not_utf8",
+          ),
+        }),
+      ),
+      excludedDirs: array(
+        object({ path: text, reason: choices("default", "virtualenv", "gitignore") }),
+      ),
+      truncated: boolean,
+      inventory: ref("inventory"),
+      findings: array(ref("finding")),
+      durationMs: natural,
+      rules: array(ref("rule")),
+      review: object({ active: natural, suppressed: natural, unchanged: natural, new: natural }),
+    },
+    {
+      binaries: array(
+        object({
+          path: text,
+          kind: choices(
+            "native library",
+            "executable",
+            "WebAssembly",
+            "JVM bytecode",
+            "Python package",
+          ),
+          bytes: natural,
+          sha256: nullable({ type: "string", pattern: "^[0-9a-f]{64}$" }),
+        }),
+      ),
+    },
+  ),
   definitions,
 );
 

@@ -27,6 +27,14 @@ reason. TypeScript 5 type syntax the bundled grammar does not know
 (`export type * from`, type arguments after an import type, `in`/`out` variance)
 is blanked before parsing; it has no runtime effect and positions are kept.
 
+Compiled files are listed, not analysed: native libraries and objects (`.so`,
+`libssl.so.3`, `.dylib`, `.dll`, `.pyd`, `.node`, `.a`, `.lib`, `.o`),
+executables (`.exe`, `.bin`, `.elf`, `.appimage`), WebAssembly, JVM bytecode
+(`.jar`, `.war`, `.class`) and Python packages (`.whl`, `.egg`). The JSON report lists each under `binaries`
+with its kind, size and SHA-256 (files up to 64 MiB are hashed), and the
+terminal and Markdown reports name them. The scan only reads their size and
+bytes; it never loads or runs them.
+
 A completed scan is not proof of safety. Syntax errors, truncation, skipped
 files and incomplete handler traces leave gaps, and the report shows them. A rule that finds nothing proves
 nothing: plenger reports what it can see in the code.
@@ -56,7 +64,10 @@ Per project the inventory lists:
   members), MCP clients and the calls that run them
 - tools: name, description, handler, parameters and how they are declared
   (decorator, class, factory, plain function, built-in, agent-as-tool, MCP or
-  JSON schema)
+  JSON schema). A project's own tool base class counts too: a class whose local
+  base class name ends in `Tool` and that defines `execute`, `_execute`, `run`,
+  `_run`, `arun` or `_arun` is a tool, reported under the framework "Project
+  tool classes"
 - MCP servers (tools, resources, prompts, transport) and clients (command or URL)
 - prompts: fixed text, dynamic parts, template variables and users
 - data stores: vector stores, embeddings, retrievers, checkpointers
@@ -87,7 +98,10 @@ built-in tools map to known capabilities, marked `hosted` when they run at the
 provider.
 
 Data flow is name-based, not field- or path-sensitive. Unpacked names
-(`path, body = data.split("|")`) carry what the value comes from. A call through a
+(`path, body = data.split("|")`) carry what the value comes from, a pathlib join
+(`target = NOTES / name`) carries its parts into `target.read_text()`, and a
+method called on a parenthesized expression (`(NOTES / name).open()`) takes its
+input from that expression. A call through a
 fixed table of functions (`HANDLERS[name](x)`, `TOOLS.get(name)`, a JS object or
 `Map` literal) follows every function the table holds, or the one a fixed key names;
 a table the code fills or changes at run time is not followed. Other dynamic

@@ -169,6 +169,8 @@ export interface CallFact {
   /** Id of the innermost enclosing definition; null at module level. */
   scope: string | null;
   arguments: Argument[];
+  /** For a method called on a parenthesized expression (`(BASE / name).read_text()`): that expression. */
+  object?: Value;
   /**
    * For an unresolved callee read from a collection (`HANDLERS[name](x)`, `TOOLS.run(x)`
    * on a dict or object, `fn = TOOLS.get(name); fn(x)`): the callee as a value, so

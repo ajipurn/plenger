@@ -955,6 +955,9 @@ class JavaScriptExtractor implements LanguageHooks {
     };
     const receiver = callee === null ? undefined : this.receiver(callee, scope);
     if (receiver !== undefined) fact.receiver = receiver;
+    // `(base + name).trim()`: the expression the method is called on.
+    const object = callee?.type === "member_expression" ? callee.childForFieldName("object") : null;
+    if (object?.type === "parenthesized_expression") fact.object = this.value(object, scope, 0);
     const lookup =
       callee === null || isNew || (fact.ref !== null && fact.ref.kind !== "global")
         ? undefined

@@ -4,6 +4,8 @@ import { basename, dirname, join } from "node:path";
 import ignore, { type Ignore } from "ignore";
 import { compareStrings } from "../shared/compare.ts";
 import {
+  type BinaryKind,
+  binaryKindOf,
   classifyPath,
   type Grammar,
   type IgnoredSourceReason,
@@ -98,6 +100,14 @@ export interface TextFile {
   bytes: number;
 }
 
+/** A compiled or packaged file: listed, never read or run by the walker. */
+export interface BinaryFile {
+  path: string;
+  absolutePath: string;
+  kind: BinaryKind;
+  bytes: number;
+}
+
 export interface ExcludedDir {
   path: string;
   /** `default`: dependencies, build output, caches or VCS data, by directory name. */
@@ -112,6 +122,8 @@ interface CollectResult {
   resources: ResourceFile[];
   /** Text files without a parser, sorted by path; empty unless `options.texts`. */
   texts: TextFile[];
+  /** Compiled or packaged files outside excluded directories, sorted by path. */
+  binaries: BinaryFile[];
   skipped: SkippedFile[];
   /** Directories not walked into, and why. */
   excludedDirs: ExcludedDir[];
@@ -141,6 +153,7 @@ export async function collectSourceFiles(
     files: [],
     resources: [],
     texts: [],
+    binaries: [],
     skipped: [],
     excludedDirs: [],
     truncated: false,
@@ -202,6 +215,17 @@ export async function collectSourceFiles(
         } else {
           const resource = resourceExtensions.has(extensionOf(entry.name));
           const kind = options.texts ? textKindOf(entry.name) : null;
+          const binary = resource || kind !== null ? null : binaryKindOf(entry.name);
+          if (binary !== null) {
+            try {
+              const absolutePath = join(absoluteRoot, path);
+              const bytes = (await lstat(absolutePath)).size;
+              result.binaries.push({ path, absolutePath, kind: binary, bytes });
+            } catch {
+              result.skipped.push({ path, reason: "unreadable" });
+            }
+            continue;
+          }
           if (!resource && kind === null) continue;
           if (result.files.length + result.resources.length + result.texts.length >= maxFiles) {
             result.truncated = true;
@@ -226,6 +250,7 @@ export async function collectSourceFiles(
   result.files.sort((a, b) => compareStrings(a.path, b.path));
   result.resources.sort((a, b) => compareStrings(a.path, b.path));
   result.texts.sort((a, b) => compareStrings(a.path, b.path));
+  result.binaries.sort((a, b) => compareStrings(a.path, b.path));
   result.skipped.sort((a, b) => compareStrings(a.path, b.path));
   result.excludedDirs.sort((a, b) => compareStrings(a.path, b.path));
   return result;
@@ -278,6 +303,7 @@ function collectSingleFile(
     files: [],
     resources: [],
     texts: [],
+    binaries: [],
     skipped: [],
     excludedDirs: [],
     truncated: false,

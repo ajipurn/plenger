@@ -76,6 +76,8 @@ export const FRAMEWORKS: FrameworkInfo[] = [
   { id: "fastify", name: "Fastify", javascript: ["fastify"] },
   { id: "nextjs", name: "Next.js", javascript: ["next"] },
   { id: "sqlite", name: "SQLite", javascript: ["better-sqlite3", "node:sqlite"] },
+  /** Tool classes built on a base class the project defines itself. */
+  { id: "project-tools", name: "Project tool classes" },
 ];
 
 /**

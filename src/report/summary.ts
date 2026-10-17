@@ -153,6 +153,17 @@ function fileLines(result: ScanResult, s: Styles): string[] {
     const breakdown = [...counts].map(([reason, count]) => `${SKIP_LABEL[reason]} ${count}`);
     lines.push(`  ${plural(result.skipped.length, "file")} skipped: ${breakdown.join(", ")}`);
   }
+  const binaries = result.binaries ?? [];
+  if (binaries.length > 0) {
+    lines.push(
+      `  ${plural(binaries.length, "binary file")} not analysed: ${counted(binaries.map((file) => file.kind)).join(", ")}`,
+    );
+    lines.push(
+      ...truncatedList(binaries.map((file) => `${file.path} (${file.kind})`)).map(
+        (line) => `    ${s.dim(line)}`,
+      ),
+    );
+  }
   if (result.excludedDirs.length > 0) {
     const dirs = result.excludedDirs.map(({ path, reason }) =>
       reason === "default" ? path : `${path} (${reason})`,

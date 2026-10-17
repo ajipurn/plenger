@@ -141,6 +141,44 @@
         }
       },
       "required": ["active", "suppressed", "unchanged", "new"]
+    },
+    "binaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "native library",
+              "executable",
+              "WebAssembly",
+              "JVM bytecode",
+              "Python package"
+            ]
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["path", "kind", "bytes", "sha256"]
+      }
     }
   },
   "required": [
@@ -1869,6 +1907,9 @@
               "receiver": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "object": {
+                "$ref": "#/definitions/value"
               },
               "lookup": {
                 "$ref": "#/definitions/value"

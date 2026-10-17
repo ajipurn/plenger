@@ -427,6 +427,19 @@ describe("Python facts: guards and fixed collections", () => {
     ]);
   });
 
+  it("resolves pathlib division and records the expression a method is called on", async () => {
+    const facts = await factsOf(
+      "python",
+      "from pathlib import Path\nBASE = Path('notes')\ndef f(name):\n    target = BASE / name\n    target.read_text()\n    (BASE / name).read_text()\n",
+    );
+    const reads = facts.calls.filter((call) => call.callee.endsWith("read_text"));
+    expect(reads.map((call) => call.ref?.name)).toEqual([
+      "pathlib.Path().read_text",
+      "pathlib.Path().read_text",
+    ]);
+    expect(reads[1]?.object).toMatchObject({ kind: "other", text: "BASE / name" });
+  });
+
   it("marks lookups and collections changed in place", async () => {
     const facts = await factsOf(
       "python",
