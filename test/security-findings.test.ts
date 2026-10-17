@@ -38,6 +38,7 @@ function aiFinding(title: string, line: number, category = "Information disclosu
     title,
     severity: "high",
     confidence: "high",
+    cwe: "CWE-639",
     category,
     description: "The lookup omits the tenant.",
     impact: "Cross-tenant read.",

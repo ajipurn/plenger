@@ -74,6 +74,7 @@ export function reviewDiscovery(): ReviewDiscovery {
         severity: "high",
         confidence: "high",
         category: "Information disclosure",
+        cwe: "CWE-639",
         description:
           "getInvoice checks that a user exists, then forwards the caller-controlled invoice id to readInvoice. The query uses only id.",
         impact: "An authenticated caller may read an invoice belonging to another tenant.",

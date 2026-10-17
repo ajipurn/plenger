@@ -141,6 +141,8 @@ export interface ReviewCandidate {
   severity: Severity;
   confidence: "high" | "medium" | "low";
   category: (typeof STRIDE)[number];
+  /** The CWE that names the weakness (`CWE-89`), or null when the model gave none. */
+  cwe: string | null;
   description: string;
   impact: string;
   preconditions: string[];
@@ -284,6 +286,10 @@ const candidateProperties = {
   severity: { enum: SEVERITIES },
   confidence: { enum: CONFIDENCES },
   category: { enum: STRIDE },
+  cwe: {
+    anyOf: [{ type: "string", maxLength: 16 }, { type: "null" }],
+    description: "The CWE id that best names the weakness, such as CWE-89, or null when none fits.",
+  },
   description: text,
   impact: text,
   preconditions: list(text, 4),
@@ -350,7 +356,9 @@ export function parseReviewDiscovery(content: string, files: ReviewSourceFile[])
   const findings = array(data.findings, SECURITY_REVIEW_LIMITS.findings, "$.findings").map(
     (value, index) => {
       const location = `$.findings[${index}]`;
-      const item = fields(value, Object.keys(candidateProperties), location);
+      // A model without structured output may leave out the CWE; that is no reason to fail.
+      const raw = isRecord(value) && !Object.hasOwn(value, "cwe") ? { ...value, cwe: null } : value;
+      const item = fields(raw, Object.keys(candidateProperties), location);
       const evidence = citations(item.evidence, scope, `${location}.evidence`);
       if (!evidence.length)
         throw invalid(`${location}.evidence`, "at least one source citation is required");
@@ -359,6 +367,7 @@ export function parseReviewDiscovery(content: string, files: ReviewSourceFile[])
         severity: enumValue(item.severity, SEVERITIES, `${location}.severity`),
         confidence: enumValue(item.confidence, CONFIDENCES, `${location}.confidence`),
         category: enumValue(item.category, STRIDE, `${location}.category`),
+        cwe: cweId(item.cwe),
         description: string(item.description, `${location}.description`),
         impact: string(item.impact, `${location}.impact`),
         mitigation: string(item.mitigation, `${location}.mitigation`),
@@ -524,6 +533,14 @@ function fields(value: unknown, keys: string[], location: string): Record<string
   if (Object.keys(value).length !== keys.length)
     throw invalid(location, "unexpected fields are not allowed");
   return value;
+}
+/** `CWE-89` from `CWE-89`, `cwe-89` or `89`; null for anything else, which never fails a review. */
+function cweId(value: unknown): string | null {
+  const match =
+    typeof value === "string" || typeof value === "number"
+      ? /^(?:cwe-?)?\s*([1-9]\d{0,4})$/i.exec(String(value).trim())
+      : null;
+  return match === null ? null : `CWE-${match[1]}`;
 }
 function string(value: unknown, location: string): string {
   if (typeof value !== "string" || !value.trim() || value.length > SECURITY_REVIEW_LIMITS.text)

@@ -237,6 +237,20 @@ export function FindingPage({
               <dt>Origin</dt>
               <dd>{finding.origin === "ai" ? "AI source review" : "Static rule"}</dd>
             </div>
+            {finding.cwe && (
+              <div>
+                <dt>Weakness</dt>
+                <dd>
+                  <a
+                    href={`https://cwe.mitre.org/data/definitions/${finding.cwe.slice(4)}.html`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {finding.cwe}
+                  </a>
+                </dd>
+              </div>
+            )}
           </dl>
         </aside>
       </div>

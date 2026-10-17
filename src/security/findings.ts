@@ -39,6 +39,7 @@ export function scanFindings(
       reviewId: null,
       sourceFindingId: finding.fingerprint,
       origin: "static",
+      ...(rule?.cwe[0] === undefined ? {} : { cwe: `CWE-${rule.cwe[0]}` }),
       title: finding.title,
       severity: finding.severity,
       summary: rule?.description ?? finding.title,
@@ -103,6 +104,8 @@ export function scanFindings(
         sourceFindingId: finding.id,
         origin: "ai",
         category: finding.category,
+        // Reviews saved before the CWE field have none.
+        ...(finding.cwe ? { cwe: finding.cwe } : {}),
         title: finding.title,
         severity: finding.severity,
         summary: finding.impact,

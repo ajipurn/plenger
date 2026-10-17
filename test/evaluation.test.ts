@@ -7,6 +7,7 @@ import {
   loadCorpus,
   metrics,
   ruleMetrics,
+  sameWeakness,
   spread,
 } from "../scripts/lib/evaluation.ts";
 import { STRIDE } from "../src/assessment/model.ts";
@@ -45,6 +46,7 @@ function discovery(cite: { path: string; line: number; endLine: number } | null)
             severity: "high",
             confidence: "medium",
             category: "Tampering",
+            cwe: "CWE-639",
             description: "Synthetic.",
             impact: "Synthetic.",
             preconditions: [],
@@ -95,6 +97,17 @@ describe("evaluation corpus", () => {
   });
 });
 
+describe("weakness matching", () => {
+  it("matches a CWE to the label directly or within its family, never a missing one", () => {
+    expect(sameWeakness("CWE-22", "CWE-22")).toBe(true);
+    expect(sameWeakness("CWE-22", "CWE-23")).toBe(true);
+    expect(sameWeakness("CWE-639", "CWE-862")).toBe(true);
+    expect(sameWeakness("CWE-89", "CWE-639")).toBe(false);
+    expect(sameWeakness("CWE-918", "CWE-400")).toBe(false);
+    expect(sameWeakness("CWE-78", null)).toBe(false);
+  });
+});
+
 describe("AI review evaluation", () => {
   it("scores each run, ignores dismissed findings and counts findings outside the labels", async () => {
     const cases = (await loadCorpus(fixturePath("evaluation"))).filter((item) =>
@@ -139,6 +152,7 @@ describe("AI review evaluation", () => {
     expect(outcome("py-sql-tool-param")).toMatchObject({ detected: false, unlabeled: 1 });
     expect(outcome("ts-idor-route")).toMatchObject({
       detected: true,
+      matched: true,
       verdicts: ["source-supported"],
     });
     // A dismissed finding at the label is no false positive.
@@ -152,6 +166,7 @@ describe("AI review evaluation", () => {
       {
         title: expect.any(String),
         category: expect.any(String),
+        cwe: "CWE-639",
         severity: expect.any(String),
         verdict: "dismissed",
         reason: expect.stringMatching(/\S/),

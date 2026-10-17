@@ -82,6 +82,8 @@ export interface SecurityFinding {
   origin: "ai" | "static";
   /** STRIDE category of an AI finding; matches it to the same issue in a later scan. */
   category?: string;
+  /** The weakness, as a CWE id (`CWE-89`): the review's choice, or the rule's first mapping. */
+  cwe?: string;
   title: string;
   severity: Severity;
   status: FindingStatus;

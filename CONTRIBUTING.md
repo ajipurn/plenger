@@ -111,8 +111,14 @@ run; `--validator` adds a separate second-review connection. A live run sends
 the redacted corpus to the provider and needs `--yes`; it makes at most two model
 requests per case and run. Write records with `--output
 docs/qualifications/<name>.md`. `--json <file>` writes every outcome, including
-each finding at a labeled location with its title, STRIDE category, severity,
-second-review verdict and reason, to see why a safe case was reported.
+each finding at a labeled location with its title, STRIDE category, CWE,
+severity, second-review verdict and reason, to see why a safe case was reported.
+
+The report gives three counts. Any kept finding that cites the labeled lines
+detects a case. Counting only source-supported findings is stricter. Counting
+only findings that name the labeled weakness needs the finding's CWE to be in
+the label's family (`WEAKNESS_FAMILIES` in `scripts/lib/evaluation.ts`); it
+keeps a second weakness at the same lines from counting for the labeled one.
 `test/evaluation.test.ts` fails when the static results drift from the labels.
 
 ```sh

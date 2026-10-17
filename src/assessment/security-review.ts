@@ -53,7 +53,7 @@ const DISCOVERY = `${COMMON}
 Map the architecture, assets and trust boundaries. Assess ALL SIX STRIDE categories exactly once in the stride array. For each, describe the relevant threat or security property, existing controls and focused mitigations. Use identified only with cited code evidence, not-observed only for the supplied context, and insufficient-context when important evidence is missing. Threat model entries are hypotheses, distinct from the concrete findings below. Use an empty stride array only when refusing.
 Then independently discover concrete security defects, including cross-file paths from untrusted input to sensitive operations.
 Review authorization, tenant isolation, injection, path handling, SSRF, secrets, deserialization and agent/tool trust where present. You are not summarizing scanner findings: none are supplied.
-For every candidate explain the reachable path, existing guards, exact root cause, attacker preconditions, impact and focused mitigation. Cite short source/flow/sink/guard ranges as evidence.
+For every candidate explain the reachable path, existing guards, exact root cause, attacker preconditions, impact and focused mitigation, and give the CWE id that best names its weakness. Cite short source/flow/sink/guard ranges as evidence.
 Do not report generic best practices or missing controls without a code-supported attack path. Prefer a few well-supported issues. Return zero findings when evidence is insufficient.
 Schema: ${JSON.stringify(REVIEW_DISCOVERY_SCHEMA)}`;
 const VALIDATION = `${COMMON}

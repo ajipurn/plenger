@@ -9,6 +9,12 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- AI findings name a CWE id, shown and linked on the finding page. `pnpm
+  evaluate` adds a count of findings that name the labeled weakness. On one run
+  of 85 cases it gave precision 0.91 and recall 0.91, against 0.68 and 0.95 for
+  any finding at the labeled lines; see
+  [detection-claude-haiku-2026-10-17-cwe](docs/qualifications/detection-claude-haiku-2026-10-17-cwe.md).
+
 - The static scan follows pathlib joins (`NOTES / name`) and methods called on
   a parenthesized expression, detects a project's own tool base classes, and
   lists compiled files (native libraries, executables, WebAssembly, JVM

@@ -136,8 +136,10 @@ These threat hypotheses are distinct from concrete vulnerability findings.
 The same first request independently discovers up to six concrete findings.
 The model receives source rather than existing static findings. It can find an
 issue when the static scan reports zero findings. Every candidate includes its
-impact, preconditions, mitigation and a source-to-sink trace. The host validates
-all cited paths and line ranges and supplies code excerpts from captured source.
+impact, preconditions, mitigation, a source-to-sink trace and the CWE id that
+best names its weakness, or none. The host normalises the id to `CWE-<n>`, and
+the finding page links it to the CWE entry. The host validates all cited paths
+and line ranges and supplies code excerpts from captured source.
 
 When candidates exist, a second request reviews them against the same source.
 It checks callers, guards, sanitization, scope and counterevidence. Each receives

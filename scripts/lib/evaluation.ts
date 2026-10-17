@@ -57,10 +57,13 @@ export interface AiOutcome {
   detected: boolean;
   /** Second-review verdicts of the findings at the labeled location, dismissed ones included. */
   verdicts: string[];
+  /** A kept finding at the labeled location names the labeled weakness (see `sameWeakness`). */
+  matched: boolean;
   /** Those findings, with what they claim and why the second review decided as it did. */
   findings: {
     title: string;
     category: string;
+    cwe: string | null;
     severity: string;
     verdict: string;
     reason: string;
@@ -141,6 +144,33 @@ export function staticOutcome(item: EvaluationCase, findings: readonly Finding[]
   };
 }
 
+/**
+ * CWEs that name the same weakness for scoring: a review that calls a traversal CWE-23
+ * or an insecure direct object reference CWE-862 has found the labeled weakness.
+ */
+const WEAKNESS_FAMILIES: readonly (readonly number[])[] = [
+  [77, 78, 88],
+  [22, 23, 35, 36, 59, 73],
+  [89, 564, 943],
+  [94, 95, 96, 1336, 1426],
+  [74, 1427],
+  [269, 284, 285, 287, 306, 566, 639, 862, 863],
+  [441, 918],
+  [502],
+  [200, 201, 256, 259, 312, 321, 359, 522, 532, 798],
+  [494, 829, 1104, 1357],
+  [311, 319],
+  [400, 770, 834, 835],
+];
+
+/** Whether a finding's CWE names the labeled weakness, directly or within its family. */
+export function sameWeakness(label: string, cwe: string | null | undefined): boolean {
+  const id = (value: string) => Number(/^CWE-(\d+)$/.exec(value)?.[1] ?? Number.NaN);
+  if (!cwe) return false;
+  const [a, b] = [id(label), id(cwe)];
+  return a === b || WEAKNESS_FAMILIES.some((family) => family.includes(a) && family.includes(b));
+}
+
 /** A review's findings at the labeled location; dismissed findings never count as detection. */
 export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutcome {
   const at = (finding: SecurityReview["findings"][number]) =>
@@ -153,10 +183,13 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
     kind: item.kind,
     status: review.status,
     detected: kept.some(at),
+    matched: kept.some((finding) => at(finding) && sameWeakness(item.cwe, finding.cwe)),
     verdicts: review.findings.filter(at).map((finding) => finding.validation),
     findings: review.findings.filter(at).map((finding) => ({
       title: finding.title,
       category: finding.category,
+      // Reviews saved before the CWE field have none.
+      cwe: finding.cwe ?? null,
       severity: finding.severity,
       verdict: finding.validation,
       reason: finding.validationReason,
@@ -286,6 +319,11 @@ export function supportedMetrics(outcomes: readonly AiOutcome[]): Metrics {
   );
 }
 
+/** Metrics when only a kept finding that names the labeled weakness counts. */
+export function weaknessMetrics(outcomes: readonly AiOutcome[]): Metrics {
+  return metrics(outcomes.map((item) => ({ kind: item.kind, detected: item.matched })));
+}
+
 /** Mean, lowest and highest of the non-null values. */
 export function spread(values: readonly (number | null)[]) {
   const known = values.filter((value): value is number => value !== null);
@@ -334,6 +372,10 @@ export function formatEvaluation(
     const supported = evaluation.runs.map((outcomes) => supportedMetrics(outcomes));
     const strictPrecision = spread(supported.map((item) => item.precision));
     const strictRecall = spread(supported.map((item) => item.recall));
+    // Counting only findings that name the labeled weakness, so another issue at the same lines is not a false positive.
+    const weakness = evaluation.runs.map((outcomes) => weaknessMetrics(outcomes));
+    const weaknessPrecision = spread(weakness.map((item) => item.precision));
+    const weaknessRecall = spread(weakness.map((item) => item.recall));
     const outcomes = evaluation.runs.flat();
     const failed = outcomes.filter((item) => item.status !== "completed").length;
     const costs = outcomes.map((item) => item.costUsd).filter((cost) => cost !== null);
@@ -347,7 +389,7 @@ export function formatEvaluation(
       "",
       `Prompt digest \`${evaluation.promptDigest.slice(0, 12)}\`, ${evaluation.runs.length} ${evaluation.runs.length === 1 ? "run" : "runs"}, Standard depth. ${failed} of ${outcomes.length} reviews did not complete.${costs.length ? ` Estimated cost USD ${costs.reduce((sum, cost) => sum + cost, 0).toFixed(4)}.` : ""}`,
       "",
-      `Precision ${range(precision)}. Recall ${range(recall)}. Counting only source-supported findings: precision ${range(strictPrecision)}, recall ${range(strictRecall)}.`,
+      `Precision ${range(precision)}. Recall ${range(recall)}. Counting only source-supported findings: precision ${range(strictPrecision)}, recall ${range(strictRecall)}. Counting only findings that name the labeled weakness: precision ${range(weaknessPrecision)}, recall ${range(weaknessRecall)}.`,
       "",
       "| Run | TP | FP | FN | TN | Precision | Recall |",
       "| --- | --- | --- | --- | --- | --- | --- |",

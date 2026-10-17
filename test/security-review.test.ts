@@ -104,6 +104,26 @@ describe("source-based AI security review", () => {
     expect(review.request.calls).toBe(2);
   });
 
+  it("normalizes a finding's CWE and takes a missing or unreadable one as none", () => {
+    const files = [
+      { path: "server.ts", lines: 7, digest: "" },
+      { path: "store.ts", lines: 4, digest: "" },
+    ];
+    const finding = required(reviewDiscovery().findings[0], "finding");
+    const parse = (cwe: unknown) => {
+      const { cwe: _cwe, ...rest } = finding;
+      const item = cwe === undefined ? rest : { ...rest, cwe };
+      return parseReviewDiscovery(JSON.stringify({ ...reviewDiscovery(), findings: [item] }), files)
+        .findings[0]?.cwe;
+    };
+    expect(parse("CWE-639")).toBe("CWE-639");
+    expect(parse("cwe-89")).toBe("CWE-89");
+    expect(parse(918)).toBe("CWE-918");
+    expect(parse(undefined)).toBeNull();
+    expect(parse(null)).toBeNull();
+    expect(parse("SQL injection")).toBeNull();
+  });
+
   it("still rejects malformed reasons, incomplete decisions and invalid citations with completion text", () => {
     const files = [
       { path: "server.ts", lines: 7, digest: "" },
