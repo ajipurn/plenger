@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A tool writes under the working directory only after rejecting `..` and absolute paths.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 9,
+    "endLine": 15
+  },
+  "static": []
+}

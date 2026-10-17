@@ -270,6 +270,12 @@ Precision 0.62 (min 0.59, max 0.64). Recall 0.95 (min 0.95, max 0.95). Counting 
 - Recall was the same in every run (0.95). Precision varied between 0.59 and
   0.64.
 
+Three safe cases of this corpus were later found to hold a weakness of their own
+kind and were fixed: `py-write-tool-unpacked-confined`,
+`py-fetch-tool-host-allowlist` and `ts-mcp-http-bearer-auth`. See
+[the calibration record](detection-claude-haiku-2026-10-17-validation.md#diagnostic-run-with-findings-kept);
+the scores here count them as safe.
+
 ## Not established
 
 Other models, a separate second-review model, Full coverage, scaled batch

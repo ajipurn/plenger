@@ -271,11 +271,13 @@ describe("guards that limit a tool's input to fixed values", () => {
 
   beforeAll(async () => {
     ({ root, inventory } = await project({
-      "tools.py": `import subprocess
+      "tools.py": `import os
+import subprocess
 from pathlib import Path
 
 from langchain_core.tools import tool
 
+NOTES = os.path.realpath("notes")
 REPORTS = ("daily", "weekly")
 GROWING = {"daily"}
 EMPTY = set()
@@ -350,6 +352,33 @@ def lookup(kind: str) -> str:
     return subprocess.run(COMMANDS[kind], capture_output=True).stdout
 
 
+@tool
+def bare_prefix(name: str) -> str:
+    """Read a note under a prefix check that a sibling directory passes."""
+    path = os.path.realpath(os.path.join(NOTES, name))
+    if not path.startswith(NOTES):
+        raise ValueError(name)
+    return open(path).read()
+
+
+@tool
+def separated_prefix(name: str) -> str:
+    """Read a note under a prefix check that ends with a separator."""
+    path = os.path.realpath(os.path.join(NOTES, name))
+    if not path.startswith(NOTES + os.sep):
+        raise ValueError(name)
+    return open(path).read()
+
+
+@tool
+def relative_to(name: str) -> str:
+    """Read a note inside the notes directory."""
+    path = Path(os.path.realpath(os.path.join(NOTES, name)))
+    if not path.is_relative_to(NOTES):
+        raise ValueError(name)
+    return open(path).read()
+
+
 def register(name):
     GROWING.add(name)
 `,
@@ -394,6 +423,12 @@ export const unchecked = tool({
     for (const name of ["reassigned", "elsewhere", "growing", "empty"])
       expect(inputs(name), name).not.toEqual(["file_write pathlib.Path().write_text []"]);
     expect(inputs("elsewhere")).toEqual(["file_write pathlib.Path().write_text [name:param]"]);
+  });
+
+  it("takes a resolved path as confined only behind a separator or is_relative_to", () => {
+    expect(inputs("bare_prefix")).toEqual(["file_read open [path:name]"]);
+    expect(inputs("separated_prefix")).toEqual(["file_read open []"]);
+    expect(inputs("relative_to")).toEqual(["file_read open []"]);
   });
 
   it("treats a host allowlist as fixing the URL's host, and only the host", () => {

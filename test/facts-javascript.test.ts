@@ -338,6 +338,23 @@ describe("JavaScript facts: guards and fixed collections", () => {
     ]);
   });
 
+  it("records that a failing absolute-path check leaves a relative path", async () => {
+    const facts = await factsOf(
+      "typescript",
+      'function f(name: string, other: string) {\n  if (name.includes("..") || name.startsWith("/")) return;\n  if (path.isAbsolute(other)) throw new Error("absolute");\n}',
+    );
+    expect(
+      (facts.guards ?? []).map((guard) => [
+        guard.test,
+        guard.subject.kind === "name" ? guard.subject.text : guard.subject.kind,
+      ]),
+    ).toEqual([
+      ["excludes", "name"],
+      ["relative", "name"],
+      ["relative", "other"],
+    ]);
+  });
+
   it("marks collections changed in place", async () => {
     const facts = await factsOf(
       "javascript",

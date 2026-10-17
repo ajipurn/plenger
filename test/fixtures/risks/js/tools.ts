@@ -44,7 +44,7 @@ export const readNote = tool({
   inputSchema: z.object({ name: z.string() }),
   execute: async ({ name }) => {
     const target = path.resolve(NOTES, name);
-    if (!target.startsWith(NOTES)) throw new Error("outside notes");
+    if (!target.startsWith(NOTES + path.sep)) throw new Error("outside notes");
     return fs.readFile(target, "utf8");
   },
 });

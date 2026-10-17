@@ -47,7 +47,8 @@ const EXITS = new Set([
 /**
  * The values an `if` test limits while it is `truth`: `x in S` and `x == "a"` when it
  * holds, `x not in S` and `x != "a"` when it fails, `re.match(P, x)` and
- * `x.startswith(BASE)` when they hold, `".." in x` when it fails, through `not`,
+ * `x.startswith(BASE)` when they hold, `".." in x` and `x.startswith("/")` when they
+ * fail, through `not`,
  * parentheses, `and` (holding) and `or` (failing).
  */
 function limits(node: Node, truth: boolean): Limit[] {
@@ -91,7 +92,6 @@ function limits(node: Node, truth: boolean): Limit[] {
         : [{ subject: left, allowed: right }];
     }
     case "call": {
-      if (!truth) return [];
       const callee = node.childForFieldName("function");
       const args = (node.childForFieldName("arguments")?.namedChildren ?? []).filter(
         (arg): arg is Node => arg !== null && arg.type !== "comment",
@@ -99,15 +99,30 @@ function limits(node: Node, truth: boolean): Limit[] {
       const object = callee?.type === "attribute" ? callee.childForFieldName("object") : null;
       const method = callee?.childForFieldName("attribute")?.text;
       if (object === null || object === undefined) return [];
+      // `name.startswith("/")` or `os.path.isabs(name)` failing: a relative path.
+      const [first] = args;
+      if (!truth && first !== undefined && args.length === 1) {
+        if (method === "startswith" && /^["'][/\\]+["']$/.test(first.text))
+          return [{ subject: object, allowed: first, test: "relative" }];
+        if (callee?.text === "os.path.isabs")
+          return [{ subject: first, allowed: first, test: "relative" }];
+      }
+      if (!truth) return [];
       // `re.match(PATTERN, name)`, `PATTERN.fullmatch(name)`
       const [pattern, value] = args;
       if (object.text === "re" && REGEX_TESTS.has(method ?? "") && pattern && value)
         return [{ subject: value, allowed: pattern, test: "matches" }];
       if (REGEX_TESTS.has(method ?? "") && method !== "search" && args.length === 1 && pattern)
         return [{ subject: pattern, allowed: object, test: "matches" }];
-      // `str(path).startswith(str(BASE))`, `path.is_relative_to(BASE)`
+      // `str(path).startswith(str(BASE) + os.sep)`, `path.is_relative_to(BASE)`
       if ((method === "startswith" || method === "is_relative_to") && args.length === 1 && pattern)
-        return [{ subject: unwrapStr(object), allowed: unwrapStr(pattern), test: "within" }];
+        return [
+          {
+            subject: unwrapStr(object),
+            allowed: unwrapStr(pattern),
+            test: method === "startswith" ? "within" : "inside",
+          },
+        ];
       return [];
     }
     default:

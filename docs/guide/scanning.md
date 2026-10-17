@@ -101,9 +101,11 @@ holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
 - for every effect: membership in a fixed collection, equality with a fixed value,
   or a lookup into a fixed table (`COMMANDS[kind]`, `COMMANDS.get(kind)`)
 - for a URL: its host (`url.hostname`, `urlparse(u).hostname`) in a fixed allowlist
-- for a file path: a name matching a pattern of letters, digits, `_` and `-`, a
-  value checked for both `/` and `..`, or a resolved path (`realpath`, `resolve`)
-  checked to start with a fixed base
+- for a file path: a name matching a pattern of letters, digits, `_` and `-`; a
+  value checked for `..` and for `/` or for being absolute; or a resolved path
+  (`realpath`, `resolve`) checked to lie in a fixed base with `is_relative_to` or a
+  prefix that ends with a separator (`BASE + os.sep`), since `/srv/notes_old`
+  starts with `/srv/notes`
 
 Values built from a checked name are checked too. A collection is fixed when it is
 a non-empty literal the code never changes in place. A check inside a `try` also

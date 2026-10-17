@@ -399,6 +399,34 @@ describe("Python facts: guards and fixed collections", () => {
     ]);
   });
 
+  it("tells a prefix check from a component-wise containment check", async () => {
+    const facts = await factsOf(
+      "python",
+      "def f(path):\n    if not path.is_relative_to(BASE):\n        raise ValueError(path)\n    if not str(path).startswith(str(BASE) + os.sep):\n        raise ValueError(path)\n",
+    );
+    expect((facts.guards ?? []).map((guard) => [guard.test, guard.allowed.kind])).toEqual([
+      ["inside", "name"],
+      ["within", "concat"],
+    ]);
+  });
+
+  it("records that a failing absolute-path check leaves a relative path", async () => {
+    const facts = await factsOf(
+      "python",
+      "def f(name, other):\n    if '..' in name or name.startswith('/'):\n        return None\n    if os.path.isabs(other):\n        return None\n",
+    );
+    expect(
+      (facts.guards ?? []).map((guard) => [
+        guard.test,
+        guard.subject.kind === "name" ? guard.subject.text : guard.subject.kind,
+      ]),
+    ).toEqual([
+      ["excludes", "name"],
+      ["relative", "name"],
+      ["relative", "other"],
+    ]);
+  });
+
   it("marks lookups and collections changed in place", async () => {
     const facts = await factsOf(
       "python",

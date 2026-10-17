@@ -53,7 +53,7 @@ def save_note(name: str, text: str) -> str:
 def read_note(name: str) -> str:
     """Read a note."""
     path = os.path.realpath(os.path.join("notes", name))
-    if not path.startswith(os.path.realpath("notes")):
+    if not path.startswith(os.path.realpath("notes") + os.sep):
         raise ValueError("outside the notes directory")
     with open(path) as handle:
         return handle.read()

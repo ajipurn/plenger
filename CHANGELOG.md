@@ -14,7 +14,8 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   (`COMMANDS[kind]`, `COMMANDS.get(kind)`) take the checked input out of the
   model's reach for every effect, and a host allowlist does so for a URL. For a
   file path, so do a name pattern of letters, digits, `_` and `-`, a check for
-  both `/` and `..`, and a resolved path checked to start with a fixed base.
+  `..` together with `/` or an absolute path, and a resolved path kept inside a
+  fixed base by `is_relative_to` or a prefix that ends with a separator.
   Values built from a checked name count as checked, and a check inside a `try`
   whose handlers leave the function covers the code after it. Facts record these
   checks as `guards` and mark assignments the code changes in place `mutated`.
@@ -26,8 +27,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   callee as `lookup`.
 
 - The corpus adds the four pairs the M9b design asks for (route authorization
-  and tenant scoping across files, a path helper in another module, SQL in Go)
-  and a Java path pair, 82 cases in all. A live baseline of the AI review on them,
+  and tenant scoping across files, a path helper in another module, SQL in Go),
+  a Java path pair, a prefix check without a separator and an absolute-path check
+  without `..`, 85 cases in all. Three safe cases that held a weakness of their
+  own kind are fixed. A live baseline of the AI review on 82 of them,
   Claude Haiku 5.5 over three runs, is in
   [detection-claude-haiku-2026-10-17](docs/qualifications/detection-claude-haiku-2026-10-17.md):
   precision 0.62 and recall 0.95, with one dismissal in 263 second-review verdicts.

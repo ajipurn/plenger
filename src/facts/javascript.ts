@@ -81,7 +81,8 @@ const MEMBERSHIP = /^(?:has|includes|hasOwnProperty)$/;
 /**
  * The values an `if` test limits while it is `truth`: `S.has(x)`, `S.includes(x)`,
  * `x in S`, `x === "a"`, `/^[a-z]+$/.test(x)` and `x.startsWith(BASE)` when they hold,
- * `x !== "a"` and `x.includes("..")` when they fail, through `!`, parentheses, `&&`
+ * `x !== "a"`, `x.includes("..")` and `x.startsWith("/")` when they fail, through `!`,
+ * parentheses, `&&`
  * (holding) and `||` (failing).
  */
 function limits(node: Node, truth: boolean): Limit[] {
@@ -128,6 +129,11 @@ function limits(node: Node, truth: boolean): Limit[] {
       // `name.includes("..")` failing: the name does not contain that text.
       if (method === "includes" && argument.type === "string" && !truth)
         return [{ subject: object, allowed: argument, test: "excludes" }];
+      // `name.startsWith("/")` or `path.isAbsolute(name)` failing: a relative path.
+      if (!truth && method === "startsWith" && /^["'`][/\\]+["'`]$/.test(argument.text))
+        return [{ subject: object, allowed: argument, test: "relative" }];
+      if (!truth && method === "isAbsolute" && object.text === "path")
+        return [{ subject: argument, allowed: argument, test: "relative" }];
       if (!truth) return [];
       if (method === "test") return [{ subject: argument, allowed: object, test: "matches" }];
       if (method === "startsWith") return [{ subject: object, allowed: argument, test: "within" }];

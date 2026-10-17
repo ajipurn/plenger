@@ -12,4 +12,4 @@ def fetch_page(url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.hostname not in ALLOWED_HOSTS:
         raise ValueError("host not allowed")
-    return requests.get(url, timeout=10).text
+    return requests.get(url, timeout=10, allow_redirects=False).text

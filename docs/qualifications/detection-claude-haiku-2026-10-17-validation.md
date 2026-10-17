@@ -178,18 +178,21 @@ the allowlist and `redirect: "error"` "block off-host requests". The low
 precision comes mostly from scoring: any kept finding that cites the labeled
 lines counts, whatever its weakness, and three safe cases are not safe.
 
-Consequences, not yet acted on:
+Consequences:
 
-- Three corpus cases need fixing so the safe twin holds no real weakness of its
-  own kind, and twins should differ only in the labeled weakness.
-- Counting only findings of the labeled weakness needs the review to name one,
-  for instance a CWE per finding.
-- The static scan accepts `str(path).startswith(str(BASE))` without a separator
-  as confinement since commit `748bbec`; it should require `BASE + os.sep`,
-  `is_relative_to` or the like. The same pattern is in the risks fixture's
-  `read_note` and `readNote`.
-- Discovery reports hardening items (resource limits, audit logs) despite its
-  instruction against generic best practices.
+- Done after this run: the three safe cases now hold no weakness of their own
+  kind, with their twins changed to match (an applied bearer middleware on an
+  Express route, `allow_redirects=False` in both fetch cases,
+  `resolved.is_relative_to(WORKDIR)`). The scores above predate the fix.
+- Done after this run: the static scan accepted
+  `str(path).startswith(str(BASE))` without a separator as confinement since
+  commit `748bbec`. It now needs a separator or `is_relative_to`, a corpus case
+  covers the sibling escape, and the risks fixture's `read_note` and `readNote`
+  use a separator.
+- Open: counting only findings of the labeled weakness needs the review to name
+  one, for instance a CWE per finding.
+- Open: discovery reports hardening items (resource limits, audit logs) despite
+  its instruction against generic best practices.
 
 ## Not established
 

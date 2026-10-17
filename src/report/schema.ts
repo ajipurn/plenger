@@ -364,7 +364,7 @@ const definitions: Record<string, Schema> = {
             allowed: ref("value"),
             region: ref("span"),
           },
-          { test: choices("matches", "excludes", "within") },
+          { test: choices("matches", "excludes", "within", "inside", "relative") },
         ),
       ),
       defaultExport: text,

@@ -1904,7 +1904,7 @@
               },
               "test": {
                 "type": "string",
-                "enum": ["matches", "excludes", "within"]
+                "enum": ["matches", "excludes", "within", "inside", "relative"]
               }
             },
             "required": ["scope", "subject", "allowed", "region"]

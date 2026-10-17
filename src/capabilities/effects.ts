@@ -481,8 +481,10 @@ const FILE_KINDS: ReadonlySet<CapabilityKind> = new Set(["file_read", "file_writ
 /**
  * The checked values an effect of `kind` cannot be steered through: fixed alternatives
  * for every effect, and for a file path a name matching a pattern of letters, digits,
- * `_` and `-`, a value with neither `/` nor `..`, or a resolved path checked to start
- * with a fixed base.
+ * `_` and `-`, a value with neither `..` nor `/` (or with no `..` and not absolute),
+ * or a resolved path checked to lie in
+ * a fixed base: `is_relative_to`, or a prefix that ends with a separator, since
+ * `/srv/notes_old` starts with `/srv/notes`.
  */
 function safeSubjects(kind: CapabilityKind, guards: GuardFact[], facts: FileFacts): Set<string> {
   const safe = new Set<string>();
@@ -503,18 +505,40 @@ function safeSubjects(kind: CapabilityKind, guards: GuardFact[], facts: FileFact
         excluded.set(subject, new Set([...(excluded.get(subject) ?? []), text]));
         break;
       }
+      case "relative":
+        if (file) excluded.set(subject, new Set([...(excluded.get(subject) ?? []), "<relative>"]));
+        break;
       case "within":
+      case "inside":
         if (
           file &&
           resolvedPath(guard.subject, facts) &&
+          (guard.test === "inside" || endsWithSeparator(guard.allowed, facts)) &&
           provenanceOf(guard.allowed, facts, guard.scope).params.size === 0
         )
           safe.add(subject);
         break;
     }
   }
-  for (const [subject, texts] of excluded) if (texts.has("/") && texts.has("..")) safe.add(subject);
+  for (const [subject, texts] of excluded)
+    if (texts.has("..") && (texts.has("/") || texts.has("<relative>"))) safe.add(subject);
   return safe;
+}
+
+/** Path separators as code names them: `os.sep`, `os.path.sep`, `path.sep`. */
+const SEPARATOR = /(?:^|[.#])sep$/;
+
+/** Whether a base ends with a path separator: `BASE + os.sep`, `NOTES + "/"`, `` `${NOTES}/` ``. */
+function endsWithSeparator(value: Value, facts: FileFacts): boolean {
+  const target = deref(value, facts);
+  if (target.kind === "string") return /[/\\]$/.test(target.value);
+  if (target.kind !== "concat") return false;
+  const last = target.parts.at(-1);
+  const tail = last === undefined ? undefined : deref(last, facts);
+  return (
+    (tail?.kind === "string" && /[/\\]$/.test(tail.value)) ||
+    (tail?.kind === "name" && SEPARATOR.test(tail.ref?.name ?? tail.text))
+  );
 }
 
 /**
@@ -547,15 +571,21 @@ function namePattern(value: Value, facts: FileFacts): boolean {
   );
 }
 
-/** Whether a value is a path made absolute: `p.resolve()`, `os.path.realpath(p)`, `path.resolve(BASE, name)`. */
-function resolvedPath(value: Value, facts: FileFacts): boolean {
+/**
+ * Whether a value is a path made absolute: `p.resolve()`, `os.path.realpath(p)`,
+ * `path.resolve(BASE, name)`, or `Path(...)` of one.
+ */
+function resolvedPath(value: Value, facts: FileFacts, depth = 0): boolean {
   const target = deref(value, facts);
   const call = target.kind === "call" ? facts.calls[target.call] : undefined;
+  if (call === undefined || depth > 4) return false;
+  const name = call.ref?.name ?? call.callee;
+  if (/(?:^|[.#])(?:resolve|realpath|realpathSync|abspath|normpath)$/.test(name)) return true;
+  const [inner] = call.arguments;
   return (
-    call !== undefined &&
-    /(?:^|[.#])(?:resolve|realpath|realpathSync|abspath|normpath)$/.test(
-      call.ref?.name ?? call.callee,
-    )
+    /^(?:pathlib\.)?(?:Pure|Posix|Windows)?Path$/.test(name) &&
+    inner !== undefined &&
+    resolvedPath(inner.value, facts, depth + 1)
   );
 }
 

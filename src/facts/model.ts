@@ -193,9 +193,11 @@ export interface GuardFact {
    * the collection `allowed`, or equals it. `matches`: it fully matches the regular
    * expression `allowed` (`re.match(r"^[a-z]+$", name)`). `excludes`: it does not
    * contain the text `allowed` (`".." not in name`). `within`: it starts with `allowed`
-   * (`str(path).startswith(str(BASE))`).
+   * (`str(path).startswith(str(BASE) + os.sep)`). `inside`: it is a path inside
+   * `allowed` component by component (`path.is_relative_to(BASE)`). `relative`: it is
+   * not an absolute path (`not name.startswith("/")`, `not os.path.isabs(name)`).
    */
-  test?: "matches" | "excludes" | "within";
+  test?: "matches" | "excludes" | "within" | "inside" | "relative";
   allowed: Value;
   /** The code that runs only while the limit holds. */
   region: Span;

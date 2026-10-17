@@ -4,8 +4,8 @@
   "cwe": "CWE-306",
   "location": {
     "path": "server.ts",
-    "line": 5,
-    "endLine": 12
+    "line": 6,
+    "endLine": 20
   },
   "static": [
     "PLG601"

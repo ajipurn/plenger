@@ -10,4 +10,4 @@ def fetch_page(url: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme != "https":
         raise ValueError("only https is allowed")
-    return requests.get(url, timeout=10).text
+    return requests.get(url, timeout=10, allow_redirects=False).text

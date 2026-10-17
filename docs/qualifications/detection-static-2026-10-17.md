@@ -150,8 +150,14 @@ run.
 The one finding before was a false positive: PLG104 at high confidence on a crewAI tool
 that copies a template only after a name pattern, `/` and `..` checks and a resolved
 path prefix check. A second crewAI tool, which writes a file at a path split from its
-input, was traced for the first time. It is confined the same way, with the prefix check
-inside a `try` whose handler returns, and is not reported.
+input, was traced for the first time and is not reported.
+
+Correction, later on 2026-10-17: that write tool's prefix check,
+`str(resolved_path).startswith(str(workdir))`, has no separator, so a sibling such as
+`workdir_old` would pass it, and the scanner here accepted it. What confines the tool
+is its rejection of `..` and of paths starting with `/`. The scanner now requires a
+separator or `is_relative_to` for a prefix check and reads the `..` and absolute-path
+checks together; the tool is still not reported, for that reason.
 
 Gaps the scans showed, not changed here:
 

@@ -13,7 +13,7 @@ def write_file(data: str) -> str:
     target = WORKDIR / path
     try:
         resolved = target.resolve()
-        if not str(resolved).startswith(str(WORKDIR)):
+        if not resolved.is_relative_to(WORKDIR):
             return "outside the working directory"
     except OSError:
         return "invalid path"

@@ -1,11 +1,11 @@
 {
   "kind": "safe",
-  "summary": "An MCP server offers the same tool over HTTP behind bearer authentication.",
+  "summary": "An MCP server offers the same tool over HTTP, with bearer authentication on its route.",
   "cwe": "CWE-306",
   "location": {
     "path": "server.ts",
-    "line": 6,
-    "endLine": 14
+    "line": 8,
+    "endLine": 22
   },
   "static": []
 }

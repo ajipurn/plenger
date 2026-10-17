@@ -1,0 +1,13 @@
+{
+  "kind": "vulnerable",
+  "summary": "A tool rejects absolute paths but not `..`, so the path can climb out of the working directory.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 9,
+    "endLine": 15
+  },
+  "static": [
+    "PLG104"
+  ]
+}
