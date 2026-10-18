@@ -570,7 +570,7 @@ export function parseReviewValidation(
       return {
         id,
         verdict: enumValue(decision.verdict, VERDICTS, `${location}.verdict`),
-        reason: string(decision.reason, `${location}.reason`),
+        reason: clipped(decision.reason, `${location}.reason`),
       };
     },
   );
@@ -657,6 +657,18 @@ function string(value: unknown, location: string): string {
       `expected non-empty text of at most ${SECURITY_REVIEW_LIMITS.text} characters`,
     );
   return value.trim();
+}
+/** A decision's reason past the text limit is cut, with a note, rather than failing the decision. */
+const CUT_NOTE = " … (cut at the review's text limit)";
+function clipped(value: unknown, location: string): string {
+  if (typeof value !== "string" || !value.trim())
+    throw invalid(location, "expected non-empty text");
+  const reason = value.trim();
+  if (reason.length <= SECURITY_REVIEW_LIMITS.text) return reason;
+  const kept = reason.slice(0, SECURITY_REVIEW_LIMITS.text - CUT_NOTE.length);
+  // End at a word where one is near, so the cut does not split a path or a name.
+  const space = kept.lastIndexOf(" ");
+  return `${(space > kept.length - 80 ? kept.slice(0, space) : kept).trimEnd()}${CUT_NOTE}`;
 }
 function enumValue<T extends string>(value: unknown, allowed: readonly T[], location: string): T {
   const canonical =

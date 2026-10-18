@@ -21,6 +21,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 - A second review that stops before it decides keeps its candidates as
   **Unvalidated**, in both modes, with the reason. It used to fail the review.
+  A decision reason over 1,200 characters is cut and marked instead of
+  rejecting the submission, which left 3 labeled findings Unvalidated in the
+  cross-file runs.
 
 - AI findings name a CWE id, shown and linked on the finding page. `pnpm
   evaluate` adds a count of findings that name the labeled weakness. On one run

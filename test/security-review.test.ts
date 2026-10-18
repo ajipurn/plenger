@@ -166,6 +166,39 @@ describe("source-based AI security review", () => {
     ).toEqual({ status: "refused", reason: "Declined", decisions: [] });
   });
 
+  it("cuts a second-review reason past the text limit instead of rejecting the decision", () => {
+    const long = `${"The guard at server.ts:3 checks only the session. ".repeat(40)}end`;
+    const result = parseReviewValidation(
+      JSON.stringify({
+        status: "completed",
+        reason: null,
+        decisions: [{ id: "candidate", verdict: "needs-review", reason: long }],
+      }),
+      ["candidate"],
+    );
+    const reason = required(result.decisions[0], "decision").reason;
+    expect(long.length).toBeGreaterThan(SECURITY_REVIEW_LIMITS.text);
+    expect(reason.length).toBeLessThanOrEqual(SECURITY_REVIEW_LIMITS.text);
+    expect(reason.startsWith("The guard at server.ts:3 checks only the session.")).toBe(true);
+    expect(reason.endsWith(" … (cut at the review's text limit)")).toBe(true);
+    // What is kept is the reason's own start, cut where a word ends.
+    const kept = reason.slice(0, -" … (cut at the review's text limit)".length);
+    expect(long.startsWith(kept)).toBe(true);
+    expect(long[kept.length]).toBe(" ");
+    for (const empty of ["", "  ", 42, null]) {
+      expect(() =>
+        parseReviewValidation(
+          JSON.stringify({
+            status: "completed",
+            reason: null,
+            decisions: [{ id: "candidate", verdict: "dismissed", reason: empty }],
+          }),
+          ["candidate"],
+        ),
+      ).toThrow(/\$\.decisions\[0\]\.reason: expected non-empty text/);
+    }
+  });
+
   it("accepts provider enum capitalization without losing source validation", async () => {
     const snapshot = await scan(await writeReviewProject(await temporaryDir()));
     const discovery = reviewDiscovery();

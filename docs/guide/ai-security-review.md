@@ -103,6 +103,8 @@ spelling. For example, Information Disclosure maps to Information disclosure.
 Unknown values are rejected. File paths and candidate IDs are not case-folded.
 Completed responses use a null top-level `reason`. Bounded string values in that
 field are accepted and normalized to null. Decision reasons remain required.
+A decision reason longer than 1,200 characters is cut at a word and marked as
+cut, instead of rejecting the second review.
 Refused responses require a non-empty top-level reason and no findings or decisions.
 Citations must stay within a submitted file and, for an excerpt, inside one
 submitted range. Longer valid ranges are retained;

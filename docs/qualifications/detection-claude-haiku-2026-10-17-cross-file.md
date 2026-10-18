@@ -146,13 +146,39 @@ The new cases, per mode over three runs:
   Explore found it in all three. The router-level middleware twin and the
   tenant pair were right in both modes.
 
+## Recheck after the fixes, 2026-10-18
+
+Twelve exploring reviews on "Claude 2", same model and digests: the two
+`ts-exports-mount-*` twins, where two reviews had failed, and the two
+`py-ticket-file-path-*` twins, where long reasons had left findings
+Unvalidated, three times each. A host-side script ran `reviewProject` and
+counted the tool calls in each Claude reply. It ran after the reply limit of 64
+and after decision reasons over 1,200 characters began to be cut instead of
+rejected.
+
+- All six reviews of the TS twins completed, against one of three for the
+  safe twin before. No reply held more than eight tool calls, so the path that
+  answers calls past eight did not run; the earlier failures did not recur,
+  but this run does not show why.
+- Five decision reasons were over the limit. All five were cut and kept their
+  verdicts, four source-supported findings on the vulnerable twins among them.
+  No second-review submission was rejected; two discovery submissions were
+  corrected once.
+- One discovery of `py-ticket-file-path-confined` failed: the reply hit its
+  8,192-token output allowance, and the review now gives that stop reason.
+- The safe TS twin, which completed only once before, was reported in all
+  three runs, with business-logic findings (CWE-840 and 841) and once an
+  insecure direct object reference (CWE-639). These were not read one by one.
+- The twelve reviews were estimated at USD 1.94 at the saved prices, 0.09 to
+  0.24 each.
+
 ## Not established
 
 Other models and transports, Full coverage, real projects, and more than three
 pairs of this kind. The pairs were written for this measurement, and their
 twins differ in one place, so the figures show that Explore reads when it must,
 not how often a real project's guard is found. The cause of the two failed
-reviews is not confirmed, and no run has measured the fix for it.
+reviews is not confirmed, and the recheck above did not exercise the fix.
 
 ## Generated report: Batch
 
