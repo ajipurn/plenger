@@ -260,12 +260,26 @@ function connectionTestFailure(error: unknown): string {
   return "Connection test failed. Check the endpoint, model and API key.";
 }
 
+/** A reply stopped at its output token allowance; whatever it held is incomplete. */
+export class OutputLimitError extends Error {
+  readonly outputLimit = true;
+}
+
+/** Whether a provider error is a reply cut at its output allowance, on any transport. */
+export function reachedOutputLimit(error: unknown): boolean {
+  return (
+    error instanceof Error && (error as Error & { outputLimit?: boolean }).outputLimit === true
+  );
+}
+
 export function parseModelReply(
   raw: unknown,
   toolCallLimit = MODEL_TOOL_CALL_LIMIT,
 ): { value: ModelReply; usage?: TokenUsage } {
   const value = record(raw);
   const choice = record(Array.isArray(value.choices) ? value.choices[0] : null);
+  if (choice.finish_reason === "length")
+    throw new OutputLimitError("Model response did not complete; the trial cannot be evaluated.");
   if (choice.finish_reason !== "stop" && choice.finish_reason !== "tool_calls")
     throw new Error("Model response did not complete; the trial cannot be evaluated.");
   const message = record(choice.message);

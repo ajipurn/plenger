@@ -234,8 +234,11 @@ The host checks every call:
 | Request size | 192 KiB | 128 KiB |
 | Accounted tokens | 1,000,000 | 400,000 |
 | Time | 10 minutes | 5 minutes |
+| Output tokens per turn | 16,384 | 16,384 |
 
-A model with a smaller input window gets a smaller request cap. Near a limit,
+A model with a smaller input window gets a smaller request cap. A reply cut at
+its output allowance is discarded, and the session asks once for a shorter
+answer; a second cut fails discovery or leaves the candidates Unvalidated. Near a limit,
 the host asks for the submission and refuses other tools for a closing turn,
 so a session that is about to run out can still answer. Every request is also
 checked against the scan's token or USD limit before it is sent. Every turn

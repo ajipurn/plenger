@@ -9,6 +9,7 @@ import {
   ModelProviderHttpError,
   normalizeTools,
   parseModelReply,
+  reachedOutputLimit,
 } from "../src/redteam/provider.ts";
 import { executeRun, newRun, type RunOptions } from "../src/redteam/run.ts";
 import { assertReadyFrame } from "../src/redteam/run-lifecycle.ts";
@@ -513,6 +514,15 @@ describe("bounded provider transport", () => {
     expect(() =>
       parseModelReply({ choices: [{ finish_reason: "length", message: { content: "partial" } }] }),
     ).toThrow("did not complete");
+    // A cut completion is recognizable as such, so an exploring review can ask again.
+    let cut: unknown;
+    try {
+      parseModelReply({ choices: [{ finish_reason: "length", message: { content: "partial" } }] });
+    } catch (error) {
+      cut = error;
+    }
+    expect(reachedOutputLimit(cut)).toBe(true);
+    expect(reachedOutputLimit(new Error("Model response did not complete"))).toBe(false);
     expect(() =>
       parseModelReply({
         choices: [

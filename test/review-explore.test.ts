@@ -282,6 +282,8 @@ describe("read-only exploration tools", () => {
 });
 
 describe("exploring AI review", () => {
+  /** A script value for a reply cut at its output allowance. */
+  const CUT = Symbol("cut");
   /** A Claude endpoint that plays scripted tool turns, then answers like the batch stub. */
   function claude(
     script: (body: Record<string, unknown>, index: number) => unknown,
@@ -292,6 +294,14 @@ describe("exploring AI review", () => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       bodies.push(body);
       const value = script(body, bodies.length - 1);
+      if (value === CUT)
+        return Response.json({
+          type: "message",
+          role: "assistant",
+          stop_reason: "max_tokens",
+          content: [{ type: "text", text: "partial" }],
+          usage: { input_tokens: inputTokens, output_tokens: 16_384 },
+        });
       const calls = Array.isArray(value) ? value : [];
       return Response.json({
         type: "message",
@@ -391,6 +401,57 @@ describe("exploring AI review", () => {
     expect(model.bodies).toHaveLength(1 + EXPLORE_LIMITS.validation.modelCalls);
   });
 
+  it("asks once for a shorter answer after a reply cut at its output allowance", async () => {
+    const snapshot = await project();
+    let ids: string[] = [];
+    const model = claude((body, index) => {
+      if (index === 0) return CUT;
+      if (index === 1) {
+        const last = (body.messages as { content: { type: string; text?: string }[] }[]).at(-1);
+        expect(JSON.stringify(last)).toContain("reached its output limit and was discarded");
+        return [use("submit_discovery", reviewDiscovery() as never)];
+      }
+      if (index === 2) {
+        ids = candidateIds(body);
+        return [use("submit_decisions", reviewDecision(ids) as never)];
+      }
+      return CUT;
+    });
+    const review = await reviewProject(
+      snapshot,
+      { scanId: "scan", provider, access, mode: "explore" },
+      model.dispatch,
+    );
+    expect(review.status).toBe("completed");
+    expect(review.exploration?.[0]).toMatchObject({
+      stop: "submitted",
+      modelCalls: 2,
+      cutReplies: 1,
+    });
+    expect(review.findings.map((item) => item.validation)).toEqual(["source-supported"]);
+    // An exploring turn may use the provider's whole output allowance.
+    expect(model.bodies.every((body) => body.max_tokens === EXPLORE_LIMITS.outputTokens)).toBe(
+      true,
+    );
+    expect(review.generation?.discovery.maxOutputTokens).toBe(EXPLORE_LIMITS.outputTokens);
+    // The cut reply was billed and counted.
+    expect(review.request.calls).toBe(3);
+  });
+
+  it("fails discovery at a second cut reply and names the stop", async () => {
+    const snapshot = await project();
+    const model = claude(() => CUT);
+    const review = await reviewProject(
+      snapshot,
+      { scanId: "scan", provider, access, mode: "explore" },
+      model.dispatch,
+    );
+    expect(review.status).toBe("failed");
+    expect(review.reason).toContain("stop reason max_tokens");
+    expect(review.exploration?.[0]).toMatchObject({ stop: "failed", cutReplies: 1 });
+    expect(model.bodies).toHaveLength(2);
+  });
+
   it("fails discovery that never submits, with the stop in the reason", async () => {
     const snapshot = await project();
     const model = claude(() => "I reviewed the code and found nothing.");
@@ -439,7 +500,7 @@ describe("exploring AI review", () => {
       Response.json({
         type: "message",
         role: "assistant",
-        stop_reason: "max_tokens",
+        stop_reason: "stop_sequence",
         content: [{ type: "text", text: "Still writing" }],
         usage: { input_tokens: 500, output_tokens: 8192 },
       });
@@ -450,7 +511,7 @@ describe("exploring AI review", () => {
     );
     expect(review.status).toBe("failed");
     expect(review.reason).toBe(
-      "Discovery response rejected. Claude response did not complete: stop reason max_tokens.",
+      "Discovery response rejected. Claude response did not complete: stop reason stop_sequence.",
     );
     expect(review.request.calls).toBe(1);
   });

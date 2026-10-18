@@ -20,9 +20,12 @@ import { anthropicModelOutputLimit } from "./provider-models.ts";
 /** Valid reported usage remains billable even when the generated response is unusable. */
 export class AnthropicResponseError extends Error {
   readonly tokenDetails: ClaudeTokenUsage;
-  constructor(message: string, tokenDetails: ClaudeTokenUsage) {
+  /** The reply stopped at `max_tokens` (see `reachedOutputLimit`). */
+  readonly outputLimit: boolean;
+  constructor(message: string, tokenDetails: ClaudeTokenUsage, outputLimit = false) {
     super(message);
     this.tokenDetails = tokenDetails;
+    this.outputLimit = outputLimit;
   }
 }
 
@@ -195,8 +198,10 @@ export function createAnthropicProvider(
           };
         // Each reason names only host-checked facts, never response text.
         if (raw.stop_reason !== "end_turn" && raw.stop_reason !== "tool_use")
-          throw new Error(
+          throw new AnthropicResponseError(
             `Claude response did not complete: stop reason ${stopReason(raw.stop_reason)}.`,
+            tokenDetails,
+            raw.stop_reason === "max_tokens",
           );
         if ((raw.stop_reason === "tool_use") !== tools.length > 0)
           throw new Error(
@@ -216,6 +221,7 @@ export function createAnthropicProvider(
         };
         return { value, usage, tokenDetails };
       } catch (error) {
+        if (error instanceof AnthropicResponseError) throw error;
         throw new AnthropicResponseError(
           error instanceof Error ? error.message : "Invalid Claude response.",
           tokenDetails,

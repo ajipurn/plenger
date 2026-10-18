@@ -166,11 +166,34 @@ rejected.
   corrected once.
 - One discovery of `py-ticket-file-path-confined` failed: the reply hit its
   8,192-token output allowance, and the review now gives that stop reason.
-- The safe TS twin, which completed only once before, was reported in all
-  three runs, with business-logic findings (CWE-840 and 841) and once an
-  insecure direct object reference (CWE-639). These were not read one by one.
+- The safe TS twin, which completed only once before, completed in all three
+  runs with no finding at its labeled lines. Its findings were elsewhere in
+  the project; the next section reads them.
 - The twelve reviews were estimated at USD 1.94 at the saved prices, 0.09 to
   0.24 each.
+
+## Findings on the safe TS twin, 2026-10-18
+
+Three more exploring reviews of `ts-exports-mount-admin-role` on "Claude 2",
+after a reply cut at its output allowance gets one request to answer more
+briefly, kept every finding. All three completed and read `src/http/router.ts`,
+which mounts the exports behind the admin role. No finding cited the labeled
+export routes, so the twin stays a true negative. The findings, 1 to 4 per run
+and all but one source-supported, describe weaknesses the fixture's other code
+really has, in files both twins share:
+
+| Weakness | Where | Runs |
+| --- | --- | --- |
+| The owner can move an approved timesheet back to submitted: the update branch of the upsert sets the status without checking it, and entries added later are linked on the next submit | `timesheets.service.ts:19-35` | 3 |
+| An update can mark time billable on a project that is not, because only creation applies `project.billable && data.billable` | `time-entries.service.ts:38` and `45-50` | 2 |
+| Two concurrent invoice drafts can bill the same entries, and the count-based invoice number can repeat: the read, the count and the create are separate statements | `invoices.service.ts:23-52` | 2 |
+| A time entry accepts any task id, without a check that the task is in the caller's workspace or project | `time-entries.service.ts:29-50` | 1, needs-review |
+
+They count as unlabeled findings, not false positives, and are left in the
+fixture. Run 3 received one reply with 12 tool calls; the session ran eight,
+answered the other four and completed, so the reply limit of 64 has now run
+once live. One discovery submission was corrected once. The three reviews were
+estimated at USD 0.76.
 
 ## Not established
 
@@ -178,7 +201,7 @@ Other models and transports, Full coverage, real projects, and more than three
 pairs of this kind. The pairs were written for this measurement, and their
 twins differ in one place, so the figures show that Explore reads when it must,
 not how often a real project's guard is found. The cause of the two failed
-reviews is not confirmed, and the recheck above did not exercise the fix.
+reviews is not confirmed; the fix has run once live, in the section above.
 
 ## Generated report: Batch
 

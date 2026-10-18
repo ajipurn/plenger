@@ -6,7 +6,7 @@
  * read, so citations can be checked against it. Nothing here executes project code.
  */
 
-import type { ModelReply, ModelRequest } from "../redteam/provider.ts";
+import { type ModelReply, type ModelRequest, reachedOutputLimit } from "../redteam/provider.ts";
 import type { ScanResult } from "../scan.ts";
 import { redact } from "../shared/secrets.ts";
 import { mergeRanges } from "./review-excerpt.ts";
@@ -15,7 +15,6 @@ import {
   type ExplorePhase,
   type ExploreSessionRecord,
   type ExploreStop,
-  SECURITY_REVIEW_LIMITS as LIMITS,
   REVIEW_DISCOVERY_SCHEMA,
   REVIEW_VALIDATION_SCHEMA,
   type ReviewRange,
@@ -458,7 +457,7 @@ export async function exploreSession<T>(options: {
   const submit = all.at(-1) as { function: { name: string } };
   // What a turn adds to its messages when reserved: tool definitions, the providers'
   // 4,096-token margin and the output allowance, at one token per byte.
-  const turnOverhead = Buffer.byteLength(JSON.stringify(all)) + 4096 + LIMITS.outputTokens;
+  const turnOverhead = Buffer.byteLength(JSON.stringify(all)) + 4096 + EXPLORE_LIMITS.outputTokens;
   const record: ExploreSessionRecord = {
     phase: options.phase,
     stop: "failed",
@@ -512,6 +511,17 @@ export async function exploreSession<T>(options: {
         reply = await options.send({ messages, tools: all });
       } catch (error) {
         if (error instanceof ExploreLimitError) return finish(error.stop, null);
+        // A reply cut at its output allowance is incomplete and is discarded. The
+        // provider charged it, so it counts as a model call; it may happen once.
+        if (reachedOutputLimit(error) && (record.cutReplies ?? 0) < EXPLORE_LIMITS.cutReplies) {
+          record.modelCalls += 1;
+          record.cutReplies = (record.cutReplies ?? 0) + 1;
+          messages.push({
+            role: "user",
+            content: `Your last reply reached its output limit and was discarded. Keep the next reply short. When you call ${submit.function.name}, write brief analyses and reasons, and report only the findings the code supports best.`,
+          });
+          continue;
+        }
         throw error;
       }
       record.modelCalls += 1;

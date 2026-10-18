@@ -132,12 +132,17 @@ class ReviewLimitError extends Error {}
 class ExploreStoppedError extends Error {}
 
 /** The settings a review request is sent with; mirrors `providerFor` below. */
-function sampling(access: ProviderAccess): ReviewSampling {
+function sampling(access: ProviderAccess, explore: boolean): ReviewSampling {
   return {
     provider: access.provider,
     model: access.model,
     temperature: access.temperature ?? null,
-    maxOutputTokens: access.maxOutputTokens === null ? null : LIMITS.outputTokens,
+    maxOutputTokens:
+      access.maxOutputTokens === null
+        ? null
+        : explore
+          ? EXPLORE_LIMITS.outputTokens
+          : LIMITS.outputTokens,
     // Claude holds both the batch answer and an exploring review's submit tool to the schema.
     structuredOutput: access.provider === "anthropic",
   };
@@ -256,7 +261,7 @@ export async function reviewProject(
     ...(validator ? { validator: validator.provider } : {}),
     generation: {
       promptDigest: explore ? REVIEW_EXPLORE_PROMPT_DIGEST : REVIEW_PROMPT_DIGEST,
-      discovery: sampling(options.access),
+      discovery: sampling(options.access, explore),
     },
     status: "failed",
     reason: null,
@@ -375,10 +380,16 @@ export async function reviewProject(
             // A turn that asks for more tools than it may run is answered, not rejected.
             ...(explore ? { toolCalls: EXPLORE_LIMITS.replyToolCalls } : {}),
           },
-          outputTokenBudget: LIMITS.outputTokens,
+          // An exploring turn may hold a whole review in its submission.
+          outputTokenBudget: explore ? EXPLORE_LIMITS.outputTokens : LIMITS.outputTokens,
           // The structured review needs its own allowance; a saved per-call red-team limit
           // (1,024 by default) would truncate it. Automatic settings (null) stay automatic.
-          maxOutputTokens: access.maxOutputTokens === null ? null : LIMITS.outputTokens,
+          maxOutputTokens:
+            access.maxOutputTokens === null
+              ? null
+              : explore
+                ? EXPLORE_LIMITS.outputTokens
+                : LIMITS.outputTokens,
         },
         dispatch,
       );
@@ -547,7 +558,7 @@ export async function reviewProject(
         options.onPhase?.("validating");
         phase = "validation";
         if (review.generation)
-          review.generation.validation = sampling(validator?.access ?? options.access);
+          review.generation.validation = sampling(validator?.access ?? options.access, explore);
         const ids = candidates.map((item) => item.id);
         let decided: ReturnType<typeof parseReviewValidation> | null = null;
         // Why the second review did not decide, which keeps its candidates unvalidated.

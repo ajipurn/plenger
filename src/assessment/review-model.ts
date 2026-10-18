@@ -64,6 +64,13 @@ export const EXPLORE_LIMITS = {
   toolsPerTurn: 8,
   /** Tool calls one reply may hold; those past `toolsPerTurn` are answered with an error. */
   replyToolCalls: 64,
+  /**
+   * Output tokens per turn. A submission holds the whole review, which can pass a batch
+   * reply's 8,192 tokens on a larger project, thinking included.
+   */
+  outputTokens: 16_384,
+  /** Replies cut at the output allowance that a session answers with a request to shorten. */
+  cutReplies: 1,
   readLines: 300,
   readBytes: 16 * 1024,
   listEntries: 300,
@@ -173,9 +180,8 @@ export function exploreTokenBound(): {
   validation: RequestTokenBound;
   total: number;
 } {
-  const L = SECURITY_REVIEW_LIMITS;
   const phase = (limits: { modelCalls: number; tokens: number }) => {
-    const output = limits.modelCalls * L.outputTokens;
+    const output = limits.modelCalls * EXPLORE_LIMITS.outputTokens;
     return { prompt: limits.tokens - output, output };
   };
   const discovery = phase(EXPLORE_LIMITS.discovery);
@@ -312,6 +318,8 @@ export interface ExploreSessionRecord {
   searches: { query: string; prefix: string | null; matches: number }[];
   /** The host's reasons for rejected submissions: field locations, never model values. */
   rejected?: string[];
+  /** Replies cut at the output allowance, which the session discarded. */
+  cutReplies?: number;
 }
 
 /** How a review read the source: one host-packed batch, or model-chosen reads. */
