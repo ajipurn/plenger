@@ -36,6 +36,15 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   on the same corpus for 38% more cost; every case fit its first message. See
   [detection-claude-haiku-2026-10-17-explore](docs/qualifications/detection-claude-haiku-2026-10-17-explore.md).
 
+- The corpus adds three pairs whose deciding file (a repository, a path
+  helper, the router that mounts a feature) sits after enough modules that
+  neither the batch nor Explore's first message holds it, 92 cases in all; a
+  test keeps it out. Over three runs on Claude Haiku 5.5, Explore named the
+  labeled weakness on these pairs with precision and recall 1.00, against 0.50
+  and 0.33 for Batch, with whole-corpus recall 0.97 against 0.91. See
+  [detection-claude-haiku-2026-10-17-cross-file](docs/qualifications/detection-claude-haiku-2026-10-17-cross-file.md).
+  Evaluation outcomes of exploring reviews list the files they read.
+
 - The static scan follows pathlib joins (`NOTES / name`) and methods called on
   a parenthesized expression, detects a project's own tool base classes, and
   lists compiled files (native libraries, executables, WebAssembly, JVM
@@ -152,6 +161,12 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   `protocolVersion` 1, and the host and both runtimes refuse other values.
 
 ### Fixed
+
+- An exploring review no longer fails when Claude asks for more than eight
+  tools in one reply. The reply may hold up to 64 calls; the session runs eight
+  and answers the rest with its per-turn limit. A reply the Claude transport
+  rejects now names the check in the review's reason (the stop reason, the
+  number of tool calls), instead of the generic failure message.
 
 - PLG101, PLG104 and PLG105 no longer fire on tools that check their input
   against a fixed allowlist, a name pattern or a confining base before the

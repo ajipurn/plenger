@@ -227,7 +227,7 @@ The host checks every call:
 | Limit | Discovery | Second review |
 | --- | --- | --- |
 | Model calls | 12 | 6 |
-| Tool calls per turn | 8 | 8 |
+| Tool calls run per turn (a reply may ask for up to 64) | 8 | 8 |
 | Bytes returned by tools | 160 KiB | 64 KiB |
 | Request size | 192 KiB | 128 KiB |
 | Accounted tokens | 1,000,000 | 400,000 |

@@ -20,3 +20,11 @@ file (a guard in another module, middleware mounted elsewhere), label the route
 or handler a finding would cite, the matching lines in both cases, and keep comments
 from giving the answer away. Pairs in a language without a parser (Go, Java) have
 no static result; only the AI review reads them.
+
+Three pairs are mid-size projects instead: a FastAPI helpdesk (`py-invoice-number-*`,
+`py-ticket-file-path-*`, on one shared core) and an Express time tracker
+(`ts-exports-mount-*`). Their deciding file (a repository, a path helper, the router
+that mounts the exports) sits after enough other modules that neither the largest
+batch nor Explore's first message holds it, so a review must read it to tell the
+twins apart. `test/evaluation.test.ts` checks that it stays out. Keep their other
+modules free of weaknesses, and change both twins of a pair together.

@@ -337,7 +337,7 @@ export async function reviewProject(
           ? `Security review stopped: ${error.reason}.`
           : error instanceof ModelProviderHttpError
             ? `The provider returned HTTP ${error.status}. Check its model and access settings.`
-            : error instanceof ReviewResponseError
+            : error instanceof ReviewResponseError || error instanceof AnthropicResponseError
               ? `${phase === "validation" ? "Validation" : "Discovery"} response rejected. ${error.message}`
               : error instanceof ReviewSourceError
                 ? error.message
@@ -369,7 +369,12 @@ export async function reviewProject(
           ...access,
           // Byte-level tokenizers use at least one byte per token, so request bytes bound
           // input tokens; the trial default of four per byte would not fit a scaled batch.
-          requestBounds: { bytes: LIMITS.requestBytes, inputTokensPerByte: 1 },
+          requestBounds: {
+            bytes: LIMITS.requestBytes,
+            inputTokensPerByte: 1,
+            // A turn that asks for more tools than it may run is answered, not rejected.
+            ...(explore ? { toolCalls: EXPLORE_LIMITS.replyToolCalls } : {}),
+          },
           outputTokenBudget: LIMITS.outputTokens,
           // The structured review needs its own allowance; a saved per-call red-team limit
           // (1,024 by default) would truncate it. Automatic settings (null) stay automatic.

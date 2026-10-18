@@ -7,6 +7,7 @@ import {
   parseModelReply,
   type RunProvider,
   record,
+  replyToolCalls,
   requestBounds,
 } from "./provider.ts";
 
@@ -169,19 +170,22 @@ export function createChatgptProvider(access: ProviderAccess, dispatch: typeof f
       if (!texts.length && !calls.length)
         throw new Error("ChatGPT returned no assistant response.");
       const usage = record(raw.usage);
-      const result = parseModelReply({
-        choices: [
-          {
-            finish_reason: calls.length ? "tool_calls" : "stop",
-            message: { content: texts.length ? texts.join("") : null, tool_calls: calls },
+      const result = parseModelReply(
+        {
+          choices: [
+            {
+              finish_reason: calls.length ? "tool_calls" : "stop",
+              message: { content: texts.length ? texts.join("") : null, tool_calls: calls },
+            },
+          ],
+          usage: {
+            prompt_tokens: usage.input_tokens,
+            completion_tokens: usage.output_tokens,
+            total_tokens: usage.total_tokens,
           },
-        ],
-        usage: {
-          prompt_tokens: usage.input_tokens,
-          completion_tokens: usage.output_tokens,
-          total_tokens: usage.total_tokens,
         },
-      });
+        replyToolCalls(access),
+      );
       // Carry encrypted reasoning and exact tool-call items across the worker's next turn.
       // Cache only successful replies, and never persist provider context in reports.
       for (const call of result.value.toolCalls) history.set(call.id, raw.output);

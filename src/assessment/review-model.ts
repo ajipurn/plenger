@@ -62,6 +62,8 @@ export const EXPLORE_LIMITS = {
   /** Cited ranges the second review's first message re-reads. */
   citedBytes: 32 * 1024,
   toolsPerTurn: 8,
+  /** Tool calls one reply may hold; those past `toolsPerTurn` are answered with an error. */
+  replyToolCalls: 64,
   readLines: 300,
   readBytes: 16 * 1024,
   listEntries: 300,

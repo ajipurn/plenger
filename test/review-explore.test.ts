@@ -407,6 +407,54 @@ describe("exploring AI review", () => {
     expect(model.bodies).toHaveLength(3);
   });
 
+  it("answers tool calls past the per-turn limit and keeps exploring", async () => {
+    const snapshot = await project();
+    let ids: string[] = [];
+    const model = claude((body, index) => {
+      // Nine parallel reads, one more than a turn may run.
+      if (index === 0)
+        return Array.from({ length: EXPLORE_LIMITS.toolsPerTurn + 1 }, () =>
+          use("read_file", { path: "notes.ts" }),
+        );
+      if (index === 1) return [use("submit_discovery", reviewDiscovery() as never)];
+      if (index === 2) ids = candidateIds(body);
+      return [use("submit_decisions", reviewDecision(ids) as never)];
+    });
+    const review = await reviewProject(
+      snapshot,
+      { scanId: "scan", provider, access, mode: "explore" },
+      model.dispatch,
+    );
+    expect(review.status).toBe("completed");
+    expect(review.exploration?.[0]?.toolCalls).toMatchObject({
+      read_file: EXPLORE_LIMITS.toolsPerTurn + 1,
+    });
+    const answers = JSON.stringify(model.bodies[1]?.messages);
+    expect(answers).toContain(`At most ${EXPLORE_LIMITS.toolsPerTurn} tool calls per turn.`);
+  });
+
+  it("fails a reply the transport rejects, with its reason", async () => {
+    const snapshot = await project();
+    const dispatch: typeof fetch = async () =>
+      Response.json({
+        type: "message",
+        role: "assistant",
+        stop_reason: "max_tokens",
+        content: [{ type: "text", text: "Still writing" }],
+        usage: { input_tokens: 500, output_tokens: 8192 },
+      });
+    const review = await reviewProject(
+      snapshot,
+      { scanId: "scan", provider, access, mode: "explore" },
+      dispatch,
+    );
+    expect(review.status).toBe("failed");
+    expect(review.reason).toBe(
+      "Discovery response rejected. Claude response did not complete: stop reason max_tokens.",
+    );
+    expect(review.request.calls).toBe(1);
+  });
+
   it("asks for the submission near the scan's token limit and stops before passing it", async () => {
     const snapshot = await project();
     const model = claude(() => [use("list_files", {})], 12_000);

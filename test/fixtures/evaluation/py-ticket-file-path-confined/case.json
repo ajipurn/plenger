@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same route uses a helper that resolves the path and keeps it inside the ticket folder.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app/api/routes/attachments.py",
+    "line": 26,
+    "endLine": 40
+  },
+  "static": [],
+  "note": "The deciding helper sits outside the Explore first message and the batch."
+}

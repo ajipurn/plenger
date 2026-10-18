@@ -87,7 +87,8 @@ every citation against what was actually read.
    a small repository it also holds the traced files, packed as in batch mode,
    so a simple project needs few tool calls.
 3. The model calls tools. The host checks each call, runs it, appends the
-   redacted result and logs it. The model may call up to eight tools per turn.
+   redacted result and logs it. The model may call up to eight tools per turn;
+   calls past eight in one reply, up to 64, are answered with that limit.
 4. The model calls `submit_discovery`. The host parses it and checks every
    citation against the read log. A rejected submission returns the errors as
    the tool result and allows one corrected submission.
@@ -164,7 +165,7 @@ Initial values. The evaluation tunes them before the checkpoint closes.
 | Limit | Discovery session | Second review | Reason |
 | --- | --- | --- | --- |
 | Model calls | 12 | 6 | Includes the reserved closing turn |
-| Tool calls per turn | 8 | 8 | `MODEL_TOOL_CALL_LIMIT` |
+| Tool calls per turn | 8 | 8 | `MODEL_TOOL_CALL_LIMIT`; a reply may hold up to 64 (`EXPLORE_LIMITS.replyToolCalls`) |
 | Bytes returned by tools | 160 KiB | 64 KiB | Bounds conversation growth |
 | Request size | 192 KiB | 128 KiB | Within the 256 KiB transport limit and the model window |
 | Accounted tokens | 1,000,000 | 400,000 | Per session, and never more than what remains of the scan's limit |

@@ -1,0 +1,21 @@
+{
+  "name": "tally-api",
+  "version": "2.7.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@prisma/client": "6.1.0",
+    "express": "5.0.1",
+    "jose": "5.9.6",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.0",
+    "prisma": "6.1.0",
+    "typescript": "5.7.2"
+  }
+}

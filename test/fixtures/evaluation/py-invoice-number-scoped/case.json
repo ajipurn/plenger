@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same route looks up the invoice through the organization-scoped query.",
+  "cwe": "CWE-639",
+  "location": {
+    "path": "app/api/routes/invoices.py",
+    "line": 26,
+    "endLine": 32
+  },
+  "static": [],
+  "note": "The deciding repository sits outside the Explore first message and the batch."
+}

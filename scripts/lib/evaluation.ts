@@ -79,6 +79,8 @@ export interface AiOutcome {
   /** Model requests the review made, and tool calls by name in an exploring review. */
   calls: number;
   toolCalls?: Record<string, number>;
+  /** Files an exploring review's sessions received, its first message included. */
+  read?: string[];
   /** Why the host rejected exploring submissions, when it did. */
   rejected?: string[];
   tokens: number | null;
@@ -217,6 +219,8 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
               sum[name] = (sum[name] ?? 0) + count;
             return sum;
           }, {}),
+          // An exploring review's scope is what its sessions read.
+          read: review.scope.files.map((file) => file.path).sort(),
         }
       : {}),
     ...(review.exploration?.some((session) => session.rejected?.length)
@@ -267,6 +271,16 @@ export async function evaluateStatic(cases: readonly EvaluationCase[]): Promise<
   return outcomes;
 }
 
+/**
+ * A case's scan as the AI review reads it: text files are listed as the dashboard lists
+ * them, and the label file is never sent.
+ */
+export async function reviewSnapshot(item: EvaluationCase) {
+  const snapshot = await scan(item.root, { texts: true });
+  snapshot.textFiles = (snapshot.textFiles ?? []).filter((file) => file.path !== "case.json");
+  return snapshot;
+}
+
 export interface AiConnection {
   provider: SecurityReview["provider"];
   access: ProviderAccess;
@@ -291,12 +305,7 @@ export async function evaluateAi(
   dispatch: typeof fetch = fetch,
 ): Promise<AiEvaluation> {
   const snapshots = new Map<string, Awaited<ReturnType<typeof scan>>>();
-  for (const item of cases) {
-    // Text files are listed as the dashboard lists them; the label file is never sent.
-    const snapshot = await scan(item.root, { texts: true });
-    snapshot.textFiles = (snapshot.textFiles ?? []).filter((file) => file.path !== "case.json");
-    snapshots.set(item.id, snapshot);
-  }
+  for (const item of cases) snapshots.set(item.id, await reviewSnapshot(item));
   const runs: AiOutcome[][] = [];
   for (let run = 0; run < options.runs; run++) {
     const outcomes: AiOutcome[] = [];

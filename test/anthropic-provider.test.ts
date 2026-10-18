@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { ANTHROPIC, MODEL_REQUEST_CAP, MODEL_RESPONSE_CAP } from "../src/redteam/constants.ts";
+import {
+  ANTHROPIC,
+  MODEL_REQUEST_CAP,
+  MODEL_RESPONSE_CAP,
+  MODEL_TOOL_CALL_LIMIT,
+} from "../src/redteam/constants.ts";
 import {
   createRunProvider,
   type ModelRequest,
@@ -186,10 +191,39 @@ describe("native Anthropic transport", () => {
       const dispatch = vi.fn<typeof fetch>(async () => Response.json(message({ stop_reason })));
       await expect(
         createRunProvider(access, dispatch).generate(request, allowance),
-      ).rejects.toThrow("did not complete");
+      ).rejects.toThrow(`did not complete: stop reason ${stop_reason}.`);
       expect(dispatch).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("accepts as many tool calls in one reply as the operation's bounds allow", async () => {
+    const calls = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        type: "tool_use",
+        id: `call-${index}`,
+        name: "lookup",
+        input: {},
+      }));
+    const reply = (count: number) =>
+      vi.fn<typeof fetch>(async () =>
+        Response.json(message({ stop_reason: "tool_use", content: calls(count) })),
+      );
+    // The managed-trial limit holds without bounds of its own.
+    await expect(
+      createRunProvider(access, reply(MODEL_TOOL_CALL_LIMIT + 1)).generate(request, allowance),
+    ).rejects.toThrow(
+      `did not complete: ${MODEL_TOOL_CALL_LIMIT + 1} tool calls in one reply, more than the ${MODEL_TOOL_CALL_LIMIT} accepted.`,
+    );
+    const bounded = {
+      ...access,
+      requestBounds: { bytes: MODEL_REQUEST_CAP, inputTokensPerByte: 4, toolCalls: 16 },
+    };
+    const result = await createRunProvider(bounded, reply(16)).generate(request, allowance);
+    expect(result.value.toolCalls).toHaveLength(16);
+    await expect(
+      createRunProvider(bounded, reply(17)).generate(request, allowance),
+    ).rejects.toThrow("17 tool calls in one reply, more than the 16 accepted.");
+  });
 
   it.each([
     { usage: undefined },

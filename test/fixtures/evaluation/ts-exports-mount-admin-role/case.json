@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same exports router is mounted in the API router behind the admin role.",
+  "cwe": "CWE-862",
+  "location": {
+    "path": "src/features/exports/exports.routes.ts",
+    "line": 13,
+    "endLine": 22
+  },
+  "static": [],
+  "note": "The deciding router sits outside the Explore first message and the batch."
+}

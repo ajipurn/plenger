@@ -1,6 +1,6 @@
 import { isRecord } from "../shared/guards.ts";
 import { redact } from "../shared/secrets.ts";
-import { ANTHROPIC, MAX_OUTPUT_TOKENS, MODEL_TOOL_CALL_LIMIT } from "./constants.ts";
+import { ANTHROPIC, MAX_OUTPUT_TOKENS } from "./constants.ts";
 import { type ClaudeTokenUsage, parseClaudeTokenUsage } from "./model-pricing.ts";
 import {
   ModelProviderHttpError,
@@ -11,6 +11,7 @@ import {
   type RunProvider,
   readModelJson,
   record,
+  replyToolCalls,
   requestBounds,
 } from "./provider.ts";
 import { PROVIDER_URLS, providerBaseUrl } from "./provider-config.ts";
@@ -192,13 +193,22 @@ export function createAnthropicProvider(
             usage,
             tokenDetails,
           };
-        if (
-          (raw.stop_reason !== "end_turn" && raw.stop_reason !== "tool_use") ||
-          (raw.stop_reason === "tool_use") !== tools.length > 0 ||
-          tools.length > MODEL_TOOL_CALL_LIMIT ||
-          new Set(tools.map((tool) => tool.id)).size !== tools.length
-        )
-          throw new Error("Claude response did not complete; the step cannot be evaluated.");
+        // Each reason names only host-checked facts, never response text.
+        if (raw.stop_reason !== "end_turn" && raw.stop_reason !== "tool_use")
+          throw new Error(
+            `Claude response did not complete: stop reason ${stopReason(raw.stop_reason)}.`,
+          );
+        if ((raw.stop_reason === "tool_use") !== tools.length > 0)
+          throw new Error(
+            "Claude response did not complete: its stop reason does not match its tool calls.",
+          );
+        const limit = replyToolCalls(access);
+        if (tools.length > limit)
+          throw new Error(
+            `Claude response did not complete: ${tools.length} tool calls in one reply, more than the ${limit} accepted.`,
+          );
+        if (new Set(tools.map((tool) => tool.id)).size !== tools.length)
+          throw new Error("Claude response did not complete: a tool call id repeats.");
         if (tools.length) history.set(historyKey(text, tools), raw.content);
         const value: ModelReply = {
           content,
@@ -213,6 +223,11 @@ export function createAnthropicProvider(
       }
     },
   };
+}
+
+/** A stop reason as Claude's enum spells it, or "unknown". */
+function stopReason(value: unknown): string {
+  return typeof value === "string" && /^[a-z_]{1,32}$/.test(value) ? value : "unknown";
 }
 
 /** Claude accepts a schema subset. Bounds stay enforced by the host parser. */

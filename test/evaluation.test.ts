@@ -1,16 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
+  aiOutcome,
   type EvaluationCase,
   evaluateAi,
   evaluateStatic,
   formatEvaluation,
   loadCorpus,
   metrics,
+  reviewSnapshot,
   ruleMetrics,
   sameWeakness,
   spread,
 } from "../scripts/lib/evaluation.ts";
 import { STRIDE } from "../src/assessment/model.ts";
+import {
+  EXPLORE_LIMITS,
+  reviewBudget,
+  SECURITY_REVIEW_LIMITS,
+  type SecurityReview,
+} from "../src/assessment/review-model.ts";
+import { captureReviewSource } from "../src/assessment/review-source.ts";
 import { REVIEW_PROMPT_DIGEST } from "../src/assessment/security-review.ts";
 import { fixturePath } from "./support/fixtures.ts";
 import { nativeReviewReply, reviewDecision } from "./support/security-review.ts";
@@ -62,7 +71,7 @@ function discovery(cite: { path: string; line: number; endLine: number } | null)
 describe("evaluation corpus", () => {
   it("pairs a vulnerable case with a safe near-miss for every weakness", async () => {
     const cases = await loadCorpus(fixturePath("evaluation"));
-    expect(cases).toHaveLength(86);
+    expect(cases).toHaveLength(92);
     for (const cwe of new Set(cases.map((item) => item.cwe))) {
       const kinds = cases.filter((item) => item.cwe === cwe).map((item) => item.kind);
       expect(kinds, cwe).toContain("vulnerable");
@@ -81,10 +90,10 @@ describe("evaluation corpus", () => {
     expect(metrics(outcomes)).toEqual({
       truePositives: 38,
       falsePositives: 0,
-      falseNegatives: 6,
-      trueNegatives: 42,
+      falseNegatives: 9,
+      trueNegatives: 45,
       precision: 1,
-      recall: 38 / 44,
+      recall: 38 / 47,
     });
     // Every rule has at least one vulnerable case in the corpus.
     expect(ruleMetrics(outcomes)).toHaveLength(26);
@@ -95,6 +104,40 @@ describe("evaluation corpus", () => {
       precision: 1,
     });
   });
+
+  it("keeps the deciding file of each large pair out of the first message", async () => {
+    // The file that tells each twin apart, beside the labeled handler.
+    const deciding: Record<string, string> = {
+      "py-invoice-number-scoped": "app/repositories/invoices.py",
+      "py-invoice-number-unscoped": "app/repositories/invoices.py",
+      "py-ticket-file-path-confined": "app/utils/files/paths.py",
+      "py-ticket-file-path-unconfined": "app/utils/files/paths.py",
+      "ts-exports-mount-admin-role": "src/http/router.ts",
+      "ts-exports-mount-no-role": "src/http/router.ts",
+    };
+    // The largest batch and the largest Explore first message any model window allows.
+    const batch = reviewBudget([SECURITY_REVIEW_LIMITS.tokens]);
+    const budgets = {
+      batch,
+      explore: {
+        ...batch,
+        contextBytes: Math.min(batch.contextBytes, EXPLORE_LIMITS.firstBytes),
+        fileBytes: Math.min(batch.fileBytes, EXPLORE_LIMITS.firstBytes),
+      },
+    };
+    const cases = await loadCorpus(fixturePath("evaluation"));
+    for (const [id, path] of Object.entries(deciding)) {
+      const item = required(cases.find((candidate) => candidate.id === id));
+      const snapshot = await reviewSnapshot(item);
+      for (const [mode, budget] of Object.entries(budgets)) {
+        const { scope } = await captureReviewSource(snapshot, [], undefined, [], { budget });
+        const paths = scope.files.map((file) => file.path);
+        expect(paths, `${id} ${mode}`).toContain(item.location.path);
+        expect(paths, `${id} ${mode}`).not.toContain(path);
+      }
+    }
+    // Six projects of about 70 KiB, scanned and packed twice each.
+  }, 30000);
 });
 
 describe("weakness matching", () => {
@@ -109,6 +152,25 @@ describe("weakness matching", () => {
 });
 
 describe("AI review evaluation", () => {
+  it("lists the files an exploring review read", async () => {
+    const item = required(
+      (await loadCorpus(fixturePath("evaluation"))).find((entry) => entry.id === "ts-idor-route"),
+    );
+    const review = {
+      status: "completed",
+      findings: [],
+      request: { calls: 2, usage: null },
+      scope: { files: [{ path: "server.ts" }, { path: "db.ts" }] },
+      exploration: [{ toolCalls: { read_file: 1, submit_discovery: 1 } }],
+    } as unknown as SecurityReview;
+    expect(aiOutcome(item, review)).toMatchObject({
+      read: ["db.ts", "server.ts"],
+      toolCalls: { read_file: 1, submit_discovery: 1 },
+    });
+    const { exploration: _exploration, ...batch } = review;
+    expect(aiOutcome(item, batch).read).toBeUndefined();
+  });
+
   it("scores each run, ignores dismissed findings and counts findings outside the labels", async () => {
     const cases = (await loadCorpus(fixturePath("evaluation"))).filter((item) =>
       ["py-sql-tool", "py-sql-tool-param", "ts-idor-route", "ts-idor-route-scoped"].includes(

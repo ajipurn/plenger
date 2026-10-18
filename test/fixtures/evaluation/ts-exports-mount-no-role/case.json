@@ -1,0 +1,12 @@
+{
+  "kind": "vulnerable",
+  "summary": "The payroll and member exports, with every member's cost rate, are mounted in the API router with sign-in only, while the rates they reveal require the manager role.",
+  "cwe": "CWE-862",
+  "location": {
+    "path": "src/features/exports/exports.routes.ts",
+    "line": 13,
+    "endLine": 22
+  },
+  "static": [],
+  "note": "The deciding router sits outside the Explore first message and the batch. No static rule covers route authorization; only the AI review can find this."
+}

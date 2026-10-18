@@ -1,0 +1,12 @@
+{
+  "kind": "vulnerable",
+  "summary": "A ticket file route passes the URL's file name to a helper deep in the utils package that joins it onto the ticket folder without confining the result.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app/api/routes/attachments.py",
+    "line": 26,
+    "endLine": 40
+  },
+  "static": [],
+  "note": "The deciding helper sits outside the Explore first message and the batch. No static rule follows the join into the helper; only the AI review can find this."
+}

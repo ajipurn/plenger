@@ -60,12 +60,19 @@ export interface ProviderAccess {
 export interface RequestBounds {
   bytes: number;
   inputTokensPerByte: number;
+  /** Tool calls one reply may hold; omitted, `MODEL_TOOL_CALL_LIMIT`. */
+  toolCalls?: number;
 }
 const TRIAL_BOUNDS: RequestBounds = { bytes: MODEL_REQUEST_CAP, inputTokensPerByte: 4 };
 
 /** The bounds an access requests, or the managed-trial bounds. */
 export function requestBounds(access: Pick<ProviderAccess, "requestBounds">): RequestBounds {
   return access.requestBounds ?? TRIAL_BOUNDS;
+}
+
+/** The tool calls one reply may hold under an access's bounds. */
+export function replyToolCalls(access: Pick<ProviderAccess, "requestBounds">): number {
+  return requestBounds(access).toolCalls ?? MODEL_TOOL_CALL_LIMIT;
 }
 
 /** Only the status is surfaced; provider error bodies may contain request data. */
@@ -185,7 +192,7 @@ export function createRunProvider(
         throw new ModelProviderHttpError(response.status);
       }
       const raw = await readModelJson(response);
-      const parsed = parseModelReply(raw);
+      const parsed = parseModelReply(raw, replyToolCalls(access));
       if (access.provider === "gemini") {
         const value = record(raw);
         const calls = record(record((value.choices as unknown[])[0]).message).tool_calls;
@@ -253,7 +260,10 @@ function connectionTestFailure(error: unknown): string {
   return "Connection test failed. Check the endpoint, model and API key.";
 }
 
-export function parseModelReply(raw: unknown): { value: ModelReply; usage?: TokenUsage } {
+export function parseModelReply(
+  raw: unknown,
+  toolCallLimit = MODEL_TOOL_CALL_LIMIT,
+): { value: ModelReply; usage?: TokenUsage } {
   const value = record(raw);
   const choice = record(Array.isArray(value.choices) ? value.choices[0] : null);
   if (choice.finish_reason !== "stop" && choice.finish_reason !== "tool_calls")
@@ -262,8 +272,11 @@ export function parseModelReply(raw: unknown): { value: ModelReply; usage?: Toke
   if (message.content !== null && typeof message.content !== "string")
     throw new Error("Invalid model content.");
   const calls = message.tool_calls ?? [];
-  if (!Array.isArray(calls) || calls.length > MODEL_TOOL_CALL_LIMIT)
-    throw new Error("Invalid model tool calls.");
+  if (!Array.isArray(calls)) throw new Error("Invalid model tool calls.");
+  if (calls.length > toolCallLimit)
+    throw new Error(
+      `Invalid model tool calls: ${calls.length} in one reply, more than the ${toolCallLimit} accepted.`,
+    );
   const toolCalls = calls.map((item: unknown) => {
     const call = record(item);
     const fn = record(call.function);
