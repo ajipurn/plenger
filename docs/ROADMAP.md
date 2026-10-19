@@ -333,8 +333,8 @@ reviewed.
 See [guide/ai-security-review.md](guide/ai-security-review.md).
 
 **In progress:** M9b. The tool loop and the second review with tools work as
-the dashboard's Explore mode on Claude, with Unvalidated candidates in both
-modes and `pnpm evaluate --mode`. See [STATUS.md](STATUS.md) for what is
+the dashboard's Explore mode, the default for Claude, in Quick and Full
+coverage, with Unvalidated candidates in both modes and `pnpm evaluate --mode`. See [STATUS.md](STATUS.md) for what is
 measured and what remains.
 
 | Checkpoint | Deliverable | Acceptance |

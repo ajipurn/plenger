@@ -104,7 +104,8 @@ If declining, submit status refused with a non-empty top-level reason and empty 
 Copy paths and host-assigned ids exactly. Citation line and endLine are inclusive and must lie inside one range you received, in the first message or from read_file. Prefer focused ranges that support the claim.`;
 const EXPLORE_DISCOVERY = `${EXPLORE_COMMON}
 ${DISCOVERY_TASK}
-Before you report a path, read the code it runs through that the first message does not hold: the functions a handler calls, its callers, middleware and helpers, and look there for the guard. Use targeted reads; the session has a limited number of model calls and returned bytes. Finish by calling submit_discovery with the whole review.`;
+Before you report a path, read the code it runs through that the first message does not hold: the functions a handler calls, its callers, middleware and helpers, and look there for the guard. Use targeted reads; the session has a limited number of model calls and returned bytes.
+When the first message has earlierSessions, earlier reviews of this scan read those files and reported those candidates. Spend this session on code they did not read, and do not report their candidates again. Finish by calling submit_discovery with the whole review.`;
 const EXPLORE_VALIDATION = `${EXPLORE_COMMON}
 ${VALIDATION_RULES}
 The first message holds the candidates, the files of the first set and the cited ranges. Before you decide, read the code a decision depends on that it does not hold: callers, middleware and the functions the path calls. Finish by calling submit_decisions with one decision per candidate.`;
@@ -146,6 +147,31 @@ function sampling(access: ProviderAccess, explore: boolean): ReviewSampling {
     // Claude holds both the batch answer and an exploring review's submit tool to the schema.
     structuredOutput: access.provider === "anthropic",
   };
+}
+
+/**
+ * What earlier reviews of a Full coverage scan read and reported, within its byte cap: the
+ * most recent entries are dropped first, so the summary stays a prefix of the scan's order.
+ */
+function earlierSessions(
+  read: readonly ReviewSourceFile[] | undefined,
+  candidates: readonly { title: string; cwe: string | null; at: string }[] | undefined,
+) {
+  if (!read?.length && !candidates?.length) return {};
+  const summary = {
+    read: (read ?? []).map((file) => ({ path: file.path, ranges: file.ranges ?? "whole file" })),
+    candidates: [...(candidates ?? [])],
+    more: 0,
+  };
+  while (
+    Buffer.byteLength(JSON.stringify(summary)) > EXPLORE_LIMITS.earlierBytes &&
+    summary.read.length + summary.candidates.length > 0
+  ) {
+    if (summary.read.length >= summary.candidates.length) summary.read.pop();
+    else summary.candidates.pop();
+    summary.more += 1;
+  }
+  return { earlierSessions: summary };
 }
 
 /** A parsed submission, or the parser's message for the model to correct. */
@@ -220,6 +246,8 @@ export async function reviewProject(
     signal?: AbortSignal;
     /** Files earlier batches of the same scan sent; an excerpted file continues. */
     submitted?: readonly ReviewSourceFile[];
+    /** Candidates earlier reviews of the same scan reported, for an exploring review. */
+    earlier?: readonly { title: string; cwe: string | null; at: string }[];
     /** A separate connection for the second review; defaults to the discovery provider. */
     validator?: {
       provider: SecurityReview["provider"];
@@ -521,7 +549,11 @@ export async function reviewProject(
       const outcome = await exploreSession({
         phase: "discovery",
         instructions: EXPLORE_DISCOVERY,
-        first: { repository: exploreHints(snapshot, reader, secrets), ...source },
+        first: {
+          repository: exploreHints(snapshot, reader, secrets),
+          ...earlierSessions(options.submitted, options.earlier),
+          ...source,
+        },
         tools: new ExploreTools(snapshot, reader, secrets, log),
         log,
         accept: (args) => submission(() => parseReviewDiscovery(JSON.stringify(args), log.files())),

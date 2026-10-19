@@ -52,7 +52,7 @@ const MODE_COPY: Record<ReviewMode, { label: string; description: string; calls:
     label: "Explore",
     description:
       "The model reads the project through read-only tools and follows paths across files.",
-    calls: `Up to ${EXPLORE_LIMITS.discovery.modelCalls + EXPLORE_LIMITS.validation.modelCalls} model calls, Quick only`,
+    calls: `Up to ${EXPLORE_LIMITS.discovery.modelCalls + EXPLORE_LIMITS.validation.modelCalls} model calls per review`,
   },
 };
 /** Rendered source is larger than file bytes: line numbers and JSON escaping. */
@@ -248,10 +248,13 @@ export function NewScanForm({
   const [providerId, setProviderId] = useState(
     (providers.find((item) => item.isDefault) ?? providers[0])?.id ?? "",
   );
-  const [mode, setMode] = useState<ReviewMode>("batch");
-  const [chosenDepth, setDepth] = useState<SelectableScanDepth>("quick");
-  // An exploring review runs once.
-  const depth = mode === "explore" ? "quick" : chosenDepth;
+  // Explore is measured on Claude; other connections start in Batch and can choose Explore.
+  const defaultMode = (provider?: SavedProvider): ReviewMode =>
+    provider?.provider === "anthropic" ? "explore" : "batch";
+  const [mode, setMode] = useState<ReviewMode>(() =>
+    defaultMode(providers.find((item) => item.isDefault) ?? providers[0]),
+  );
+  const [depth, setDepth] = useState<SelectableScanDepth>("quick");
   const [limitKind, setLimitKind] = useState<ScanBudget["kind"]>("tokens");
   const [tokenLimit, setTokenLimit] = useState(String(SCAN_BUDGET_LIMITS.defaultTokens));
   const [usdLimit, setUsdLimit] = useState(SCAN_BUDGET_LIMITS.defaultUsd.toFixed(2));
@@ -482,8 +485,10 @@ export function NewScanForm({
                   label: item.name,
                 }))}
                 onValueChange={(value) => {
+                  const next = providers.find((item) => item.id === value);
                   setProviderId(value);
-                  setModel(providers.find((item) => item.id === value)?.model ?? "");
+                  setModel(next?.model ?? "");
+                  setMode(defaultMode(next));
                 }}
                 disabled={busy}
               />
@@ -637,7 +642,6 @@ export function NewScanForm({
               <Radio
                 key={value}
                 value={value}
-                isDisabled={value === "full" && mode === "explore"}
                 className="security-scan-depth-option"
                 aria-labelledby={`${id}-${value}-label`}
                 aria-describedby={`${id}-${value}-description ${id}-${value}-calls`}

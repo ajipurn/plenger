@@ -12,6 +12,7 @@ import { redact } from "../shared/secrets.ts";
 import { mergeRanges } from "./review-excerpt.ts";
 import {
   EXPLORE_LIMITS,
+  EXPLORE_STOPS,
   type ExplorePhase,
   type ExploreSessionRecord,
   type ExploreStop,
@@ -410,18 +411,6 @@ export class ExploreLimitError extends Error {
 /** A submission the host checked, or the reason it was rejected. */
 export type Submission<T> = { value: T } | { error: string };
 
-/** How each stop reads in a review's reasons and limitations. */
-export const EXPLORE_STOPS: Record<ExploreStop, string> = {
-  submitted: "after its submission",
-  "model-calls": "at its model call limit",
-  "tool-bytes": "at its limit on bytes returned by tools",
-  "request-size": "at its request size limit",
-  time: "at its time limit",
-  tokens: "at its token limit",
-  invalid: "after an invalid answer",
-  failed: "on a provider error, refusal or budget stop",
-};
-
 /**
  * One phase's conversation. The model calls read tools, then the submit tool, whose
  * arguments `accept` parses and checks. One rejected submission may be corrected. When
@@ -585,3 +574,5 @@ export async function exploreSession<T>(options: {
     record.searches = [...options.tools.searches];
   }
 }
+
+export { EXPLORE_STOPS };

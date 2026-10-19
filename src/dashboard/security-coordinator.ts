@@ -27,6 +27,18 @@ import type { DashboardStore } from "../storage/store.ts";
 import { HttpError } from "./http.ts";
 import type { OperationSupervisor } from "./operations.ts";
 
+/** Lines the files hold that some review read, counting each line of each path once. */
+function readLines(files: readonly ReviewSourceFile[]): number {
+  const read = new Map<string, Set<number>>();
+  for (const file of files) {
+    const lines = read.get(file.path) ?? new Set<number>();
+    for (const range of file.ranges ?? [{ line: 1, endLine: file.lines }])
+      for (let line = range.line; line <= range.endLine; line++) lines.add(line);
+    read.set(file.path, lines);
+  }
+  return [...read.values()].reduce((sum, lines) => sum + lines.size, 0);
+}
+
 /** Background scans survive page navigation. The same supervisor protects legacy operations. */
 export class SecurityCoordinator {
   readonly #store: DashboardStore;
@@ -88,8 +100,6 @@ export class SecurityCoordinator {
         model,
       );
       const mode = input.mode ?? "batch";
-      if (mode === "explore" && input.depth !== "quick")
-        throw new HttpError(400, "An exploring review runs once. Choose Quick for Explore mode.");
       // The most one batch, or one exploring review, can charge, for the limit checks.
       const sizes = reviewBudget([inputTokens, ...(validator ? [validator.inputTokens] : [])]);
       const most = {
@@ -213,6 +223,18 @@ export class SecurityCoordinator {
                 ...(validator ? { validator } : {}),
                 ...(limit ? { limit } : {}),
                 mode,
+                // Later exploring reviews hear what earlier ones reported, so they look elsewhere.
+                ...(mode === "explore" && job.reviews.length
+                  ? {
+                      earlier: job.reviews.flatMap((item) =>
+                        item.findings.map((finding) => ({
+                          title: finding.title,
+                          cwe: finding.cwe,
+                          at: `${finding.evidence[0]?.path}:${finding.evidence[0]?.line}`,
+                        })),
+                      ),
+                    }
+                  : {}),
                 environment: repository.environment,
                 onPhase: (phase) => {
                   job.phase = phase;
@@ -256,8 +278,15 @@ export class SecurityCoordinator {
                 job.error = review.reason ?? review.summary;
                 break;
               }
+              const readBefore = readLines(submitted);
               submitted.push(...review.scope.files);
               coverage.sentFiles = new Set(submitted.map((file) => file.path)).size;
+              // An exploring review that read nothing new would only repeat itself.
+              if (mode === "explore" && readLines(submitted) === readBefore) {
+                stop = "explored";
+                this.#store.security.saveScan(job);
+                break;
+              }
               this.#store.security.saveScan(job);
             }
             if (job.status === "running") coverage.stop = stop;

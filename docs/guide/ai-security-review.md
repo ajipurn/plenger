@@ -243,13 +243,33 @@ the host asks for the submission and refuses other tools for a closing turn,
 so a session that is about to run out can still answer. Every request is also
 checked against the scan's token or USD limit before it is sent. Every turn
 resends the conversation, so an exploring review uses more tokens than a batch.
+On Claude each turn asks the API to cache its prefix, so the next turn reads
+the earlier conversation at the cache-read price; usage reports cache reads
+and writes, and the cost estimate prices them.
 
-Explore runs one review: choose **Quick**. Reviews record `mode`, and for
+**Quick** runs one exploring review. **Full coverage** runs exploring reviews
+until every readable file was read, the scan's limit cannot hold another
+review's maximum, 100 reviews have run, or a review read nothing earlier ones
+had not. A later review's first set holds files no earlier review read whole,
+and its first message lists, within 8 KiB, the files earlier reviews read and
+the candidates they reported, so it explores elsewhere and does not repeat
+them.
+
+New Scan selects Explore for Claude connections and Batch for the others,
+which can choose Explore. On OpenAI, Gemini and Ollama the tools go through
+chat completions, on a ChatGPT subscription through the Responses transport;
+there the submit tools are not strict, so the host's checks and the one
+correction carry the schema, and no cache breakpoint is sent. Whether an
+Ollama model calls tools depends on the model. Only Claude has been measured.
+
+Reviews record `mode`, and for
 Explore `exploration`: per session the stop reason, model calls, tool calls by
 name, bytes returned, the files and ranges read with their digests, the
 searches, and the host's reasons for any rejected submission (field locations,
 never model values). The review's scope lists the files and ranges read, and its
-limitations say how many files the model read and searched.
+limitations say how many files the model read and searched. **Scan > Outputs**
+shows each exploring review's sessions: why each stopped, its calls and tool
+calls, the files and ranges it read and its searches.
 
 Text in the repository can address the model, for example asking it to read an
 excluded file or to report nothing. The tools cannot leave the allowlist, and

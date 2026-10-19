@@ -71,6 +71,8 @@ export const EXPLORE_LIMITS = {
   outputTokens: 16_384,
   /** Replies cut at the output allowance that a session answers with a request to shorten. */
   cutReplies: 1,
+  /** What earlier reviews of a Full coverage scan read and reported, in the first message. */
+  earlierBytes: 8 * 1024,
   readLines: 300,
   readBytes: 16 * 1024,
   listEntries: 300,
@@ -305,6 +307,18 @@ export type ExploreStop =
   | "tokens"
   | "invalid"
   | "failed";
+
+/** How each stop reads in a review's reasons and limitations. */
+export const EXPLORE_STOPS: Record<ExploreStop, string> = {
+  submitted: "after its submission",
+  "model-calls": "at its model call limit",
+  "tool-bytes": "at its limit on bytes returned by tools",
+  "request-size": "at its request size limit",
+  time: "at its time limit",
+  tokens: "at its token limit",
+  invalid: "after an invalid answer",
+  failed: "on a provider error, refusal or budget stop",
+};
 
 /** What one exploring session did, saved with the review. Paths and queries are redacted. */
 export interface ExploreSessionRecord {

@@ -41,7 +41,7 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
             <span>{SCAN_DEPTHS[scan.depth].label} scan</span>
             <span aria-hidden="true">·</span>
             <span>
-              {scan.mode === "explore" ? "Exploring with read-only tools" : `Source batch ${batch}`}
+              {scan.mode === "explore" ? `Exploring review ${batch}` : `Source batch ${batch}`}
             </span>
           </p>
           <h2>{cancelling ? "Cancelling scan" : phaseLabel[scan.phase]}</h2>

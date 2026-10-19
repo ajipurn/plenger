@@ -1009,6 +1009,12 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-output-coverage summary {
   @apply cursor-pointer font-medium;
 }
+.security-exploration-log {
+  @apply grid gap-3 mt-3;
+}
+.security-exploration-log code {
+  @apply break-all;
+}
 .security-settings {
   @apply w-full;
 }

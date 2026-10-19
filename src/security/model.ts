@@ -44,9 +44,10 @@ export interface ScanCoverage {
   /**
    * `complete`: no unsent source that fits a batch remained. `budget`: the next batch's
    * maximum exceeded what remained of the limit. `limit`: the Full coverage batch cap.
-   * `quick`: one batch by choice. Null while running and after a failure.
+   * `quick`: one batch by choice. `explored`: an exploring review read nothing earlier
+   * reviews had not. Null while running and after a failure.
    */
-  stop: "complete" | "budget" | "limit" | "quick" | null;
+  stop: "complete" | "budget" | "limit" | "quick" | "explored" | null;
   /** Charged against the limit: accounted tokens, and USD when every request was priced. */
   charged: { tokens: number; usd: number | null };
 }

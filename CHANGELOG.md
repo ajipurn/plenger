@@ -16,8 +16,15 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   parsers. Citations must lie in lines the session received. Each pass is one
   bounded conversation with a closing turn before its limits. Reviews record
   `mode` and, per session, the stop reason, tool calls, files and ranges read
-  and the searches. Explore runs as one Quick review. `pnpm evaluate --mode
-  explore` measures it.
+  and the searches. `pnpm evaluate --mode explore` measures it.
+
+- Explore runs Full coverage: later reviews start from files no earlier review
+  read whole and hear, within 8 KiB, what earlier reviews read and reported.
+  Coverage stops when a review reads nothing new. On Claude every exploring
+  turn asks the API to cache its prefix. New Scan selects Explore for Claude
+  connections; OpenAI, Gemini, Ollama and ChatGPT can choose it, with plain
+  function tools. Scan > Outputs shows each exploring session's stop, calls,
+  read files and ranges, and searches.
 
 - A second review that stops before it decides keeps its candidates as
   **Unvalidated**, in both modes, with the reason. It used to fail the review.

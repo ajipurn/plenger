@@ -698,16 +698,15 @@ describe("local project security workspace", () => {
     expect(scan.modelCalls).toBe(2);
   });
 
-  it("runs an exploring review as one Quick scan and refuses Explore with Full coverage", async () => {
+  it("runs exploring reviews for Quick and Full coverage and rejects an unknown mode", async () => {
     const repo = await repository();
-    const full = await dashboard.request(API.securityScans, {
-      repositoryId: repo.id,
-      providerId: provider.id,
-      mode: "explore",
-      ...FULL,
-    });
-    expect(full.status).toBe(400);
-    expect(await full.text()).toContain("Choose Quick for Explore mode");
+    const full = await finished((await start(repo.id, { mode: "explore", ...FULL })).id);
+    expect(full.status).toBe("completed");
+    expect(full.mode).toBe("explore");
+    // The first exploring review held every file of this small project.
+    expect(full.coverage?.stop).toBe("complete");
+    expect(full.reviews).toHaveLength(1);
+    bodies.length = 0;
     const unknown = await dashboard.request(API.securityScans, {
       repositoryId: repo.id,
       providerId: provider.id,

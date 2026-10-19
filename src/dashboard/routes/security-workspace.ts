@@ -154,8 +154,6 @@ export function securityWorkspaceRoutes({
           throw new HttpError(400, "Choose Quick or Full coverage.");
         if (body.mode !== undefined && body.mode !== "batch" && body.mode !== "explore")
           throw new HttpError(400, "Choose Explore or Batch review mode.");
-        if (body.mode === "explore" && body.depth !== "quick")
-          throw new HttpError(400, "An exploring review runs once. Choose Quick for Explore mode.");
         const budget = body.budget === undefined ? undefined : scanBudget(body.budget);
         if (body.depth === "full" && budget === undefined)
           throw new HttpError(400, "Set a token or USD limit for a Full coverage scan.");

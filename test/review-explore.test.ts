@@ -520,6 +520,39 @@ describe("exploring AI review", () => {
     }
   });
 
+  it("tells a later exploring review what earlier reviews read and reported", async () => {
+    const snapshot = await project();
+    const model = claude(() => [
+      use("submit_discovery", { ...reviewDiscovery(), findings: [] } as never),
+    ]);
+    const review = await reviewProject(
+      snapshot,
+      {
+        scanId: "scan",
+        provider,
+        access,
+        mode: "explore",
+        submitted: [{ path: "server.ts", lines: 7, digest: "" }],
+        earlier: [
+          { title: "Invoice lookup omits tenant authorization", cwe: "CWE-639", at: "store.ts:2" },
+        ],
+      },
+      model.dispatch,
+    );
+    expect(review.status).toBe("completed");
+    const messages = model.bodies[0]?.messages as { content: { text: string }[] }[];
+    const first = JSON.parse(messages[0]?.content[0]?.text ?? "{}");
+    expect(first.earlierSessions).toEqual({
+      read: [{ path: "server.ts", ranges: "whole file" }],
+      candidates: [
+        { title: "Invoice lookup omits tenant authorization", cwe: "CWE-639", at: "store.ts:2" },
+      ],
+      more: 0,
+    });
+    // The first set skips what earlier reviews read whole.
+    expect(first.files.map((file: { path: string }) => file.path)).not.toContain("server.ts");
+  });
+
   it("fails discovery that never submits, with the stop in the reason", async () => {
     const snapshot = await project();
     const model = claude(() => "I reviewed the code and found nothing.");

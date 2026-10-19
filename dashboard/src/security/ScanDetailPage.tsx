@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import {
+  EXPLORE_STOPS,
+  type ExploreSessionRecord,
   type ImportedReaEvidence,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
@@ -215,10 +217,14 @@ export function ScanDetailPage({
               {scan.reviews.length ? (
                 scan.reviews.map((review, index) => (
                   <section key={review.id} className="security-output-batch">
-                    <h2>Source batch {index + 1}</h2>
+                    <h2>
+                      {review.mode === "explore" ? "Exploring review" : "Source batch"} {index + 1}
+                    </h2>
                     <p className="muted">
-                      {review.scope.files.length} of {review.scope.eligibleFiles} source files
-                      included · {review.scope.omittedFiles} omitted · {review.status}
+                      {review.scope.files.length} of {review.scope.eligibleFiles} source files{" "}
+                      {review.mode === "explore" ? "read" : "included"} ·{" "}
+                      {review.scope.omittedFiles} {review.mode === "explore" ? "unread" : "omitted"}{" "}
+                      · {review.status}
                       {review.validator ? ` · second review by ${review.validator.model}` : ""}
                     </p>
                     <p>{review.summary}</p>
@@ -314,6 +320,9 @@ export function ScanDetailPage({
                             ))}
                           </ul>
                         </>
+                      ) : null}
+                      {review.exploration?.length ? (
+                        <ExplorationLog sessions={review.exploration} />
                       ) : null}
                       <ul>
                         {[...new Set(review.limitations)].map((item) => (
@@ -496,7 +505,60 @@ const STOP_TEXT: Record<NonNullable<NonNullable<SecurityScan["coverage"]>["stop"
   budget: "stopped at the limit",
   limit: `stopped at ${SCAN_BUDGET_LIMITS.fullBatches} batches`,
   quick: "one batch",
+  explored: "the last exploring review read nothing new",
 };
+
+/** What each exploring session read and searched, and why it stopped. */
+function ExplorationLog({ sessions }: { sessions: ExploreSessionRecord[] }) {
+  return (
+    <div className="security-exploration-log">
+      {sessions.map((session) => (
+        <div key={session.phase}>
+          <h4>{session.phase === "discovery" ? "Discovery session" : "Second review session"}</h4>
+          <p className="muted">
+            Stopped {EXPLORE_STOPS[session.stop]} · {session.modelCalls}{" "}
+            {session.modelCalls === 1 ? "model call" : "model calls"} ·{" "}
+            {Object.entries(session.toolCalls)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([name, count]) => `${name} ${count}`)
+              .join(", ") || "no tool calls"}{" "}
+            · {Math.round(session.bytesReturned / 1024)} KiB returned
+            {session.cutReplies ? ` · ${session.cutReplies} reply cut at the output limit` : ""}
+            {session.rejected?.length
+              ? ` · ${session.rejected.length} ${session.rejected.length === 1 ? "submission" : "submissions"} rejected`
+              : ""}
+          </p>
+          <ul>
+            {session.reads.map((read) => (
+              <li key={read.path}>
+                <code>{read.path}</code> ·{" "}
+                {read.ranges
+                  ? read.ranges.map((range) => `${range.line}-${range.endLine}`).join(", ")
+                  : "whole file"}
+              </li>
+            ))}
+          </ul>
+          {session.searches.length ? (
+            <ul>
+              {session.searches.map((search) => (
+                <li key={JSON.stringify(search)}>
+                  Search <code>{search.query}</code>
+                  {search.prefix ? (
+                    <>
+                      {" "}
+                      under <code>{search.prefix}</code>
+                    </>
+                  ) : null}{" "}
+                  · {search.matches} {search.matches === 1 ? "match" : "matches"}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** Depth and mode, why batches stopped, and what the limit charged. */
 function coverageNote(scan: SecurityScan): string {
@@ -505,11 +567,11 @@ function coverageNote(scan: SecurityScan): string {
   const parts: string[] = [SCAN_DEPTHS[scan.depth].label, ...(explore ? ["Explore"] : [])];
   if (coverage?.stop)
     parts.push(
-      explore
-        ? coverage.stop === "complete"
-          ? "every file was read"
-          : "the files the model chose to read"
-        : STOP_TEXT[coverage.stop],
+      explore && coverage.stop === "complete"
+        ? "every file was read"
+        : explore && coverage.stop === "quick"
+          ? "the files the model chose to read"
+          : STOP_TEXT[coverage.stop],
     );
   if (coverage && scan.budget)
     parts.push(
