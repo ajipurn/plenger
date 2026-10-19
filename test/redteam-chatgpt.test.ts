@@ -7,7 +7,11 @@ import { API, type ChatgptLoginResult, TOKEN_HEADER } from "../src/dashboard/con
 import { ModelBudget } from "../src/redteam/budget.ts";
 import { chatgptModels } from "../src/redteam/chatgpt-auth.ts";
 import { CHATGPT, MODEL_RESPONSE_CAP } from "../src/redteam/constants.ts";
-import { createRunProvider, type ModelRequest } from "../src/redteam/provider.ts";
+import {
+  createRunProvider,
+  type ModelRequest,
+  reachedOutputLimit,
+} from "../src/redteam/provider.ts";
 import { PROVIDER_URLS } from "../src/redteam/provider-config.ts";
 import { ProviderRepository } from "../src/storage/provider-repository.ts";
 import { required, startTestDashboard } from "./support/dashboard.ts";
@@ -500,6 +504,23 @@ describe("ChatGPT streaming provider", () => {
     await expect(
       provider(async () => new Response(body)).generate(request, allowance()),
     ).rejects.toThrow();
+  });
+
+  it("marks a response cut at its output allowance as an output limit", async () => {
+    const cut = provider(
+      async () =>
+        new Response(
+          'data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}\n\n',
+        ),
+    ).generate(request, allowance());
+    const error = await cut.catch((failure: unknown) => failure);
+    expect(reachedOutputLimit(error)).toBe(true);
+    const other = await provider(
+      async () => new Response('data: {"type":"response.incomplete"}\n\n'),
+    )
+      .generate(request, allowance())
+      .catch((failure: unknown) => failure);
+    expect(reachedOutputLimit(other)).toBe(false);
   });
 
   it("retains completed output items when the completion event has an empty output", async () => {

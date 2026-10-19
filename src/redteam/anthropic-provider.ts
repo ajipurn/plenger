@@ -101,6 +101,7 @@ export function createAnthropicProvider(
       messages,
       ...(system.length ? { system } : {}),
       ...(tools.length ? { tools } : {}),
+      ...(request.cache ? { cache_control: { type: "ephemeral" } } : {}),
       ...(request.outputSchema
         ? {
             output_config: {

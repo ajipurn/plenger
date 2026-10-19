@@ -22,6 +22,11 @@ export interface ModelRequest {
   tools: unknown[] | null;
   /** Host-owned structured output schema. Currently used by native Claude reviews. */
   outputSchema?: Record<string, unknown>;
+  /**
+   * A conversation whose next turn resends this one: Claude caches the prefix up to the
+   * last block. Other transports cache prefixes on their own and ignore it.
+   */
+  cache?: boolean;
 }
 export interface ModelReply {
   content: string | null;

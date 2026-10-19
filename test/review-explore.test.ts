@@ -365,6 +365,8 @@ describe("exploring AI review", () => {
     expect(review.limitations.at(-1)).toContain("The model chose what to read");
     for (const body of model.bodies) {
       expect(body.output_config).toBeUndefined();
+      // Each turn caches its prefix, so the next turn reads the conversation from the cache.
+      expect(body.cache_control).toEqual({ type: "ephemeral" });
       const tools = body.tools as { name: string; strict?: boolean; input_schema: unknown }[];
       expect(tools.map((tool) => tool.name)).toContain("read_file");
       // Claude holds the submit tool to its schema, in the structured-output subset.
@@ -450,6 +452,72 @@ describe("exploring AI review", () => {
     expect(review.reason).toContain("stop reason max_tokens");
     expect(review.exploration?.[0]).toMatchObject({ stop: "failed", cutReplies: 1 });
     expect(model.bodies).toHaveLength(2);
+  });
+
+  it("explores through the chat-completions transport with plain function tools", async () => {
+    const snapshot = await project();
+    const bodies: Record<string, unknown>[] = [];
+    let ids: string[] = [];
+    const reply = (calls: ReturnType<typeof use>[]) =>
+      Response.json({
+        choices: [
+          {
+            finish_reason: "tool_calls",
+            message: {
+              content: null,
+              tool_calls: calls.map((call) => ({
+                id: call.id,
+                type: "function",
+                function: { name: call.name, arguments: JSON.stringify(call.arguments) },
+              })),
+            },
+          },
+        ],
+        usage: { prompt_tokens: 500, completion_tokens: 100, total_tokens: 600 },
+      });
+    const dispatch: typeof fetch = async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      bodies.push(body);
+      const messages = body.messages as { role: string; content: string }[];
+      if (bodies.length === 1) return reply([use("read_file", { path: "notes.ts" })]);
+      if (bodies.length === 2) {
+        expect(messages.at(-1)).toMatchObject({ role: "tool" });
+        return reply([use("submit_discovery", reviewDiscovery() as never)]);
+      }
+      if (bodies.length === 3) {
+        ids = (JSON.parse(messages[1]?.content ?? "{}").candidates as { id: string }[]).map(
+          (item) => item.id,
+        );
+        return reply([use("submit_decisions", reviewDecision(ids) as never)]);
+      }
+      throw new Error("unexpected request");
+    };
+    const review = await reviewProject(
+      snapshot,
+      {
+        scanId: "scan",
+        provider,
+        access: {
+          provider: "openai",
+          model: "gpt-test",
+          apiKey: "openai-test-key-1",
+          maxOutputTokens: 8192,
+        },
+        mode: "explore",
+      },
+      dispatch,
+    );
+    expect(review.status).toBe("completed");
+    expect(review.findings.map((item) => item.validation)).toEqual(["source-supported"]);
+    expect(review.generation?.discovery.structuredOutput).toBe(false);
+    for (const body of bodies) {
+      const tools = body.tools as { type: string; function: { name: string; strict?: boolean } }[];
+      expect(tools.map((tool) => tool.function.name)).toContain("read_file");
+      // Strict schemas and cache breakpoints are Claude-only.
+      expect(tools.every((tool) => tool.function.strict === undefined)).toBe(true);
+      expect(body.cache_control).toBeUndefined();
+      expect(body.max_completion_tokens).toBe(EXPLORE_LIMITS.outputTokens);
+    }
   });
 
   it("fails discovery that never submits, with the stop in the reason", async () => {

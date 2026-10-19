@@ -3,6 +3,7 @@ import {
   ModelProviderHttpError,
   type ModelRequest,
   normalizeTools,
+  OutputLimitError,
   type ProviderAccess,
   parseModelReply,
   type RunProvider,
@@ -226,6 +227,12 @@ async function completedResponse(response: Response): Promise<Record<string, unk
         } catch {
           throw new Error("Invalid ChatGPT stream.");
         }
+        // A response cut at its output allowance is a recognizable output limit.
+        if (
+          event.type === "response.incomplete" &&
+          record(record(event.response).incomplete_details).reason === "max_output_tokens"
+        )
+          throw new OutputLimitError("ChatGPT response did not complete: output limit reached.");
         if (["error", "response.failed", "response.incomplete"].includes(String(event.type)))
           throw new Error(
             "ChatGPT response failed. Check access and usage limits in ChatGPT settings.",

@@ -508,7 +508,7 @@ export async function exploreSession<T>(options: {
       try {
         // Every turn offers the same tools, so earlier tool use stays valid; the host
         // answers anything but the submit tool after the closing notice.
-        reply = await options.send({ messages, tools: all });
+        reply = await options.send({ messages, tools: all, cache: true });
       } catch (error) {
         if (error instanceof ExploreLimitError) return finish(error.stop, null);
         // A reply cut at its output allowance is incomplete and is discarded. The
