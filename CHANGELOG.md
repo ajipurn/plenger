@@ -184,6 +184,11 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- A program run with input only among its arguments is reported as argument
+  injection (PLG102, or the arguments wording of PLG401), not as a program
+  the input names, when the program comes from a call such as
+  `shutil.which("ffmpeg")`.
+
 - An exploring review no longer fails when Claude asks for more than eight
   tools in one reply. The reply may hold up to 64 calls; the session runs eight
   and answers the rest with its per-turn limit. A reply the Claude transport

@@ -41,7 +41,11 @@ function effectFinding(cx: RuleContext, tool: Tool, capability: Capability): Dra
   switch (capability.kind) {
     case "process":
       if (inputs.length === 0) break;
-      if (capability.command === "arguments") {
+      // A program the model does not name, run with model input among its arguments.
+      if (
+        capability.command === "arguments" ||
+        (capability.command === "program" && cx.modelInputs(tool, capability.program).length === 0)
+      ) {
         verdict = {
           rule: "PLG102",
           title: `Tool ${name} passes model input to the arguments of ${target}`,

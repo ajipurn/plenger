@@ -57,7 +57,8 @@ function outputDraft(
     case "process":
       if (inputs.length === 0) break;
       use =
-        effect.command === "arguments"
+        effect.command === "arguments" ||
+        (effect.command === "program" && fromModel(effect.program).length === 0)
           ? {
               title: `is passed as arguments to ${target}`,
               severity: "medium",

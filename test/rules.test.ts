@@ -380,6 +380,49 @@ def read_user_file(name: str) -> str:
     expect(findings[0]?.notes).toContain("Request input traced: `name`.");
   });
 
+  it("tell input that names the program from input among its arguments", async () => {
+    const root = await project({
+      "tools.py": `import shutil
+import subprocess
+
+from langchain_core.tools import tool
+from openai import OpenAI
+
+client = OpenAI()
+
+
+@tool
+def convert(path: str) -> int:
+    """Convert a file."""
+    return subprocess.run([shutil.which("ffmpeg"), "-i", path]).returncode
+
+
+@tool
+def launch(program: str) -> int:
+    """Launch a program."""
+    return subprocess.run([program, "--version"]).returncode
+
+
+def summarize(text: str) -> int:
+    reply = client.responses.create(model="gpt-4.1", input=text)
+    return subprocess.run([shutil.which("say"), reply.output_text]).returncode
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(
+      findings.map((finding) => `${finding.rule} ${finding.severity} ${finding.title}`),
+    ).toEqual(
+      expect.arrayContaining([
+        "PLG101 critical Tool `launch` runs a program named by model input",
+        expect.stringMatching(
+          /^PLG102 medium Tool `convert` passes model input to the arguments of/,
+        ),
+        expect.stringMatching(/^PLG401 medium .* is passed as arguments to/),
+      ]),
+    );
+    expect(findings.filter((finding) => finding.rule === "PLG101")).toHaveLength(1);
+  });
+
   it("are not reported for a fixed host, a parameterised query or an approved tool", async () => {
     const root = await project({
       "tools.py": `import sqlite3
