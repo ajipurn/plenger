@@ -328,6 +328,44 @@ export const RULES: Rule[] = [
     remediation:
       "Give the agent tools for specific APIs instead, or put an allow-list of hosts in front of the request tools.",
   },
+
+  // Web routes: request input that reaches an effect, with no model in between.
+  {
+    id: "PLG801",
+    name: "route-command-injection",
+    title: "Route runs a command built from request input",
+    description:
+      "An HTTP route handler, or a project function it calls, builds a shell command, names the program to run or passes program arguments from the request. Anyone who can send the request can run commands with the application's privileges.",
+    severity: "critical",
+    owasp: [],
+    cwe: [78, 77, 88],
+    remediation:
+      "Run a fixed program with an argument list and no shell, check each request value against an allow-list or a strict pattern, and put `--` before positional arguments.",
+  },
+  {
+    id: "PLG802",
+    name: "route-path-traversal",
+    title: "Route accesses a file path built from request input",
+    description:
+      "An HTTP route handler, or a project function it calls, reads, writes or deletes a file at a path built from the request. Without confinement a request can reach files outside the intended directory (`../../.env`).",
+    severity: "high",
+    owasp: [],
+    cwe: [22, 73],
+    remediation:
+      "Resolve the path (`os.path.realpath`, `Path.resolve`, `path.resolve`), check that it stays inside the base directory (`is_relative_to`, or a prefix that ends with a separator), or accept only names that match a strict pattern.",
+  },
+  {
+    id: "PLG803",
+    name: "route-sql-injection",
+    title: "Route runs a SQL query built from request input",
+    description:
+      "An HTTP route handler, or a project function it calls, puts request values into the text of a SQL query. A request can read or change any data the connection can reach.",
+    severity: "high",
+    owasp: [],
+    cwe: [89],
+    remediation:
+      "Use parameterised queries: fixed SQL with placeholders (`?`, `%s`, `$1`, `:name`) and the request values passed separately.",
+  },
 ];
 
 export const RULE_BY_ID = new Map(RULES.map((rule) => [rule.id, rule]));

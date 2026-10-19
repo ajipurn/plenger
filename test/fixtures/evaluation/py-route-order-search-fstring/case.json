@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "An order search route passes a query argument to a repository function that formats it into the SQL text.",
+  "cwe": "CWE-89",
+  "location": {
+    "path": "orders.py",
+    "line": 7,
+    "endLine": 9
+  },
+  "static": ["PLG803"]
+}

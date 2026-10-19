@@ -70,6 +70,7 @@ export class EffectTracer {
   readonly #active = new Set<string>();
   readonly #visits = new Map<string, Visit>();
   readonly #tracing: Visit[] = [];
+  readonly #confined = new Map<string, boolean>();
 
   constructor(project: Project, index: ProjectIndex, inventory: Inventory) {
     this.#project = project;
@@ -215,7 +216,7 @@ export class EffectTracer {
         continue;
       }
       visit?.callees.add(`${target.path}|${target.definition}`);
-      const fileBindings = this.bindArguments(file, call, target, limitedFor("file_write"));
+      const fileBindings = this.bindArguments(file, call, target, limitedFor("file_write"), true);
       const otherBindings = this.bindArguments(file, call, target, limitedFor("process"));
       for (const effect of this.effects(target.path, target.definition, depth + 1)) {
         const bindings = FILE_KINDS.has(effect.kind) ? fileBindings : otherBindings;
@@ -228,6 +229,8 @@ export class EffectTracer {
           bound.systemInputs = rebind(effect.systemInputs, bindings, "inputs");
         if (effect.dataInputs !== undefined)
           bound.dataInputs = rebind(effect.dataInputs, bindings, "inputs");
+        if (effect.program !== undefined)
+          bound.program = rebind(effect.program, bindings, "inputs");
         if (effect.host !== undefined) {
           // A URL passed in decides the host by what the caller put at its start.
           const host = rebind(effect.host, bindings, "host");
@@ -294,6 +297,7 @@ export class EffectTracer {
     call: CallFact,
     target: { path: string; definition: string },
     limited?: ReadonlySet<string>,
+    paths = false,
   ): Map<string, Bound> {
     const callee = this.#project.files.get(target.path);
     const definition =
@@ -313,8 +317,10 @@ export class EffectTracer {
       if (arg.spread) continue;
       const name = arg.keyword ?? params[position++];
       if (name === undefined) continue;
+      const inputs = inputsOf(arg.value, file.facts, call.scope, limited);
       bindings.set(name, {
-        inputs: inputsOf(arg.value, file.facts, call.scope, limited),
+        inputs:
+          paths && this.confinedPath(file, arg.value) ? inputs.flatMap(withoutOrigin) : inputs,
         host: hostInputs(arg.value, file.facts, call.scope, limited),
       });
     }
@@ -352,7 +358,14 @@ export class EffectTracer {
               : [];
     }
     const partsOf = (items: Value[]) =>
-      uniqueParts(items.flatMap((value) => inputsOf(value, facts, call.scope, limited)));
+      uniqueParts(
+        items.flatMap((value) => {
+          const parts = inputsOf(value, facts, call.scope, limited);
+          return FILE_KINDS.has(kind) && this.confinedPath(file, value)
+            ? parts.flatMap(withoutOrigin)
+            : parts;
+        }),
+      );
     const capability: Capability = {
       kind,
       target: call.ref?.name ?? call.callee,
@@ -375,6 +388,7 @@ export class EffectTracer {
         const program =
           target?.kind === "list" ? partsOf(target.items.slice(0, 1)) : capability.inputs;
         capability.command = program.length > 0 ? "program" : "arguments";
+        if (program.length > 0) capability.program = program;
         if (sink.args !== undefined) {
           const args =
             sink.args === "*"
@@ -393,6 +407,47 @@ export class EffectTracer {
       if (host.length > 0) capability.host = host;
     }
     return capability;
+  }
+
+  /**
+   * Whether a value is a path that a project function confines before returning it:
+   * `report_path(name)`, where `report_path` resolves the path and checks it stays
+   * inside a base, or builds it without its arguments, directly or through another such
+   * function, or `Path()` or `str()` of one. The base may come from the function's
+   * parameters (`safe_join(base, name)`).
+   */
+  confinedPath(file: ProjectFile, value: Value, depth = 0): boolean {
+    const target = deref(value, file.facts);
+    const call = target.kind === "call" ? file.facts.calls[target.call] : undefined;
+    if (call === undefined || depth > MAX_DEPTH) return false;
+    const [inner] = call.arguments;
+    if (PATH_WRAPPER.test(call.ref?.name ?? call.callee) && call.arguments.length === 1)
+      return inner !== undefined && this.confinedPath(file, inner.value, depth + 1);
+    const callee = this.#index.calledFunction(file, call);
+    return callee !== null && this.confinedReturn(callee.path, callee.definition, depth + 1);
+  }
+
+  /** Whether every value a project function returns is a confined path (see `confinedPath`). */
+  confinedReturn(path: string, definition: string, depth: number): boolean {
+    const key = `${path}|${definition}`;
+    const cached = this.#confined.get(key);
+    if (cached !== undefined) return cached;
+    // A function that reaches itself again is not taken to confine anything.
+    this.#confined.set(key, false);
+    const file = this.#project.files.get(path);
+    const returns = file === undefined ? [] : (definitionOf(file.facts, definition)?.returns ?? []);
+    if (file === undefined || returns.length === 0) return false;
+    const guards = (file.facts.guards ?? []).filter(
+      (guard) => guard.scope === definition && guard.subject.kind === "name",
+    );
+    const safe = safeSubjects("file_read", guards, file.facts, true);
+    const result = returns.every((value) => {
+      const provenance = provenanceOf(value, file.facts, definition, safe);
+      if (provenance.params.size === 0 && provenance.requests.size === 0) return true;
+      return this.confinedPath(file, value, depth);
+    });
+    this.#confined.set(key, result);
+    return result;
   }
 
   /** A call that checks or narrows a value, with the parameters that value comes from. */
@@ -497,7 +552,12 @@ const FILE_KINDS: ReadonlySet<CapabilityKind> = new Set(["file_read", "file_writ
  * a fixed base: `is_relative_to`, or a prefix that ends with a separator, since
  * `/srv/notes_old` starts with `/srv/notes`.
  */
-function safeSubjects(kind: CapabilityKind, guards: GuardFact[], facts: FileFacts): Set<string> {
+function safeSubjects(
+  kind: CapabilityKind,
+  guards: GuardFact[],
+  facts: FileFacts,
+  parameterBases = false,
+): Set<string> {
   const safe = new Set<string>();
   const excluded = new Map<string, Set<string>>();
   const file = FILE_KINDS.has(kind);
@@ -525,7 +585,7 @@ function safeSubjects(kind: CapabilityKind, guards: GuardFact[], facts: FileFact
           file &&
           resolvedPath(guard.subject, facts) &&
           (guard.test === "inside" || endsWithSeparator(guard.allowed, facts)) &&
-          provenanceOf(guard.allowed, facts, guard.scope).params.size === 0
+          fixedBase(provenanceOf(guard.allowed, facts, guard.scope), parameterBases)
         )
           safe.add(subject);
         break;
@@ -534,6 +594,24 @@ function safeSubjects(kind: CapabilityKind, guards: GuardFact[], facts: FileFact
   for (const [subject, texts] of excluded)
     if (texts.has("..") && (texts.has("/") || texts.has("<relative>"))) safe.add(subject);
   return safe;
+}
+
+/** A base that does not come from the caller, or, when `parameters`, comes at most from the function's parameters. */
+function fixedBase(provenance: ReturnType<typeof provenanceOf>, parameters: boolean): boolean {
+  return provenance.requests.size === 0 && (parameters || provenance.params.size === 0);
+}
+
+/** Calls that only change a path's type: `Path(p)`, `str(p)`, `os.fspath(p)`, `String(p)`. */
+const PATH_WRAPPER = /^(?:(?:pathlib\.)?(?:Pure|Posix|Windows)?Path|str|os\.fspath|String)$/;
+
+/**
+ * An input part whose value a check confines: a part computed from a call keeps the
+ * call, for model output tracing, and loses where it comes from; any other is dropped.
+ */
+function withoutOrigin(part: DynamicPart): DynamicPart[] {
+  if (part.calls === undefined) return [];
+  const { from: _from, ...rest } = part;
+  return [rest];
 }
 
 /** Path separators as code names them: `os.sep`, `os.path.sep`, `path.sep`. */
@@ -705,16 +783,12 @@ function narrowed(
     ),
   );
   const narrow = (parts: DynamicPart[], checked: (part: DynamicPart) => boolean) =>
-    parts.flatMap((part) => {
-      if (!checked(part)) return [part];
-      if (part.calls === undefined) return [];
-      const { from: _from, ...rest } = part;
-      return [rest];
-    });
+    parts.flatMap((part) => (checked(part) ? withoutOrigin(part) : [part]));
   const covered = (part: DynamicPart) => names.has(part.text);
   const result: Capability = { ...effect, inputs: narrow(effect.inputs, covered) };
   if (effect.systemInputs !== undefined) result.systemInputs = narrow(effect.systemInputs, covered);
   if (effect.dataInputs !== undefined) result.dataInputs = narrow(effect.dataInputs, covered);
+  if (effect.program !== undefined) result.program = narrow(effect.program, covered);
   if (effect.host !== undefined) {
     const host = narrow(effect.host, (part) => covered(part) || hosts.has(part.text));
     if (host.length > 0) result.host = host;

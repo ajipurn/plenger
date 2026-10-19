@@ -353,6 +353,12 @@
           "type": "string",
           "enum": ["shell", "program", "arguments"]
         },
+        "program": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dynamicPart"
+          }
+        },
         "query": {
           "const": true
         },
@@ -1810,6 +1816,18 @@
                 "type": "array",
                 "items": {
                   "$ref": "#/definitions/value"
+                }
+              },
+              "injected": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "scalars": {
+                "type": "array",
+                "items": {
+                  "type": "string"
                 }
               }
             },

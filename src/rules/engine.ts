@@ -8,6 +8,7 @@ import { mcpChecks } from "./checks/mcp.ts";
 import { optionChecks } from "./checks/options.ts";
 import { outputChecks } from "./checks/output.ts";
 import { promptChecks } from "./checks/prompts.ts";
+import { routeChecks } from "./checks/routes.ts";
 import { secretChecks } from "./checks/secrets.ts";
 import { toolChecks } from "./checks/tools.ts";
 import { RuleContext } from "./context.ts";
@@ -34,6 +35,7 @@ export function evaluateRules(project: Project, inventory: Inventory): Finding[]
     ...secretChecks(cx),
     ...mcpChecks(cx),
     ...optionChecks(cx),
+    ...routeChecks(cx),
   ];
   for (const draft of drafts) {
     if (!RULE_BY_ID.has(draft.rule)) throw new Error(`finding for unknown rule ${draft.rule}`);

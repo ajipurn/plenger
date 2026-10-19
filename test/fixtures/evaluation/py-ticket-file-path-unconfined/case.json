@@ -7,6 +7,8 @@
     "line": 26,
     "endLine": 40
   },
-  "static": [],
-  "note": "The deciding helper sits outside the Explore first message and the batch. No static rule follows the join into the helper; only the AI review can find this."
+  "static": [
+    "PLG802"
+  ],
+  "note": "The deciding helper sits outside the Explore first message and the batch."
 }

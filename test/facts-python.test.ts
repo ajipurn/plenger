@@ -468,4 +468,24 @@ describe("Python facts: guards and fixed collections", () => {
       subscript: true,
     });
   });
+
+  it("marks parameters a dependency fills in and scalar parameters", async () => {
+    const facts = await factsOf(
+      "python",
+      [
+        "from typing import Annotated",
+        "from fastapi import Depends, Security",
+        "def route(name: str, db=Depends(get_db), user: User = Security(auth),",
+        "          base: Annotated[str, Depends(folder)] = '', limit: int = 10,",
+        "          day: date | None = None, key: Annotated[UUID, Path()] = None):",
+        "    return name",
+        "def plain(name):",
+        "    return name",
+        "",
+      ].join("\n"),
+    );
+    expect(definition(facts, "route").injected).toEqual(["db", "user", "base"]);
+    expect(definition(facts, "route").scalars).toEqual(["limit", "day", "key"]);
+    expect(definition(facts, "plain").injected).toBeUndefined();
+  });
 });

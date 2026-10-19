@@ -37,6 +37,9 @@ Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-app
 | [PLG703](#plg703-remote-code-trust) | high | Model loading trusts code from the model repository |
 | [PLG704](#plg704-api-key-in-browser) | high | Model SDK allowed in the browser |
 | [PLG705](#plg705-dangerous-requests-opt-in) | medium | Framework allowed to make arbitrary HTTP requests |
+| [PLG801](#plg801-route-command-injection) | critical | Route runs a command built from request input |
+| [PLG802](#plg802-route-path-traversal) | high | Route accesses a file path built from request input |
+| [PLG803](#plg803-route-sql-injection) | high | Route runs a SQL query built from request input |
 
 ## PLG101 tool-command-injection
 
@@ -297,3 +300,33 @@ A framework option that lets the model's code run is turned on (`allow_dangerous
 **Fix:** Give the agent tools for specific APIs instead, or put an allow-list of hosts in front of the request tools.
 
 **Maps to:** [LLM06:2025](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/), ASI02, [CWE-918](https://cwe.mitre.org/data/definitions/918.html)
+
+## PLG801 route-command-injection
+
+**Route runs a command built from request input.** Severity up to critical.
+
+An HTTP route handler, or a project function it calls, builds a shell command, names the program to run or passes program arguments from the request. Anyone who can send the request can run commands with the application's privileges.
+
+**Fix:** Run a fixed program with an argument list and no shell, check each request value against an allow-list or a strict pattern, and put `--` before positional arguments.
+
+**Maps to:** [CWE-78](https://cwe.mitre.org/data/definitions/78.html), [CWE-77](https://cwe.mitre.org/data/definitions/77.html), [CWE-88](https://cwe.mitre.org/data/definitions/88.html)
+
+## PLG802 route-path-traversal
+
+**Route accesses a file path built from request input.** Severity up to high.
+
+An HTTP route handler, or a project function it calls, reads, writes or deletes a file at a path built from the request. Without confinement a request can reach files outside the intended directory (`../../.env`).
+
+**Fix:** Resolve the path (`os.path.realpath`, `Path.resolve`, `path.resolve`), check that it stays inside the base directory (`is_relative_to`, or a prefix that ends with a separator), or accept only names that match a strict pattern.
+
+**Maps to:** [CWE-22](https://cwe.mitre.org/data/definitions/22.html), [CWE-73](https://cwe.mitre.org/data/definitions/73.html)
+
+## PLG803 route-sql-injection
+
+**Route runs a SQL query built from request input.** Severity up to high.
+
+An HTTP route handler, or a project function it calls, puts request values into the text of a SQL query. A request can read or change any data the connection can reach.
+
+**Fix:** Use parameterised queries: fixed SQL with placeholders (`?`, `%s`, `$1`, `:name`) and the request values passed separately.
+
+**Maps to:** [CWE-89](https://cwe.mitre.org/data/definitions/89.html)

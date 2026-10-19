@@ -36,7 +36,8 @@ describe("rule catalog", () => {
     for (const rule of RULES) {
       expect(rule.id).toMatch(/^PLG\d{3}$/);
       expect(rule.name).toMatch(/^[a-z]+(?:-[a-z]+)*$/);
-      expect(rule.owasp.length, rule.id).toBeGreaterThan(0);
+      // Web route rules (PLG8xx) cover application code, not an OWASP LLM or agentic risk.
+      if (!rule.id.startsWith("PLG8")) expect(rule.owasp.length, rule.id).toBeGreaterThan(0);
       for (const id of rule.owasp)
         expect(id).toMatch(/^(?:LLM(?:0[1-9]|10):2025|ASI(?:0[1-9]|10))$/);
       expect(rule.remediation.length).toBeGreaterThan(20);
@@ -302,6 +303,81 @@ async def chat(request: Request):
     });
     const [finding] = (await scan(root)).findings.filter((item) => item.rule === "PLG301");
     expect(finding).toMatchObject({ severity: "critical", confidence: "high", exposed: true });
+  });
+
+  it("follow request input into commands, paths and SQL, not dependencies or confined paths", async () => {
+    const root = await project({
+      "paths.py": `from pathlib import Path
+
+BASE = Path("files").resolve()
+
+
+def safe_join(base: Path, name: str) -> Path:
+    path = (base / name).resolve()
+    if not path.is_relative_to(base):
+        raise ValueError("outside the base")
+    return path
+
+
+def user_file(name: str) -> Path:
+    return safe_join(BASE, name)
+
+
+def raw_file(name: str) -> Path:
+    return BASE / name
+`,
+      "app.py": `import shutil
+import subprocess
+from typing import Annotated
+
+from fastapi import Depends, FastAPI
+from langchain_core.tools import tool
+
+from paths import raw_file, user_file
+
+app = FastAPI()
+
+
+def folder() -> str:
+    return "/srv/shared"
+
+
+@app.get("/files/{name}")
+def download(name: str):
+    return open(user_file(name)).read()
+
+
+@app.get("/raw/{name}")
+def download_raw(name: str):
+    return open(raw_file(name)).read()
+
+
+@app.get("/shared")
+def shared(base: Annotated[str, Depends(folder)]):
+    return open(base + "/index.txt").read()
+
+
+@app.get("/items/{item_id}")
+def item(item_id: int):
+    return open(f"/srv/items/{item_id}.json").read()
+
+
+@app.get("/convert/{name}")
+def convert(name: str):
+    return subprocess.run([shutil.which("ffmpeg"), "-i", name]).returncode
+
+
+@tool
+def read_user_file(name: str) -> str:
+    """Read a user file."""
+    return open(user_file(name)).read()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(
+      findings.map((finding) => `${finding.rule} ${finding.severity} ${finding.subject.name}`),
+    ).toEqual(["PLG802 high GET /raw/{name}", "PLG801 medium GET /convert/{name}"]);
+    expect(findings[0]?.notes).toContain("Request input traced: `name`.");
   });
 
   it("are not reported for a fixed host, a parameterised query or an approved tool", async () => {

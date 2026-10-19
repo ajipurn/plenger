@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A diagnostics route passes the query's host to a helper in another module that runs it through a shell.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "app/diagnostics.py",
+    "line": 5,
+    "endLine": 7
+  },
+  "static": ["PLG801"]
+}

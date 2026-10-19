@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same repository function binds the customer as a query parameter.",
+  "cwe": "CWE-89",
+  "location": {
+    "path": "orders.py",
+    "line": 7,
+    "endLine": 9
+  },
+  "static": []
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same route accepts only branches from a fixed set before calling the helper.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "git.ts",
+    "line": 3,
+    "endLine": 5
+  },
+  "static": []
+}

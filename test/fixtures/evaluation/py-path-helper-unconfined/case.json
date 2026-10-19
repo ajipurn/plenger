@@ -7,6 +7,7 @@
     "line": 8,
     "endLine": 11
   },
-  "static": [],
-  "note": "No static rule covers request input reaching a file path; only the AI review can find this."
+  "static": [
+    "PLG802"
+  ]
 }

@@ -352,6 +352,9 @@ class PythonExtractor implements LanguageHooks {
       doc: docstring(body),
       span: spanOf(node),
     };
+    const { injected, scalars } = parameterKinds(isClass ? null : parameters);
+    if (injected.length > 0) fact.injected = injected;
+    if (scalars.length > 0) fact.scalars = scalars;
     this.cx.addDefinition(fact, scope, decoratorExpressions, bases);
 
     // Decorators, bases and parameter defaults run in the enclosing scope.
@@ -861,6 +864,40 @@ class PythonExtractor implements LanguageHooks {
     }
     return undefined;
   }
+}
+
+/** A FastAPI dependency marker: `Depends(get_session)`, `Security(scheme)`. */
+const DEPENDENCY = /(?:^|\.)(?:Depends|Security)\s*\(/;
+
+/** Types whose values hold no text: numbers, booleans, UUIDs, dates and times. */
+const SCALAR =
+  /^(?:int|float|bool|complex|(?:decimal\.)?Decimal|(?:uuid\.)?UUID|(?:datetime\.)?(?:datetime|date|time|timedelta))$/;
+
+/**
+ * Parameters a framework fills in from a dependency, not from the request (a default or
+ * `Annotated` metadata that calls `Depends` or `Security`), and parameters annotated
+ * with a scalar type, optional or not (`id: int`, `day: date | None`).
+ */
+function parameterKinds(parameters: Node | null): { injected: string[]; scalars: string[] } {
+  const injected: string[] = [];
+  const scalars: string[] = [];
+  for (const parameter of parameters?.namedChildren ?? []) {
+    if (parameter === null) continue;
+    const name = paramName(parameter);
+    if (name === undefined) continue;
+    const value = parameter.childForFieldName("value")?.text ?? "";
+    const type = parameter.childForFieldName("type")?.text.replace(/\s+/g, "") ?? "";
+    if (DEPENDENCY.test(value) || /^Annotated\[.*\b(?:Depends|Security)\(/.test(type))
+      injected.push(name);
+    else if (SCALAR.test(baseType(type))) scalars.push(name);
+  }
+  return { injected, scalars };
+}
+
+/** `int` for `Annotated[int, Path()]`, `Optional[int]`, `int | None` and `None | int`. */
+function baseType(type: string): string {
+  const inner = /^(?:Annotated|Optional)\[([^,[\]]+)[,\]]/.exec(type)?.[1] ?? type;
+  return inner.replace(/^None\||\|None$/, "");
 }
 
 function paramName(parameter: Node): string | undefined {

@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same repository function passes the name as a query parameter.",
+  "cwe": "CWE-89",
+  "location": {
+    "path": "users.ts",
+    "line": 5,
+    "endLine": 8
+  },
+  "static": []
+}

@@ -62,6 +62,8 @@ export interface Capability {
    * reaches only the arguments of a fixed program.
    */
   command?: "shell" | "program" | "arguments";
+  /** For `command: "program"`: the parts of `inputs` that name the program. */
+  program?: DynamicPart[];
   /** For `database`: the input is a query (SQL), not data. */
   query?: true;
   /** The SQL statement's effect, when a literal query can be classified. */

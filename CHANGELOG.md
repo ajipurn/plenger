@@ -9,6 +9,16 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- Static rules for web routes with no model in between: PLG801 (request input
+  in a command or program arguments), PLG802 (in a file path) and PLG803 (in
+  SQL text). They follow the handler into project functions in other files.
+  FastAPI parameters filled by `Depends` or `Security`, or typed as a number,
+  boolean, UUID or date, do not count as request input; code facts record them
+  as `injected` and `scalars`. A path a project function
+  returns after resolving it and checking it stays inside a base now counts as
+  checked, for tools as well. The evaluation corpus gains ten cases, five
+  pairs.
+
 - **Explore** review mode (M9b): New Scan offers Explore next to Batch. The
   model reads the project through four read-only tools over the scan's
   allowlist (`list_files`, `read_file`, `search` on redacted text, `outline`)

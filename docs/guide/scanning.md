@@ -121,7 +121,11 @@ holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
   prefix that ends with a separator (`BASE + os.sep`), since `/srv/notes_old`
   starts with `/srv/notes`
 
-Values built from a checked name are checked too. A collection is fixed when it is
+Values built from a checked name are checked too. A path returned by a project
+function counts as checked when every value the function returns is a resolved path
+it checked in that way, or one built without its arguments, directly or through
+another such function (`open(report_path(name))`). There the base may come from the
+function's own parameters (`safe_join(base, name)`). A collection is fixed when it is
 a non-empty literal the code never changes in place. A check inside a `try` also
 covers the code after it when every handler leaves the function.
 
@@ -158,8 +162,14 @@ active findings; `--all` shows every one. Each finding has:
 - a fingerprint built from the rule, file and subject rather than line numbers,
   used by baselines
 
-`plenger rules` lists the 26 rules; [RULES.md](../RULES.md) describes each one
-with its remediation. An approval or input check done by a proxy, middleware or
+`plenger rules` lists the 29 rules; [RULES.md](../RULES.md) describes each one
+with its remediation. Most are about agents, tools, prompts and MCP. PLG801 to PLG803
+cover web routes with no model in between: request input that reaches a command, a
+file path or SQL text, in the handler or in project functions it calls in other
+files. Request input is a handler parameter or a request global such as
+`flask.request`. FastAPI parameters filled by `Depends` or `Security` or typed as a
+number, boolean, UUID or date, and response parameters (`res`, `response`, `next`),
+are not. An approval or input check done by a proxy, middleware or
 configuration outside the code is not seen and leaves a finding at medium
 confidence. Checks other than the ones under [Capabilities](#capabilities), such as
 a call to a sanitizer, are recognised by name, not verified, and lower confidence

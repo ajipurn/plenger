@@ -88,6 +88,7 @@ const definitions: Record<string, Schema> = {
       hosted: yes,
       tool: text,
       command: choices("shell", "program", "arguments"),
+      program: parts,
       query: yes,
       operation: choices("read", "write", "unknown"),
       dataInputs: parts,
@@ -333,7 +334,7 @@ const definitions: Record<string, Schema> = {
             doc: nullable(text),
             span: ref("span"),
           },
-          { returns: values },
+          { returns: values, injected: texts, scalars: texts },
         ),
       ),
       assignments: array(

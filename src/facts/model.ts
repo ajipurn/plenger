@@ -139,6 +139,10 @@ export interface DefinitionFact {
   doc: string | null;
   /** Values the function returns directly (not from nested functions), at most 10. */
   returns?: Value[];
+  /** Python: parameters a framework fills in from a dependency (`Depends(...)`), not from the caller. */
+  injected?: string[];
+  /** Python: parameters annotated with a number, boolean, UUID or date type (`id: int`). */
+  scalars?: string[];
   span: Span;
 }
 

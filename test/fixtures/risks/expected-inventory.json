@@ -7,10 +7,11 @@
     "vercel-ai js/app/api/agent/route.ts,js/outbound.ts,js/tools.ts",
     "anthropic python/output_flow.py,python/secrets_and_options.py",
     "autogen python/code_agents.py,python/loops.py",
+    "fastapi python/web_agents.py,python/web_routes.py",
+    "flask python/prompts_flow.py,python/web_routes.py",
     "openai-agents python/mcp_servers.py,python/tools_approved.py",
     "crewai python/code_agents.py",
-    "fastapi python/web_agents.py",
-    "flask python/prompts_flow.py",
+    "express js/routes.ts",
     "llmfy python/prompts_flow.py",
     "nextjs js/app/api/agent/route.ts",
     "smolagents python/code_agents.py"
@@ -146,9 +147,20 @@
   "entryPoints": [
     "js/app/api/agent/route.ts:5 nextjs POST /api/agent handler=POST reaches=[llm:ai#generateText[prompt:name]@js/app/api/agent/route.ts:7]",
     "js/app/api/agent/route.ts:17 nextjs PUT /api/agent handler=PUT reaches=[llm:ai#generateText[body.question:name]@js/app/api/agent/route.ts:19]",
+    "js/routes.ts:17 express GET /convert handler=<anonymous>@17:21 reaches=[process:node:child_process#execSync[format:name]@js/routes.ts:19]",
+    "js/routes.ts:22 express GET /archive handler=<anonymous>@22:21 reaches=[process:node:child_process#execFile[String():call]@js/routes.ts:23]",
+    "js/routes.ts:26 express GET /uploads/:name handler=<anonymous>@26:27 reaches=[file_read:node:fs/promises#readFile[path.join():call]@js/routes.ts:27]",
+    "js/routes.ts:30 express GET /uploads/safe/:name handler=<anonymous>@30:32 reaches=[file_read:node:fs/promises#readFile[uploadPath():call]@js/routes.ts:31]",
+    "js/routes.ts:34 express GET /orders/:id handler=<anonymous>@34:24 reaches=[database:pg#Pool().query[request.params.id:param]@js/routes.ts:35]",
     "python/prompts_flow.py:29 flask POST /persona handler=persona_route reaches=[llm:llmfy.LLMfy().invoke[body[\"question\"]:name,body[\"persona\"]:name]@python/prompts_flow.py:26<python/prompts_flow.py:32,agent:agent@25[body[\"question\"]:name]@python/prompts_flow.py:26<python/prompts_flow.py:32]",
     "python/prompts_flow.py:35 flask POST /tone handler=tone_route reaches=[llm:openai.OpenAI().chat.completions.create[request.json[\"message\"]:name]@python/prompts_flow.py:37]",
     "python/web_agents.py:14 fastapi POST /ops handler=ops reaches=[agent:agent@8[payload[\"task\"]:param]@python/web_agents.py:16]",
-    "python/web_agents.py:19 fastapi POST /math handler=math reaches=[agent:agent@9[payload[\"question\"]:param]@python/web_agents.py:21]"
+    "python/web_agents.py:19 fastapi POST /math handler=math reaches=[agent:agent@9[payload[\"question\"]:param]@python/web_agents.py:21]",
+    "python/web_routes.py:33 flask GET /lookup handler=lookup reaches=[process:subprocess.run[domain:name]@python/web_routes.py:36]",
+    "python/web_routes.py:39 flask GET /products handler=products reaches=[database:sqlite3.connect().execute[term:name]@python/web_routes.py:42]",
+    "python/web_routes.py:45 flask GET /products/safe handler=products_safe reaches=[database:sqlite3.connect().execute[]@python/web_routes.py:48]",
+    "python/web_routes.py:51 fastapi GET /exports/{name} handler=download_export reaches=[file_read:open[export_path():call]@python/web_routes.py:53]",
+    "python/web_routes.py:57 fastapi GET /exports/safe/{name} handler=download_export_safe reaches=[file_read:open[confined_export_path():call]@python/web_routes.py:59]",
+    "python/web_routes.py:63 fastapi GET /logs/today handler=todays_log reaches=[file_read:open[os.path.join():call]@python/web_routes.py:65]"
   ]
 }

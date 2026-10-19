@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A user search route passes a query argument to a repository function that puts it into the SQL text.",
+  "cwe": "CWE-89",
+  "location": {
+    "path": "users.ts",
+    "line": 5,
+    "endLine": 8
+  },
+  "static": ["PLG803"]
+}

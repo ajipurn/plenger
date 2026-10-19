@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same route accepts only hosts from a fixed set before the helper runs the command; the binary comes from a dependency.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "app/diagnostics.py",
+    "line": 5,
+    "endLine": 7
+  },
+  "static": []
+}
