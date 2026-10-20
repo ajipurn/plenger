@@ -64,3 +64,29 @@ def download_export_safe(name: str):
 def todays_log(settings: Settings = Depends(get_settings)):
     with open(os.path.join(settings.log_dir, "today.log")) as handle:
         return handle.read()
+
+
+@flask_app.get("/proxy")
+def proxy():
+    import requests
+
+    return requests.get(request.args["url"]).text
+
+
+@flask_app.post("/calc")
+def calc():
+    return str(eval(request.form["expression"]))
+
+
+@flask_app.get("/greet")
+def greet():
+    from flask import render_template_string
+
+    return render_template_string("Hello " + request.args["name"])
+
+
+@flask_app.post("/restore")
+def restore():
+    import pickle
+
+    return str(pickle.loads(request.data))

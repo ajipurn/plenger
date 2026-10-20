@@ -576,6 +576,90 @@ def raw():
     ]);
   });
 
+  it("report request input reaching a URL's host, code, templates, deserializers and ORM SQL", async () => {
+    const root = await project({
+      "app.py": `import pickle
+import requests
+from flask import Flask, request, render_template_string, render_template
+from jinja2.sandbox import SandboxedEnvironment
+from sqlalchemy import text
+from django.db import connection
+
+app = Flask(__name__)
+
+
+@app.get("/proxy")
+def proxy():
+    return requests.get(request.args["url"]).text
+
+
+@app.get("/fixed-host")
+def fixed_host():
+    return requests.get(f"https://api.example.com/items/{request.args['id']}").text
+
+
+@app.post("/calc")
+def calc():
+    return str(eval(request.form["expr"]))
+
+
+@app.get("/hello")
+def hello():
+    return render_template_string("Hello " + request.args["name"])
+
+
+@app.get("/hello-safe")
+def hello_safe():
+    return render_template("hello.html", name=request.args["name"])
+
+
+@app.get("/sandboxed")
+def sandboxed():
+    return SandboxedEnvironment().from_string(request.args["t"]).render()
+
+
+@app.post("/load")
+def load():
+    return str(pickle.loads(request.data))
+
+
+@app.get("/search")
+def search():
+    return str(text(f"SELECT * FROM items WHERE name = '{request.args['q']}'"))
+
+
+@app.get("/django")
+def django_search():
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT * FROM items WHERE name = '%s'" % request.args["q"])
+        return str(cursor.fetchall())
+`,
+      "server.js": `const express = require("express");
+const ejs = require("ejs");
+const { Sequelize } = require("sequelize");
+const sequelize = new Sequelize(process.env.DATABASE_URL);
+const app = express();
+app.get("/fetch", async (req, res) => res.send(await (await fetch(req.query.url)).text()));
+app.get("/page", (req, res) => res.send(ejs.render(req.query.template, {})));
+app.get("/users", async (req, res) => res.json(await sequelize.query(\`SELECT * FROM users WHERE name = '\${req.query.name}'\`)));
+app.get("/users-safe", async (req, res) => res.json(await sequelize.query("SELECT * FROM users WHERE name = ?", { replacements: [req.query.name] })));
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // A fixed host, a template file, a sandboxed template and bound SQL values are not reported.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG803 GET /django",
+      "PLG803 GET /search",
+      "PLG803 GET /users",
+      "PLG804 GET /fetch",
+      "PLG804 GET /proxy",
+      "PLG805 POST /calc",
+      "PLG806 GET /hello",
+      "PLG806 GET /page",
+      "PLG807 POST /load",
+    ]);
+  });
+
   it("read each component of a built path, and slugify's replacement", async () => {
     const root = await project({
       "server.js": `const fs = require("fs");

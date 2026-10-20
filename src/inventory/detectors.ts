@@ -181,6 +181,8 @@ export interface RouteRule extends RuleBase {
   handler?: string;
   /** Path to an explicit list of methods (`methods=["POST"]`). */
   methods?: string;
+  /** A class decorator whose first argument prefixes the paths of its methods (NestJS `@Controller("users")`). */
+  prefix?: string;
 }
 
 interface DataStoreRule extends RuleBase {

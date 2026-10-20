@@ -74,6 +74,10 @@ export const FRAMEWORKS: FrameworkInfo[] = [
   { id: "express", name: "Express", javascript: ["express"] },
   { id: "hono", name: "Hono", javascript: ["hono"] },
   { id: "fastify", name: "Fastify", javascript: ["fastify"] },
+  { id: "koa", name: "Koa", javascript: ["koa", "@koa/router", "koa-router"] },
+  { id: "nestjs", name: "NestJS", javascript: ["@nestjs/common", "@nestjs/core"] },
+  { id: "starlette", name: "Starlette", python: ["starlette"] },
+  { id: "aiohttp", name: "aiohttp", python: ["aiohttp"] },
   { id: "nextjs", name: "Next.js", javascript: ["next"] },
   { id: "sqlite", name: "SQLite", javascript: ["better-sqlite3", "node:sqlite"] },
   /** Tool classes built on a base class the project defines itself. */

@@ -149,10 +149,23 @@ function limits(node: Node, truth: boolean): Limit[] {
 
 const REGEX_TESTS = new Set(["match", "fullmatch", "search"]);
 
+/** Calls that never return: `abort(400)` in Flask, `sys.exit()`. */
+const EXIT_CALLS =
+  /^(?:(?:flask|werkzeug\.exceptions)\.)?abort$|^(?:sys\.|os\._)?exit$|^os\._exit$/;
+
+/** Whether a statement leaves its block: `return`, `raise`, `continue`, `break`, or a call that never returns. */
+function leaves(statement: Node): boolean {
+  if (EXITS.has(statement.type)) return true;
+  const expression = statement.type === "expression_statement" ? statement.namedChildren[0] : null;
+  const callee =
+    expression?.type === "call" ? expression.childForFieldName("function")?.text : undefined;
+  return callee !== undefined && EXIT_CALLS.test(callee);
+}
+
 /** Whether a block's last statement leaves it. */
 function exits(block: Node | null | undefined): boolean {
   const last = block?.namedChildren.filter((child) => child?.type !== "comment").at(-1);
-  return last != null && EXITS.has(last.type);
+  return last != null && leaves(last);
 }
 
 /**
@@ -268,7 +281,7 @@ class PythonExtractor implements LanguageHooks {
         const body = node.childForFieldName("consequence");
         if (condition === null) break;
         const last = body?.namedChildren.filter((child) => child?.type !== "comment").at(-1);
-        const exits = last != null && EXITS.has(last.type);
+        const exits = last != null && leaves(last);
         this.cx.addGuards(
           node,
           scope,

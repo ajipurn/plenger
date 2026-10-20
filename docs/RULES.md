@@ -40,6 +40,10 @@ Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-app
 | [PLG801](#plg801-route-command-injection) | critical | Route runs a command built from request input |
 | [PLG802](#plg802-route-path-traversal) | high | Route accesses a file path built from request input |
 | [PLG803](#plg803-route-sql-injection) | high | Route runs a SQL query built from request input |
+| [PLG804](#plg804-route-ssrf) | high | Route requests a URL whose host comes from request input |
+| [PLG805](#plg805-route-code-injection) | critical | Route evaluates request input as code |
+| [PLG806](#plg806-route-template-injection) | critical | Route renders request input as a template |
+| [PLG807](#plg807-route-unsafe-deserialization) | high | Route deserializes request input with a loader that can run code |
 
 ## PLG101 tool-command-injection
 
@@ -330,3 +334,43 @@ An HTTP route handler, or a project function it calls, puts request values into 
 **Fix:** Use parameterised queries: fixed SQL with placeholders (`?`, `%s`, `$1`, `:name`) and the request values passed separately.
 
 **Maps to:** [CWE-89](https://cwe.mitre.org/data/definitions/89.html)
+
+## PLG804 route-ssrf
+
+**Route requests a URL whose host comes from request input.** Severity up to high.
+
+An HTTP route handler, or a project function it calls, fetches or opens a URL whose scheme or host the request decides. A request can make the server reach internal services, cloud metadata endpoints or other hosts with its network position.
+
+**Fix:** Allow only known hosts, resolve the host and reject private, loopback and link-local addresses, disable redirects to other hosts, and keep the server's credentials out of requests the client shapes.
+
+**Maps to:** [CWE-918](https://cwe.mitre.org/data/definitions/918.html)
+
+## PLG805 route-code-injection
+
+**Route evaluates request input as code.** Severity up to critical.
+
+An HTTP route handler, or a project function it calls, evaluates request input as code (`eval`, `exec`, `Function`, `vm`, a dynamic import). Anyone who can send the request can run code in the server's process.
+
+**Fix:** Do not evaluate request input. Parse the narrow format the route needs (JSON, `ast.literal_eval`, an expression parser), or run untrusted code in an isolated sandbox with no credentials or network.
+
+**Maps to:** [CWE-94](https://cwe.mitre.org/data/definitions/94.html), [CWE-95](https://cwe.mitre.org/data/definitions/95.html)
+
+## PLG806 route-template-injection
+
+**Route renders request input as a template.** Severity up to critical.
+
+An HTTP route handler, or a project function it calls, compiles request input as a template (`render_template_string`, `jinja2.Template`, `ejs.render`, `handlebars.compile`). Template expressions can read the server's objects and run code.
+
+**Fix:** Keep templates fixed and pass request values as template variables. If users must write templates, use a sandboxed engine (`jinja2.sandbox.SandboxedEnvironment`) or a logic-less format.
+
+**Maps to:** [CWE-1336](https://cwe.mitre.org/data/definitions/1336.html), [CWE-94](https://cwe.mitre.org/data/definitions/94.html)
+
+## PLG807 route-unsafe-deserialization
+
+**Route deserializes request input with a loader that can run code.** Severity up to high.
+
+An HTTP route handler, or a project function it calls, loads request data, or data from a location the request chooses, with a deserializer that can run code (`pickle`, `yaml.unsafe_load`, `torch.load`, `node-serialize`).
+
+**Fix:** Use a data-only format (JSON, `yaml.safe_load`, `safetensors`, `torch.load(weights_only=True)`) for anything a client sends or names.
+
+**Maps to:** [CWE-502](https://cwe.mitre.org/data/definitions/502.html)

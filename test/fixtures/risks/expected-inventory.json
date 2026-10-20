@@ -147,11 +147,13 @@
   "entryPoints": [
     "js/app/api/agent/route.ts:5 nextjs POST /api/agent handler=POST reaches=[llm:ai#generateText[prompt:name]@js/app/api/agent/route.ts:7]",
     "js/app/api/agent/route.ts:17 nextjs PUT /api/agent handler=PUT reaches=[llm:ai#generateText[body.question:name]@js/app/api/agent/route.ts:19]",
-    "js/routes.ts:17 express GET /convert handler=<anonymous>@17:21 reaches=[process:node:child_process#execSync[format:name]@js/routes.ts:19]",
-    "js/routes.ts:22 express GET /archive handler=<anonymous>@22:21 reaches=[process:node:child_process#execFile[String():call]@js/routes.ts:23]",
-    "js/routes.ts:26 express GET /uploads/:name handler=<anonymous>@26:27 reaches=[file_read:node:fs/promises#readFile[path.join():call]@js/routes.ts:27]",
-    "js/routes.ts:30 express GET /uploads/safe/:name handler=<anonymous>@30:32 reaches=[file_read:node:fs/promises#readFile[uploadPath():call]@js/routes.ts:31]",
-    "js/routes.ts:34 express GET /orders/:id handler=<anonymous>@34:24 reaches=[database:pg#Pool().query[request.params.id:param]@js/routes.ts:35]",
+    "js/routes.ts:18 express GET /convert handler=<anonymous>@18:21 reaches=[process:node:child_process#execSync[format:name]@js/routes.ts:20]",
+    "js/routes.ts:23 express GET /archive handler=<anonymous>@23:21 reaches=[process:node:child_process#execFile[String():call]@js/routes.ts:24]",
+    "js/routes.ts:27 express GET /uploads/:name handler=<anonymous>@27:27 reaches=[file_read:node:fs/promises#readFile[path.join():call]@js/routes.ts:28]",
+    "js/routes.ts:31 express GET /uploads/safe/:name handler=<anonymous>@31:32 reaches=[file_read:node:fs/promises#readFile[uploadPath():call]@js/routes.ts:32]",
+    "js/routes.ts:35 express GET /orders/:id handler=<anonymous>@35:24 reaches=[database:pg#Pool().query[request.params.id:param]@js/routes.ts:36]",
+    "js/routes.ts:40 express GET /preview handler=<anonymous>@40:21 reaches=[network:fetch[String():call]@js/routes.ts:41]",
+    "js/routes.ts:44 express GET /page handler=<anonymous>@44:18 reaches=[code:ejs#default.render[String():call]@js/routes.ts:45]",
     "python/prompts_flow.py:29 flask POST /persona handler=persona_route reaches=[llm:llmfy.LLMfy().invoke[body[\"question\"]:name,body[\"persona\"]:name]@python/prompts_flow.py:26<python/prompts_flow.py:32,agent:agent@25[body[\"question\"]:name]@python/prompts_flow.py:26<python/prompts_flow.py:32]",
     "python/prompts_flow.py:35 flask POST /tone handler=tone_route reaches=[llm:openai.OpenAI().chat.completions.create[request.json[\"message\"]:name]@python/prompts_flow.py:37]",
     "python/web_agents.py:14 fastapi POST /ops handler=ops reaches=[agent:agent@8[payload[\"task\"]:param]@python/web_agents.py:16]",
@@ -161,6 +163,10 @@
     "python/web_routes.py:45 flask GET /products/safe handler=products_safe reaches=[database:sqlite3.connect().execute[]@python/web_routes.py:48]",
     "python/web_routes.py:51 fastapi GET /exports/{name} handler=download_export reaches=[file_read:open[export_path():call]@python/web_routes.py:53]",
     "python/web_routes.py:57 fastapi GET /exports/safe/{name} handler=download_export_safe reaches=[file_read:open[confined_export_path():call]@python/web_routes.py:59]",
-    "python/web_routes.py:63 fastapi GET /logs/today handler=todays_log reaches=[file_read:open[os.path.join():call]@python/web_routes.py:65]"
+    "python/web_routes.py:63 fastapi GET /logs/today handler=todays_log reaches=[file_read:open[os.path.join():call]@python/web_routes.py:65]",
+    "python/web_routes.py:69 flask GET /proxy handler=proxy reaches=[network:requests.get[request.args[\"url\"]:name]@python/web_routes.py:73]",
+    "python/web_routes.py:76 flask POST /calc handler=calc reaches=[code:eval[request.form[\"expression\"]:name]@python/web_routes.py:78]",
+    "python/web_routes.py:81 flask GET /greet handler=greet reaches=[code:flask.render_template_string[request.args[\"name\"]:name]@python/web_routes.py:85]",
+    "python/web_routes.py:88 flask POST /restore handler=restore reaches=[deserialize:pickle.loads[request.data:name]@python/web_routes.py:92]"
   ]
 }

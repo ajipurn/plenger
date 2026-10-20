@@ -66,6 +66,8 @@ export interface Capability {
   program?: DynamicPart[];
   /** For `database`: the input is a query (SQL), not data. */
   query?: true;
+  /** For `code`: the input is a template that a template engine compiles and runs. */
+  template?: true;
   /** The SQL statement's effect, when a literal query can be classified. */
   operation?: "read" | "write" | "unknown";
   /** Values bound to a prepared SQL statement, separate from the query text. */

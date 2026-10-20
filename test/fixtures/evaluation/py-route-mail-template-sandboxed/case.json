@@ -1,0 +1,7 @@
+{
+  "kind": "safe",
+  "summary": "The same route compiles the template in Jinja's sandboxed environment.",
+  "cwe": "CWE-1336",
+  "location": { "path": "app.py", "line": 8, "endLine": 11 },
+  "static": []
+}

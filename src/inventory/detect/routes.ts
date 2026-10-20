@@ -18,6 +18,9 @@ const ANY_METHOD = [
   "re_path",
   "websocket",
   "add_api_websocket_route",
+  "websocketroute",
+  "view",
+  "add_view",
 ];
 /** A Next.js App Router `route.ts`, capturing the directory segments under `app/`. */
 const APP_ROUTE_FILE = /(?:^|\/)app\/((?:[^/]+\/)*)route\.[cm]?[jt]sx?$/;
@@ -41,7 +44,19 @@ export function routeDecorator(
     decorator.arguments,
     { definition: definition.id, path: d.scope.path },
     decorator.span,
+    rule.prefix === undefined ? null : classPrefix(d, definition, rule.prefix),
   );
+}
+
+/** The path a decorator on a method's class puts before the method's own (`@Controller("users")`). */
+function classPrefix(d: FileDetector, definition: DefinitionFact, pattern: string): string | null {
+  const owner = d.facts.definitions.find(
+    (candidate) => candidate.id === definition.parent && candidate.kind === "class",
+  );
+  const decorator = owner?.decorators.find((item) => item.ref?.name === pattern);
+  return decorator === undefined
+    ? null
+    : (d.scope.literal(select(decorator.arguments, d.facts, "#0")) ?? "");
 }
 
 export function routeCall(d: FileDetector, rule: RouteRule, call: CallFact): void {
@@ -59,11 +74,23 @@ function addRoute(
   args: CallFact["arguments"] | null,
   handlerRef: FunctionRef | null,
   span: Span,
+  prefix: string | null = null,
 ): void {
   const { scope, facts } = d;
-  const path = scope.literal(select(args, facts, rule.path));
+  const own = scope.literal(select(args, facts, rule.path));
+  const path =
+    prefix === null
+      ? own
+      : `/${[prefix, own ?? ""]
+          .map((part) => part.replace(/^\/+|\/+$/g, ""))
+          .filter(Boolean)
+          .join("/")}`;
   // The method is the last name segment; an empty segment, not the whole target, when there is none.
-  const segment = /([\w$]+)(?:\(\))?$/.exec(target)?.[1]?.toLowerCase() ?? "";
+  // aiohttp's `add_get` registers a GET.
+  const segment = (/([\w$]+)(?:\(\))?$/.exec(target)?.[1]?.toLowerCase() ?? "").replace(
+    /^add_(?=(?:get|post|put|patch|delete|head|options)$)/,
+    "",
+  );
   const explicit =
     rule.methods === undefined ? [] : scope.strings(select(args, facts, rule.methods));
   let methods: string[];

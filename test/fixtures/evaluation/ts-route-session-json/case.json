@@ -1,0 +1,7 @@
+{
+  "kind": "safe",
+  "summary": "The same route parses the session with JSON.parse, which builds only data.",
+  "cwe": "CWE-502",
+  "location": { "path": "server.ts", "line": 5, "endLine": 8 },
+  "static": []
+}

@@ -1,0 +1,7 @@
+{
+  "kind": "safe",
+  "summary": "The same route accepts only callback URLs whose host is in a fixed set.",
+  "cwe": "CWE-918",
+  "location": { "path": "hooks.py", "line": 4, "endLine": 5 },
+  "static": []
+}

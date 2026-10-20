@@ -1,0 +1,7 @@
+{
+  "kind": "vulnerable",
+  "summary": "A profile route restores the session from a query parameter with node-serialize, which runs functions embedded in the data.",
+  "cwe": "CWE-502",
+  "location": { "path": "server.ts", "line": 6, "endLine": 9 },
+  "static": ["PLG807"]
+}

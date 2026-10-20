@@ -10,19 +10,23 @@
     "google-genai js/providers.ts,python/providers.py",
     "ollama js/providers.ts,python/providers.py",
     "openai-agents js/openai-agents.ts,python/openai_agents_app.py",
+    "aiohttp python/aiohttp_app.py",
     "autogen python/autogen_team.py",
     "crewai python/crewai_crew.py",
     "express js/express-server.cjs",
     "fastapi python/fastapi_app.py",
     "flask python/rag_graph.py",
     "hono js/rag-graph.ts",
+    "koa js/koa-server.cjs",
     "litellm python/providers.py",
     "llamaindex python/llamaindex_agent.py",
     "llmfy python/llmfy_agent.py",
     "mastra js/mastra.ts",
+    "nestjs js/nest-controller.ts",
     "nextjs js/app/api/chat/route.ts",
     "pydantic-ai python/pydantic_ai_agent.py",
-    "smolagents python/smolagents_agent.py"
+    "smolagents python/smolagents_agent.py",
+    "starlette python/starlette_app.py"
   ],
   "unrecognised": [
     "@huggingface js/rag-graph.ts",
@@ -213,9 +217,18 @@
   "entryPoints": [
     "js/app/api/chat/route.ts:6 nextjs POST /api/chat handler=POST reaches=[llm:ai#streamText[messages:name]@js/app/api/chat/route.ts:8]",
     "js/express-server.cjs:9 express POST /chat handler=<anonymous>@9:19 reaches=[llm:@anthropic-ai/sdk().messages.create[req.body.message:param]@js/express-server.cjs:10]",
+    "js/koa-server.cjs:7 koa GET /health handler=<anonymous>@7:23 reaches=[]",
+    "js/koa-server.cjs:10 koa POST /echo handler=<anonymous>@10:22 reaches=[]",
+    "js/nest-controller.ts:5 nestjs GET /notes handler=NotesController.list reaches=[]",
+    "js/nest-controller.ts:10 nestjs GET /notes/:id handler=NotesController.find reaches=[]",
+    "js/nest-controller.ts:15 nestjs POST /notes handler=NotesController.create reaches=[]",
     "js/rag-graph.ts:38 hono POST /ask handler=<anonymous>@38:18 reaches=[agent:agent@25[(await c.req.json()).question:name]@js/rag-graph.ts:38]",
+    "python/aiohttp_app.py:17 aiohttp POST /echo handler=echo reaches=[]",
+    "python/aiohttp_app.py:6 aiohttp GET /health handler=health reaches=[]",
     "python/fastapi_app.py:10 fastapi POST /ask handler=ask_route reaches=[agent:agent@32[body[\"question\"]:name]@python/langgraph_agent.py:36<python/fastapi_app.py:13]",
     "python/fastapi_app.py:16 fastapi GET /answer/{question} handler=answer_route reaches=[llm:openai.OpenAI().chat.completions.create[question:param]@python/openai_chat.py:11<python/fastapi_app.py:18]",
-    "python/rag_graph.py:52 flask POST /ask handler=ask reaches=[agent:agent@42[request.json[\"question\"]:name]@python/rag_graph.py:54]"
+    "python/rag_graph.py:52 flask POST /ask handler=ask reaches=[agent:agent@42[request.json[\"question\"]:name]@python/rag_graph.py:54]",
+    "python/starlette_app.py:14 starlette GET /health handler=health reaches=[]",
+    "python/starlette_app.py:14 starlette POST /echo handler=echo reaches=[]"
   ]
 }

@@ -309,7 +309,12 @@ export interface Flow {
    * What a call's result is computed from, when the code it calls is known: the indices
    * of the arguments that reach it and the request globals it reads. Null: every argument.
    */
-  call(call: CallFact): { args: ReadonlySet<number>; requests: readonly string[] } | null;
+  call(call: CallFact): {
+    args: ReadonlySet<number>;
+    requests: readonly string[];
+    /** False when the result does not come from the calls it is chained on either (a database row). */
+    chain?: boolean;
+  } | null;
   /** Values that carry nothing of where they come from, such as a file name with no separators. */
   fixed?(value: Value): boolean;
 }
@@ -419,9 +424,10 @@ export function provenanceOf(
         // `name.strip()` of a checked name is as limited as the name.
         const checked = call.scope === scope && limited?.has(root) === true;
         if (call.scope === scope && params.has(root) && !checked) result.params.add(root);
-        if (call.receiver !== undefined && !checked) assignment(call.receiver, depth);
         const reached = flow?.call(call) ?? null;
         for (const name of reached?.requests ?? []) result.requests.add(name);
+        if (reached?.chain === false) return;
+        if (call.receiver !== undefined && !checked) assignment(call.receiver, depth);
         for (const [index, arg] of call.arguments.entries())
           if (reached === null || reached.args.has(index)) visit(arg.value, call.scope, depth + 1);
         // A chained call (`docs.map(...).join()`) is computed from the calls before it.

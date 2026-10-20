@@ -529,4 +529,29 @@ describe("Python facts: guards and fixed collections", () => {
     // A check that only one of the true returns makes is not established.
     expect(checks("mixed")).toEqual([]);
   });
+
+  it("treats calls that never return as leaving the block", async () => {
+    const facts = await factsOf(
+      "python",
+      [
+        "from flask import abort",
+        "import sys",
+        "def f(host, mode):",
+        "    if host not in HOSTS:",
+        "        abort(400)",
+        "    if mode not in MODES:",
+        "        sys.exit(2)",
+        "    if host == 'a':",
+        "        log(host)",
+        "    return host",
+        "",
+      ].join("\n"),
+    );
+    // The guards that hold to the end of the function: the third test's body does not leave.
+    expect(
+      (facts.guards ?? [])
+        .filter((guard) => guard.region.endLine === 10)
+        .map((guard) => (guard.subject.kind === "name" ? guard.subject.text : guard.subject.kind)),
+    ).toEqual(["host", "mode"]);
+  });
 });

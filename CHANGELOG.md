@@ -9,6 +9,21 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- Four more static rules for web routes:
+  - PLG804: request input deciding a URL's host;
+  - PLG805: request input evaluated as code;
+  - PLG806: request input compiled as a template;
+  - PLG807: request input deserialized.
+
+  New sinks:
+  - template engines: Jinja, Mako, Django templates, `render_template_string`,
+    EJS, Handlebars, Pug, Nunjucks, Lodash and Underscore;
+  - SQL text through Django `cursor().execute`, `raw` and `extra`, SQLAlchemy
+    `text`, Sequelize and TypeORM.
+
+  Routes are read for Starlette, aiohttp, Koa and NestJS (with the
+  `@Controller` prefix).
+
 - Static rules for web routes with no model in between: PLG801 (request input
   in a command or program arguments), PLG802 (in a file path) and PLG803 (in
   SQL text). They follow the handler into project functions in other files.
@@ -257,6 +272,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   A name that may be `..` is still allowed as the last component of a read or
   a write. An absolute path among a program's arguments carries nothing, since
   it cannot be read as an option.
+
+- A database lookup's row does not carry the values it was found by. A test
+  whose block ends in `abort()` or `sys.exit()` protects the code after it.
 
 - Static data flow reads project functions: the result of a call carries only
   the arguments its return values use, and the request globals the function

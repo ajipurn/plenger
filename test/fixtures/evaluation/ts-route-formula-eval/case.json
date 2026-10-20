@@ -1,0 +1,7 @@
+{
+  "kind": "vulnerable",
+  "summary": "A compute route passes the request's formula to a helper that runs it with Function.",
+  "cwe": "CWE-95",
+  "location": { "path": "formula.ts", "line": 1, "endLine": 3 },
+  "static": ["PLG805"]
+}

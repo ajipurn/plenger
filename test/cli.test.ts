@@ -74,7 +74,7 @@ describe("agent inventory output", () => {
     expect(code).toBe(0);
     expect(stdout).toContain("Agent inventory");
     expect(stdout).toMatch(/MCP servers\s+2\s+shell \(stdio\): 2 tools, files \(stdio\): 2 tools/);
-    expect(stdout).toMatch(/Entry points\s+6/);
+    expect(stdout).toMatch(/Entry points\s+15/);
     expect(stdout).toContain("Not understood yet: @huggingface (1 file), dspy (1 file)");
   });
 
@@ -101,7 +101,7 @@ describe("findings output", () => {
       "CRITICAL 100  `POST /ops` passes request input to agent `ops_agent`, which can run commands",
     );
     expect(stdout).toContain("python/web_agents.py:16  PLG301 · high confidence · exposed");
-    expect(stdout).toMatch(/… 50 more findings; use --all/);
+    expect(stdout).toMatch(/… 56 more findings; use --all/);
     expect((await run("scan", risks, "--all")).stdout).not.toContain("more findings");
   });
 

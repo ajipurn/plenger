@@ -16,15 +16,23 @@ interface Verdict {
   effect: string;
 }
 
-/** PLG801–PLG803: request input that reaches a command, a file path or SQL text. */
+/**
+ * PLG801–PLG807: request input that reaches a command, a file path, SQL text, the host of
+ * a URL, code, a template or a deserializer.
+ */
 export function routeChecks(cx: RuleContext): Draft[] {
   const drafts: Draft[] = [];
   for (const entry of cx.inventory.entryPoints) {
     if (entry.kind !== "http") continue;
     const sources = requestSources(cx, entry);
     for (const capability of entry.reaches) {
-      const inputs = capability.inputs.filter((part) => part.from?.some(sources) === true);
-      if (inputs.length === 0) continue;
+      // For a request, only the inputs that decide the URL's host make it a forgery.
+      const decisive =
+        capability.kind === "network" || capability.kind === "browser"
+          ? (capability.host ?? [])
+          : capability.inputs;
+      const inputs = decisive.filter((part) => part.from?.some(sources) === true);
+      if (inputs.length === 0 || capability.hosted) continue;
       const program = (capability.program ?? []).filter((part) => part.from?.some(sources));
       const verdict = verdictFor(routeLabel(entry), capability, inputs, program.length > 0);
       if (verdict !== null) drafts.push(draft(cx, entry, capability, verdict, inputs, sources));
@@ -109,6 +117,42 @@ function verdictFor(
         severity: "high",
         confidence: "high",
         effect: `runs a query containing ${inputList(inputs)} with ${target}`,
+      };
+    case "network":
+    case "browser": {
+      const verb = capability.kind === "browser" ? "opens" : "requests";
+      return {
+        rule: "PLG804",
+        title: `${name} ${verb} a URL whose host comes from request input`,
+        severity: "high",
+        confidence: guarded ? "medium" : "high",
+        effect: `${verb} a URL whose host comes from ${inputList(inputs)} with ${target}`,
+      };
+    }
+    case "code":
+      if (capability.sandbox !== undefined && capability.sandbox !== "none") return null;
+      return capability.template
+        ? {
+            rule: "PLG806",
+            title: `${name} renders request input as a template with ${target}`,
+            severity: "critical",
+            confidence: "high",
+            effect: `compiles ${inputList(inputs)} as a template with ${target}`,
+          }
+        : {
+            rule: "PLG805",
+            title: `${name} evaluates request input as code with ${target}`,
+            severity: "critical",
+            confidence: "high",
+            effect: `evaluates ${inputList(inputs)} with ${target}`,
+          };
+    case "deserialize":
+      return {
+        rule: "PLG807",
+        title: `${name} deserializes request input with ${target}`,
+        severity: "high",
+        confidence: "high",
+        effect: `loads ${inputList(inputs)} with ${target}`,
       };
     default:
       return null;

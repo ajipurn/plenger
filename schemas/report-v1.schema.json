@@ -362,6 +362,9 @@
         "query": {
           "const": true
         },
+        "template": {
+          "const": true
+        },
         "operation": {
           "type": "string",
           "enum": ["read", "write", "unknown"]

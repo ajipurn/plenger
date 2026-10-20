@@ -1,6 +1,7 @@
 import { execFile, execSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import ejs from "ejs";
 import express from "express";
 import { Pool } from "pg";
 
@@ -34,6 +35,14 @@ app.get("/uploads/safe/:name", async (request, response) => {
 app.get("/orders/:id", async (request, response) => {
   const result = await pool.query(`SELECT * FROM orders WHERE id = ${request.params.id}`);
   response.json(result.rows);
+});
+
+app.get("/preview", async (request, response) => {
+  response.send(await (await fetch(String(request.query.url))).text());
+});
+
+app.get("/page", (request, response) => {
+  response.send(ejs.render(String(request.query.template), {}));
 });
 
 export default app;

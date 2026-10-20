@@ -26,6 +26,10 @@ export interface Sink {
   quoted?: true;
   /** For `database`: the input is a query in a query language (SQL), not data. */
   query?: true;
+  /** For `code`: the input is a template a template engine compiles and runs. */
+  template?: true;
+  /** Also matches calls on the project's own classes, such as a Django model's manager. */
+  projectClasses?: true;
 }
 
 const each = (base: string, members: string) => `${base}.{${members}}`;
@@ -90,6 +94,36 @@ export const PYTHON_SINKS: Sink[] = [
       each("runpy", "run_path,run_module"),
     ],
     input: "#0",
+  },
+  {
+    kind: "code",
+    calls: [
+      "flask.render_template_string",
+      "jinja2.Template",
+      "jinja2.Environment()**.from_string",
+      "mako.template.Template",
+      "django.template.Template",
+    ],
+    input: "source|text|template_string|#0",
+    template: true,
+  },
+  {
+    kind: "database",
+    calls: [
+      "django.db.connection.cursor()**.{execute,executemany}",
+      "django.db.connections**.cursor()**.{execute,executemany}",
+      "django.db.models{,.expressions}.RawSQL",
+      "sqlalchemy{,.sql,.sql.expression}.text",
+    ],
+    input: "sql|text|#0",
+    query: true,
+  },
+  {
+    kind: "database",
+    calls: ["**.objects.{raw,extra}"],
+    input: "raw_query|select|where|#0",
+    query: true,
+    projectClasses: true,
   },
   {
     kind: "deserialize",
@@ -269,6 +303,37 @@ export const JAVASCRIPT_SINKS: Sink[] = [
       "vm2#{VM,NodeVM}().run",
     ],
     input: "#0",
+  },
+  {
+    kind: "code",
+    calls: [
+      "ejs{#default,}.{render,compile}",
+      "ejs#{render,compile}",
+      "handlebars{#default,}.compile",
+      "handlebars#compile",
+      "pug{#default,}.{compile,render}",
+      "pug#{compile,render}",
+      "nunjucks{#default,}.renderString",
+      "nunjucks#renderString",
+      "nunjucks{#default,#Environment,.Environment}()**.renderString",
+      "lodash{#default,}.template",
+      "lodash#template",
+      "lodash.template{#default,}",
+      "underscore{#default,}.template",
+      "underscore#template",
+    ],
+    input: "#0",
+    template: true,
+  },
+  {
+    kind: "database",
+    calls: [
+      "sequelize{#default,#Sequelize}()**.query",
+      "typeorm#{DataSource,Connection}()**.query",
+      "typeorm#{getManager,getConnection,getRepository}()**.query",
+    ],
+    input: "#0",
+    query: true,
   },
   {
     kind: "deserialize",

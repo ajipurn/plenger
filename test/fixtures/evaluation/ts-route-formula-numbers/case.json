@@ -1,0 +1,7 @@
+{
+  "kind": "safe",
+  "summary": "The same route adds two numbers the request sends, with no evaluation.",
+  "cwe": "CWE-95",
+  "location": { "path": "formula.ts", "line": 1, "endLine": 3 },
+  "static": []
+}

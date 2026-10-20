@@ -136,6 +136,9 @@ holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
   the function returns is read: the tests it returns and the guards around each
   return of something other than `False`, `None` or `null`
 
+A test whose block ends in a call that never returns (`abort(400)` in Flask,
+`sys.exit()`) protects the code after it, as one that ends in `raise` does.
+
 A file name built so that it holds no path separator and is never `.` or `..` stays
 in the directory it is joined to, and carries nothing to a file effect. Such names
 come from:
@@ -197,14 +200,33 @@ active findings; `--all` shows every one. Each finding has:
 - a fingerprint built from the rule, file and subject rather than line numbers,
   used by baselines
 
-`plenger rules` lists the 29 rules; [RULES.md](../RULES.md) describes each one
-with its remediation. Most are about agents, tools, prompts and MCP. PLG801 to PLG803
-cover web routes with no model in between: request input that reaches a command, a
-file path or SQL text, in the handler or in project functions it calls in other
-files. Request input is a handler parameter or a request global such as
-`flask.request`. FastAPI parameters filled by `Depends` or `Security` or typed as a
-number, boolean, UUID or date, and response parameters (`res`, `response`, `next`),
-are not. An approval or input check done by a proxy, middleware or
+`plenger rules` lists the 33 rules; [RULES.md](../RULES.md) describes each one
+with its remediation. Most are about agents, tools, prompts and MCP. PLG801 to PLG807
+cover web routes with no model in between. They report request input that reaches,
+in the handler or in project functions it calls in other files:
+
+- a command;
+- a file path;
+- SQL text, including Django `cursor().execute`, `raw` and `extra`, SQLAlchemy
+  `text`, Sequelize and TypeORM `query`;
+- the host of a URL;
+- code;
+- a template: `render_template_string`, `jinja2.Template`, `ejs.render`,
+  `handlebars.compile` and others;
+- a deserializer.
+
+Routes are read for FastAPI, Flask, Django, Starlette, aiohttp, Express, Fastify,
+Hono, Koa, NestJS (with the `@Controller` prefix) and Next.js. Request input is a
+handler parameter or a request global such as `flask.request`. These are not request
+input:
+
+- FastAPI parameters filled by `Depends` or `Security`, or typed as a number,
+  boolean, UUID or date;
+- response parameters (`res`, `response`, `next`).
+
+A row returned by a database lookup (`.query(...).first()`, `Model.objects.get(...)`,
+`prisma.user.findUnique(...)`) does not carry the values it was found by, so stored
+data is not traced (second-order injection). An approval or input check done by a proxy, middleware or
 configuration outside the code is not seen and leaves a finding at medium
 confidence. Checks other than the ones under [Capabilities](#capabilities), such as
 a call to a sanitizer, are recognised by name, not verified, and lower confidence

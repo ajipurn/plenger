@@ -366,6 +366,54 @@ export const RULES: Rule[] = [
     remediation:
       "Use parameterised queries: fixed SQL with placeholders (`?`, `%s`, `$1`, `:name`) and the request values passed separately.",
   },
+  {
+    id: "PLG804",
+    name: "route-ssrf",
+    title: "Route requests a URL whose host comes from request input",
+    description:
+      "An HTTP route handler, or a project function it calls, fetches or opens a URL whose scheme or host the request decides. A request can make the server reach internal services, cloud metadata endpoints or other hosts with its network position.",
+    severity: "high",
+    owasp: [],
+    cwe: [918],
+    remediation:
+      "Allow only known hosts, resolve the host and reject private, loopback and link-local addresses, disable redirects to other hosts, and keep the server's credentials out of requests the client shapes.",
+  },
+  {
+    id: "PLG805",
+    name: "route-code-injection",
+    title: "Route evaluates request input as code",
+    description:
+      "An HTTP route handler, or a project function it calls, evaluates request input as code (`eval`, `exec`, `Function`, `vm`, a dynamic import). Anyone who can send the request can run code in the server's process.",
+    severity: "critical",
+    owasp: [],
+    cwe: [94, 95],
+    remediation:
+      "Do not evaluate request input. Parse the narrow format the route needs (JSON, `ast.literal_eval`, an expression parser), or run untrusted code in an isolated sandbox with no credentials or network.",
+  },
+  {
+    id: "PLG806",
+    name: "route-template-injection",
+    title: "Route renders request input as a template",
+    description:
+      "An HTTP route handler, or a project function it calls, compiles request input as a template (`render_template_string`, `jinja2.Template`, `ejs.render`, `handlebars.compile`). Template expressions can read the server's objects and run code.",
+    severity: "critical",
+    owasp: [],
+    cwe: [1336, 94],
+    remediation:
+      "Keep templates fixed and pass request values as template variables. If users must write templates, use a sandboxed engine (`jinja2.sandbox.SandboxedEnvironment`) or a logic-less format.",
+  },
+  {
+    id: "PLG807",
+    name: "route-unsafe-deserialization",
+    title: "Route deserializes request input with a loader that can run code",
+    description:
+      "An HTTP route handler, or a project function it calls, loads request data, or data from a location the request chooses, with a deserializer that can run code (`pickle`, `yaml.unsafe_load`, `torch.load`, `node-serialize`).",
+    severity: "high",
+    owasp: [],
+    cwe: [502],
+    remediation:
+      "Use a data-only format (JSON, `yaml.safe_load`, `safetensors`, `torch.load(weights_only=True)`) for anything a client sends or names.",
+  },
 ];
 
 export const RULE_BY_ID = new Map(RULES.map((rule) => [rule.id, rule]));

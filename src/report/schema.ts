@@ -102,6 +102,7 @@ const definitions: Record<string, Schema> = {
       command: choices("shell", "program", "arguments"),
       program: parts,
       query: yes,
+      template: yes,
       operation: choices("read", "write", "unknown"),
       dataInputs: parts,
       host: parts,

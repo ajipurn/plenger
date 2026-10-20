@@ -215,10 +215,15 @@ export class EffectTracer {
     ];
     for (const callee of callees) {
       const name = callee.ref?.name;
-      if (name === undefined || callee.ref?.kind === "local") continue;
-      const sqlite = this.sqliteEffect(file, callee, location, limitedFor("database"));
+      if (name === undefined) continue;
+      const local = callee.ref?.kind === "local";
+      const sqlite = local
+        ? null
+        : this.sqliteEffect(file, callee, location, limitedFor("database"));
       if (sqlite !== null) effects.push(sqlite);
-      const match = sinksFor(file.language).find(({ pattern }) => pattern.test(name));
+      const match = sinksFor(file.language).find(
+        ({ pattern, sink }) => (!local || sink.projectClasses === true) && pattern.test(name),
+      );
       if (match !== undefined)
         effects.push(this.sinkEffect(file, callee, match.sink, location, limitedFor));
     }
@@ -498,6 +503,7 @@ export class EffectTracer {
       }
     }
     if (sink.query) capability.query = true;
+    if (sink.template) capability.template = true;
     if ((kind === "network" || kind === "browser") && values[0] !== undefined) {
       const host = hostInputs(values[0], facts, call.scope, limited, this.flowFor(file));
       if (host.length > 0) capability.host = host;
@@ -588,6 +594,9 @@ export class EffectTracer {
     const flow: Flow = {
       call: (call) => {
         const target = this.#index.calledFunction(file, call);
+        // A row a database lookup returns does not carry the values it was found by.
+        if (target === null && ROW_LOOKUP.test(call.ref?.name ?? call.callee))
+          return { args: new Set(), requests: [], chain: false };
         const summary =
           target === null ? null : this.returnFlow(target.path, target.definition, mode);
         if (target === null || summary === null) return null;
@@ -957,6 +966,13 @@ function calleeParams(definition: DefinitionFact, python: boolean): string[] {
 function fixedBase(provenance: ReturnType<typeof provenanceOf>, parameters: boolean): boolean {
   return provenance.requests.size === 0 && (parameters || provenance.params.size === 0);
 }
+
+/**
+ * Database lookups that return stored rows: SQLAlchemy queries and session reads, Django
+ * managers, Prisma reads, and the `findById`-style methods of Mongoose and Sequelize.
+ */
+const ROW_LOOKUP =
+  /(?:\.query\(\)(?:\.\w+\(\))*\.(?:first|one|one_or_none|scalar|all|get|get_or_404|first_or_404)|(?:^|\.)session\.get|\.execute\(\)(?:\.\w+\(\))*\.(?:first|one|one_or_none|scalar|scalar_one|scalar_one_or_none|all|fetchone|fetchall)|\.objects(?:\.\w+\(\))*\.(?:get|first|last|all|filter|exclude|values|values_list)|#PrismaClient\(\)\.\w+\.(?:findUnique|findFirst|findMany|findUniqueOrThrow|findFirstOrThrow)|\.(?:findById|findOne|findAll|findByPk))$/;
 
 /** Library joins that refuse a result outside their base: werkzeug's and Flask's `safe_join`. */
 const SAFE_JOIN = /^(?:werkzeug\.(?:security|utils)|flask(?:\.helpers)?)\.safe_join$/;

@@ -498,4 +498,18 @@ export const JAVASCRIPT_RULES: DetectorRule[] = [
     path: "#0",
     handler: "#-1",
   },
+  {
+    kind: "route",
+    framework: "koa",
+    calls: [`{@koa/router,koa-router}{#default,}().${HTTP}`],
+    path: "#0",
+    handler: "#-1",
+  },
+  {
+    kind: "route",
+    framework: "nestjs",
+    decorators: ["@nestjs/common#{Get,Post,Put,Patch,Delete,Head,Options,All}()"],
+    path: "#0",
+    prefix: "@nestjs/common#Controller()",
+  },
 ];
