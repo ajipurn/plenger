@@ -3,9 +3,10 @@ import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { analyzeCapabilities } from "./capabilities/analyze.ts";
-import { extractFacts, type FileFacts } from "./facts/index.ts";
+import type { FileFacts } from "./facts/index.ts";
 import { literalCredentials } from "./facts/query.ts";
 import { buildInventory, type Inventory } from "./inventory/index.ts";
+import { parseFiles } from "./parse-files.ts";
 import { Project, type ProjectFile } from "./project/project.ts";
 import { evaluateRules, type Finding } from "./rules/index.ts";
 import { attachSnippets } from "./rules/snippets.ts";
@@ -18,9 +19,8 @@ import {
   type ExcludedDir,
   type SkipReason,
 } from "./source/files.ts";
-import { type BinaryKind, LANGUAGE_OF, type Language, type TextKind } from "./source/languages.ts";
-import { SourceParser } from "./source/parser.ts";
-import { countLines, looksMinified, type ReadSkipReason, readSource } from "./source/read.ts";
+import type { BinaryKind, Language, TextKind } from "./source/languages.ts";
+import type { ReadSkipReason } from "./source/read.ts";
 
 export interface ScannedFile {
   path: string;
@@ -55,6 +55,8 @@ const HASH_LIMIT = 64 * 1024 * 1024;
 export interface ScanOptions extends CollectOptions {
   /** Extract imports, definitions, assignments and calls from every file. */
   facts?: boolean;
+  /** Worker threads for parsing; 0 parses on this thread. Larger projects use some by default. */
+  workers?: number;
 }
 
 export type ScanSkipReason = SkipReason | ReadSkipReason;
@@ -86,38 +88,17 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   const files: ScannedFile[] = [];
   const parsed: ProjectFile[] = [];
   const skipped: ScanResult["skipped"] = [...collected.skipped];
-  const parser = await SourceParser.create();
 
-  try {
-    for (const file of collected.files) {
-      const source = await readSource(file.absolutePath, maxFileBytes);
-      if (typeof source !== "string") {
-        skipped.push({ path: file.path, reason: source.reason });
-        continue;
-      }
-      if (file.grammar !== "python" && looksMinified(source)) {
-        skipped.push({ path: file.path, reason: "minified" });
-        continue;
-      }
-      const tree = await parser.parse(file.grammar, source);
-      try {
-        const scanned: ScannedFile = {
-          path: file.path,
-          language: LANGUAGE_OF[file.grammar],
-          bytes: file.bytes,
-          lines: countLines(source),
-          syntaxErrors: tree.rootNode.hasError,
-        };
-        const facts = extractFacts(tree, file.grammar);
-        parsed.push({ path: file.path, language: scanned.language, facts });
-        if (options.facts) scanned.facts = facts;
-        files.push(scanned);
-      } finally {
-        tree.delete();
-      }
+  for (const result of await parseFiles(collected.files, maxFileBytes, options.workers)) {
+    if (result.kind === "skipped") {
+      skipped.push({ path: result.path, reason: result.reason });
+      continue;
     }
-  } finally {
-    parser.dispose();
+    const { path, language, bytes, lines, syntaxErrors, facts } = result;
+    const scanned: ScannedFile = { path, language, bytes, lines, syntaxErrors };
+    parsed.push({ path, language, facts });
+    if (options.facts) scanned.facts = facts;
+    files.push(scanned);
   }
 
   // Facts are per file; linking points imports of project files at what those files define.

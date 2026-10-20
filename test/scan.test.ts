@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { scan } from "../src/scan.ts";
 import { looksMinified } from "../src/source/read.ts";
+import { fixturePath } from "./support/fixtures.ts";
 import { temporaryDir } from "./support/tmp.ts";
 
 describe("looksMinified", () => {
@@ -54,5 +55,15 @@ describe("binaries in a scanned project", () => {
     const root = await temporaryDir();
     await writeFile(join(root, "app.py"), "print('ok')\n");
     expect((await scan(root)).binaries).toBeUndefined();
+  });
+});
+
+describe("parsing on worker threads", () => {
+  it("gives the same scan as parsing on the main thread", async () => {
+    const root = fixturePath("risks");
+    const inline = await scan(root, { workers: 0, facts: true });
+    const threaded = await scan(root, { workers: 2, facts: true });
+    const strip = (result: Awaited<ReturnType<typeof scan>>) => ({ ...result, durationMs: 0 });
+    expect(strip(threaded)).toEqual(strip(inline));
   });
 });

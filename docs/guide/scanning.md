@@ -25,7 +25,17 @@ last rule off. The walker never follows symlinks and applies size and
 file-count limits. Type declarations and minified bundles are skipped with a
 reason. TypeScript 5 type syntax the bundled grammar does not know
 (`export type * from`, type arguments after an import type, `in`/`out` variance)
-is blanked before parsing; it has no runtime effect and positions are kept.
+is blanked before parsing; it has no runtime effect and positions are kept. A
+JavaScript or TSX file the grammar rejects is parsed again in two other ways, and
+the tree with the fewest errors is kept:
+
+- with the TSX grammar, which accepts keywords as JSX names (`<Skeleton.default>`,
+  `<feBlend in="...">`) and `import ... assert { type: "json" }`;
+- with each bare `&` in JSX text or an attribute (`Reject & close`) read as `+`.
+  Neither grammar accepts a bare `&`, though React does.
+
+Projects of 64 files or more are parsed on up to four worker threads. The result
+is the same as on one thread.
 
 Compiled files are listed, not analysed: native libraries and objects (`.so`,
 `libssl.so.3`, `.dylib`, `.dll`, `.pyd`, `.node`, `.a`, `.lib`, `.o`),

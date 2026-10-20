@@ -32,7 +32,8 @@ export function incompleteTraces(
 
 export interface ReportFinding extends Finding {
   baselineState?: "new" | "unchanged";
-  suppression?: { reason: string };
+  /** `inSource` for a `plenger-ignore` comment; absent for a suppression file entry. */
+  suppression?: { reason: string; inSource?: true };
 }
 
 export interface Report extends Omit<ScanResult, "findings"> {
@@ -43,19 +44,33 @@ export interface Report extends Omit<ScanResult, "findings"> {
   review: { active: number; suppressed: number; unchanged: number; new: number };
 }
 
+/**
+ * Reviews a scan result. A suppression file entry wins over a `plenger-ignore` comment;
+ * comments count unless `inline` is false.
+ */
 export function createReport(
   result: ScanResult,
-  policy: { baseline?: Baseline; suppressions?: Suppression[] } = {},
+  policy: { baseline?: Baseline; suppressions?: Suppression[]; inline?: boolean } = {},
 ): Report {
   const baseline = new Map(policy.baseline?.findings.map((item) => [item.fingerprint, item]));
   const findings: ReportFinding[] = result.findings.map((finding) => {
     const previous = baseline.get(finding.fingerprint);
     const unchanged = previous?.rule === finding.rule && previous.path === finding.location.path;
     const suppression = policy.suppressions?.find((item) => matchesSuppression(item, finding));
+    const comment = policy.inline === false ? undefined : finding.inline;
     return {
       ...finding,
       ...(policy.baseline ? ({ baselineState: unchanged ? "unchanged" : "new" } as const) : {}),
-      ...(suppression ? { suppression: { reason: suppression.reason } } : {}),
+      ...(suppression
+        ? { suppression: { reason: suppression.reason } }
+        : comment
+          ? {
+              suppression: {
+                reason: comment.reason || `plenger-ignore comment at line ${comment.line}`,
+                inSource: true as const,
+              },
+            }
+          : {}),
     };
   });
   const fired = new Set(findings.map((finding) => finding.rule));

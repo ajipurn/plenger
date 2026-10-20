@@ -25,6 +25,27 @@ function loadLanguage(grammar: Grammar): Promise<Language> {
 }
 
 /**
+ * Other ways to parse a JavaScript or TSX file the grammar rejects, each keeping every
+ * position: the TSX grammar, which accepts keywords as JSX names (`<Skeleton.default>`,
+ * `<feBlend in="...">`) and `import ... assert { type: "json" }`, and both grammars with
+ * each bare `&` in JSX text or attributes (`Reject & close`, `?a=1&b=2`) read as `+`.
+ * Neither grammar accepts a bare `&`; React does.
+ */
+function jsxRepairs(grammar: Grammar, text: string): [Grammar, string][] {
+  const ampersands = text.replace(/(?<![&=|])&(?![&=]|#?\w+;)/g, "+");
+  const repairs: [Grammar, string][] = grammar === "javascript" ? [["tsx", text]] : [];
+  if (ampersands !== text) {
+    if (grammar === "javascript") repairs.push(["javascript", ampersands]);
+    repairs.push(["tsx", ampersands]);
+  }
+  return repairs;
+}
+
+function errorCount(tree: Tree): number {
+  return tree.rootNode.descendantsOfType("ERROR").length + (tree.rootNode.hasError ? 1 : 0);
+}
+
+/**
  * Parses source text with the bundled tree-sitter grammars. Trees live in WASM
  * memory, so callers must `delete()` every tree they get back.
  */
@@ -44,8 +65,27 @@ export class SourceParser {
   /**
    * Parses `text`. For TypeScript and TSX, type-only syntax the grammar does not know is
    * blanked first (see `maskTypeOnlySyntax`); positions in the tree stay those of `text`.
+   * A JavaScript or TSX file with syntax errors is parsed again with the repairs in
+   * `jsxRepairs`, keeping the tree with the fewest errors.
    */
   async parse(grammar: Grammar, text: string): Promise<Tree> {
+    let best = await this.#parse(grammar, text);
+    if (!best.rootNode.hasError || (grammar !== "javascript" && grammar !== "tsx")) return best;
+    let errors = errorCount(best);
+    for (const [repair, source] of jsxRepairs(grammar, text)) {
+      const tree = await this.#parse(repair, source);
+      const count = errorCount(tree);
+      if (count < errors) {
+        best.delete();
+        best = tree;
+        errors = count;
+      } else tree.delete();
+      if (errors === 0) break;
+    }
+    return best;
+  }
+
+  async #parse(grammar: Grammar, text: string): Promise<Tree> {
     this.#parser.setLanguage(await loadLanguage(grammar));
     const source = grammar === "typescript" || grammar === "tsx" ? maskTypeOnlySyntax(text) : text;
     const tree = this.#parser.parse(source);

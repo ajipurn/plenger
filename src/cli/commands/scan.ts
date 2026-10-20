@@ -21,6 +21,7 @@ const SCAN_OPTIONS = {
   "omit-suppressed": { type: "boolean" },
   "source-root": { type: "string" },
   gitignore: { type: "boolean", default: true },
+  "inline-suppressions": { type: "boolean", default: true },
 } as const;
 
 const PATH_OPTIONS = [
@@ -60,6 +61,7 @@ export async function scanCommand(argv: string[], io: Io): Promise<number> {
   const reviewed = createReport(result, {
     ...(baseline ? { baseline } : {}),
     ...(suppressions ? { suppressions } : {}),
+    inline: values["inline-suppressions"],
   });
   const report = values["omit-suppressed"] ? withoutSuppressed(reviewed) : reviewed;
   if (sourceRoot !== undefined) sourcePrefix(report, sourceRoot);

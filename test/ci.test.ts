@@ -135,6 +135,48 @@ describe("CLI reports and CI", () => {
     });
   });
 
+  it("honours plenger-ignore comments for the named rule, unless told not to", async () => {
+    await withProject(async (root) => {
+      await writeFile(
+        join(root, "tool.py"),
+        unsafe.replace(
+          "    return subprocess.run(command, shell=True)",
+          "    # plenger-ignore PLG101 runs only in the build sandbox\n    return subprocess.run(command, shell=True)",
+        ),
+      );
+      await writeFile(
+        join(root, "other.py"),
+        `${unsafe}# trailing\n`.replace(
+          "shell=True)",
+          "shell=True)  # plenger-ignore PLG104 wrong rule",
+        ),
+      );
+      const result = await run("scan", root, "--json", "--fail-on", "critical");
+      const report = JSON.parse(result.stdout);
+      expect(result.code).toBe(3);
+      expect(report.review).toMatchObject({ active: 1, suppressed: 1 });
+      expect(
+        report.findings.find(
+          (finding: { location: { path: string } }) => finding.location.path === "tool.py",
+        ),
+      ).toMatchObject({
+        suppression: { reason: "runs only in the build sandbox", inSource: true },
+      });
+      const sarif = JSON.parse((await run("scan", root, "--format", "sarif")).stdout);
+      expect(
+        sarif.runs[0].results.flatMap(
+          (item: { suppressions?: unknown[] }) => item.suppressions ?? [],
+        ),
+      ).toEqual([
+        { kind: "inSource", status: "accepted", justification: "runs only in the build sandbox" },
+      ]);
+      const audit = JSON.parse(
+        (await run("scan", root, "--json", "--no-inline-suppressions")).stdout,
+      );
+      expect(audit.review).toMatchObject({ active: 2, suppressed: 0 });
+    });
+  });
+
   it("writes Markdown and plain terminal output without ANSI and supports --json as an alias", async () => {
     await withProject(async (root) => {
       const output = join(root, "report.md");

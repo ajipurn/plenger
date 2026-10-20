@@ -268,7 +268,8 @@ const definitions: Record<string, Schema> = {
     {
       snippet: text,
       baselineState: choices("new", "unchanged"),
-      suppression: object({ reason: text }),
+      suppression: object({ reason: text }, { inSource: yes }),
+      inline: object({ line: positive, reason: text }),
     },
   ),
   ref: {

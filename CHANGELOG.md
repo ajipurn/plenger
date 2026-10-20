@@ -24,6 +24,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   Routes are read for Starlette, aiohttp, Koa and NestJS (with the
   `@Controller` prefix).
 
+- `plenger-ignore PLGxxx reason` comments suppress findings of the named rules
+  on the comment's line or the line below. SARIF marks them `inSource`.
+  `--no-inline-suppressions` reports them.
+
 - Static rules for web routes with no model in between: PLG801 (request input
   in a command or program arguments), PLG802 (in a file path) and PLG803 (in
   SQL text). They follow the handler into project functions in other files.
@@ -275,6 +279,14 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 - A database lookup's row does not carry the values it was found by. A test
   whose block ends in `abort()` or `sys.exit()` protects the code after it.
+
+- A JavaScript or TSX file the grammar rejects is parsed again with the TSX
+  grammar and with bare `&` in JSX read as `+`, keeping the tree with the
+  fewest errors. All 28 files with syntax errors in the measured open-source
+  projects now parse.
+
+- Projects of 64 files or more are parsed on up to four worker threads, about
+  1.8 times faster on 1,000-file projects, with the same result.
 
 - Static data flow reads project functions: the result of a call carries only
   the arguments its return values use, and the request globals the function

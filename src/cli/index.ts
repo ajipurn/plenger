@@ -41,6 +41,7 @@ Options:
                                 high, medium or low (default: none)
   --all                          List every finding, not only the most urgent
   --no-gitignore                 Also scan files the project's .gitignore files ignore
+  --no-inline-suppressions      Report findings that plenger-ignore comments suppress
   --target <id>                  Select a candidate for redteam plan
   --port <0-65535>               Dashboard port; 0 chooses a free port (default: 0)
   --workspace <dir>              Dashboard project folder instead of a positional path

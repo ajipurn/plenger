@@ -230,7 +230,7 @@ export function toSarif(report: Report, options: SourceOptions = {}) {
               ? {
                   suppressions: [
                     {
-                      kind: "external",
+                      kind: finding.suppression.inSource ? "inSource" : "external",
                       status: "accepted",
                       justification: finding.suppression.reason,
                     },

@@ -1281,9 +1281,26 @@
           "properties": {
             "reason": {
               "type": "string"
+            },
+            "inSource": {
+              "const": true
             }
           },
           "required": ["reason"]
+        },
+        "inline": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "line": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": ["line", "reason"]
         }
       },
       "required": [

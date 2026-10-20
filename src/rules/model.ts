@@ -64,6 +64,11 @@ export interface Finding {
   notes: string[];
   /** Reachable from an HTTP route or served by an MCP server over the network. */
   exposed: boolean;
+  /**
+   * A `plenger-ignore` comment naming this finding's rule, on its line or the line
+   * above, with the reason written after the rule ids.
+   */
+  inline?: { line: number; reason: string };
 }
 
 /** What a check returns; the engine adds the fingerprint and score. */
