@@ -394,9 +394,11 @@ export function provenanceOf(
     const local = here === scope;
     switch (current.kind) {
       case "name": {
+        // A checked variable is fixed, even one assigned from a request global, whose
+        // reference it keeps (`name = request.form["name"]`).
+        if (local && limited?.has(current.text)) return;
         request(current.ref?.name);
         const root = /^[\w$]+/.exec(current.text)?.[0] ?? "";
-        if (local && limited?.has(current.text)) return;
         if (current.param) {
           if (local && params.has(root)) result.params.add(root);
         } else if (current.assignment !== undefined) {
@@ -413,16 +415,16 @@ export function provenanceOf(
         result.calls.add(current.call);
         const call = facts.calls[current.call];
         if (call === undefined) return;
-        request(call.ref?.name);
+        const root = /^[\w$]+/.exec(call.callee)?.[0] ?? "";
+        // `name.strip()` of a checked name is as limited as the name.
+        const checked = call.scope === scope && limited?.has(root) === true;
+        if (!checked) request(call.ref?.name);
         // `CHECKS.get(name, default)`: one of the fixed values, or the default.
         if (fixedReceiver(call, facts, /\.get$/)) {
           for (const arg of call.arguments.slice(1)) visit(arg.value, call.scope, depth + 1);
           return;
         }
         if (call.object !== undefined) visit(call.object, call.scope, depth + 1);
-        const root = /^[\w$]+/.exec(call.callee)?.[0] ?? "";
-        // `name.strip()` of a checked name is as limited as the name.
-        const checked = call.scope === scope && limited?.has(root) === true;
         if (call.scope === scope && params.has(root) && !checked) result.params.add(root);
         const reached = flow?.call(call) ?? null;
         for (const name of reached?.requests ?? []) result.requests.add(name);

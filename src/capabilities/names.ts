@@ -175,6 +175,15 @@ export class PathValues {
       const effect = global ? replaces(match?.[1] ?? null, second, facts) : "none";
       return keepsLetters(lettered(receiverOf(facts, call)), effect);
     }
+    const replaced = python ? textReplacements(facts, call) : null;
+    if (replaced !== null) {
+      const effect = replaced.letters ? "separators-keeping-letters" : "separators";
+      if (replaced.separators) return keepsLetters(lettered(replaced.input), effect);
+      // Replacements that add no separator keep a name free of them, though it may become `..`.
+      const before = level(replaced.input);
+      if (before === "unknown") return "unknown";
+      return before === "named" && replaced.letters ? "named" : "plain";
+    }
     if (CASE_OR_TRIM.test(call.callee) && call.arguments.length === 0)
       return level(receiverOf(facts, call));
     const callee = this.#callee(file, call);
@@ -466,6 +475,44 @@ function lowest(levels: NameLevel[]): NameLevel {
 function keepsLetters(lettered: boolean, effect: Replacement): NameLevel {
   if (effect === "none") return "unknown";
   return lettered && effect === "separators-keeping-letters" ? "named" : "plain";
+}
+
+/**
+ * A chain of Python `str.replace` calls with fixed text, which replace every occurrence
+ * (`name.replace("/", "-").replace("\\", "-")`): the value it starts from, whether it
+ * removes both path separators, and whether it leaves letters and digits alone. Null
+ * when a call of the chain is not such a replacement or puts a separator in.
+ */
+function textReplacements(
+  facts: FileFacts,
+  call: CallFact,
+): { input: Value | undefined; separators: boolean; letters: boolean } | null {
+  const removed = new Set<string>();
+  let letters = true;
+  let current: CallFact | undefined = call;
+  let input: Value | undefined;
+  for (let depth = 0; current !== undefined; depth++) {
+    const args = current.arguments;
+    const [old, replacement] = args.map((arg) => literalString(arg.value, facts));
+    if (
+      depth > DEPTH ||
+      !/\.replace$/.test(current.callee) ||
+      args.length !== 2 ||
+      args.some((arg) => arg.keyword !== null || arg.spread) ||
+      old == null ||
+      replacement == null ||
+      /[/\\]/.test(replacement)
+    )
+      return null;
+    // String values keep their escapes: the text of `"\\"` is two backslashes.
+    if (old === "/") removed.add("/");
+    if (old === "\\\\") removed.add("\\");
+    if (/[A-Za-z0-9]/.test(old)) letters = false;
+    input = receiverOf(facts, current);
+    const inner = input?.kind === "call" ? facts.calls[input.call] : undefined;
+    current = inner !== undefined && /\.replace$/.test(inner.callee) ? inner : undefined;
+  }
+  return { input, separators: removed.size === 2, letters };
 }
 
 /**

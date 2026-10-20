@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same route checks the export name with re.fullmatch, so the whole name holds only letters, digits, `_` and `-`.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 11,
+    "endLine": 15
+  },
+  "static": []
+}

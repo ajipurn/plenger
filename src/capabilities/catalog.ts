@@ -18,11 +18,15 @@ interface CompiledCatalog {
 
 let compiled: CompiledCatalog | undefined;
 
+function compileSink(sink: Sink): CompiledSink {
+  return { sink, pattern: compilePatterns(sink.calls, sink.except) };
+}
+
 /** The sink, guard and approval patterns of sinks.ts, compiled once per process. */
 export function compiledSinks(): CompiledCatalog {
   compiled ??= {
-    python: PYTHON_SINKS.map((sink) => ({ sink, pattern: compilePatterns(sink.calls) })),
-    javascript: JAVASCRIPT_SINKS.map((sink) => ({ sink, pattern: compilePatterns(sink.calls) })),
+    python: PYTHON_SINKS.map(compileSink),
+    javascript: JAVASCRIPT_SINKS.map(compileSink),
     guards: GUARDS.map((guard) => ({ kinds: guard.kinds, pattern: compilePatterns(guard.calls) })),
     approvals: compilePatterns(APPROVAL_CALLS),
   };

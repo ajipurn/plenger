@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A report download route stops with 404 unless the name is one of three fixed report files.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 11,
+    "endLine": 17
+  },
+  "static": []
+}

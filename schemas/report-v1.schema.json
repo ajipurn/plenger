@@ -1887,6 +1887,7 @@
                       "type": "string",
                       "enum": [
                         "matches",
+                        "fullmatches",
                         "excludes",
                         "within",
                         "inside",
@@ -2036,6 +2037,7 @@
                 "type": "string",
                 "enum": [
                   "matches",
+                  "fullmatches",
                   "excludes",
                   "within",
                   "inside",

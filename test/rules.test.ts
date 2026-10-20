@@ -722,6 +722,152 @@ def delete_any():
     ]);
   });
 
+  it("read torch.load with weights_only and the text members of a pathlib path as safe", async () => {
+    const root = await project({
+      "app.py": `import os
+from pathlib import Path
+
+import torch
+from flask import Flask, request
+
+app = Flask(__name__)
+MODELS = os.path.realpath("models")
+
+
+@app.post("/load")
+def load():
+    return str(torch.load(os.path.join(MODELS, request.form["name"])))
+
+
+@app.post("/weights")
+def weights():
+    return str(torch.load(os.path.join(MODELS, request.form["name"]), weights_only=True))
+
+
+@app.post("/format")
+def format_of():
+    return Path(request.form["name"]).suffix.replace(".", "")
+
+
+@app.post("/move")
+def move():
+    Path(request.form["name"]).replace(os.path.join(MODELS, "latest"))
+    return "ok"
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // \`Path(p).suffix.replace()\` is \`str.replace\`; \`Path(p).replace()\` moves a file.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 POST /move",
+      "PLG807 POST /load",
+    ]);
+  });
+
+  it("apply a check to a variable assigned from a request global", async () => {
+    const root = await project({
+      "app.py": `import os
+import re
+
+from flask import Flask, abort, request
+
+app = Flask(__name__)
+BASE = os.path.realpath("reports")
+REPORTS = ("daily", "weekly")
+
+
+@app.post("/allowed")
+def allowed():
+    name = request.form["name"]
+    if name not in REPORTS:
+        abort(400)
+    return open(os.path.join(BASE, name.strip())).read()
+
+
+@app.post("/pattern")
+def pattern():
+    name = request.get_json()["name"]
+    if not re.fullmatch(r"[a-z]+", name):
+        abort(400)
+    return open(os.path.join(BASE, name)).read()
+
+
+@app.post("/suffix")
+def suffix():
+    name = request.form["name"]
+    if not name.endswith(".csv"):
+        abort(400)
+    return open(os.path.join(BASE, name)).read()
+
+
+@app.post("/other")
+def other():
+    name = request.form["name"]
+    if name not in REPORTS:
+        abort(400)
+    return open(os.path.join(BASE, request.form["report"])).read()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // A suffix does not keep \`../\` out, and \`/other\` checks one value but reads another.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 POST /other",
+      "PLG802 POST /suffix",
+    ]);
+  });
+
+  it("read a fullmatch pattern and separators replaced in a chain as one file name", async () => {
+    const root = await project({
+      "app.py": `import os
+import re
+
+from fastapi import FastAPI
+
+app = FastAPI()
+NOTES = os.path.realpath("notes")
+NAME = re.compile(r"[A-Za-z0-9_-]+")
+
+
+@app.get("/full")
+def full(name: str):
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+        return "bad name"
+    return open(os.path.join(NOTES, name)).read()
+
+
+@app.get("/compiled")
+def compiled(name: str):
+    if not NAME.fullmatch(name):
+        return "bad name"
+    return open(os.path.join(NOTES, name)).read()
+
+
+@app.get("/prefix")
+def prefix(name: str):
+    if not re.match(r"[A-Za-z0-9_-]+", name):
+        return "bad name"
+    return open(os.path.join(NOTES, name)).read()
+
+
+@app.get("/replaced")
+def replaced(name: str):
+    slug = name.replace("/", "-").replace("\\\\", "-")
+    return open(os.path.join(NOTES, f"{slug}.md")).read()
+
+
+@app.get("/climb")
+def climb(name: str):
+    slug = name.replace("../", "")
+    return open(os.path.join(NOTES, f"{slug}.md")).read()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // \`re.match\` checks only the start of the name; \`....//\` loses \`../\` and keeps one.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 GET /climb",
+      "PLG802 GET /prefix",
+    ]);
+  });
+
   it("tell input that names the program from input among its arguments", async () => {
     const root = await project({
       "tools.py": `import shutil

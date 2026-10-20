@@ -7,10 +7,15 @@
  * - `**` matches anything, including nothing
  *
  * Everything else is literal, so `openai.*().chat.completions.{create,parse}` matches
- * `openai.AsyncOpenAI().chat.completions.create`.
+ * `openai.AsyncOpenAI().chat.completions.create`. A name that matches one of `except`
+ * matches none.
  */
-export function compilePatterns(patterns: readonly string[]): RegExp {
-  return new RegExp(`^(?:${patterns.map(patternSource).join("|")})$`);
+export function compilePatterns(
+  patterns: readonly string[],
+  except: readonly string[] = [],
+): RegExp {
+  const excluded = except.length === 0 ? "" : `(?!(?:${except.map(patternSource).join("|")})$)`;
+  return new RegExp(`^${excluded}(?:${patterns.map(patternSource).join("|")})$`);
 }
 
 function patternSource(pattern: string): string {

@@ -205,7 +205,8 @@ export interface GuardFact {
   /**
    * What the test establishes, with `allowed` as its operand. Absent: the subject is in
    * the collection `allowed`, or equals it. `matches`: it fully matches the regular
-   * expression `allowed` (`re.match(r"^[a-z]+$", name)`). `excludes`: it does not
+   * expression `allowed` (`re.match(r"^[a-z]+$", name)`). `fullmatches`: the same,
+   * with the anchors implied (`re.fullmatch(r"[a-z]+", name)`). `excludes`: it does not
    * contain the text `allowed` (`".." not in name`). `within`: it starts with `allowed`
    * (`str(path).startswith(str(BASE) + os.sep)`). `inside`: it is a path inside
    * `allowed` component by component (`path.is_relative_to(BASE)`). `relative`: it is
@@ -219,6 +220,7 @@ export interface GuardFact {
    */
   test?:
     | "matches"
+    | "fullmatches"
     | "excludes"
     | "within"
     | "inside"

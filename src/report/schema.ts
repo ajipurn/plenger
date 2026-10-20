@@ -12,6 +12,7 @@ const confidence = choices("high", "medium", "low");
 /** `GuardFact["test"]` in src/facts/model.ts. */
 const guardTest = choices(
   "matches",
+  "fullmatches",
   "excludes",
   "within",
   "inside",

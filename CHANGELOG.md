@@ -227,6 +227,23 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- Four static gaps that also affected default scans:
+  - `torch.load(..., weights_only=True)` is no longer a deserializer that can run
+    code, as PLG107 and PLG807 recommend it;
+  - a pathlib method counts only on a path, so `Path(p).suffix.replace(".", "")`
+    is not a file move;
+  - `re.fullmatch` and a compiled pattern's `fullmatch` check the whole name
+    without `^` and `$`;
+  - Python `str.replace` calls that between them replace `/` and `\` make a
+    file name, as a separator-removing `re.sub` does.
+
+  The evaluation corpus has three more pairs for them.
+
+- In a Flask route, a check on a variable assigned from a request global
+  (`name = request.form["name"]`, then `if name not in REPORTS: abort(400)`) now
+  applies. Before, the variable kept the request global's reference and stayed
+  request input whatever the check was. The evaluation corpus has one more pair.
+
 - A program run with input only among its arguments is reported as argument
   injection (PLG102, or the arguments wording of PLG401), not as a program
   the input names, when the program comes from a call such as

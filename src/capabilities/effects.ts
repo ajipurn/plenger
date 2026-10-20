@@ -240,7 +240,10 @@ export class EffectTracer {
       const match = sinksFor(file.language).find(
         ({ pattern, sink }) => (!local || sink.projectClasses === true) && pattern.test(name),
       );
-      if (match !== undefined)
+      const safe =
+        match?.sink.safeOption !== undefined &&
+        trueOption(callee, file.facts, match.sink.safeOption);
+      if (match !== undefined && !safe)
         effects.push(this.sinkEffect(file, callee, match.sink, location, limitedFor));
     }
     const targets =
@@ -1061,7 +1064,9 @@ function safeSubjects(
         if (isFixed(guard.allowed, facts)) safe.add(subject);
         break;
       case "matches":
-        if (file && namePattern(guard.allowed, facts)) safe.add(subject);
+      case "fullmatches":
+        if (file && namePattern(guard.allowed, facts, guard.test === "fullmatches"))
+          safe.add(subject);
         break;
       case "excludes": {
         const text = literalString(guard.allowed, facts);
@@ -1283,9 +1288,10 @@ function endsWithSeparator(value: Value, facts: FileFacts): boolean {
 
 /**
  * A regular expression that admits only names: `^`, one class of letters, digits, `_`
- * and `-` (or `\w`, `\d`), a repetition and `$`. Such a name cannot hold `/`, `\` or `.`.
+ * and `-` (or `\w`, `\d`), a repetition and `$`, the anchors optional when the test
+ * matches the `whole` value (`re.fullmatch`). Such a name cannot hold `/`, `\` or `.`.
  */
-function namePattern(value: Value, facts: FileFacts): boolean {
+function namePattern(value: Value, facts: FileFacts, whole = false): boolean {
   const target = deref(value, facts);
   const compiled = target.kind === "call" ? facts.calls[target.call] : undefined;
   const pattern =
@@ -1297,9 +1303,10 @@ function namePattern(value: Value, facts: FileFacts): boolean {
   const match =
     pattern === null
       ? null
-      : /^\^(\[[^\]]*\]|\\w|\\d)(?:[+*]|\{\d+(?:,\d*)?\})(?:\$|\\Z|\\z)$/.exec(pattern);
-  const body = match?.[1];
-  if (body === undefined) return false;
+      : /^(\^?)(\[[^\]]*\]|\\w|\\d)(?:[+*]|\{\d+(?:,\d*)?\})(\$|\\Z|\\z)?$/.exec(pattern);
+  const body = match?.[2];
+  if (body === undefined || (!whole && (match?.[1] === "" || match?.[3] === undefined)))
+    return false;
   if (!body.startsWith("[")) return true;
   const inner = body.slice(1, -1);
   return (
@@ -1478,6 +1485,13 @@ function shellOption(call: CallFact, facts: FileFacts, path: string): boolean {
   if (target.kind === "literal")
     return !/^(?:False|false|None|null|undefined|0)$/.test(target.text);
   return true;
+}
+
+/** An option set to a literal true: `weights_only=True`. */
+function trueOption(call: CallFact, facts: FileFacts, path: string): boolean {
+  const [value] = select(call.arguments, facts, path);
+  const target = value === undefined ? undefined : deref(value, facts);
+  return target?.kind === "literal" && /^(?:True|true)$/.test(target.text);
 }
 
 /** Adds the checks a function makes on the parameters an effect's input comes from. */

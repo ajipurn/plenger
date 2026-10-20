@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A route checks the export name with re.match, which tests only its start, so `a/../../etc/passwd` passes and the file is read outside the exports folder.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 11,
+    "endLine": 15
+  },
+  "static": ["PLG802"]
+}

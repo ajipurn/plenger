@@ -340,6 +340,8 @@ describe("Python facts: guards and fixed collections", () => {
         "        raise ValueError(path)",
         "    if SAFE.fullmatch(path):",
         "        open(path)",
+        "    if re.fullmatch(r'[a-z]+', name):",
+        "        open(name)",
         "",
       ].join("\n"),
     );
@@ -354,7 +356,8 @@ describe("Python facts: guards and fixed collections", () => {
       ["excludes", "name", ".."],
       ["excludes", "name", "/"],
       ["within", "path", "name"],
-      ["matches", "path", "name"],
+      ["fullmatches", "path", "name"],
+      ["fullmatches", "name", "[a-z]+"],
     ]);
   });
 

@@ -98,7 +98,9 @@ listed in [history/m0-m5.md](../history/m0-m5.md#m2-agent-inventory-done).
 After the inventory, a capabilities section lists the tools that can run
 commands, execute code, write or delete files, reach the network, databases,
 messages or payments, read secrets or environment variables, deserialise
-untrusted data or drive a browser. For every tool handler and HTTP entry point,
+untrusted data or drive a browser. `torch.load` with `weights_only=True` is not
+such a deserializer: its unpickler refuses classes other than tensors and plain
+containers. For every tool handler and HTTP entry point,
 plenger follows calls into project functions, methods and constructors (across
 files, six levels deep) down to a call with an outside effect. Each capability
 carries the call chain and the non-constant inputs of the effect, with caller
@@ -112,7 +114,8 @@ Data flow is name-based, not field- or path-sensitive. Unpacked names
 (`path, body = data.split("|")`) carry what the value comes from, a pathlib join
 (`target = NOTES / name`) carries its parts into `target.read_text()`, and a
 method called on a parenthesized expression (`(NOTES / name).open()`) takes its
-input from that expression. A call through a
+input from that expression. A pathlib method counts only on a path: in
+`Path(p).suffix.replace(".", "")`, `replace` is a string method. A call through a
 fixed table of functions (`HANDLERS[name](x)`, `TOOLS.get(name)`, a JS object or
 `Map` literal) follows every function the table holds, or the one a fixed key names;
 a table the code fills or changes at run time is not followed. Other dynamic
@@ -135,7 +138,8 @@ holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
 - for every effect: membership in a fixed collection, equality with a fixed value,
   or a lookup into a fixed table (`COMMANDS[kind]`, `COMMANDS.get(kind)`)
 - for a URL: its host (`url.hostname`, `urlparse(u).hostname`) in a fixed allowlist
-- for a file path: a name matching a pattern of letters, digits, `_` and `-`; a
+- for a file path: a name matching a pattern of letters, digits, `_` and `-`
+  (anchored with `^` and `$`, or tested with `re.fullmatch`); a
   value checked for `..` and for `/` or for being absolute; or a resolved path
   (`realpath`, `resolve`) checked to lie in a fixed base with `is_relative_to` or a
   prefix that ends with a separator (`BASE + os.sep`), since `/srv/notes_old`
@@ -158,7 +162,8 @@ come from:
 - python-slugify;
 - a name-only sanitizer (`basename`, `path.parse(p).name`, `PurePath(p).stem`, the
   `slugify` package, a URL's `hostname`, or a `replace` or `re.sub` that removes `/`
-  and `\`) when fixed text other than dots sits in the same component
+  and `\`, including chained Python `str.replace` calls) when fixed text other than
+  dots sits in the same component
   (`` `${name}.wav` ``, `` `${host}-${slug}` ``), or when its input holds a fixed
   letter;
 - a project function that builds its result in one of these ways.

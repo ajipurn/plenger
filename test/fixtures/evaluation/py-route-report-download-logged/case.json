@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "The same route only logs a name outside the fixed reports and goes on, so `../config.py` is read outside the reports folder.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 11,
+    "endLine": 16
+  },
+  "static": ["PLG802"]
+}

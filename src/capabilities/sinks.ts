@@ -8,6 +8,10 @@ import type { CapabilityKind } from "../inventory/model.ts";
 export interface Sink {
   kind: CapabilityKind;
   calls: string[];
+  /** Calls the patterns of `calls` match that are not this sink. */
+  except?: string[];
+  /** Argument path of an option that, set to a literal true, makes the call safe (`weights_only=True`). */
+  safeOption?: string;
   /** Argument path (facts/query.ts `select`) of the main input. */
   input?: string;
   /** Take the input from the first call of the chain (`Path(p).write_text()` acts on `p`). */
@@ -37,6 +41,13 @@ const each = (base: string, members: string) => `${base}.{${members}}`;
 const PY_HTTP = "get,post,put,patch,delete,head,options,request,stream,send";
 const JS_HTTP = "get,post,put,patch,delete,head,options,request";
 const FS = "{node:fs,fs,node:fs/promises,fs/promises,fs-extra}";
+const PATH = "pathlib.{Path,PurePath,PosixPath,WindowsPath}()";
+/**
+ * A pathlib chain past a member that is no longer a path: text (`Path(p).suffix`,
+ * `Path(p).read_text()`), its parts, or an open file. `Path(p).suffix.replace(".", "")`
+ * is `str.replace`.
+ */
+const PATH_TEXT = `${PATH}**.{name,stem,suffix,suffixes,parts,anchor,drive,root,as_posix(),as_uri(),read_text(),read_bytes(),open()}.**`;
 
 export const PYTHON_SINKS: Sink[] = [
   {
@@ -134,10 +145,17 @@ export const PYTHON_SINKS: Sink[] = [
       "marshal.loads",
       each("yaml", "unsafe_load,full_load"),
       "joblib.load",
-      "torch.load",
       each("shelve", "open"),
     ],
     input: "#0",
+  },
+  {
+    kind: "deserialize",
+    calls: ["torch.load"],
+    input: "#0",
+    // `weights_only=True` loads tensors and plain containers with an unpickler that
+    // refuses other classes.
+    safeOption: "weights_only",
   },
   {
     kind: "file_read",
@@ -147,9 +165,8 @@ export const PYTHON_SINKS: Sink[] = [
   },
   {
     kind: "file_write",
-    calls: [
-      "pathlib.{Path,PurePath,PosixPath,WindowsPath}()**.{write_text,write_bytes,touch,mkdir,rename,replace,symlink_to,chmod}",
-    ],
+    calls: [`${PATH}**.{write_text,write_bytes,touch,mkdir,rename,replace,symlink_to,chmod}`],
+    except: [PATH_TEXT],
     chainInput: true,
   },
   {
@@ -167,14 +184,14 @@ export const PYTHON_SINKS: Sink[] = [
   },
   {
     kind: "file_delete",
-    calls: ["pathlib.{Path,PurePath,PosixPath,WindowsPath}()**.{unlink,rmdir}"],
+    calls: [`${PATH}**.{unlink,rmdir}`],
+    except: [PATH_TEXT],
     chainInput: true,
   },
   {
     kind: "file_read",
-    calls: [
-      "pathlib.{Path,PurePath,PosixPath,WindowsPath}()**.{read_text,read_bytes,open,iterdir,glob,rglob}",
-    ],
+    calls: [`${PATH}**.{read_text,read_bytes,open,iterdir,glob,rglob}`],
+    except: [PATH_TEXT],
     chainInput: true,
   },
   {
@@ -487,7 +504,7 @@ export const GUARDS: { kinds: CapabilityKind[]; calls: string[] }[] = [
     kinds: ["file_read", "file_write", "file_delete"],
     calls: [
       "os.path.{realpath,abspath,normpath,commonpath,commonprefix,basename}",
-      "pathlib.{Path,PurePath,PosixPath,WindowsPath}()**.{resolve,is_relative_to,relative_to}",
+      `${PATH}**.{resolve,is_relative_to,relative_to}`,
       "werkzeug.utils.secure_filename",
       "{node:path,path}#{resolve,normalize,basename,relative}",
       "{node:path,path}#default.{resolve,normalize,basename,relative}",

@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same tool replaces every `/` and `\\` in the title with `-`, so the report name is one file name ending in `.md`.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "tools.py",
+    "line": 9,
+    "endLine": 14
+  },
+  "static": []
+}

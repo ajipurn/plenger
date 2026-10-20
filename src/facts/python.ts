@@ -127,10 +127,11 @@ function limits(node: Node, truth: boolean): Limit[] {
         return [{ subject: object, allowed: first, test: "ends" }];
       // `re.match(PATTERN, name)`, `PATTERN.fullmatch(name)`
       const [pattern, value] = args;
+      const test = method === "fullmatch" ? "fullmatches" : "matches";
       if (object.text === "re" && REGEX_TESTS.has(method ?? "") && pattern && value)
-        return [{ subject: value, allowed: pattern, test: "matches" }];
+        return [{ subject: value, allowed: pattern, test }];
       if (REGEX_TESTS.has(method ?? "") && method !== "search" && args.length === 1 && pattern)
-        return [{ subject: pattern, allowed: object, test: "matches" }];
+        return [{ subject: pattern, allowed: object, test }];
       // `str(path).startswith(str(BASE) + os.sep)`, `path.is_relative_to(BASE)`
       if ((method === "startswith" || method === "is_relative_to") && args.length === 1 && pattern)
         return [
