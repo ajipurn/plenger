@@ -28,6 +28,12 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   on the comment's line or the line below. SARIF marks them `inSource`.
   `--no-inline-suppressions` reports them.
 
+- `scripts/advisories.ts` measures the static rules on reviewed GitHub
+  advisories of AI and agent projects:
+  - `select` writes the manifest from fixed criteria;
+  - `run` downloads the code around each fix, before and after it, and scans it
+    read-only.
+
 - Static rules for web routes with no model in between: PLG801 (request input
   in a command or program arguments), PLG802 (in a file path) and PLG803 (in
   SQL text). They follow the handler into project functions in other files.

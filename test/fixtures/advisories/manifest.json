@@ -1,0 +1,1902 @@
+{
+  "selected": "2026-10-20",
+  "rule": "Reviewed GitHub advisories for the listed packages, with a CWE among CWE-22, CWE-23, CWE-24, CWE-29, CWE-36, CWE-59, CWE-73, CWE-77, CWE-78, CWE-88, CWE-89, CWE-94, CWE-95, CWE-502, CWE-918, exactly one fix commit on GitHub with one parent, changing 1 to 6 Python, JavaScript or TypeScript source files outside tests (at most 400 lines), one of them modified.",
+  "advisories": [
+    {
+      "ghsa": "GHSA-2g59-m95p-pgfq",
+      "cve": "CVE-2026-22219",
+      "ecosystem": "pip",
+      "package": "chainlit",
+      "published": "2026-01-20T00:30:28Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "Chainlit contain a server-side request forgery (SSRF) vulnerability",
+      "repository": "Chainlit/chainlit",
+      "fix": "ffc3cce648b343b933e10e85ee5805c7e02ab3bf",
+      "parent": "4a9492492a1a551fa8ae64412803410987a3d7a5",
+      "files": [
+        "backend/chainlit/server.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-2pc9-4j83-qjmr",
+      "cve": "CVE-2026-22807",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2026-01-21T16:12:54Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "vLLM affected by RCE via auto_map dynamic module loading during model initialization",
+      "repository": "vllm-project/vllm",
+      "fix": "78d13ea9de4b1ce5e4d8a5af9738fea71fb024e5",
+      "parent": "a307ac073432d3f224c58a54d363fa93f6a659f4",
+      "files": [
+        "vllm/model_executor/models/registry.py",
+        "vllm/transformers_utils/dynamic_module.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-2rhq-96q8-4vjq",
+      "cve": "CVE-2025-6209",
+      "ecosystem": "pip",
+      "package": "llama-index-core",
+      "published": "2025-07-07T15:30:37Z",
+      "cwes": [
+        "CWE-29"
+      ],
+      "summary": "LlamaIndex vulnerable to Path Traversal attack through its encode_image function",
+      "repository": "run-llama/llama_index",
+      "fix": "cdeaab91a204d1c3527f177dac37390327aef274",
+      "parent": "4ab43c376fe2f10f67e7fe429cc51b1ed7e13e6c",
+      "files": [
+        "llama-index-core/llama_index/core/schema.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-33xw-247w-6hmc",
+      "cve": "CVE-2025-27520",
+      "ecosystem": "pip",
+      "package": "bentoml",
+      "published": "2025-04-04T16:05:32Z",
+      "cwes": [
+        "CWE-502"
+      ],
+      "summary": "BentoML Allows Remote Code Execution (RCE) via Insecure Deserialization",
+      "repository": "bentoml/BentoML",
+      "fix": "b35f4f4fcc53a8c3fe8ed9c18a013fe0a728e194",
+      "parent": "93717e2668150df6e132dea71cf026148498914c",
+      "files": [
+        "src/_bentoml_impl/server/app.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-34r3-9m95-vq73",
+      "cve": "CVE-2026-87999",
+      "ecosystem": "pip",
+      "package": "open-webui",
+      "published": "2026-09-10T15:09:36Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "Open WebUI: Any authenticated user can reach the Azure platform channel via server-side web fetch",
+      "repository": "open-webui/open-webui",
+      "fix": "e3e4bd87df6fc629e7e22081d980d55a7632b8b7",
+      "parent": "ca4e07a40b4ff11989a25d84b517d3d0049f93ae",
+      "files": [
+        "backend/open_webui/config.py",
+        "backend/open_webui/retrieval/web/main.py",
+        "backend/open_webui/retrieval/web/utils.py",
+        "backend/open_webui/utils/misc.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-3645-fxcv-hqr4",
+      "cve": "CVE-2026-27966",
+      "ecosystem": "pip",
+      "package": "langflow",
+      "published": "2026-02-27T15:47:29Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "Langflow has Remote Code Execution in CSV Agent",
+      "repository": "langflow-ai/langflow",
+      "fix": "d8c6480daa17b2f2af0b5470cdf5c3d28dc9e508",
+      "parent": "ac0c451de7f08e6c5cbf04758bb5d04f57a65ce6",
+      "files": [
+        "src/lfx/src/lfx/components/langchain_utilities/csv_agent.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-3769-jgqc-cxm7",
+      "cve": "CVE-2026-69254",
+      "ecosystem": "npm",
+      "package": "flowise",
+      "published": "2026-08-04T15:29:12Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "Flowise: RCE via NodeVM Sandbox Escape in executeJavaScriptCode() nodeVMOptions Override",
+      "repository": "FlowiseAI/Flowise",
+      "fix": "3086cb7e323bb96c5a581d3232ef975b0d92183d",
+      "parent": "133aacf1d5475be747431939fa26a286ae4ec47e",
+      "files": [
+        "packages/components/src/utils.ts"
+      ]
+    },
+    {
+      "ghsa": "GHSA-39mp-8hj3-5c49",
+      "cve": "CVE-2026-28414",
+      "ecosystem": "pip",
+      "package": "gradio",
+      "published": "2026-03-01T01:28:41Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-36"
+      ],
+      "summary": "Gradio is Vulnerable to Absolute Path Traversal on Windows with Python 3.13+",
+      "repository": "gradio-app/gradio",
+      "fix": "6011b00d0154b85532fa901dd73cf8fa7d86fd04",
+      "parent": "e29e1ccd5874cb98b813ed4f7f72d9fef2935016",
+      "files": [
+        "gradio/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-3f6c-7fw2-ppm4",
+      "cve": "CVE-2025-6242",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2025-10-07T22:14:15Z",
+      "cwes": [
+        "CWE-601",
+        "CWE-918"
+      ],
+      "summary": "vLLM is vulnerable to Server-Side Request Forgery (SSRF) through `MediaConnector` class",
+      "repository": "vllm-project/vllm",
+      "fix": "9d9a2b77f19f68262d5e469c4e82c0f6365ad72d",
+      "parent": "6040e0b6c0abada52e282cefb93ae4e394b2eacd",
+      "files": [
+        "vllm/connections.py",
+        "vllm/envs.py",
+        "vllm/multimodal/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-3f95-mxq2-2f63",
+      "cve": null,
+      "ecosystem": "pip",
+      "package": "gradio",
+      "published": "2024-04-10T18:30:48Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "Duplicate Advisory: Gradio Local File Inclusion vulnerability",
+      "repository": "gradio-app/gradio",
+      "fix": "16fbe9cd0cffa9f2a824a0165beb43446114eec7",
+      "parent": "ba3ec1300e81e64be7389d759b89284c66473158",
+      "files": [
+        "gradio/blocks.py",
+        "gradio/processing_utils.py",
+        "gradio/routes.py",
+        "gradio/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-42h5-h8qh-vv9v",
+      "cve": "CVE-2026-2614",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2026-05-11T21:31:35Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "MLflow allows an unauthenticated remote attacker to read arbitrary files from the server's filesystem",
+      "repository": "mlflow/mlflow",
+      "fix": "6e801f4259d96804c73107315b24cef0f6aa115a",
+      "parent": "145703f1074e1bcc14ec2a2a38361762b190c433",
+      "files": [
+        "mlflow/server/handlers.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-4hhp-h66f-j5j7",
+      "cve": "CVE-2026-73560",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2026-09-08T20:42:00Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "vLLM: SSRF + arbitrary local file read in MiMoV2OmniMultiModalProcessor `_fetch_image` and audio loader bypass MediaConnector protections",
+      "repository": "vllm-project/vllm",
+      "fix": "54503ecec0f3ac31e5ecfc5f28652e4cc42307b5",
+      "parent": "006731153693b01320feb93ab165de24fc364b0c",
+      "files": [
+        "vllm/transformers_utils/processors/mimo_v2_omni.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-4rqf-8pfm-p36r",
+      "cve": "CVE-2024-8859",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2025-03-20T12:32:49Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-29"
+      ],
+      "summary": "MLflow has a Local File Read/Path Traversal in dbfs",
+      "repository": "mlflow/mlflow",
+      "fix": "7791b8cdd595f21b5f179c7b17e4b5eb5cbbe654",
+      "parent": "35b21a9c7a8394a0e63ff395ba3103285d2714d8",
+      "files": [
+        "mlflow/server/handlers.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-4v28-j6q3-5m4r",
+      "cve": "CVE-2026-87996",
+      "ecosystem": "pip",
+      "package": "open-webui",
+      "published": "2026-09-10T15:10:12Z",
+      "cwes": [
+        "CWE-367",
+        "CWE-918"
+      ],
+      "summary": "Open WebUI: SSRF into internal services via DNS rebinding in the Playwright web loader",
+      "repository": "open-webui/open-webui",
+      "fix": "27402ff210bfa253445720920dfb86b15a00327b",
+      "parent": "73c1f5806aeb6345dad5de8f5aa26d1f3d0bef80",
+      "files": [
+        "backend/open_webui/retrieval/utils.py",
+        "backend/open_webui/retrieval/web/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-53gh-p8jc-7rg8",
+      "cve": "CVE-2024-6825",
+      "ecosystem": "pip",
+      "package": "litellm",
+      "published": "2025-03-20T12:32:45Z",
+      "cwes": [
+        "CWE-77",
+        "CWE-94"
+      ],
+      "summary": "LiteLLM Vulnerable to Remote Code Execution (RCE)",
+      "repository": "berriai/litellm",
+      "fix": "441c7275ed2715f47650a7c2e525055c804073a9",
+      "parent": "e6403b717c2707bc8b3b7e790225cbbf640dea6e",
+      "files": [
+        "litellm/proxy/types_utils/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-554w-xh4j-8w64",
+      "cve": "CVE-2023-6831",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-12-15T03:30:18Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-29"
+      ],
+      "summary": "Path traversal in MLflow",
+      "repository": "mlflow/mlflow",
+      "fix": "1da75dfcecd4d169e34809ade55748384e8af6c1",
+      "parent": "9612ef043d7fe88f3ee899657a1d0fc2faf8ae0f",
+      "files": [
+        "mlflow/utils/uri.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-59v3-898r-qwhj",
+      "cve": "CVE-2023-6974",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-12-20T06:30:25Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "MLflow Server-Side Request Forgery (SSRF)",
+      "repository": "mlflow/mlflow",
+      "fix": "8174250f83352a04c2d42079f414759060458555",
+      "parent": "65cfc3ce8f53234e21d5da1f01d680bd88cfcd94",
+      "files": [
+        "mlflow/environment_variables.py",
+        "mlflow/utils/request_utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-5jmr-gcrj-2c9q",
+      "cve": "CVE-2026-59820",
+      "ecosystem": "pip",
+      "package": "litellm",
+      "published": "2026-07-22T22:37:15Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "LiteLLM: Arbitrary file write via path traversal in Skills archive extraction",
+      "repository": "BerriAI/litellm",
+      "fix": "6a15adcd64137d37f73dee76dfe7481f8c2d9196",
+      "parent": "e828a91eeefbc2e6e5fe7a34ddd40a5201216b15",
+      "files": [
+        "litellm/llms/litellm_proxy/skills/prompt_injection.py",
+        "litellm/llms/litellm_proxy/skills/sandbox_executor.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-5p3h-7fwh-92rc",
+      "cve": "CVE-2023-6018",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-11-16T18:30:31Z",
+      "cwes": [
+        "CWE-78"
+      ],
+      "summary": "Remote Code Execution due to Full Controled File Write in mlflow",
+      "repository": "mlflow/mlflow",
+      "fix": "55c72d02380e8db8118595a4fdae7879cb7ac5bd",
+      "parent": "400c226953b4568f4361bc0a0c223511652c2b9d",
+      "files": [
+        "mlflow/server/handlers.py",
+        "mlflow/store/artifact/http_artifact_repo.py",
+        "mlflow/utils/uri.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-5q6c-ffvg-xcm9",
+      "cve": "CVE-2024-0520",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2024-06-06T21:30:35Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-23"
+      ],
+      "summary": "Remote code execution in mlflow",
+      "repository": "mlflow/mlflow",
+      "fix": "400c226953b4568f4361bc0a0c223511652c2b9d",
+      "parent": "d10f342899f2677a57e92e6380ea2ba883c3adf3",
+      "files": [
+        "mlflow/data/http_dataset_source.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-5r3q-93q3-f978",
+      "cve": "CVE-2023-6909",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-12-20T06:30:25Z",
+      "cwes": [
+        "CWE-29"
+      ],
+      "summary": "MLflow Path Traversal Vulnerability",
+      "repository": "mlflow/mlflow",
+      "fix": "1da75dfcecd4d169e34809ade55748384e8af6c1",
+      "parent": "9612ef043d7fe88f3ee899657a1d0fc2faf8ae0f",
+      "files": [
+        "mlflow/utils/uri.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-5x7x-4c3c-qf5w",
+      "cve": "CVE-2026-88001",
+      "ecosystem": "pip",
+      "package": "open-webui",
+      "published": "2026-09-09T23:54:08Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "Open WebUI: Server-side fetches reach blocked and internal hosts via unvalidated HTTP redirect targets",
+      "repository": "open-webui/open-webui",
+      "fix": "e3e4bd87df6fc629e7e22081d980d55a7632b8b7",
+      "parent": "ca4e07a40b4ff11989a25d84b517d3d0049f93ae",
+      "files": [
+        "backend/open_webui/config.py",
+        "backend/open_webui/retrieval/web/main.py",
+        "backend/open_webui/retrieval/web/utils.py",
+        "backend/open_webui/utils/misc.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-655w-fm8m-m478",
+      "cve": "CVE-2023-46229",
+      "ecosystem": "pip",
+      "package": "langchain",
+      "published": "2023-10-19T06:30:23Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "LangChain Server Side Request Forgery vulnerability",
+      "repository": "langchain-ai/langchain",
+      "fix": "9ecb7240a480720ec9d739b3877a52f76098a2b8",
+      "parent": "42dcc502c7ddb5079b584d31c549d861e94358db",
+      "files": [
+        "libs/langchain/langchain/document_loaders/recursive_url_loader.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-65h7-c7c4-mghx",
+      "cve": "CVE-2026-2393",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2026-05-11T18:31:45Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "MLflow Has a Server-Side Request Forgery (SSRF) Vulnerability",
+      "repository": "mlflow/mlflow",
+      "fix": "64aa0ab7207f9c649b59ba1a5f40d82196817389",
+      "parent": "24dcf3f8a9ef3c5161edb654ae3d435f693a1877",
+      "files": [
+        "mlflow/environment_variables.py",
+        "mlflow/utils/validation.py",
+        "mlflow/webhooks/delivery.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-6933-jpx5-q87q",
+      "cve": null,
+      "ecosystem": "npm",
+      "package": "flowise",
+      "published": "2025-09-15T20:30:30Z",
+      "cwes": [
+        "CWE-78",
+        "CWE-862"
+      ],
+      "summary": "Flowise has unsandboxed remote code execution via Custom MCP",
+      "repository": "FlowiseAI/Flowise",
+      "fix": "ac7cf30e019cde54905bf09b5d3fe1c6ba42f9b9",
+      "parent": "cf7d841f88504bba465790eb906f6d758b91ee2c",
+      "files": [
+        "packages/components/nodes/tools/MCP/core.ts"
+      ]
+    },
+    {
+      "ghsa": "GHSA-6m59-8fmv-m5f9",
+      "cve": "CVE-2024-7042",
+      "ecosystem": "npm",
+      "package": "@langchain/community",
+      "published": "2024-10-29T15:32:05Z",
+      "cwes": [
+        "CWE-89"
+      ],
+      "summary": "@langchain/community SQL Injection vulnerability",
+      "repository": "langchain-ai/langchainjs",
+      "fix": "615b9d9ab30a2d23a2f95fb8d7acfdf4b41ad7a6",
+      "parent": "3cdb5e827d80225f23679ef9a08fe71c84f0365d",
+      "files": [
+        "examples/src/indexes/vector_stores/lancedb/fromDocs.ts",
+        "examples/src/indexes/vector_stores/lancedb/fromTexts.ts",
+        "libs/langchain-community/src/vectorstores/lancedb.ts"
+      ]
+    },
+    {
+      "ghsa": "GHSA-6v6g-j5fq-hpvw",
+      "cve": "CVE-2024-4941",
+      "ecosystem": "pip",
+      "package": "gradio",
+      "published": "2024-06-06T18:30:58Z",
+      "cwes": [
+        "CWE-20",
+        "CWE-22"
+      ],
+      "summary": "Local file inclusion in gradio",
+      "repository": "gradio-app/gradio",
+      "fix": "ee1e2942e0a1ae84a08a05464e41c8108a03fa9c",
+      "parent": "929d216d49aa05614bc83f0761cf7b1cd803d8fe",
+      "files": [
+        "gradio/components/base.py",
+        "gradio/components/json_component.py",
+        "gradio/data_classes.py",
+        "gradio/helpers.py",
+        "gradio/processing_utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-6v92-r5mx-h5fx",
+      "cve": "CVE-2025-5120",
+      "ecosystem": "pip",
+      "package": "smolagents",
+      "published": "2025-07-27T09:30:26Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "smolagents has Sandbox Escape Vulnerability in the local_python_executor.py Module",
+      "repository": "huggingface/smolagents",
+      "fix": "33a942e62b6fbf6a35d41f1c735bda2d64c163d0",
+      "parent": "41b1d7fd3034f386f9d1e64d082a16956bded0e8",
+      "files": [
+        "src/smolagents/local_python_executor.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-6xpm-ggf7-wc3p",
+      "cve": "CVE-2025-6514",
+      "ecosystem": "npm",
+      "package": "mcp-remote",
+      "published": "2025-07-09T15:30:44Z",
+      "cwes": [
+        "CWE-78"
+      ],
+      "summary": "mcp-remote exposed to OS command injection via untrusted MCP server connections",
+      "repository": "geelen/mcp-remote",
+      "fix": "607b226a356cb61a239ffaba2fb3db1c9dea4bac",
+      "parent": "3ad0fc047653e15b29b01d122848a729feb4ec78",
+      "files": [
+        "src/lib/utils.ts"
+      ]
+    },
+    {
+      "ghsa": "GHSA-72m8-9m7m-h278",
+      "cve": "CVE-2026-59821",
+      "ecosystem": "pip",
+      "package": "litellm",
+      "published": "2026-07-22T22:38:55Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "LiteLLM: Custom Code Guardrails production endpoints bypass code safety checks",
+      "repository": "BerriAI/litellm",
+      "fix": "e50b4486d0f7aa0497185a1ebcdd2c91f1769eba",
+      "parent": "d2aeb3e51367e29303561f6f5504a112c6531127",
+      "files": [
+        "litellm/proxy/auth/user_api_key_auth.py",
+        "litellm/proxy/guardrails/guardrail_endpoints.py",
+        "litellm/proxy/guardrails/guardrail_hooks/custom_code/custom_code_guardrail.py",
+        "litellm/proxy/proxy_server.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-74h3-cxq7-vc5q",
+      "cve": "CVE-2026-59216",
+      "ecosystem": "pip",
+      "package": "open-webui",
+      "published": "2026-07-24T17:01:53Z",
+      "cwes": [
+        "CWE-94",
+        "CWE-200",
+        "CWE-639",
+        "CWE-862"
+      ],
+      "summary": "Open WebUI: Cross-user code-interpreter and tool execution via unvalidated Socket.IO event-caller session_id",
+      "repository": "open-webui/open-webui",
+      "fix": "386ac958144dbbbf0aa6e268070d72b681a318aa",
+      "parent": "914039ac8111148a27f49bc0ca7ceedc5284ecb3",
+      "files": [
+        "backend/open_webui/socket/main.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-7gfq-f96f-g85j",
+      "cve": "CVE-2023-36281",
+      "ecosystem": "pip",
+      "package": "langchain",
+      "published": "2023-08-22T21:30:27Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "langchain vulnerable to arbitrary code execution",
+      "repository": "langchain-ai/langchain",
+      "fix": "22abeb9f6cc555591bf8e92b5e328e43aa07ff6c",
+      "parent": "b642d00f9f625969ca1621676990af7db4271a2e",
+      "files": [
+        "libs/langchain/langchain/prompts/base.py",
+        "libs/langchain/langchain/prompts/loading.py",
+        "libs/langchain/langchain/prompts/prompt.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-7gj6-22m4-qfhx",
+      "cve": "CVE-2024-10901",
+      "ecosystem": "pip",
+      "package": "dbgpt",
+      "published": "2025-03-20T12:32:40Z",
+      "cwes": [
+        "CWE-89",
+        "CWE-434"
+      ],
+      "summary": "DB-GPT Arbitrary File Write vulnerability",
+      "repository": "eosphoros-ai/DB-GPT",
+      "fix": "295cdb8723663d5b0954d5d1dfb4f02b7223b8ff",
+      "parent": "d40e80153b743c9763e397ce2bb4b40568912152",
+      "files": [
+        "dbgpt/app/openapi/api_v1/editor/api_editor_v1.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-7gwp-5pfp-969j",
+      "cve": "CVE-2026-64849",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2026-08-17T21:58:51Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "MLflow: Unauthenticated full-read SSRF in webhook delivery: _validate_webhook_url bypassed via unvalidated HTTP redirects (and DNS rebinding)",
+      "repository": "mlflow/mlflow",
+      "fix": "ba949522477cbd5915aa55d29b0cfad7d5ddf939",
+      "parent": "3e6c1b1af5d2b884b9152ca4df23684bb2cfccbb",
+      "files": [
+        "mlflow/webhooks/delivery.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-88pr-878c-24wf",
+      "cve": null,
+      "ecosystem": "npm",
+      "package": "flowise",
+      "published": "2026-08-04T17:43:45Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-73"
+      ],
+      "summary": "Flowise: Authenticated arbitrary file write in the `S3 Directory` document loader via unsanitized S3 object keys                                                                                                  ",
+      "repository": "FlowiseAI/Flowise",
+      "fix": "571b5d6218b1c129588ac625c8f20e30905a67cb",
+      "parent": "d07186844263bad057008863037466aff7c3390f",
+      "files": [
+        "packages/components/nodes/documentloaders/S3Directory/S3Directory.ts",
+        "packages/components/nodes/documentloaders/S3File/S3File.ts",
+        "packages/components/src/validator.ts"
+      ]
+    },
+    {
+      "ghsa": "GHSA-8fr4-5q9j-m8gm",
+      "cve": "CVE-2025-66448",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2025-12-02T17:34:16Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "vLLM vulnerable to remote code execution via transformers_utils/get_config",
+      "repository": "vllm-project/vllm",
+      "fix": "ffb08379d8870a1a81ba82b72797f196838d0c86",
+      "parent": "e04492449eeb1ca945ce08b2740ea75bddd0c8a9",
+      "files": [
+        "vllm/transformers_utils/config.py",
+        "vllm/transformers_utils/configs/__init__.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-8qpj-27x8-pwpq",
+      "cve": "CVE-2026-10561",
+      "ecosystem": "pip",
+      "package": "langflow",
+      "published": "2026-10-06T13:38:28Z",
+      "cwes": [
+        "CWE-94",
+        "CWE-95",
+        "CWE-266"
+      ],
+      "summary": "Langflow: PythonREPLComponent executes unsandboxed Python code, enabling authenticated RCE and privilege escalation",
+      "repository": "langflow-ai/langflow",
+      "fix": "2754c84aad1306f463db1c3bbb3e8ffbe85da77d",
+      "parent": "11a18f78346d15f4cc269fa4558ee33b99f54368",
+      "files": [
+        "src/lfx/src/lfx/components/tools/python_repl.py",
+        "src/lfx/src/lfx/components/utilities/python_repl_core.py",
+        "src/lfx/src/lfx/utils/python_repl_security.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-8x5v-cpv7-8jjp",
+      "cve": "CVE-2026-70485",
+      "ecosystem": "pip",
+      "package": "open-webui",
+      "published": "2026-08-04T19:59:36Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "Open WebUI: Any authenticated user can reach internal services and cloud metadata via NAT64-encoded URLs",
+      "repository": "open-webui/open-webui",
+      "fix": "1717b493d83c86afa82aa8bc50139250852dd2f3",
+      "parent": "5c505c1119fec6170c1bc092ed162f86262a887e",
+      "files": [
+        "backend/open_webui/retrieval/web/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-c4cc-w454-4634",
+      "cve": "CVE-2024-8537",
+      "ecosystem": "pip",
+      "package": "agentscope",
+      "published": "2025-03-20T12:32:48Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-29"
+      ],
+      "summary": "AgentScope path traversal vulnerability",
+      "repository": "modelscope/agentscope",
+      "fix": "7d285e862f86fa1d96ed04c4cd40a5f1b8f9189a",
+      "parent": "6178c29bcbff044c5bab788c0eb364c0fe84baec",
+      "files": [
+        "src/agentscope/studio/_app.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-c6xh-wv4j-ppv5",
+      "cve": "CVE-2026-69257",
+      "ecosystem": "npm",
+      "package": "flowise",
+      "published": "2026-08-04T15:51:58Z",
+      "cwes": [
+        "CWE-918",
+        "CWE-1389"
+      ],
+      "summary": "Flowise: SSRF Protection Bypass via IPv4-Mapped IPv6 Addresses",
+      "repository": "FlowiseAI/Flowise",
+      "fix": "0fc769208395641c1411ccdb9c81416e54802155",
+      "parent": "b7a2005fd7b394ba7874aded744fe3730d59ccb3",
+      "files": [
+        "packages/components/src/httpSecurity.ts"
+      ]
+    },
+    {
+      "ghsa": "GHSA-cgcg-p68q-3w7v",
+      "cve": "CVE-2024-21513",
+      "ecosystem": "pip",
+      "package": "langchain-experimental",
+      "published": "2024-07-15T06:30:53Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "langchain-experimental vulnerable to Arbitrary Code Execution",
+      "repository": "langchain-ai/langchain",
+      "fix": "7b13292e3544b2f5f2bfb8a27a062ea2b0c34561",
+      "parent": "b809c243afb182efc5868ca495074a41e2f7c40c",
+      "files": [
+        "libs/experimental/langchain_experimental/sql/vector_sql.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-f73w-4m7g-ch9x",
+      "cve": "CVE-2023-39631",
+      "ecosystem": "pip",
+      "package": "langchain",
+      "published": "2023-09-01T18:30:41Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "Langchain vulnerable to arbitrary code execution via the evaluate function in the numexpr library",
+      "repository": "pydata/numexpr",
+      "fix": "4b2d89cf14e75030d27629925b9998e1e91d23c7",
+      "parent": "74d597398ba3c379c196e469d40f516de110eaa5",
+      "files": [
+        "numexpr/necompiler.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-f776-fp4w-266c",
+      "cve": "CVE-2026-45347",
+      "ecosystem": "pip",
+      "package": "open-webui",
+      "published": "2026-05-14T20:22:02Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "Open WebUI vulnerable to blind server side request forgery (SSRF) via the PDF generate function",
+      "repository": "open-webui/open-webui",
+      "fix": "167c8bf00d165af523acfc3b870749f6be6d3e57",
+      "parent": "14398ab62847c1840a9413efa0a34cf12df89dad",
+      "files": [
+        "backend/open_webui/utils/pdf_generator.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-f798-qm4r-23r5",
+      "cve": "CVE-2023-6015",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-11-16T18:30:31Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "MLflow allowed arbitrary files to be PUT onto the server",
+      "repository": "mlflow/mlflow",
+      "fix": "cf83dad4df26dd4a850622fe8a51ccab1471a5e7",
+      "parent": "e8c003aff4d9abbdfb169c49b779fe55bfc3d500",
+      "files": [
+        "mlflow/server/handlers.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-ffw3-6378-cqgp",
+      "cve": "CVE-2023-4033",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-08-01T03:31:17Z",
+      "cwes": [
+        "CWE-78"
+      ],
+      "summary": "mlflow vulnerable to OS Command Injection",
+      "repository": "mlflow/mlflow",
+      "fix": "6dde93758d42455cb90ef324407919ed67668b9b",
+      "parent": "330bf0b38b07d4adf3fae99af1b44c8e857f514a",
+      "files": [
+        "mlflow/pyfunc/backend.py",
+        "mlflow/pyfunc/scoring_server/__init__.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-fhff-qmm8-h2fp",
+      "cve": "CVE-2025-15031",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2026-03-19T00:30:20Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "Arbitrary file write via tar traversal in mlflow",
+      "repository": "mlflow/mlflow",
+      "fix": "3bf6d81ac4d38654c8ff012dbd0c3e9f17e7e346",
+      "parent": "0cda8fc5ebb8860481cd73209e62523d3863965e",
+      "files": [
+        "mlflow/pyfunc/dbconnect_artifact_cache.py",
+        "mlflow/utils/file_utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-fmxj-6h9g-6vw3",
+      "cve": "CVE-2023-3765",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-07-19T03:30:27Z",
+      "cwes": [
+        "CWE-36"
+      ],
+      "summary": "MLflow Path Traversal vulnerability",
+      "repository": "mlflow/mlflow",
+      "fix": "6dde93758d42455cb90ef324407919ed67668b9b",
+      "parent": "330bf0b38b07d4adf3fae99af1b44c8e857f514a",
+      "files": [
+        "mlflow/pyfunc/backend.py",
+        "mlflow/pyfunc/scoring_server/__init__.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-frvj-c5qp-xj4w",
+      "cve": "CVE-2026-59221",
+      "ecosystem": "pip",
+      "package": "open-webui",
+      "published": "2026-07-24T21:05:51Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-918"
+      ],
+      "summary": "open-webui terminal proxy path traversal guard bypass via 9x encoded traversal",
+      "repository": "open-webui/open-webui",
+      "fix": "05098d25a58d03738e01c4e85e8852c3b4ad849c",
+      "parent": "3266a8c9eb6b8408a869a33378a0f4ad8a46809e",
+      "files": [
+        "backend/open_webui/routers/models.py",
+        "backend/open_webui/routers/terminals.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-fxc2-8m62-m85x",
+      "cve": "CVE-2024-45201",
+      "ecosystem": "pip",
+      "package": "llama-index-core",
+      "published": "2024-08-22T21:31:29Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "LlamaIndex includes an exec call for `import {cls_name}`",
+      "repository": "run-llama/llama_index",
+      "fix": "bd827c30484fa085ec769fa55dc7f2add8006ac8",
+      "parent": "ece8f2ddc4669b5cc820261329bf68bf99999e48",
+      "files": [
+        "llama-index-core/llama_index/core/download/integration.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-g26j-5385-hhw3",
+      "cve": "CVE-2024-6587",
+      "ecosystem": "pip",
+      "package": "litellm",
+      "published": "2024-09-13T18:31:47Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "LiteLLM Server-Side Request Forgery (SSRF) vulnerability",
+      "repository": "berriai/litellm",
+      "fix": "ba1912afd1b19e38d3704bb156adf887f91ae1e0",
+      "parent": "0b9782a377e4600196e43e36582778147da49651",
+      "files": [
+        "litellm/proxy/auth/auth_checks.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-g9cj-cfpp-4g2x",
+      "cve": "CVE-2024-1561",
+      "ecosystem": "pip",
+      "package": "gradio",
+      "published": "2024-04-16T00:30:33Z",
+      "cwes": [
+        "CWE-29"
+      ],
+      "summary": "gradio vulnerable to Path Traversal",
+      "repository": "gradio-app/gradio",
+      "fix": "24a583688046867ca8b8b02959c441818bdb34a2",
+      "parent": "53b95f8683bf80579fc5c242dfdfb74143e0c235",
+      "files": [
+        "gradio/components/file_explorer.py",
+        "gradio/routes.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-gqvg-gmmx-x4hm",
+      "cve": null,
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2026-09-01T17:04:30Z",
+      "cwes": [
+        "CWE-502"
+      ],
+      "summary": "MLFLOW_ALLOW_PICKLE_DESERIALIZATION=False safety control bypassed by mlflow.statsmodels flavor — RCE via crafted model artifact",
+      "repository": "mlflow/mlflow",
+      "fix": "38615289094a4b700a20b5d1dbfbe57bdfb0411f",
+      "parent": "6135259c681e4d01cdd55923db8c51a967576148",
+      "files": [
+        "mlflow/statsmodels/__init__.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-gr75-jv2w-4656",
+      "cve": "CVE-2026-55443",
+      "ecosystem": "pip",
+      "package": "langchain",
+      "published": "2026-06-16T15:03:14Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-59"
+      ],
+      "summary": "LangChain: Path traversal and sandbox escape in LangChain file-search middleware and loaders",
+      "repository": "langchain-ai/langchain",
+      "fix": "dcaf7795a3e6590af55c3ff7bda6add6355e9ea6",
+      "parent": "0392b6bae4bdfc0b7ed5aeb2e9e414bbb7ea643b",
+      "files": [
+        "libs/langchain_v1/langchain/agents/middleware/file_search.py",
+        "libs/partners/anthropic/langchain_anthropic/middleware/anthropic_tools.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-h5gc-rm8j-5gpr",
+      "cve": "CVE-2025-2828",
+      "ecosystem": "pip",
+      "package": "langchain-community",
+      "published": "2025-06-23T21:31:56Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "LangChain Community SSRF vulnerability exists in RequestsToolkit component ",
+      "repository": "langchain-ai/langchain",
+      "fix": "e188d4ecb085d4561a0be3c583d26aa9c2c3283f",
+      "parent": "dad949eb99f7f58f4d2241ef228bd760da50cf53",
+      "files": [
+        "libs/community/langchain_community/agent_toolkits/openapi/toolkit.py",
+        "libs/community/langchain_community/tools/requests/tool.py",
+        "libs/langchain/langchain/agents/load_tools.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-h6m6-jj8v-94jj",
+      "cve": "CVE-2024-5225",
+      "ecosystem": "pip",
+      "package": "litellm",
+      "published": "2024-06-06T21:30:37Z",
+      "cwes": [
+        "CWE-89"
+      ],
+      "summary": "SQL injection in litellm",
+      "repository": "BerriAI/litellm",
+      "fix": "f75c15d6cd535aa78014378ad532de1df6be2f56",
+      "parent": "1ec2ba186f9ad56049397ed3cef3dd2ce119c8d1",
+      "files": [
+        "litellm/proxy/proxy_server.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-h9j7-5xvc-qhg5",
+      "cve": "CVE-2024-0243",
+      "ecosystem": "pip",
+      "package": "langchain",
+      "published": "2024-02-26T18:30:29Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "langchain Server-Side Request Forgery vulnerability",
+      "repository": "langchain-ai/langchain",
+      "fix": "bf0b3cc0b5ade1fb95a5b1b6fa260e99064c2e22",
+      "parent": "817b84de9e2cd9f2e16a11004caea6fa53aefed8",
+      "files": [
+        "libs/core/langchain_core/utils/html.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-hc5w-c9f8-9cc4",
+      "cve": "CVE-2024-7774",
+      "ecosystem": "npm",
+      "package": "langchain",
+      "published": "2024-10-29T15:32:05Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-29"
+      ],
+      "summary": "Langchain Path Traversal vulnerability",
+      "repository": "langchain-ai/langchainjs",
+      "fix": "a0fad77d6b569e5872bd4a9d33be0c0785e538a9",
+      "parent": "08092cdd6c2e8a443acf55e650ca0e8a185b02a9",
+      "files": [
+        "langchain/src/storage/file_system.ts"
+      ]
+    },
+    {
+      "ghsa": "GHSA-hh8p-p8mp-gqhm",
+      "cve": "CVE-2023-6975",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-12-20T06:30:25Z",
+      "cwes": [
+        "CWE-29"
+      ],
+      "summary": "MLFlow Path Traversal Vulnerability",
+      "repository": "mlflow/mlflow",
+      "fix": "b9ab9ed77e1deda9697fe472fb1079fd428149ee",
+      "parent": "21211494c44dee1b0a01af373d10a535ca2c33bf",
+      "files": [
+        "mlflow/store/artifact/ftp_artifact_repo.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-hj4w-hm2g-p6w5",
+      "cve": "CVE-2025-32444",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2025-04-29T14:52:29Z",
+      "cwes": [
+        "CWE-502"
+      ],
+      "summary": "vLLM Vulnerable to Remote Code Execution via Mooncake Integration",
+      "repository": "vllm-project/vllm",
+      "fix": "a5450f11c95847cf51a17207af9a3ca5ab569b2c",
+      "parent": "9d98ab5ec60ae43453e3bd2e68452483b3ced199",
+      "files": [
+        "vllm/distributed/kv_transfer/kv_pipe/mooncake_pipe.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-hjq4-87xh-g4fv",
+      "cve": "CVE-2025-47277",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2025-05-20T18:04:30Z",
+      "cwes": [
+        "CWE-502"
+      ],
+      "summary": "vLLM Allows Remote Code Execution via PyNcclPipe Communication Service",
+      "repository": "vllm-project/vllm",
+      "fix": "0d6e187e88874c39cda7409cf673f9e6546893e7",
+      "parent": "9420a1fc30af1a632bbc2c66eb8668f3af41f026",
+      "files": [
+        "vllm/distributed/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-hq88-wg7q-gp4g",
+      "cve": "CVE-2024-3573",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2024-04-16T00:30:34Z",
+      "cwes": [
+        "CWE-29"
+      ],
+      "summary": "mlflow vulnerable to Path Traversal",
+      "repository": "mlflow/mlflow",
+      "fix": "438a450714a3ca06285eeea34bdc6cf79d7f6cbc",
+      "parent": "1af5a88a972986525d6573c0a4455070a16b4f27",
+      "files": [
+        "mlflow/environment_variables.py",
+        "mlflow/server/handlers.py",
+        "mlflow/utils/uri.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-hx8v-g79f-8w5f",
+      "cve": "CVE-2026-59823",
+      "ecosystem": "pip",
+      "package": "litellm",
+      "published": "2026-09-17T14:51:21Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "LiteLLM Proxy has server-side request forgery via the `user_config` request parameter",
+      "repository": "BerriAI/litellm",
+      "fix": "47214be317f45a2d2ac08258362e0481411eb427",
+      "parent": "93faf321df159b1ef65a98cc29a70958a96d184a",
+      "files": [
+        "litellm/proxy/auth/auth_utils.py",
+        "litellm/proxy/litellm_pre_call_utils.py",
+        "litellm/responses/file_search/emulated_handler.py",
+        "litellm/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-j36p-7w88-g82j",
+      "cve": "CVE-2026-49119",
+      "ecosystem": "pip",
+      "package": "gradio",
+      "published": "2026-07-01T21:36:18Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": " Gradio FileExplorer preprocess path traversal allows files outside root_dir to reach callbacks",
+      "repository": "gradio-app/gradio",
+      "fix": "97d541f3d5fd05b2587a69ecc94b68fe5d2d7004",
+      "parent": "0d670adf41a0b510f7fd745495dce1664d38f0e5",
+      "files": [
+        "gradio/components/file_explorer.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-j46q-5pxx-8vmw",
+      "cve": "CVE-2024-2928",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2024-06-06T21:30:36Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-29"
+      ],
+      "summary": "Local File Inclusion in mlflow",
+      "repository": "mlflow/mlflow",
+      "fix": "96f0b573a73d8eedd6735a2ce26e08859527be07",
+      "parent": "2e765a65519fa2422328bf868fbc7b7eb0d6cad1",
+      "files": [
+        "mlflow/server/handlers.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-j9g7-mqhh-9hxf",
+      "cve": "CVE-2024-10833",
+      "ecosystem": "pip",
+      "package": "dbgpt",
+      "published": "2025-03-20T12:32:40Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-36"
+      ],
+      "summary": "DB-GPT Absolute Path Traversal in knowledge/{space_name}/document/upload",
+      "repository": "eosphoros-ai/DB-GPT",
+      "fix": "780ce803e325b87f4ddfbe5824451e379aeee56c",
+      "parent": "b392d51adfbfe84364b83c83b463b7c6fa4312bc",
+      "files": [
+        "dbgpt/app/knowledge/api.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-jmgm-gx32-vp4w",
+      "cve": "CVE-2024-12911",
+      "ecosystem": "pip",
+      "package": "llama-index",
+      "published": "2025-03-20T12:32:44Z",
+      "cwes": [
+        "CWE-89",
+        "CWE-379"
+      ],
+      "summary": "LlamaIndex vulnerable to Creation of Temporary File in Directory with Insecure Permissions",
+      "repository": "run-llama/llama_index",
+      "fix": "bf282074e20e7dafd5e2066137dcd4cd17c3fb9e",
+      "parent": "5ede4680f4fdee232f972ee3ca47c1581e9d5254",
+      "files": [
+        "llama-index-core/llama_index/core/query_engine/__init__.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-jmh7-g254-2cq9",
+      "cve": "CVE-2026-28416",
+      "ecosystem": "pip",
+      "package": "gradio",
+      "published": "2026-03-01T01:29:31Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "Gradio has SSRF via Malicious `proxy_url` Injection in `gr.load()` Config Processing",
+      "repository": "gradio-app/gradio",
+      "fix": "fc7c01ea1e581ef70be98fddf003b0c91315c7cc",
+      "parent": "dfee0da06d0aa94b3c2684131e7898d5d5c1911e",
+      "files": [
+        "client/python/gradio_client/documentation.py",
+        "gradio/blocks.py",
+        "gradio/components/annotated_image.py",
+        "gradio/routes.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-m6w7-qv66-g3mf",
+      "cve": "CVE-2026-27905",
+      "ecosystem": "pip",
+      "package": "bentoml",
+      "published": "2026-03-03T17:46:47Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-59"
+      ],
+      "summary": "BentoML Vulnerable to Arbitrary File Write via Symlink Path Traversal in Tar Extraction",
+      "repository": "bentoml/BentoML",
+      "fix": "4e0eb007765ac04c7924220d643f264715cc9670",
+      "parent": "3ba9d54637312aa2a9c7c35540c18c30317cac3f",
+      "files": [
+        "src/bentoml/_internal/utils/filesystem.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-m842-4qm8-7gpq",
+      "cve": "CVE-2024-1728",
+      "ecosystem": "pip",
+      "package": "gradio",
+      "published": "2024-09-25T21:48:24Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "Gradio allows users to access arbitrary files",
+      "repository": "gradio-app/gradio",
+      "fix": "16fbe9cd0cffa9f2a824a0165beb43446114eec7",
+      "parent": "ba3ec1300e81e64be7389d759b89284c66473158",
+      "files": [
+        "gradio/blocks.py",
+        "gradio/processing_utils.py",
+        "gradio/routes.py",
+        "gradio/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-mcfx-4vc6-qgxv",
+      "cve": "CVE-2026-40610",
+      "ecosystem": "pip",
+      "package": "bentoml",
+      "published": "2026-05-07T16:39:47Z",
+      "cwes": [
+        "CWE-59"
+      ],
+      "summary": "BentoML has Information Disclosure in `bentoml build` via symlink traversal in the build context",
+      "repository": "bentoml/BentoML",
+      "fix": "5fb7cd41f92e2a56b45391284cf15b9ac9963a1f",
+      "parent": "0ff0b9e9a0217c3c57de39b822983fac3ef65f09",
+      "files": [
+        "src/bentoml/_internal/bento/bento.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-mrmq-3q62-6cc8",
+      "cve": "CVE-2025-54381",
+      "ecosystem": "pip",
+      "package": "bentoml",
+      "published": "2025-07-29T19:24:47Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "BentoML SSRF Vulnerability in File Upload Processing  ",
+      "repository": "bentoml/BentoML",
+      "fix": "534c3584621da4ab954bdc3d814cc66b95ae5fb8",
+      "parent": "c8ffb58d936d2ba998d1b49d87c665768f2f6f73",
+      "files": [
+        "src/_bentoml_impl/serde.py",
+        "src/bentoml/_internal/utils/uri.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-pf3h-qjgv-vcpr",
+      "cve": "CVE-2026-34753",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2026-04-03T21:51:00Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "vLLM: Server-Side Request Forgery (SSRF) in `download_bytes_from_url `",
+      "repository": "vllm-project/vllm",
+      "fix": "57861ae48d3493fa48b4d7d830b7ec9f995783e7",
+      "parent": "ac30a8311ec286f85ddd1b8f8773ccfbfcf8ba08",
+      "files": [
+        "vllm/entrypoints/openai/run_batch.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-pw38-xv9x-h8ch",
+      "cve": "CVE-2024-4181",
+      "ecosystem": "pip",
+      "package": "llama-index",
+      "published": "2024-05-16T09:33:08Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "RunGptLLM class in LlamaIndex has a command injection",
+      "repository": "run-llama/llama_index",
+      "fix": "d73715eaf0642705583e7897c78b9c8dd2d3a7ba",
+      "parent": "44faac91742ef688d66f16cfd1adb811f43b53c2",
+      "files": [
+        "llama-index-core/llama_index/core/query_engine/cogniswitch_query_engine.py",
+        "llama-index-integrations/llms/llama-index-llms-rungpt/llama_index/llms/rungpt/base.py",
+        "llama-index-integrations/tools/llama-index-tools-cogniswitch/llama_index/tools/cogniswitch/base.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-q25c-c977-4cmh",
+      "cve": "CVE-2024-3095",
+      "ecosystem": "pip",
+      "package": "langchain-community",
+      "published": "2024-06-06T21:30:36Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "Server-Side Request Forgery in langchain-community.retrievers.web_research.WebResearchRetriever",
+      "repository": "langchain-ai/langchain",
+      "fix": "604dfe2d99246b0c09f047c604f0c63eafba31e7",
+      "parent": "f101c759ed0e1df8bcf9044a429dc578e0c33b22",
+      "files": [
+        "libs/community/langchain_community/retrievers/web_research.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-q2r8-vmq7-fpx2",
+      "cve": "CVE-2026-2033",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2026-02-21T00:31:43Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "MLflow Tracking Server Artifact Handler Directory Traversal Remote Code Execution Vulnerability",
+      "repository": "mlflow/mlflow",
+      "fix": "5bf2ec2bd4222a18d78631183ac7f6b752afe8a4",
+      "parent": "67503cada5e5c2f19783e82c681c7767b4efe875",
+      "files": [
+        "mlflow/store/tracking/file_store.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-q8gq-377p-jq3r",
+      "cve": "CVE-2026-41523",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2026-06-16T17:34:49Z",
+      "cwes": [
+        "CWE-94",
+        "CWE-617"
+      ],
+      "summary": "vLLM: Security Check Bypass via assert Statement in Activation Function Loading Allows Arbitrary Code Execution",
+      "repository": "vllm-project/vllm",
+      "fix": "b3c7ffcab82c2439726f8cb213800f6f38c023d3",
+      "parent": "d3d1cf6972607c53327b5ce1748e56a95fc41c37",
+      "files": [
+        "vllm/model_executor/layers/pooler/activations.py",
+        "vllm/pooling_params.py",
+        "vllm/v1/pool/metadata.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-qg8p-32gr-gh6x",
+      "cve": "CVE-2023-6977",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-12-20T06:30:25Z",
+      "cwes": [
+        "CWE-29"
+      ],
+      "summary": "MLflow Local File Disclosure Vulnerability",
+      "repository": "mlflow/mlflow",
+      "fix": "4bd7f27c810ba7487d53ed5ef1038fca0f8dc28c",
+      "parent": "369fde468e4231eda4e7fb8e91a74d673226e497",
+      "files": [
+        "mlflow/utils/uri.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-qh4c-xf7m-gxfc",
+      "cve": "CVE-2026-24779",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2026-01-28T16:14:28Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "vLLM vulnerable to Server-Side Request Forgery (SSRF) through MediaConnector",
+      "repository": "vllm-project/vllm",
+      "fix": "f46d576c54fb8aeec5fc70560e850bed38ef17d7",
+      "parent": "d68209402ddab3f54a09bc1f4de9a9495a283b60",
+      "files": [
+        "vllm/connections.py",
+        "vllm/envs.py",
+        "vllm/multimodal/utils.py",
+        "vllm/utils/network_utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-qh6h-p6c9-ff54",
+      "cve": "CVE-2026-34070",
+      "ecosystem": "pip",
+      "package": "langchain-core",
+      "published": "2026-03-27T19:45:00Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "LangChain Core has Path Traversal vulnerabilites in legacy `load_prompt` functions",
+      "repository": "langchain-ai/langchain",
+      "fix": "27add913474e01e33bededf4096151130ba0d47c",
+      "parent": "7563fceb40ce31165524f3f57ec65e487c02b1a7",
+      "files": [
+        "libs/core/langchain_core/prompts/base.py",
+        "libs/core/langchain_core/prompts/chat.py",
+        "libs/core/langchain_core/prompts/few_shot.py",
+        "libs/core/langchain_core/prompts/few_shot_with_templates.py",
+        "libs/core/langchain_core/prompts/loading.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-rffm-9q57-q649",
+      "cve": "CVE-2026-70480",
+      "ecosystem": "pip",
+      "package": "open-webui",
+      "published": "2026-08-04T19:54:57Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "Open WebUI: Client-side SSRF via unrestricted external resource loading in Vega/Vega-Lite chart rendering",
+      "repository": "open-webui/open-webui",
+      "fix": "5278eb906ebecefc6538a19bc86df09d997e43e6",
+      "parent": "4c2d864b3f4c1ae6c4c9bd93aea078d4bf520463",
+      "files": [
+        "src/lib/utils/index.ts"
+      ]
+    },
+    {
+      "ghsa": "GHSA-rfqq-wq6w-72jm",
+      "cve": "CVE-2024-3848",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2024-05-16T09:33:08Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-29"
+      ],
+      "summary": "MLflow has a Local File Read/Path Traversal bypass",
+      "repository": "mlflow/mlflow",
+      "fix": "f8d51e21523238280ebcfdb378612afd7844eca8",
+      "parent": "c01c02a315431fddd40f6b18f1d8791d4cdd20da",
+      "files": [
+        "mlflow/server/handlers.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-rgp8-pm28-3759",
+      "cve": "CVE-2024-3571",
+      "ecosystem": "pip",
+      "package": "langchain",
+      "published": "2024-04-16T00:30:34Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "langchain vulnerable to path traversal",
+      "repository": "langchain-ai/langchain",
+      "fix": "aad3d8bd47d7f5598156ff2bdcc8f736f24a7412",
+      "parent": "501cc8311d54a5140cbc5a49d657bc7d70a6f6ab",
+      "files": [
+        "libs/langchain/langchain/storage/file_system.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-rh4j-5rhw-hr54",
+      "cve": "CVE-2025-24357",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2025-01-27T20:50:30Z",
+      "cwes": [
+        "CWE-502"
+      ],
+      "summary": "vllm: Malicious model to RCE by torch.load in hf_model_weights_iterator",
+      "repository": "vllm-project/vllm",
+      "fix": "d3d6bb13fb62da3234addf6574922a4ec0513d04",
+      "parent": "24b0205f58c28e05ac060ec6f0e4defe8e9c32eb",
+      "files": [
+        "vllm/assets/image.py",
+        "vllm/lora/models.py",
+        "vllm/model_executor/model_loader/weight_utils.py",
+        "vllm/prompt_adapter/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-rhq2-3vr9-6mcr",
+      "cve": "CVE-2021-43831",
+      "ecosystem": "pip",
+      "package": "gradio",
+      "published": "2022-01-21T23:43:33Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "Files on the host computer can be accessed from the Gradio interface",
+      "repository": "gradio-app/gradio",
+      "fix": "41bd3645bdb616e1248b2167ca83636a2653f781",
+      "parent": "0b2c4901a63b2e5a7d7b3964d27b8f82d6d330e1",
+      "files": [
+        "gradio/networking.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-rvhj-8chj-8v3c",
+      "cve": "CVE-2026-0596",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2026-03-31T15:31:56Z",
+      "cwes": [
+        "CWE-78"
+      ],
+      "summary": "Mlflow: Command Injection when serving models with enable_mlserver=True",
+      "repository": "mlflow/mlflow",
+      "fix": "202fac4c83ccc8544c087c142b80196d0e60695c",
+      "parent": "80c4d6feb1c7abadde89196b063a378f797465b2",
+      "files": [
+        "mlflow/pyfunc/mlserver.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-rvqx-wpfh-mfx7",
+      "cve": "CVE-2025-3248",
+      "ecosystem": "pip",
+      "package": "langflow",
+      "published": "2025-06-17T20:14:26Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "Langflow Unauth RCE",
+      "repository": "langflow-ai/langflow",
+      "fix": "faac4db133de32fcb6d483fa9ff52f40ce42bdc0",
+      "parent": "e1ee081d3223bd2150425ddb9487b5e9f4ccff26",
+      "files": [
+        "src/backend/base/langflow/api/v1/validate.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-v359-jj2v-j536",
+      "cve": "CVE-2026-25960",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2026-03-09T19:55:32Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "vLLM has SSRF Protection Bypass",
+      "repository": "vllm-project/vllm",
+      "fix": "6f3b2047abd4a748e3db4a68543f8221358002c0",
+      "parent": "02e8f26ceaa3af0382b9de6b40825c4ad49ef5b7",
+      "files": [
+        "vllm/multimodal/media/connector.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-v3c8-3pr6-gr7p",
+      "cve": "CVE-2025-1793",
+      "ecosystem": "pip",
+      "package": "llama-index",
+      "published": "2025-06-05T06:30:26Z",
+      "cwes": [
+        "CWE-89"
+      ],
+      "summary": "llama_index vulnerable to SQL Injection",
+      "repository": "run-llama/llama_index",
+      "fix": "0008041e8dde8e519621388e5d6f558bde6ef42e",
+      "parent": "cc77ed70ad8b0e07b7803c1afcb988aa84b26644",
+      "files": [
+        "llama-index-core/llama_index/core/__init__.py",
+        "llama-index-core/llama_index/core/agent/workflow/react_agent.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-v945-r3rc-6fjm",
+      "cve": "CVE-2023-6753",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-12-13T00:30:37Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "Path traversal in MLflow",
+      "repository": "mlflow/mlflow",
+      "fix": "1c6309f884798fbf56017a3cc808016869ee8de4",
+      "parent": "f01767aefd44a76cc5c3a9852ca50f6757672946",
+      "files": [
+        "mlflow/data/http_dataset_source.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-vhcx-3pq2-4fvc",
+      "cve": "CVE-2025-15036",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2026-03-30T03:30:19Z",
+      "cwes": [
+        "CWE-29"
+      ],
+      "summary": "MLFlow path traversal vulnerability",
+      "repository": "mlflow/mlflow",
+      "fix": "3bf6d81ac4d38654c8ff012dbd0c3e9f17e7e346",
+      "parent": "0cda8fc5ebb8860481cd73209e62523d3863965e",
+      "files": [
+        "mlflow/pyfunc/dbconnect_artifact_cache.py",
+        "mlflow/utils/file_utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-vv7q-7jx5-f767",
+      "cve": "CVE-2026-32871",
+      "ecosystem": "pip",
+      "package": "fastmcp",
+      "published": "2026-03-31T22:53:21Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "FastMCP OpenAPI Provider has an SSRF & Path Traversal Vulnerability",
+      "repository": "PrefectHQ/fastmcp",
+      "fix": "40bdfb6b1de0ce30609ee9ba5bb95ecd04a9fb71",
+      "parent": "c861862aededc7294cea5634d77e6926444ca101",
+      "files": [
+        "src/fastmcp/utilities/openapi/director.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-vwmf-pq79-vjvx",
+      "cve": "CVE-2026-33017",
+      "ecosystem": "pip",
+      "package": "langflow",
+      "published": "2026-03-17T20:05:05Z",
+      "cwes": [
+        "CWE-94",
+        "CWE-95",
+        "CWE-306"
+      ],
+      "summary": "Unauthenticated Remote Code Execution in Langflow via Public Flow Build Endpoint",
+      "repository": "langflow-ai/langflow",
+      "fix": "73b6612e3ef25fdae0a752d75b0fabd47328d4f0",
+      "parent": "1fdbbfaab16f0df07a70b49563805a69210c5059",
+      "files": [
+        "src/backend/base/langflow/api/v1/chat.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-w2rx-84hp-gg95",
+      "cve": "CVE-2026-70479",
+      "ecosystem": "pip",
+      "package": "open-webui",
+      "published": "2026-08-04T19:40:48Z",
+      "cwes": [
+        "CWE-918"
+      ],
+      "summary": "Open WebUI: SSRF into internal services via unvalidated sub-resource requests in the Playwright web loader",
+      "repository": "open-webui/open-webui",
+      "fix": "bef63a2ae915571d50d2722a635e8bfa753d7877",
+      "parent": "df94268e892cbb66675170a6c78846aef23f6e89",
+      "files": [
+        "backend/open_webui/retrieval/web/utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-w584-2h2r-2hvf",
+      "cve": "CVE-2026-51886",
+      "ecosystem": "pip",
+      "package": "langflow",
+      "published": "2026-10-05T22:31:00Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "Langflow: Title Authenticated Remote Code Execution in  validate_code  via Malicious Decorators  Description",
+      "repository": "langflow-ai/langflow",
+      "fix": "e7c33dbaade20b5295c7fa26bf83cc1ff68fba02",
+      "parent": "094694d3f20c1da499f4d8dbac15c510609e3026",
+      "files": [
+        "src/lfx/src/lfx/custom/validate.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-w832-v3c6-m6rg",
+      "cve": "CVE-2023-39660",
+      "ecosystem": "pip",
+      "package": "pandasai",
+      "published": "2023-08-21T18:31:23Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "pandasai vulnerable to prompt injection",
+      "repository": "gventuri/pandas-ai",
+      "fix": "3aac79be8fc1d18b53d66a566adddbbdd2b38ad5",
+      "parent": "b452b3b878ec1f5552472a857a7a6e11c61381b1",
+      "files": [
+        "pandasai/__init__.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-wc6j-5g83-xfm6",
+      "cve": "CVE-2023-30172",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-05-11T03:30:15Z",
+      "cwes": [
+        "CWE-22"
+      ],
+      "summary": "mflow vulnerable to directory traversal",
+      "repository": "mlflow/mlflow",
+      "fix": "ac4b697bb0bb8a331944dca63f4235b4bf602ab8",
+      "parent": "d1c7621940fabb7fd3895699f5d16d0799f5d121",
+      "files": [
+        "mlflow/server/handlers.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-wg86-r78f-74mp",
+      "cve": "CVE-2026-69253",
+      "ecosystem": "npm",
+      "package": "flowise",
+      "published": "2026-08-04T15:13:33Z",
+      "cwes": [
+        "CWE-95"
+      ],
+      "summary": "Flowise Sandbox Escape to RCE",
+      "repository": "FlowiseAI/Flowise",
+      "fix": "3f257bdc8196082a178da7134a075824401b13b9",
+      "parent": "96a9b23b5a103b362a0ee1368d04636755be1bed",
+      "files": [
+        "packages/components/nodes/agentflow/ExecuteFlow/ExecuteFlow.ts",
+        "packages/components/nodes/sequentialagents/ExecuteFlow/ExecuteFlow.ts",
+        "packages/components/nodes/tools/AgentAsTool/AgentAsTool.ts",
+        "packages/components/nodes/tools/ChatflowTool/ChatflowTool.ts",
+        "packages/components/src/utils.ts",
+        "packages/components/src/validator.ts"
+      ]
+    },
+    {
+      "ghsa": "GHSA-wjq3-7jxx-whj9",
+      "cve": "CVE-2023-2780",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-05-17T21:30:22Z",
+      "cwes": [
+        "CWE-29"
+      ],
+      "summary": "mlflow Path Traversal vulnerability",
+      "repository": "mlflow/mlflow",
+      "fix": "fae77a525dd908c56d6204a4cef1c1c75b4e9857",
+      "parent": "eae60d72425476511557c48b0a8211cdae4bc979",
+      "files": [
+        "mlflow/environment_variables.py",
+        "mlflow/server/handlers.py",
+        "mlflow/utils/uri.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-wp72-7hj9-5265",
+      "cve": "CVE-2023-1176",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-03-24T22:01:15Z",
+      "cwes": [
+        "CWE-36"
+      ],
+      "summary": "Remote file existence check vulnerability in `mlflow server` and `mlflow ui` CLIs",
+      "repository": "mlflow/mlflow",
+      "fix": "63ef72aa4334a6473ce7f889573c92fcae0b3c0d",
+      "parent": "36c787aa96f14caca40b521e293a5bd2d088685f",
+      "files": [
+        "mlflow/store/model_registry/file_store.py",
+        "mlflow/utils/file_utils.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-x32c-59v5-h7fg",
+      "cve": "CVE-2023-34540",
+      "ecosystem": "pip",
+      "package": "langchain",
+      "published": "2023-06-14T15:30:39Z",
+      "cwes": [
+        "CWE-78"
+      ],
+      "summary": "Langchain OS Command Injection vulnerability",
+      "repository": "langchain-ai/langchain",
+      "fix": "a2f191a32229256dd41deadf97786fe41ce04cbb",
+      "parent": "61938a02a1e76fa6c6e8203c98a9344a179c810d",
+      "files": [
+        "langchain/tools/jira/prompt.py",
+        "langchain/utilities/jira.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-x3m8-f7g5-qhm7",
+      "cve": "CVE-2025-29783",
+      "ecosystem": "pip",
+      "package": "vllm",
+      "published": "2025-03-19T15:55:58Z",
+      "cwes": [
+        "CWE-502"
+      ],
+      "summary": "vLLM Allows Remote Code Execution via Mooncake Integration",
+      "repository": "vllm-project/vllm",
+      "fix": "288ca110f68d23909728627d3100e5a8db820aa2",
+      "parent": "c2bd2196fc8faf2a9a3e5e79931839ae60d2ab9d",
+      "files": [
+        "vllm/distributed/kv_transfer/kv_pipe/mooncake_pipe.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-x422-6qhv-p29g",
+      "cve": "CVE-2023-2356",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-04-28T00:30:29Z",
+      "cwes": [
+        "CWE-23"
+      ],
+      "summary": "Relative path traversal in mlflow",
+      "repository": "mlflow/mlflow",
+      "fix": "f73147496e05c09a8b83d95fb4f1bf86696c6342",
+      "parent": "9ac64942f19e85d126e5bfe46497e33aae20bd6e",
+      "files": [
+        "mlflow/server/handlers.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-x6vm-w76m-8j7g",
+      "cve": "CVE-2026-69256",
+      "ecosystem": "npm",
+      "package": "flowise",
+      "published": "2026-08-04T15:46:20Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "Flowise: Remote Code Execution Vulnerability in CSVAgent",
+      "repository": "FlowiseAI/Flowise",
+      "fix": "c79fe56a6c249850e96bce9b4859f7a0083e4507",
+      "parent": "3d69baed4032bce98c8f81294211f9b357b13fc9",
+      "files": [
+        "packages/components/nodes/agents/CSVAgent/CSVAgent.ts",
+        "packages/components/src/pythonCodeValidator.ts"
+      ]
+    },
+    {
+      "ghsa": "GHSA-xch3-2f9x-wh9f",
+      "cve": "CVE-2025-14287",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2026-03-16T15:30:41Z",
+      "cwes": [
+        "CWE-94"
+      ],
+      "summary": "MLflow has a command injection in mlflow/sagemaker/__init__.py",
+      "repository": "mlflow/mlflow",
+      "fix": "8b8792a7034fb33a14b0b31cabcaa9b912d3485f",
+      "parent": "c0a2f87e7a6264f6fb356c1e40ff4e4e8b41d6a5",
+      "files": [
+        "mlflow/sagemaker/__init__.py"
+      ]
+    },
+    {
+      "ghsa": "GHSA-xg73-94fp-g449",
+      "cve": "CVE-2023-1177",
+      "ecosystem": "pip",
+      "package": "mlflow",
+      "published": "2023-03-24T22:01:09Z",
+      "cwes": [
+        "CWE-22",
+        "CWE-29"
+      ],
+      "summary": "mlflow is vulnerable to remote file access in `mlflow server` and `mlflow ui` CLIs",
+      "repository": "mlflow/mlflow",
+      "fix": "7162a50c654792c21f3e4a160eb1a0e6a34f6e6e",
+      "parent": "fedf876a90bdcb8d4e06b42abfc31a8df0055143",
+      "files": [
+        "mlflow/server/handlers.py"
+      ]
+    }
+  ]
+}

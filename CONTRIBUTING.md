@@ -133,6 +133,18 @@ pnpm evaluate --provider "Claude review" --runs 1 --mode explore --yes --json ex
 changed line against the source before committing; the expected files are the
 accuracy record, not a cache.
 
+`node scripts/advisories.ts run --cache <dir>` measures the static rules on reviewed
+GitHub advisories of AI and agent projects, listed in
+`test/fixtures/advisories/manifest.json`. It downloads the code around each fix,
+before and after it, scans both versions read-only, and needs `gh` and network
+access. Downloads stay in the cache for later runs. `node scripts/advisories.ts
+select` rebuilds the manifest from the database with the fixed selection rule; a new
+selection changes the benchmark, so record its date.
+
+```sh
+node scripts/advisories.ts run --cache ~/.cache/plenger-advisories --output docs/qualifications/<name>.md
+```
+
 ## Generated artefacts
 
 ```sh
