@@ -303,13 +303,16 @@ function property(value: Value, key: string, facts: FileFacts, depth = 0): Value
   return [];
 }
 
-/**
- * What a call's result is computed from, when the code it calls is known: the indices of
- * the arguments that reach it and the request globals it reads. Null: every argument.
- */
-export type CallFlow = (
-  call: CallFact,
-) => { args: ReadonlySet<number>; requests: readonly string[] } | null;
+/** What tracing knows beyond one file, for `provenanceOf`. */
+export interface Flow {
+  /**
+   * What a call's result is computed from, when the code it calls is known: the indices
+   * of the arguments that reach it and the request globals it reads. Null: every argument.
+   */
+  call(call: CallFact): { args: ReadonlySet<number>; requests: readonly string[] } | null;
+  /** Values that carry nothing of where they come from, such as a file name with no separators. */
+  fixed?(value: Value): boolean;
+}
 
 /** Where a value comes from, traced within one file. */
 interface Provenance {
@@ -363,7 +366,7 @@ export function provenanceOf(
   facts: FileFacts,
   scope: string | null,
   limited?: ReadonlySet<string>,
-  flow?: CallFlow,
+  flow?: Flow,
 ): Provenance {
   const params = paramsOf(facts, scope);
   const result: Provenance = { params: new Set(), calls: new Set(), requests: new Set() };
@@ -381,6 +384,8 @@ export function provenanceOf(
   // Parameters count only in the function the value is evaluated in, not in a closure's outer function.
   const visit = (current: Value, here: string | null, depth: number): void => {
     if (depth > PROVENANCE_DEPTH) return;
+    if (current.kind !== "literal" && current.kind !== "other" && flow?.fixed?.(current) === true)
+      return;
     const local = here === scope;
     switch (current.kind) {
       case "name": {
@@ -415,7 +420,7 @@ export function provenanceOf(
         const checked = call.scope === scope && limited?.has(root) === true;
         if (call.scope === scope && params.has(root) && !checked) result.params.add(root);
         if (call.receiver !== undefined && !checked) assignment(call.receiver, depth);
-        const reached = flow?.(call) ?? null;
+        const reached = flow?.call(call) ?? null;
         for (const name of reached?.requests ?? []) result.requests.add(name);
         for (const [index, arg] of call.arguments.entries())
           if (reached === null || reached.args.has(index)) visit(arg.value, call.scope, depth + 1);
@@ -508,7 +513,7 @@ export function summarizeText(
   facts: FileFacts,
   scope: string | null = null,
   limited?: ReadonlySet<string>,
-  flow?: CallFlow,
+  flow?: Flow,
 ): TextSummary | null {
   const origin = originOf(value, facts);
   const summary: TextSummary = { text: "", dynamic: [], truncated: false, fixed: [], origin };
@@ -522,7 +527,7 @@ function appendText(
   scope: string | null,
   depth: number,
   limited: ReadonlySet<string> | undefined,
-  flow: CallFlow | undefined,
+  flow: Flow | undefined,
 ): boolean {
   const target = depth < DEREF_DEPTH ? deref(value, facts) : value;
   // A constant from another variable is evaluated where that variable was assigned.
@@ -530,16 +535,28 @@ function appendText(
     target === value || value.kind !== "name" || value.assignment === undefined
       ? scope
       : (facts.assignments[value.assignment]?.scope ?? scope);
+  // Text that `flow` knows carries nothing (a path whose values stay in their components).
+  const fixed =
+    (target.kind === "string" || target.kind === "concat") && flow?.fixed?.(target) === true;
   switch (target.kind) {
     case "string": {
       summary.text += target.value;
       summary.fixed.push(target.value);
       if (target.truncated) summary.truncated = true;
-      for (const part of target.template ?? [])
-        summary.dynamic.push(dynamicPart(part, facts, here, limited, flow));
+      if (!fixed)
+        for (const part of target.template ?? [])
+          summary.dynamic.push(dynamicPart(part, facts, here, limited, flow));
       return true;
     }
     case "concat":
+      if (fixed) {
+        for (const part of target.parts) {
+          const text = literalString(part, facts);
+          summary.text += text ?? `{${dynamicPart(part, facts, here, limited, flow).text}}`;
+          if (text !== null) summary.fixed.push(text);
+        }
+        return true;
+      }
       for (const part of target.parts) {
         if (!appendText(summary, part, facts, here, depth + 1, limited, flow)) {
           const dynamic = dynamicPart(part, facts, here, limited, flow);
@@ -567,7 +584,7 @@ export function dynamicPart(
   facts: FileFacts,
   scope: string | null = null,
   limited?: ReadonlySet<string>,
-  flow?: CallFlow,
+  flow?: Flow,
 ): DynamicPart {
   let part: DynamicPart;
   switch (value.kind) {

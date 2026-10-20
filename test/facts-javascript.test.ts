@@ -411,4 +411,14 @@ describe("JavaScript facts: guards and fixed collections", () => {
     expect(definition(facts, "pick").destructured).toBe(true);
     expect(definition(facts, "use").destructured).toBeUndefined();
   });
+
+  it("records a suffix check", async () => {
+    const facts = await factsOf(
+      "javascript",
+      'function f(name) {\n  if (!name.endsWith(".json")) return null;\n  return name;\n}',
+    );
+    expect(facts.guards?.map((guard) => [guard.test, guard.subject.kind])).toEqual([
+      ["ends", "name"],
+    ]);
+  });
 });

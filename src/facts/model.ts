@@ -212,7 +212,8 @@ export interface GuardFact {
    * not an absolute path (`not name.startswith("/")`, `not os.path.isabs(name)`).
    * `descends`: it does not start with `..` (`not rel.startswith("..")`), which keeps
    * the result of `path.relative` or `os.path.relpath` inside its base, and `differs`:
-   * it is not the text `allowed` (`rel != ".."`). `call`: the
+   * it is not the text `allowed` (`rel != ".."`). `ends`: it ends with the text
+   * `allowed` (`name.endswith(".json")`). `call`: the
    * subject, a call to a function the code defines (`is_within(BASE, path)`), returned
    * a true value; `allowed` is the same call.
    */
@@ -224,6 +225,7 @@ export interface GuardFact {
     | "relative"
     | "descends"
     | "differs"
+    | "ends"
     | "call";
   allowed: Value;
   /** The code that runs only while the limit holds. */

@@ -151,6 +151,8 @@ function limits(node: Node, truth: boolean): Limit[] {
         return [{ subject: argument, allowed: argument, test: "relative" }];
       if (!truth) return [];
       if (method === "test") return [{ subject: argument, allowed: object, test: "matches" }];
+      if (method === "endsWith" && argument.type === "string")
+        return [{ subject: object, allowed: argument, test: "ends" }];
       if (method === "startsWith") return [{ subject: object, allowed: argument, test: "within" }];
       return MEMBERSHIP.test(method) ? [{ subject: argument, allowed: object }] : helper;
     }

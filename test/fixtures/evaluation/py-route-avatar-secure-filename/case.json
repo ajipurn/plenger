@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "An avatar route names the user's folder with secure_filename, which never yields a separator, `.` or `..`.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 10,
+    "endLine": 15
+  },
+  "static": []
+}

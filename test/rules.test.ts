@@ -480,6 +480,159 @@ app.post("/defaults", (req, res) => {
     expect(findings[0]?.notes).toContain("Request input traced: `req`.");
   });
 
+  it("read file names stripped of separators, and absolute paths among arguments", async () => {
+    const root = await project({
+      "files.js": `const fs = require("fs");
+const path = require("path");
+const { spawnSync } = require("child_process");
+const slugify = require("slugify");
+const BASE = path.resolve("hot");
+function sanitizeFileName(fileName) {
+  if (!fileName) return fileName;
+  return fileName.replace(/[<>:"/\\\\|?*]/g, "");
+}
+function normalizePath(filepath = "") {
+  return path.normalize(filepath.trim()).replace(/^(\\.\\.(\\/|\\\\|$))+/, "");
+}
+function download(url) {
+  const urlObj = new URL(url);
+  const slug = slugify(urlObj.pathname, { lower: true });
+  const filename = \`\${urlObj.hostname}-\${slug}\`;
+  fs.writeFileSync(path.join(BASE, filename), "x");
+}
+function folder(author) {
+  const out = sanitizeFileName(slugify(\`\${author} transcripts\`).toLowerCase());
+  fs.mkdirSync(path.resolve(BASE, out), { recursive: true });
+}
+function convert(filename) {
+  const input = normalizePath(path.resolve(BASE, filename));
+  const output = path.resolve(BASE, \`\${path.parse(filename).name}.wav\`);
+  fs.mkdirSync(path.dirname(output), { recursive: true });
+  spawnSync("ffmpeg", ["-i", input, "-y", output]);
+}
+function unsafeBase(name) {
+  fs.rmSync(path.join(BASE, path.basename(name), "cache"), { recursive: true });
+}
+function unsafeArg(flag) {
+  spawnSync("ffmpeg", ["-i", flag]);
+}
+module.exports = { download, folder, convert, unsafeBase, unsafeArg };
+`,
+      "server.js": `const express = require("express");
+const { download, folder, convert, unsafeBase, unsafeArg } = require("./files.js");
+const app = express();
+app.post("/download", (req, res) => { download(req.body.url); res.end(); });
+app.post("/folder", (req, res) => { folder(req.body.author); res.end(); });
+app.post("/convert", (req, res) => { convert(req.body.filename); res.end(); });
+app.post("/base", (req, res) => { unsafeBase(req.body.name); res.end(); });
+app.post("/arg", (req, res) => { unsafeArg(req.body.flag); res.end(); });
+`,
+      "app.py": `import os
+import re
+from flask import Flask, request
+from werkzeug.utils import secure_filename
+
+app = Flask(__name__)
+UPLOADS = os.path.realpath("uploads")
+
+
+@app.post("/upload")
+def upload():
+    f = request.files["file"]
+    f.save(os.path.join(UPLOADS, secure_filename(f.filename)))
+    with open(os.path.join(UPLOADS, secure_filename(f.filename)), "wb") as out:
+        out.write(b"")
+    return "ok"
+
+
+@app.post("/rename")
+def rename():
+    name = re.sub(r"[^\\w.-]", "_", request.form["name"])
+    return open(os.path.join(UPLOADS, name)).read()
+
+
+@app.post("/base")
+def base():
+    name = os.path.basename(request.form["name"])
+    return open(os.path.join(UPLOADS, f"{name}.txt")).read()
+
+
+@app.post("/raw")
+def raw():
+    name = os.path.basename(request.form["name"])
+    return open(os.path.join(UPLOADS, name, "index.txt")).read()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // Only a name that may be \`..\` before another component, and a raw argument, remain.
+    expect(
+      findings
+        .map((finding) => `${finding.rule} ${finding.location.path} ${finding.subject.name}`)
+        .sort(),
+    ).toEqual([
+      "PLG801 files.js POST /arg",
+      "PLG802 app.py POST /raw",
+      "PLG802 files.js POST /base",
+    ]);
+  });
+
+  it("read each component of a built path, and slugify's replacement", async () => {
+    const root = await project({
+      "server.js": `const fs = require("fs");
+const slugify = require("slugify");
+const express = require("express");
+const app = express();
+app.get("/a", (req, res) => res.send(fs.readFileSync(\`/srv/\${slugify(req.query.n)}.txt\`)));
+app.get("/b", (req, res) => res.send(fs.readFileSync(\`/srv/\${slugify(req.query.n, "/")}.txt\`)));
+app.get("/c", (req, res) => res.send(fs.readFileSync(\`/srv/\${slugify(req.query.n, { replacement: "/" })}.txt\`)));
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // \`/srv/${slug}.txt\` keeps the slug in one component; a "/" replacement does not.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 GET /b",
+      "PLG802 GET /c",
+    ]);
+  });
+
+  it("read werkzeug's safe_join and a suffix check before basename", async () => {
+    const root = await project({
+      "app.py": `import os
+
+from flask import Flask, request
+from werkzeug.security import safe_join
+
+app = Flask(__name__)
+BASE = os.path.realpath("files")
+
+
+@app.get("/joined")
+def joined():
+    return open(safe_join(BASE, request.args["name"])).read()
+
+
+@app.post("/delete")
+def delete():
+    name = request.form["name"]
+    if not name.endswith(".json"):
+        return "only JSON files", 400
+    os.remove(os.path.join(BASE, os.path.basename(name)))
+    return "ok"
+
+
+@app.post("/delete-any")
+def delete_any():
+    os.remove(os.path.join(BASE, os.path.basename(request.form["name"])))
+    return "ok"
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // \`basename("..")\` is \`..\`: a delete of the base's parent stays reported.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`)).toEqual([
+      "PLG802 POST /delete-any",
+    ]);
+  });
+
   it("tell input that names the program from input among its arguments", async () => {
     const root = await project({
       "tools.py": `import shutil

@@ -1855,6 +1855,7 @@
                         "relative",
                         "descends",
                         "differs",
+                        "ends",
                         "call"
                       ]
                     }
@@ -2003,6 +2004,7 @@
                   "relative",
                   "descends",
                   "differs",
+                  "ends",
                   "call"
                 ]
               }

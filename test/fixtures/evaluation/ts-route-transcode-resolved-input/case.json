@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A transcode route passes ffmpeg an input path that a helper resolves to an absolute path, which cannot start with `-`.",
+  "cwe": "CWE-88",
+  "location": {
+    "path": "media.ts",
+    "line": 6,
+    "endLine": 8
+  },
+  "static": []
+}

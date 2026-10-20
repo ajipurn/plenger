@@ -122,6 +122,9 @@ function limits(node: Node, truth: boolean): Limit[] {
           return [{ subject: first, allowed: first, test: "relative" }];
       }
       if (!truth) return [];
+      // `name.endswith(".json")`
+      if (method === "endswith" && args.length === 1 && first?.type === "string")
+        return [{ subject: object, allowed: first, test: "ends" }];
       // `re.match(PATTERN, name)`, `PATTERN.fullmatch(name)`
       const [pattern, value] = args;
       if (object.text === "re" && REGEX_TESTS.has(method ?? "") && pattern && value)

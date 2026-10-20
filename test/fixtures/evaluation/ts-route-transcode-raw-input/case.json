@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "The same route passes the request's value to ffmpeg as is, so a value such as `-filter_complex` is read as an option.",
+  "cwe": "CWE-88",
+  "location": {
+    "path": "media.ts",
+    "line": 6,
+    "endLine": 8
+  },
+  "static": ["PLG801"]
+}

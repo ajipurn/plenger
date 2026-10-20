@@ -244,6 +244,20 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- A file name built so that it holds no path separator and is never `.` or `..`
+  carries nothing to a file effect. Such names come from:
+  - `secure_filename`, `sanitize-filename`, `get_valid_filename` and
+    python-slugify;
+  - a `basename`, `parse().name`, `slugify`, host or separator-removing
+    `replace` combined with fixed text, or made from text with a fixed letter.
+
+  werkzeug's and Flask's `safe_join` confine their result, and a suffix check
+  (`endswith(".json")`) before `basename` rules out `..`. A path built from
+  fixed text and such names (`/srv/${slug}.txt`) stays under its fixed part.
+  A name that may be `..` is still allowed as the last component of a read or
+  a write. An absolute path among a program's arguments carries nothing, since
+  it cannot be read as an option.
+
 - Static data flow reads project functions: the result of a call carries only
   the arguments its return values use, and the request globals the function
   reads. A call to a check helper that returns true only for a confined path

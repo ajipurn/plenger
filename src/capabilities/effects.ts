@@ -13,12 +13,12 @@ import type {
   Value,
 } from "../facts/model.ts";
 import {
-  type CallFlow,
   callsStartingAt,
   type DynamicPart,
   definitionOf,
   deref,
   dynamicPart,
+  type Flow,
   isFixed,
   literalString,
   lookupValues,
@@ -40,6 +40,7 @@ import type { Project, ProjectFile } from "../project/project.ts";
 import { compareStrings } from "../shared/compare.ts";
 import { locationKey } from "../shared/location.ts";
 import { compiledSinks, sinksFor } from "./catalog.ts";
+import { PathValues, staysInDirectory } from "./names.ts";
 import type { Sink } from "./sinks.ts";
 
 /** How many project functions deep the analysis follows calls. */
@@ -61,6 +62,12 @@ interface Guard {
   /** Parameters the checked value comes from. */
   params: Set<string>;
 }
+
+/**
+ * How values are read for an effect. `file`: a file name with no separators that is
+ * never `.` or `..` carries nothing (see `PathValues.nameLevel`). `other`: as written.
+ */
+type FlowMode = "file" | "other";
 
 /** What a project function's return value is computed from: its parameters and request globals. */
 interface ReturnFlow {
@@ -85,13 +92,15 @@ export class EffectTracer {
   readonly #visits = new Map<string, Visit>();
   readonly #tracing: Visit[] = [];
   readonly #confined = new Map<string, boolean>();
-  readonly #flows = new WeakMap<ProjectFile, CallFlow>();
+  readonly #flows = new WeakMap<ProjectFile, Map<FlowMode, Flow>>();
+  readonly #paths: PathValues;
   readonly #returnFlows = new Map<string, ReturnFlow | null>();
   readonly #checked = new Map<string, Set<string>>();
 
   constructor(project: Project, index: ProjectIndex, inventory: Inventory) {
     this.#project = project;
     this.#index = index;
+    this.#paths = new PathValues(project, index);
     for (const call of inventory.llmCalls) this.#llmCalls.set(locationKey(call.location), call);
     for (const agent of inventory.agents) {
       for (const run of agent.invocations)
@@ -177,7 +186,8 @@ export class EffectTracer {
     }
     // What guards around the call check, for file effects and for the others.
     const limits = limitsAt(file.facts, call);
-    const flow = this.flowFor(file);
+    const flowOf = (kind: CapabilityKind) =>
+      this.flowFor(file, FILE_KINDS.has(kind) ? "file" : "other");
     const safeFor = (kind: CapabilityKind) => this.safeNames(file, kind, limits);
     const checked = new Map<boolean, ReadonlySet<string> | undefined>();
     const limitedFor = (kind: CapabilityKind) => {
@@ -185,7 +195,9 @@ export class EffectTracer {
       if (!checked.has(forFile))
         checked.set(
           forFile,
-          limits.length === 0 ? undefined : coveredNames(file.facts, call, safeFor(kind), flow),
+          limits.length === 0
+            ? undefined
+            : coveredNames(file.facts, call, safeFor(kind), flowOf(kind)),
         );
       return checked.get(forFile);
     };
@@ -233,14 +245,24 @@ export class EffectTracer {
         continue;
       }
       visit?.callees.add(`${target.path}|${target.definition}`);
-      const fileBindings = this.bindArguments(file, call, target, limitedFor("file_write"), true);
+      const fileBindings = this.bindArguments(file, call, target, limitedFor("file_write"), "file");
       const otherBindings = this.bindArguments(file, call, target, limitedFor("process"));
+      const argumentBindings = this.bindArguments(
+        file,
+        call,
+        target,
+        limitedFor("process"),
+        "arguments",
+      );
       for (const effect of this.effects(target.path, target.definition, depth + 1)) {
         const bindings = FILE_KINDS.has(effect.kind) ? fileBindings : otherBindings;
         const bound: Capability = {
           ...effect,
           via: [location, ...effect.via],
-          inputs: rebind(effect.inputs, bindings, "inputs"),
+          inputs:
+            effect.kind === "process" && effect.command !== "shell"
+              ? argumentInputs(effect, argumentBindings, otherBindings)
+              : rebind(effect.inputs, bindings, "inputs"),
         };
         if (effect.systemInputs !== undefined)
           bound.systemInputs = rebind(effect.systemInputs, bindings, "inputs");
@@ -259,7 +281,9 @@ export class EffectTracer {
     }
     return limits.length === 0
       ? effects
-      : effects.map((effect) => narrowed(effect, limits, file.facts, call, safeFor, flow));
+      : effects.map((effect) =>
+          narrowed(effect, limits, file.facts, call, safeFor, flowOf(effect.kind)),
+        );
   }
 
   /** Preparing SQL does not execute it; bind data separately from the SQL text. */
@@ -318,15 +342,19 @@ export class EffectTracer {
     call: CallFact,
     target: { path: string; definition: string },
     limited?: ReadonlySet<string>,
-    paths = false,
+    mode: "file" | "arguments" | "other" = "other",
   ): Map<string, Bound> {
     const bindings = new Map<string, Bound>();
-    const flow = this.flowFor(file);
+    const flow = this.flowFor(file, mode === "file" ? "file" : "other");
     for (const [name, value] of this.boundValues(file, call, target)) {
       const inputs = inputsOf(value, file.facts, call.scope, limited, flow);
+      // A confined path, or an absolute path among a program's arguments, carries nothing.
+      const checked =
+        (mode === "file" && this.confinedPath(file, value)) ||
+        (mode === "arguments" && this.#paths.absolute(file, value));
       bindings.set(name, {
-        inputs: paths && this.confinedPath(file, value) ? inputs.flatMap(withoutOrigin) : inputs,
-        host: hostInputs(value, file.facts, call.scope, limited, flow),
+        inputs: checked ? inputs.flatMap(withoutOrigin) : inputs,
+        host: hostInputs(value, file.facts, call.scope, limited, this.flowFor(file)),
       });
     }
     return bindings;
@@ -394,10 +422,29 @@ export class EffectTracer {
                 [{ kind: "name", text: holder.target, ref: null, assignment: call.receiver }]
               : [];
     }
+    const fileFlow = this.flowFor(file, FILE_KINDS.has(kind) ? "file" : "other");
+    // A name that may be `..` still cannot be read or written as a file when it ends the
+    // path: `..` there is a directory. Deletes, copies and moves get no such allowance.
+    const last =
+      (kind === "file_read" || kind === "file_write") && !MOVES.test(call.ref?.name ?? call.callee)
+        ? values.flatMap((value) => {
+            const component = lastComponent(value, facts, file.language === "python");
+            return component !== undefined && this.#paths.nameLevel(file, component) === "plain"
+              ? [component]
+              : [];
+          })
+        : [];
+    const sinkFlow: Flow =
+      last.length === 0
+        ? fileFlow
+        : {
+            call: (inner) => fileFlow.call(inner),
+            fixed: (value) => last.includes(value) || fileFlow.fixed?.(value) === true,
+          };
     const partsOf = (items: Value[]) =>
       uniqueParts(
         items.flatMap((value) => {
-          const parts = inputsOf(value, facts, call.scope, limited, this.flowFor(file));
+          const parts = inputsOf(value, facts, call.scope, limited, sinkFlow);
           return FILE_KINDS.has(kind) && this.confinedPath(file, value)
             ? parts.flatMap(withoutOrigin)
             : parts;
@@ -422,10 +469,22 @@ export class EffectTracer {
         // The program is the first item of an argument list, or the whole command otherwise.
         const [value] = values;
         const target = value === undefined ? undefined : deref(value, facts);
-        const program =
-          target?.kind === "list" ? partsOf(target.items.slice(0, 1)) : capability.inputs;
+        const listed = target?.kind === "list" ? target.items : undefined;
+        // An absolute path among the arguments cannot be read as an option.
+        const argumentParts = (items: Value[]) =>
+          partsOf(
+            items
+              .flatMap((item) => {
+                const resolved = deref(item, facts);
+                return resolved.kind === "list" ? resolved.items : [item];
+              })
+              .filter((item) => !this.#paths.absolute(file, item)),
+          );
+        const program = listed !== undefined ? partsOf(listed.slice(0, 1)) : capability.inputs;
         capability.command = program.length > 0 ? "program" : "arguments";
         if (program.length > 0) capability.program = program;
+        if (listed !== undefined)
+          capability.inputs = uniqueParts([...program, ...argumentParts(listed.slice(1))]);
         if (sink.args !== undefined) {
           const args =
             sink.args === "*"
@@ -434,7 +493,7 @@ export class EffectTracer {
                   .slice(1)
                   .map((arg) => arg.value)
               : select(call.arguments, facts, sink.args);
-          capability.inputs = uniqueParts([...capability.inputs, ...partsOf(args)]);
+          capability.inputs = uniqueParts([...capability.inputs, ...argumentParts(args)]);
         }
       }
     }
@@ -460,6 +519,8 @@ export class EffectTracer {
     const [inner] = call.arguments;
     if (PATH_WRAPPER.test(call.ref?.name ?? call.callee) && call.arguments.length === 1)
       return inner !== undefined && this.confinedPath(file, inner.value, depth + 1);
+    // `safe_join(base, name)` returns a path inside `base`, or None.
+    if (SAFE_JOIN.test(call.ref?.name ?? "")) return true;
     const callee = this.#index.calledFunction(file, call);
     return callee !== null && this.confinedReturn(callee.path, callee.definition, depth + 1);
   }
@@ -480,7 +541,13 @@ export class EffectTracer {
     );
     const safe = this.safeNames(file, "file_read", guards, true);
     const result = returns.every((value) => {
-      const provenance = provenanceOf(value, file.facts, definition, safe, this.flowFor(file));
+      const provenance = provenanceOf(
+        value,
+        file.facts,
+        definition,
+        safe,
+        this.flowFor(file, "file"),
+      );
       if (provenance.params.size === 0 && provenance.requests.size === 0) return true;
       return this.confinedPath(file, value, depth);
     });
@@ -512,20 +579,29 @@ export class EffectTracer {
     });
   }
 
-  /** What the results of calls into project functions in a file are computed from. */
-  flowFor(file: ProjectFile): CallFlow {
-    const known = this.#flows.get(file);
+  /** What tracing knows of values in a file for effects of `mode` (see `FlowMode`). */
+  flowFor(file: ProjectFile, mode: FlowMode = "other"): Flow {
+    const modes = this.#flows.get(file) ?? new Map<FlowMode, Flow>();
+    this.#flows.set(file, modes);
+    const known = modes.get(mode);
     if (known !== undefined) return known;
-    const flow: CallFlow = (call) => {
-      const target = this.#index.calledFunction(file, call);
-      const summary = target === null ? null : this.returnFlow(target.path, target.definition);
-      if (target === null || summary === null) return null;
-      const args = new Set<number>();
-      for (const [index, name] of this.argumentParams(call, target).entries())
-        if (name === undefined || summary.params.has(name)) args.add(index);
-      return { args, requests: summary.requests };
+    const flow: Flow = {
+      call: (call) => {
+        const target = this.#index.calledFunction(file, call);
+        const summary =
+          target === null ? null : this.returnFlow(target.path, target.definition, mode);
+        if (target === null || summary === null) return null;
+        const args = new Set<number>();
+        for (const [index, name] of this.argumentParams(call, target).entries())
+          if (name === undefined || summary.params.has(name)) args.add(index);
+        return { args, requests: summary.requests };
+      },
     };
-    this.#flows.set(file, flow);
+    if (mode === "file")
+      flow.fixed = (value) =>
+        staysInDirectory(this.#paths.nameLevel(file, value)) ||
+        this.#paths.componentsStay(file, value);
+    modes.set(mode, flow);
     return flow;
   }
 
@@ -534,8 +610,8 @@ export class EffectTracer {
    * from, or null when plenger cannot tell: a class, no recorded or too many returns
    * (a generator, ten or more), or a function that reaches itself again.
    */
-  returnFlow(path: string, definition: string): ReturnFlow | null {
-    const key = `${path}|${definition}`;
+  returnFlow(path: string, definition: string, mode: FlowMode = "other"): ReturnFlow | null {
+    const key = `${path}|${definition}|${mode}`;
     if (this.#returnFlows.has(key)) return this.#returnFlows.get(key) ?? null;
     this.#returnFlows.set(key, null);
     const file = this.#project.files.get(path);
@@ -551,7 +627,13 @@ export class EffectTracer {
     const params = new Set<string>();
     const requests = new Set<string>();
     for (const value of returns) {
-      const provenance = provenanceOf(value, file.facts, definition, undefined, this.flowFor(file));
+      const provenance = provenanceOf(
+        value,
+        file.facts,
+        definition,
+        undefined,
+        this.flowFor(file, mode),
+      );
       for (const param of provenance.params) params.add(param);
       for (const request of provenance.requests) requests.add(request);
     }
@@ -876,6 +958,55 @@ function fixedBase(provenance: ReturnType<typeof provenanceOf>, parameters: bool
   return provenance.requests.size === 0 && (parameters || provenance.params.size === 0);
 }
 
+/** Library joins that refuse a result outside their base: werkzeug's and Flask's `safe_join`. */
+const SAFE_JOIN = /^(?:werkzeug\.(?:security|utils)|flask(?:\.helpers)?)\.safe_join$/;
+
+/** File calls that copy, move or link: a directory as their target takes the file in. */
+const MOVES =
+  /(?:copy|copy2|copyfile|copytree|copyFile|copyFileSync|cp|cpSync|move|rename|renameSync|replace|symlink|symlink_to|link|ensureDir)$/;
+
+/** Calls that make a path absolute or normal without changing its last component. */
+const WRAPS_PATH =
+  /(?:^|[.#])(?:abspath|realpath|normpath|normalize|resolve|fspath)$|^(?:str|String)$/;
+
+/** Calls that join path components: `os.path.join`, `path.join`, `path.resolve`, `joinpath`. */
+const JOINS = /(?:^|[.#])(?:join|resolve|joinpath)$/;
+
+/**
+ * The value that is the last component of a path built by joining (`os.path.join(BASE,
+ * name)`, `BASE / name`, `` `${dir}/${name}` ``), or undefined.
+ */
+function lastComponent(
+  value: Value,
+  facts: FileFacts,
+  python: boolean,
+  depth = 0,
+): Value | undefined {
+  const target = deref(value, facts);
+  if (target.kind === "call") {
+    const call = facts.calls[target.call];
+    const args = call?.arguments ?? [];
+    // `os.path.abspath(os.path.join(BASE, name))` ends with the same component.
+    const single = args.length === 1 ? args[0] : undefined;
+    if (
+      call !== undefined &&
+      single !== undefined &&
+      depth < 4 &&
+      WRAPS_PATH.test(call.ref?.name ?? call.callee)
+    )
+      return lastComponent(single.value, facts, python, depth + 1);
+    if (call === undefined || args.length < 2 || args.some((arg) => arg.spread)) return undefined;
+    return JOINS.test(call.ref?.name ?? call.callee) ? args.at(-1)?.value : undefined;
+  }
+  if (target.kind === "other" && python && / \/ /.test(target.text) && target.parts !== undefined)
+    return target.parts.length === 2 ? target.parts[1] : undefined;
+  if (target.kind === "string" && target.template !== undefined && target.template.length > 0) {
+    const ending = python ? /\/\{[^{}]*\}$/ : /\/\$\{[^{}]*\}$/;
+    return ending.test(target.value) ? target.template.at(-1) : undefined;
+  }
+  return undefined;
+}
+
 /** Calls that only change a path's type: `Path(p)`, `str(p)`, `os.fspath(p)`, `String(p)`. */
 const PATH_WRAPPER = /^(?:(?:pathlib\.)?(?:Pure|Posix|Windows)?Path|str|os\.fspath|String)$/;
 
@@ -961,7 +1092,7 @@ function coveredNames(
   facts: FileFacts,
   call: CallFact,
   safe: Set<string>,
-  flow?: CallFlow,
+  flow?: Flow,
 ): Set<string> {
   const names = new Set(safe);
   if (names.size === 0) return names;
@@ -1054,7 +1185,7 @@ function narrowed(
   facts: FileFacts,
   call: CallFact,
   safeFor: (kind: CapabilityKind) => Set<string>,
-  flow: CallFlow,
+  flow: Flow,
 ): Capability {
   const names = coveredNames(facts, call, safeFor(effect.kind), flow);
   const hosts = new Set(
@@ -1118,6 +1249,31 @@ function withGuards(effect: Capability, guards: Guard[]): Capability {
 }
 
 /**
+ * A program's inputs as the caller gives them: the parts that name the program bound as
+ * usual, the arguments bound with absolute paths taken out (they cannot be options).
+ */
+function argumentInputs(
+  effect: Capability,
+  argumentBindings: Map<string, Bound>,
+  otherBindings: Map<string, Bound>,
+): DynamicPart[] {
+  const key = (part: DynamicPart) => `${part.source}:${part.text}:${part.from?.join(",") ?? ""}`;
+  const program = new Set((effect.program ?? []).map(key));
+  return uniqueParts([
+    ...rebind(
+      effect.inputs.filter((part) => program.has(key(part))),
+      otherBindings,
+      "inputs",
+    ),
+    ...rebind(
+      effect.inputs.filter((part) => !program.has(key(part))),
+      argumentBindings,
+      "inputs",
+    ),
+  ]);
+}
+
+/**
  * Replaces inputs computed from parameters of the callee with what the caller passed
  * for those parameters; a parameter bound to a constant drops the input.
  */
@@ -1157,7 +1313,7 @@ export function inputsOf(
   facts: FileFacts,
   scope: string | null,
   limited?: ReadonlySet<string>,
-  flow?: CallFlow,
+  flow?: Flow,
 ): DynamicPart[] {
   const summary = summarizeText(value, facts, scope, limited, flow);
   if (summary !== null) return summary.dynamic;
@@ -1185,7 +1341,7 @@ function hostInputs(
   facts: FileFacts,
   scope: string | null,
   limited?: ReadonlySet<string>,
-  flow?: CallFlow,
+  flow?: Flow,
 ): DynamicPart[] {
   const summary = summarizeText(value, facts, scope, limited, flow);
   if (summary === null) return inputsOf(value, facts, scope, limited, flow);

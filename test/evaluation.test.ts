@@ -71,7 +71,7 @@ function discovery(cite: { path: string; line: number; endLine: number } | null)
 describe("evaluation corpus", () => {
   it("pairs a vulnerable case with a safe near-miss for every weakness", async () => {
     const cases = await loadCorpus(fixturePath("evaluation"));
-    expect(cases).toHaveLength(106);
+    expect(cases).toHaveLength(110);
     for (const cwe of new Set(cases.map((item) => item.cwe))) {
       const kinds = cases.filter((item) => item.cwe === cwe).map((item) => item.kind);
       expect(kinds, cwe).toContain("vulnerable");
@@ -88,12 +88,12 @@ describe("evaluation corpus", () => {
       expect(outcome.unlabeled, item.id).toEqual([]);
     }
     expect(metrics(outcomes)).toEqual({
-      truePositives: 47,
+      truePositives: 49,
       falsePositives: 0,
       falseNegatives: 7,
-      trueNegatives: 52,
+      trueNegatives: 54,
       precision: 1,
-      recall: 47 / 54,
+      recall: 49 / 56,
     });
     // Every rule has at least one vulnerable case in the corpus.
     expect(ruleMetrics(outcomes)).toHaveLength(29);

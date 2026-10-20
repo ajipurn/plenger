@@ -18,6 +18,7 @@ const guardTest = choices(
   "relative",
   "descends",
   "differs",
+  "ends",
   "call",
 );
 const texts = array(text);

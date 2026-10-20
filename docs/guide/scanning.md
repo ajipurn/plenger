@@ -136,6 +136,26 @@ holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
   the function returns is read: the tests it returns and the guards around each
   return of something other than `False`, `None` or `null`
 
+A file name built so that it holds no path separator and is never `.` or `..` stays
+in the directory it is joined to, and carries nothing to a file effect. Such names
+come from:
+
+- `secure_filename`, `sanitize-filename` and Django's `get_valid_filename`;
+- python-slugify;
+- a name-only sanitizer (`basename`, `path.parse(p).name`, `PurePath(p).stem`, the
+  `slugify` package, a URL's `hostname`, or a `replace` or `re.sub` that removes `/`
+  and `\`) when fixed text other than dots sits in the same component
+  (`` `${name}.wav` ``, `` `${host}-${slug}` ``), or when its input holds a fixed
+  letter;
+- a project function that builds its result in one of these ways.
+
+A path built from fixed text and such names (`` `/srv/${slug}.txt` ``) keeps each
+name in its own component, so it stays under its fixed part. A name that may be `..`
+still cannot be read or written as a file when it ends the path, so it is allowed
+there for reads and writes, not for deletes, copies or moves. An absolute path (`path.resolve`, `os.path.realpath`, or a project function
+returning one) among a program's arguments carries nothing either: it cannot be read
+as an option.
+
 Values built from a checked name are checked too. A path returned by a project
 function counts as checked when every value the function returns is a resolved path
 it checked in that way, or one built without its arguments, directly or through
