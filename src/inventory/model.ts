@@ -77,6 +77,13 @@ export interface Capability {
    * of them when the whole URL is one value); absent when the host is fixed.
    */
   host?: DynamicPart[];
+  /**
+   * Library scans only: the inputs that are the effect's whole path, URL, command, code
+   * or data as the function received it, or the start of a path joined onto it: a
+   * parameter, an item of one, or one converted (`str()`, `Path()`, `os.path.abspath`).
+   * A caller who passes those chooses the effect on purpose.
+   */
+  given?: DynamicPart[];
   /** For `code`: where model-written code runs, when plenger can tell. */
   sandbox?: "none" | "container" | "remote";
   /** For `llm`: non-constant parts of the system prompt, template variables filled by the call included. */

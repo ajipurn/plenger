@@ -40,7 +40,8 @@ const mode = values.mode ?? "batch";
 if (mode !== "batch" && mode !== "explore") throw new Error("Use --mode batch or explore.");
 const runs = Number(values.runs ?? 3);
 if (!Number.isSafeInteger(runs) || runs < 1 || runs > 10) throw new Error("Use --runs 1 to 10.");
-const cases = await loadCorpus(values.corpus ?? "test/fixtures/evaluation");
+const corpus = values.corpus ?? "test/fixtures/evaluation";
+const cases = await loadCorpus(corpus);
 const staticOutcomes = await evaluateStatic(cases);
 
 const evaluations: AiEvaluation[] = [];
@@ -99,6 +100,7 @@ const report = formatEvaluation(
   staticOutcomes,
   evaluations,
   new Date().toISOString().slice(0, 10),
+  corpus,
 );
 if (values.json) {
   const json = { static: staticOutcomes, ai: evaluations };

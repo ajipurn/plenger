@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same data layer downloads the element from its own file service by the element's id.",
+  "cwe": "CWE-918",
+  "location": {
+    "path": "elements.py",
+    "line": 7,
+    "endLine": 11
+  },
+  "static": [],
+  "library": true
+}

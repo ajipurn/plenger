@@ -1,0 +1,14 @@
+{
+  "kind": "vulnerable",
+  "summary": "A math chain evaluates the expression it is given, such as a model's answer, with eval.",
+  "cwe": "CWE-95",
+  "location": {
+    "path": "math_chain.py",
+    "line": 1,
+    "endLine": 3
+  },
+  "static": [
+    "PLG905"
+  ],
+  "library": true
+}

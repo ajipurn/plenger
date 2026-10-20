@@ -73,8 +73,10 @@ code:
    (`effects.ts`, which also follows fixed tables of functions and drops input the
    guards around a call limit), which approvals guard it (`approvals.ts`) and which
    outputs it produces (`output.ts`), using the sink catalog in
-   `sinks.ts`/`catalog.ts`.
-7. `rules/engine.ts` evaluates the checks in `rules/checks/` with a `RuleContext`,
+   `sinks.ts`/`catalog.ts`. A library scan (`scan --library`) also traces the
+   package's public functions and methods, listed by `library.ts`, like handlers.
+7. `rules/engine.ts` evaluates the checks in `rules/checks/` with a `RuleContext`
+   (`checks/library.ts` only has public functions to check in a library scan),
    then `rules/scoring.ts` scores, fingerprints and de-duplicates the findings.
    `rules/snippets.ts` attaches source lines.
 8. `report/model.ts` applies baselines and suppressions and decides the CI gate;

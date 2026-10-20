@@ -44,6 +44,13 @@ Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-app
 | [PLG805](#plg805-route-code-injection) | critical | Route evaluates request input as code |
 | [PLG806](#plg806-route-template-injection) | critical | Route renders request input as a template |
 | [PLG807](#plg807-route-unsafe-deserialization) | high | Route deserializes request input with a loader that can run code |
+| [PLG901](#plg901-library-command-injection) | critical | Public function runs a command built from its parameters |
+| [PLG902](#plg902-library-path-traversal) | high | Public function accesses a file path built from its parameters |
+| [PLG903](#plg903-library-sql-injection) | high | Public function runs SQL text built from its parameters |
+| [PLG904](#plg904-library-ssrf) | high | Public function requests a URL whose host comes from inside its parameters |
+| [PLG905](#plg905-library-code-injection) | critical | Public function evaluates its parameters as code |
+| [PLG906](#plg906-library-template-injection) | critical | Public function compiles its parameters as a template |
+| [PLG907](#plg907-library-unsafe-deserialization) | high | Public function deserializes its parameters with a loader that can run code |
 
 ## PLG101 tool-command-injection
 
@@ -372,5 +379,75 @@ An HTTP route handler, or a project function it calls, compiles request input as
 An HTTP route handler, or a project function it calls, loads request data, or data from a location the request chooses, with a deserializer that can run code (`pickle`, `yaml.unsafe_load`, `torch.load`, `node-serialize`).
 
 **Fix:** Use a data-only format (JSON, `yaml.safe_load`, `safetensors`, `torch.load(weights_only=True)`) for anything a client sends or names.
+
+**Maps to:** [CWE-502](https://cwe.mitre.org/data/definitions/502.html)
+
+## PLG901 library-command-injection
+
+**Public function runs a command built from its parameters.** Severity up to critical.
+
+In a library scan, a public function or method, or a project function it calls, builds a shell command, names the program to run or passes program arguments from its parameters. A caller that passes untrusted text (a request field, a document, model output) lets that text run commands. Whether callers do is outside the scan.
+
+**Fix:** Run a fixed program with an argument list and no shell, check each argument against an allow-list or a strict pattern, put `--` before positional arguments, and document which parameters must be trusted.
+
+**Maps to:** [CWE-78](https://cwe.mitre.org/data/definitions/78.html), [CWE-77](https://cwe.mitre.org/data/definitions/77.html), [CWE-88](https://cwe.mitre.org/data/definitions/88.html)
+
+## PLG902 library-path-traversal
+
+**Public function accesses a file path built from its parameters.** Severity up to high.
+
+In a library scan, a public function or method joins a parameter below a base path, or reads a path from inside a parameter (`config["template_path"]`, `element.path`), and reads, writes or deletes that file. A value with `..` or an absolute path reaches files outside the base. A path the caller passes whole is the caller's choice and is not reported.
+
+**Fix:** Resolve the path and check that it stays inside the base (`is_relative_to`, or a prefix that ends with a separator), or accept only names that match a strict pattern.
+
+**Maps to:** [CWE-22](https://cwe.mitre.org/data/definitions/22.html), [CWE-73](https://cwe.mitre.org/data/definitions/73.html)
+
+## PLG903 library-sql-injection
+
+**Public function runs SQL text built from its parameters.** Severity up to high.
+
+In a library scan, a public function or method puts parameter values into the text of a SQL query, or runs a parameter as SQL. A caller that passes untrusted values (a filter, a table name, model output) lets them read or change any data the connection can reach.
+
+**Fix:** Pass values as placeholders, check identifiers such as table and column names against a fixed set, and document parameters that run as SQL.
+
+**Maps to:** [CWE-89](https://cwe.mitre.org/data/definitions/89.html)
+
+## PLG904 library-ssrf
+
+**Public function requests a URL whose host comes from inside its parameters.** Severity up to high.
+
+In a library scan, a public function or method fetches or opens a URL whose scheme or host it reads from inside a parameter (`element.url`, `form_data.url`, a link in a message), not from a URL the caller passes whole. A caller that passes untrusted data lets it reach internal services and cloud metadata endpoints.
+
+**Fix:** Allow only known hosts, or resolve the host and reject private, loopback and link-local addresses, and refuse redirects to other hosts.
+
+**Maps to:** [CWE-918](https://cwe.mitre.org/data/definitions/918.html)
+
+## PLG905 library-code-injection
+
+**Public function evaluates its parameters as code.** Severity up to critical.
+
+In a library scan, a public function or method evaluates a parameter as code (`eval`, `exec`, `Function`, `vm`) or imports a module its parameter names. A caller that passes untrusted text, such as model output or a file a user supplied, runs code in its own process.
+
+**Fix:** Parse the narrow format the function needs (`ast.literal_eval`, JSON, an expression parser), run untrusted code in an isolated sandbox, or check module names against a fixed set.
+
+**Maps to:** [CWE-94](https://cwe.mitre.org/data/definitions/94.html), [CWE-95](https://cwe.mitre.org/data/definitions/95.html)
+
+## PLG906 library-template-injection
+
+**Public function compiles its parameters as a template.** Severity up to critical.
+
+In a library scan, a public function or method compiles a parameter as a template with an engine that can run code (`jinja2.Template`, `ejs.render`, `handlebars.compile`). A template from an untrusted source, such as a shared prompt or a user's file, can read the process's objects and run code.
+
+**Fix:** Compile templates that callers pass in a sandboxed environment (`jinja2.sandbox.SandboxedEnvironment`), or use a logic-less format.
+
+**Maps to:** [CWE-1336](https://cwe.mitre.org/data/definitions/1336.html), [CWE-94](https://cwe.mitre.org/data/definitions/94.html)
+
+## PLG907 library-unsafe-deserialization
+
+**Public function deserializes its parameters with a loader that can run code.** Severity up to high.
+
+In a library scan, a public function or method loads parameter data, or a file at a path its parameter gives, with a deserializer that can run code (`pickle`, `torch.load`, `yaml.unsafe_load`, `node-serialize`). A caller that passes untrusted data or a downloaded file runs code.
+
+**Fix:** Use a data-only format (JSON, `yaml.safe_load`, `safetensors`) for data and files that callers pass.
 
 **Maps to:** [CWE-502](https://cwe.mitre.org/data/definitions/502.html)

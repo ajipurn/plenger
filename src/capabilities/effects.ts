@@ -4,6 +4,7 @@
  * functions it calls, with the caller's arguments bound to the callee's parameters.
  */
 
+import { LOOP_ITEM } from "../facts/core.ts";
 import type {
   CallFact,
   DefinitionFact,
@@ -79,6 +80,13 @@ interface ReturnFlow {
 interface Bound {
   inputs: DynamicPart[];
   host: DynamicPart[];
+  /** In a library scan, the parts the caller passes whole (see `Capability.given`). */
+  given: DynamicPart[];
+}
+
+interface TracerOptions {
+  /** Record `Capability.given` for library checks; other scans leave it out. */
+  library?: boolean;
 }
 
 /** Traces effects through the project, remembering the result for every function it has visited. */
@@ -96,10 +104,18 @@ export class EffectTracer {
   readonly #paths: PathValues;
   readonly #returnFlows = new Map<string, ReturnFlow | null>();
   readonly #checked = new Map<string, Set<string>>();
+  readonly #library: boolean;
+  readonly #givenReturns = new Map<string, ReadonlySet<string> | null>();
 
-  constructor(project: Project, index: ProjectIndex, inventory: Inventory) {
+  constructor(
+    project: Project,
+    index: ProjectIndex,
+    inventory: Inventory,
+    options: TracerOptions = {},
+  ) {
     this.#project = project;
     this.#index = index;
+    this.#library = options.library === true;
     this.#paths = new PathValues(project, index);
     for (const call of inventory.llmCalls) this.#llmCalls.set(locationKey(call.location), call);
     for (const agent of inventory.agents) {
@@ -281,6 +297,11 @@ export class EffectTracer {
           if (host.length > 0) bound.host = host;
           else delete bound.host;
         }
+        if (effect.given !== undefined) {
+          const given = rebind(effect.given, bindings, "given");
+          if (given.length > 0) bound.given = given;
+          else delete bound.given;
+        }
         effects.push(bound);
       }
     }
@@ -318,6 +339,9 @@ export class EffectTracer {
     const queries = select(statement.arguments, file.facts, "#0");
     const query = literalString(queries[0], file.facts);
     const operation = sqlOperation(query);
+    const given = this.#library
+      ? uniqueParts(queries.flatMap((value) => this.givenInputs(file, value, call.scope)))
+      : [];
     return {
       kind: "database",
       target: name,
@@ -335,6 +359,7 @@ export class EffectTracer {
           inputsOf(value, file.facts, call.scope, limited, this.flowFor(file)),
         ),
       ),
+      ...(given.length > 0 ? { given } : {}),
     };
   }
 
@@ -360,6 +385,7 @@ export class EffectTracer {
       bindings.set(name, {
         inputs: checked ? inputs.flatMap(withoutOrigin) : inputs,
         host: hostInputs(value, file.facts, call.scope, limited, this.flowFor(file)),
+        given: this.#library ? this.givenInputs(file, value, call.scope) : [],
       });
     }
     return bindings;
@@ -395,6 +421,183 @@ export class EffectTracer {
           : [],
       );
     });
+  }
+
+  /**
+   * The parts at the start of a value that the caller chose whole (see `Capability.given`):
+   * a parameter or an item of one, converted or with more joined after it, or anything
+   * computed from parameters other than by reading inside one. A value read from inside
+   * a parameter (`config["path"]`, `element.url`, `kwargs.get("path")`) and a value after
+   * a base (`os.path.join(self.root, key)`, `` `${base}/${name}` ``) are not given, nor
+   * is text that starts fixed.
+   */
+  givenInputs(file: ProjectFile, value: Value, scope: string | null, depth = 0): DynamicPart[] {
+    if (depth > MAX_DEPTH) return [];
+    const facts = file.facts;
+    const given = (next: Value | undefined) =>
+      next === undefined ? [] : this.givenInputs(file, next, scope, depth + 1);
+    // What a value is computed from, unless it is read from inside a parameter.
+    const computed = () =>
+      this.insideParam(file, value, depth)
+        ? []
+        : inputsOf(value, facts, scope, undefined, this.flowFor(file));
+    switch (value.kind) {
+      case "name": {
+        if (isWholeParam(value))
+          return [dynamicPart(value, facts, scope, undefined, this.flowFor(file))];
+        const assigned =
+          value.assignment === undefined ? undefined : facts.assignments[value.assignment];
+        // A variable, or an item of a collection, is what it was assigned from.
+        if (
+          assigned !== undefined &&
+          (assigned.member === undefined || assigned.member === LOOP_ITEM)
+        )
+          return given(assigned.value);
+        return computed();
+      }
+      case "call": {
+        const call = facts.calls[value.call];
+        if (call === undefined) return [];
+        const target = this.#index.calledFunction(file, call);
+        const params =
+          target === null ? null : this.givenReturn(target.path, target.definition, depth + 1);
+        if (target !== null && params !== null)
+          return this.argumentParams(call, target).flatMap((name, index) =>
+            name !== undefined && params.has(name) ? given(call.arguments[index]?.value) : [],
+          );
+        const name = call.ref?.name ?? call.callee;
+        if (GIVEN_CALL.test(name)) return given(call.arguments.find((arg) => !arg.spread)?.value);
+        if (GIVEN_METHOD.test(name)) return given(this.calledOn(file, call));
+        return computed();
+      }
+      case "string": {
+        const opening = file.language === "python" ? /^\{[^{}]*\}/ : /^\$\{/;
+        return opening.test(value.value) ? given(value.template?.[0]) : [];
+      }
+      case "concat":
+        return value.parts[0]?.kind === "string" && value.parts[0].template === undefined
+          ? []
+          : given(value.parts[0]);
+      case "other": {
+        if (value.parts === undefined || value.subscript === true) return computed();
+        // `base / name` starts with `base`; `path or default` is either one.
+        if (file.language === "python" && / \/ /.test(value.text)) return given(value.parts[0]);
+        if (/ or | if .+ else |\|\||\?\?| \? .+ : /.test(value.text))
+          return uniqueParts(value.parts.flatMap((part) => given(part)));
+        return computed();
+      }
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Whether a value is read from inside a parameter: a member, an item looked up by key
+   * or index, a destructured member, or `get`, `pop` or `getattr` on one, through
+   * variables and conversions.
+   */
+  insideParam(file: ProjectFile, value: Value, depth = 0): boolean {
+    if (depth > MAX_DEPTH) return false;
+    const facts = file.facts;
+    const holds = (next: Value | undefined) =>
+      next !== undefined &&
+      (this.wholeParam(file, next, depth + 1) || this.insideParam(file, next, depth + 1));
+    switch (value.kind) {
+      case "name": {
+        const root = /^[\w$]+/.exec(value.text)?.[0] ?? "";
+        if (value.param === true && root !== value.text && !RECEIVER.test(root)) return true;
+        if (value.base !== undefined) return holds(facts.assignments[value.base]?.value);
+        const assigned =
+          value.assignment === undefined ? undefined : facts.assignments[value.assignment];
+        if (assigned === undefined) return false;
+        // A destructured member is read from inside what it is destructured from.
+        if (assigned.member !== undefined && assigned.member !== LOOP_ITEM)
+          return holds(assigned.value);
+        return this.insideParam(file, assigned.value, depth + 1);
+      }
+      case "other":
+        return value.subscript === true && holds(value.parts?.[0]);
+      case "call": {
+        const call = facts.calls[value.call];
+        if (call === undefined) return false;
+        const name = call.ref?.name ?? call.callee;
+        if (name === "getattr") return holds(call.arguments[0]?.value);
+        if (/\.(?:get|pop|setdefault)$/.test(name)) return holds(this.calledOn(file, call));
+        const converted = GIVEN_CALL.test(name)
+          ? call.arguments[0]?.value
+          : GIVEN_METHOD.test(name)
+            ? this.calledOn(file, call)
+            : undefined;
+        return converted !== undefined && this.insideParam(file, converted, depth + 1);
+      }
+      default:
+        return false;
+    }
+  }
+
+  /** Whether a value is a parameter itself, through variables, items and conversions. */
+  wholeParam(file: ProjectFile, value: Value, depth = 0): boolean {
+    if (depth > MAX_DEPTH) return false;
+    const facts = file.facts;
+    if (value.kind === "name") {
+      if (isWholeParam(value)) return true;
+      const assigned =
+        value.assignment === undefined ? undefined : facts.assignments[value.assignment];
+      return (
+        assigned !== undefined &&
+        (assigned.member === undefined || assigned.member === LOOP_ITEM) &&
+        this.wholeParam(file, assigned.value, depth + 1)
+      );
+    }
+    const call = value.kind === "call" ? facts.calls[value.call] : undefined;
+    if (call === undefined) return false;
+    const name = call.ref?.name ?? call.callee;
+    const converted = GIVEN_CALL.test(name)
+      ? call.arguments[0]?.value
+      : GIVEN_METHOD.test(name)
+        ? this.calledOn(file, call)
+        : undefined;
+    return converted !== undefined && this.wholeParam(file, converted, depth + 1);
+  }
+
+  /** The value a method call is made on: an expression, an earlier call of its chain, a variable or a parameter. */
+  calledOn(file: ProjectFile, call: CallFact): Value | undefined {
+    const facts = file.facts;
+    if (call.object !== undefined) return call.object;
+    const head = chainHead(facts, call);
+    if (head !== undefined) return { kind: "call", call: facts.calls.indexOf(head) };
+    if (call.receiver !== undefined)
+      return {
+        kind: "name",
+        text: facts.assignments[call.receiver]?.target ?? "",
+        ref: null,
+        assignment: call.receiver,
+      };
+    const root = /^[\w$]+(?=\.)/.exec(call.callee)?.[0];
+    return root !== undefined && definitionOf(facts, call.scope)?.params.includes(root)
+      ? { kind: "name", text: root, ref: null, param: true }
+      : undefined;
+  }
+
+  /**
+   * The parameters a project function's returns are given from (see `givenInputs`), or
+   * null when plenger cannot tell: a class, no recorded returns, or a function that
+   * reaches itself again.
+   */
+  givenReturn(path: string, definition: string, depth: number): ReadonlySet<string> | null {
+    const key = `${path}|${definition}`;
+    if (this.#givenReturns.has(key)) return this.#givenReturns.get(key) ?? null;
+    this.#givenReturns.set(key, null);
+    const file = this.#project.files.get(path);
+    const fact = file === undefined ? undefined : definitionOf(file.facts, definition);
+    const returns = fact?.returns ?? [];
+    if (file === undefined || fact?.kind === "class" || returns.length === 0) return null;
+    const params = new Set<string>();
+    for (const value of returns)
+      for (const part of this.givenInputs(file, value, definition, depth))
+        for (const name of part.from ?? []) params.add(name);
+    this.#givenReturns.set(key, params);
+    return params;
   }
 
   sinkEffect(
@@ -507,6 +710,12 @@ export class EffectTracer {
     if ((kind === "network" || kind === "browser") && values[0] !== undefined) {
       const host = hostInputs(values[0], facts, call.scope, limited, this.flowFor(file));
       if (host.length > 0) capability.host = host;
+    }
+    if (this.#library) {
+      const given = uniqueParts(
+        values.flatMap((value) => this.givenInputs(file, value, call.scope)),
+      );
+      if (given.length > 0) capability.given = given;
     }
     return capability;
   }
@@ -987,6 +1196,26 @@ const WRAPS_PATH =
 
 /** Calls that join path components: `os.path.join`, `path.join`, `path.resolve`, `joinpath`. */
 const JOINS = /(?:^|[.#])(?:join|resolve|joinpath)$/;
+
+/**
+ * Calls whose result is their first argument in another form, or a path that starts
+ * with it: type changes, normalizing, joins, `shlex.split`, `compile`, and opening or
+ * wrapping data for a loader.
+ */
+const GIVEN_CALL =
+  /^(?:str|String|bytes|os\.fspath|(?:os\.path|posixpath|ntpath)\.(?:abspath|realpath|normpath|expanduser|expandvars|dirname|join)|(?:node:)?path(?:#default\.|#)(?:resolve|normalize|dirname|join)|pathlib\.(?:Pure|Posix|Windows)?Path|(?:(?:node:)?url#)?URL|shlex\.split|compile|open|io\.(?:open|BytesIO|StringIO)|base64\.b64decode)$/;
+
+/** A method's receiver, never a parameter a caller fills in. */
+const RECEIVER = /^(?:self|cls|this)$/;
+
+/** A parameter itself, not a member of one, and not `self`. */
+function isWholeParam(value: Value & { kind: "name" }): boolean {
+  return value.param === true && /^[\w$]+$/.test(value.text) && !RECEIVER.test(value.text);
+}
+
+/** Methods whose result is the value they are called on, converted or with more joined after it. */
+const GIVEN_METHOD =
+  /\.(?:resolve|absolute|expanduser|joinpath|with_name|with_suffix|strip|rstrip|lstrip|trim|trimEnd|trimStart|toString|encode|decode|read|read_text|read_bytes)$/;
 
 /**
  * The value that is the last component of a path built by joining (`os.path.join(BASE,

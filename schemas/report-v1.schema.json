@@ -142,6 +142,17 @@
       },
       "required": ["active", "suppressed", "unchanged", "new"]
     },
+    "library": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "functions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["functions"]
+    },
     "binaries": {
       "type": "array",
       "items": {
@@ -376,6 +387,12 @@
           }
         },
         "host": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/dynamicPart"
+          }
+        },
+        "given": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/dynamicPart"
@@ -1228,7 +1245,8 @@
                 "mcp_client",
                 "model",
                 "prompt",
-                "code"
+                "code",
+                "function"
               ]
             },
             "name": {

@@ -5,7 +5,7 @@ import { SEVERITIES } from "../rules/model.ts";
 import { traceGapText } from "../rules/text.ts";
 import { json } from "../shared/json.ts";
 import { activeFindings, incompleteTraces, type Report, type ReportFinding } from "./model.ts";
-import { formatSummary, type SummaryOptions } from "./summary.ts";
+import { formatSummary, libraryScanText, type SummaryOptions } from "./summary.ts";
 
 export const FORMATS = ["terminal", "json", "sarif", "markdown"] as const;
 export type ReportFormat = (typeof FORMATS)[number];
@@ -313,6 +313,7 @@ export function toMarkdown(
     "",
     `Scan truncated: ${report.truncated ? "yes" : "no"}. ${syntaxErrors} ${syntaxErrors === 1 ? "file has" : "files have"} syntax errors; results may be incomplete.`,
     "",
+    ...(report.library ? [libraryScanText(report.library.functions), ""] : []),
     ...report.files
       .filter((file) => file.syntaxErrors)
       .map((file) => `- Syntax errors: ${markdownText(file.path)}`),

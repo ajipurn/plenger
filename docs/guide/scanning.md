@@ -10,6 +10,7 @@ plenger scan path/to/project
 plenger scan path/to/project --all
 plenger scan path/to/project --json
 plenger scan path/to/project --no-gitignore
+plenger scan path/to/package --library
 ```
 
 `plenger scan --help` lists the options. See [reports-ci.md](reports-ci.md) for
@@ -210,8 +211,9 @@ active findings; `--all` shows every one. Each finding has:
 - a fingerprint built from the rule, file and subject rather than line numbers,
   used by baselines
 
-`plenger rules` lists the 33 rules; [RULES.md](../RULES.md) describes each one
-with its remediation. Most are about agents, tools, prompts and MCP. PLG801 to PLG807
+`plenger rules` lists the 40 rules; [RULES.md](../RULES.md) describes each one
+with its remediation. Most are about agents, tools, prompts and MCP. PLG901 to PLG907
+report only in [library scans](#library-scans). PLG801 to PLG807
 cover web routes with no model in between. They report request input that reaches,
 in the handler or in project functions it calls in other files:
 
@@ -241,6 +243,54 @@ configuration outside the code is not seen and leaves a finding at medium
 confidence. Checks other than the ones under [Capabilities](#capabilities), such as
 a call to a sanitizer, are recognised by name, not verified, and lower confidence
 instead of removing the finding.
+
+## Library scans
+
+`plenger scan --library` scans a package rather than an application. A package's
+flaws are often in code that no route or tool of its own reaches: a loader, a store
+or a helper whose callers pass the input. A library scan counts the parameters of the
+package's public functions and methods as untrusted input and reports them with
+PLG901 to PLG907. Scans without `--library` are unchanged.
+
+The public functions and methods are:
+
+- module-level functions and the methods of module-level classes;
+- in Python, names without a leading `_`, and dunder methods such as `__init__`, in
+  modules whose file and directory names do not start with `_`;
+- in JavaScript and TypeScript, exported functions and the methods of exported
+  classes, except names that start with `_` or `#`.
+
+Code under `tests`, `examples`, `docs`, `benchmarks` and `scripts` directories is not
+part of the API. `self`, `cls` and `this` are not input. A function inside a function
+is not public, but its effects count for the public function that calls it.
+
+What a library scan reports:
+
+- a file path or URL only when the function places a parameter on a base it chooses
+  itself (`os.path.join(self.root, key)`, `f"/srv/{name}"`) or reads it from inside a
+  parameter (`config["template_path"]`, `element.url`, `kwargs.get("path")`). A path
+  or URL whose start the caller passes (`open(path)`, `os.path.join(directory, name)`,
+  `httpx.get(f"{base_url}/v1")`) is the caller's choice and is not reported;
+- a shell command, SQL text, code, a template or deserialized data built from a
+  parameter, at medium confidence;
+- the same received whole (`subprocess.run(command, shell=True)`, `eval(expression)`,
+  `pickle.loads(payload)`), at low confidence: running it is what the function is
+  for;
+- a program a parameter names, parameters among a program's arguments, and a module
+  a parameter names (`importlib.import_module`), at low confidence.
+
+Confidence is never high, because the scan does not see the callers. A check on the
+way lowers medium to low. The checks that confine paths and limit values in other
+scans also apply here. Each effect is reported once, from the function that reaches
+it with the most confidence and the fewest calls; an effect that a tool or route rule
+already reports is not reported again. The summary and the JSON report
+(`library.functions`) say how many public functions were traced, and the capabilities
+of tools and routes gain `given`: the inputs a caller passes whole.
+
+Library scans are for packages. On an application they also report a helper that is
+safe only because its route checks the input first. The
+[2026-10-20 record](../qualifications/detection-static-2026-10-20-library.md) measures
+both, and the mode on 105 published advisories.
 
 ## JSON output and redaction
 

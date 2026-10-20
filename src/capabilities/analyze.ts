@@ -13,16 +13,29 @@ import { ProjectIndex } from "../project/index.ts";
 import type { Project } from "../project/project.ts";
 import { ApprovalFinder } from "./approvals.ts";
 import { EffectTracer, inputsOf, unique, uniqueParts } from "./effects.ts";
+import { callerParams, type PublicFunction, publicFunctions } from "./library.ts";
 import { attachOutputEffects } from "./output.ts";
 import { BUILTIN_TOOL_CAPABILITIES } from "./sinks.ts";
+
+export interface AnalyzeOptions {
+  /** Also trace the project's public functions and methods, for library checks. */
+  library?: boolean;
+}
 
 /**
  * Fills in what tools, entry points and agents can do, by following their handlers
  * through project functions (across files) down to calls with an outside effect, and
- * where the output of model calls and agent runs is used.
+ * where the output of model calls and agent runs is used. A library scan also returns
+ * what each public function and method reaches; other scans return none.
  */
-export function analyzeCapabilities(project: Project, inventory: Inventory): void {
-  new CapabilityAnalyzer(project, inventory).run();
+export function analyzeCapabilities(
+  project: Project,
+  inventory: Inventory,
+  options: AnalyzeOptions = {},
+): PublicFunction[] {
+  const analyzer = new CapabilityAnalyzer(project, inventory, options);
+  analyzer.run();
+  return options.library === true ? analyzer.publicFunctions(project) : [];
 }
 
 class CapabilityAnalyzer {
@@ -32,10 +45,12 @@ class CapabilityAnalyzer {
   readonly #approvals: ApprovalFinder;
   readonly #prompts: Map<string, Prompt>;
 
-  constructor(project: Project, inventory: Inventory) {
+  constructor(project: Project, inventory: Inventory, options: AnalyzeOptions) {
     this.#inventory = inventory;
     this.#index = new ProjectIndex(project);
-    this.#effects = new EffectTracer(project, this.#index, inventory);
+    this.#effects = new EffectTracer(project, this.#index, inventory, {
+      library: options.library === true,
+    });
     this.#approvals = new ApprovalFinder(project, this.#index);
     this.#prompts = new Map(inventory.prompts.map((prompt) => [prompt.id, prompt]));
   }
@@ -62,6 +77,22 @@ class CapabilityAnalyzer {
       if (approval !== null) agent.approval = approval;
     }
     attachOutputEffects(this.#inventory, this.#effects, this.#index);
+  }
+
+  /** What each public function and method reaches, traced like a route handler. */
+  publicFunctions(project: Project): PublicFunction[] {
+    return publicFunctions(project).map(({ file, definition }) => {
+      const traced: PublicFunction = {
+        definition: definition.id,
+        path: file.path,
+        params: callerParams(definition),
+        location: { path: file.path, ...definition.span },
+        reaches: this.#effects.effects(file.path, definition.id, 0),
+      };
+      const trace = this.traceGaps(file.path, definition.id);
+      if (trace !== null) traced.trace = trace;
+      return traced;
+    });
   }
 
   /** Calls a traced handler could not follow; built-in and agent tools have no handler trace. */

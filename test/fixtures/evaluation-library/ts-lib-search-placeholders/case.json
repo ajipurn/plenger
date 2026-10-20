@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same search passes the filter and the limit as query parameters.",
+  "cwe": "CWE-89",
+  "location": {
+    "path": "search.ts",
+    "line": 5,
+    "endLine": 11
+  },
+  "static": [],
+  "library": true
+}

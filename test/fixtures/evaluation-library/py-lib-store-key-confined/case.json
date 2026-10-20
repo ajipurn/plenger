@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same store resolves each key's path and refuses one outside the root.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "store.py",
+    "line": 16,
+    "endLine": 20
+  },
+  "static": [],
+  "library": true
+}

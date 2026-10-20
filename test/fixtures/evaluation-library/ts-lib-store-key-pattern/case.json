@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same store accepts only keys made of letters, digits, dashes and underscores.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "store.ts",
+    "line": 13,
+    "endLine": 21
+  },
+  "static": [],
+  "library": true
+}

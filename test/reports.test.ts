@@ -41,6 +41,9 @@ beforeAll(async () => {
   for (const corpus of ["frameworks", "crossfile", "risks", "mixed-agent"]) {
     reports.push(createReport(await scan(fixturePath(corpus), { facts: true })));
   }
+  // A library scan adds `library`, `given` inputs and findings about public functions.
+  for (const corpus of ["risks", "evaluation-library"])
+    reports.push(createReport(await scan(fixturePath(corpus), { facts: true, library: true })));
   report = reports[2] as Report;
 });
 
@@ -60,6 +63,11 @@ describe("report contracts", () => {
   });
 
   it("validates the full inventory, findings and linked facts of all fixture corpora", () => {
+    const library = reports.slice(4);
+    expect(library.every((value) => (value.library?.functions ?? 0) > 0)).toBe(true);
+    expect(JSON.stringify(library[0]?.inventory)).toContain('"given"');
+    for (const value of library)
+      expect(value.findings.some((finding) => finding.subject.kind === "function")).toBe(true);
     for (const value of reports) {
       expect(validateReport(value), JSON.stringify(validateReport.errors)).toBe(true);
       expect(validateSarif(toSarif(value)), JSON.stringify(validateSarif.errors)).toBe(true);

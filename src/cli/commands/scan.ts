@@ -22,6 +22,7 @@ const SCAN_OPTIONS = {
   "source-root": { type: "string" },
   gitignore: { type: "boolean", default: true },
   "inline-suppressions": { type: "boolean", default: true },
+  library: { type: "boolean" },
 } as const;
 
 const PATH_OPTIONS = [
@@ -57,7 +58,10 @@ export async function scanCommand(argv: string[], io: Io): Promise<number> {
   const suppressions = values.suppressions
     ? await readSuppressions(values.suppressions)
     : undefined;
-  const result = await scan(positionals[0] ?? ".", { gitignore: values.gitignore });
+  const result = await scan(positionals[0] ?? ".", {
+    gitignore: values.gitignore,
+    library: values.library === true,
+  });
   const reviewed = createReport(result, {
     ...(baseline ? { baseline } : {}),
     ...(suppressions ? { suppressions } : {}),

@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { loadCorpus } from "../scripts/lib/evaluation.ts";
 import { rulesMarkdown } from "../src/report/rule-list.ts";
 import { packageSpec } from "../src/rules/checks/mcp.ts";
 import { RULES, triageScore } from "../src/rules/index.ts";
@@ -27,6 +28,9 @@ describe("rule catalog", () => {
       await readFile(fixturePath("risks/expected-findings.json"), "utf8"),
     );
     const covered = new Set(findings.map((finding) => finding.split(" ")[0]));
+    // Library rules fire only in library scans; their vulnerable corpus cases cover them.
+    for (const item of await loadCorpus(fixturePath("evaluation-library")))
+      if (item.kind === "vulnerable") for (const rule of item.static) covered.add(rule);
     expect(RULES.filter((rule) => !covered.has(rule.id)).map((rule) => rule.id)).toEqual([]);
   });
 
@@ -36,8 +40,9 @@ describe("rule catalog", () => {
     for (const rule of RULES) {
       expect(rule.id).toMatch(/^PLG\d{3}$/);
       expect(rule.name).toMatch(/^[a-z]+(?:-[a-z]+)*$/);
-      // Web route rules (PLG8xx) cover application code, not an OWASP LLM or agentic risk.
-      if (!rule.id.startsWith("PLG8")) expect(rule.owasp.length, rule.id).toBeGreaterThan(0);
+      // Web route (PLG8xx) and library (PLG9xx) rules cover application and package code,
+      // not an OWASP LLM or agentic risk.
+      if (!/^PLG[89]/.test(rule.id)) expect(rule.owasp.length, rule.id).toBeGreaterThan(0);
       for (const id of rule.owasp)
         expect(id).toMatch(/^(?:LLM(?:0[1-9]|10):2025|ASI(?:0[1-9]|10))$/);
       expect(rule.remediation.length).toBeGreaterThan(20);
@@ -789,6 +794,130 @@ def deploy(service: str) -> str:
     expect(findings.map((finding) => `${finding.rule} ${finding.confidence}`)).toEqual([
       "PLG102 low",
     ]);
+  });
+
+  it("report the parameters of a library's public functions only when asked, and not whole paths", async () => {
+    const reader = `import os
+
+def read(name):
+    return open(os.path.join("/srv", name)).read()
+`;
+    const root = await project({
+      "pkg/store.py": `import os
+import pickle
+import subprocess
+from pathlib import Path
+
+import httpx
+
+
+class FileStore:
+    def __init__(self, root):
+        self.root = Path(root)
+
+    def get(self, key):
+        return (self.root / key).read_bytes()
+
+    def _read(self, path):
+        return open(path).read()
+
+    def load(self, path):
+        return self._read(os.path.abspath(path))
+
+
+def save(directory, name, data):
+    with open(os.path.join(directory, name), "w") as handle:
+        handle.write(data)
+
+
+def read_template(config):
+    return Path(config["template_path"]).read_text()
+
+
+def fetch(url):
+    return httpx.get(url).text
+
+
+async def fetch_element(element):
+    async with httpx.AsyncClient() as client:
+        return (await client.get(element.url)).text
+
+
+def run(command):
+    return subprocess.run(command, shell=True)
+
+
+def convert(source):
+    return subprocess.run(f"ffmpeg -i {source} out.mp3", shell=True)
+
+
+def restore(payload):
+    return pickle.loads(payload)
+
+
+def _secret(name):
+    return open(os.path.join("/srv", name)).read()
+`,
+      "pkg/server.py": `import subprocess
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/ping")
+def ping(host: str):
+    return subprocess.run(f"ping -c 1 {host}", shell=True)
+`,
+      "pkg/_internal.py": reader,
+      "tests/test_store.py": reader,
+      "pkg/index.ts": `import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+const ROOT = "/srv/data";
+
+export class Store {
+  async get(key: string) {
+    return readFile(path.join(ROOT, key));
+  }
+}
+
+export function evaluate(expression: string) {
+  return eval(\`(\${expression})\`);
+}
+
+function hidden(key: string) {
+  return readFile(path.join(ROOT, key));
+}
+`,
+    });
+    const library = await scan(root, { library: true });
+    // A route's parameters are already request input: the route rule reports `ping` alone.
+    expect(compactFindings(library.findings).sort()).toEqual([
+      "PLG801 pkg/server.py:8 critical/high exposed `GET /ping` runs a shell command built from request input",
+      "PLG901 pkg/store.py:42 critical/low `run` runs its parameter as a shell command",
+      "PLG901 pkg/store.py:46 critical/medium `convert` runs a shell command built from its parameters",
+      "PLG902 pkg/index.ts:8 high/low `Store.get` reads a file at a path built from its parameters",
+      "PLG902 pkg/store.py:14 high/low `FileStore.get` reads a file at a path built from its parameters",
+      "PLG902 pkg/store.py:29 high/low `read_template` reads a file at a path built from its parameters",
+      "PLG904 pkg/store.py:38 high/low `fetch_element` requests a URL whose host comes from inside its parameters",
+      "PLG905 pkg/index.ts:13 critical/medium `evaluate` evaluates code built from its parameters with `eval`",
+      "PLG907 pkg/store.py:50 high/low `restore` deserializes its parameter with `pickle.loads`",
+    ]);
+    // `FileStore.__init__`, `get` and `load`, seven module functions, `ping`, `Store.get` and `evaluate`.
+    expect(library.library).toEqual({ functions: 13 });
+    const get = library.findings.find((finding) => finding.title.startsWith("`FileStore.get`"));
+    expect(get?.subject).toEqual({
+      kind: "function",
+      name: "FileStore.get",
+      id: "pkg/store.py#FileStore.get",
+    });
+    expect(get?.evidence.map((step) => step.message)).toEqual([
+      "public function `FileStore.get`",
+      "reads the path `self.root / key` with `pathlib.Path().read_bytes`",
+    ]);
+    const plain = await scan(root);
+    expect(plain.library).toBeUndefined();
+    expect(plain.findings.map((finding) => finding.rule)).toEqual(["PLG801"]);
+    expect(JSON.stringify(plain.inventory)).not.toContain('"given"');
   });
 });
 

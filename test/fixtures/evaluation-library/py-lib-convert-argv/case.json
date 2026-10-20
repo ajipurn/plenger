@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same helper runs ffmpeg without a shell, with an absolute input path and a format from a fixed set.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "audio.py",
+    "line": 7,
+    "endLine": 14
+  },
+  "static": [],
+  "library": true
+}

@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same chain reads the expression as a Python literal.",
+  "cwe": "CWE-95",
+  "location": {
+    "path": "math_chain.py",
+    "line": 4,
+    "endLine": 6
+  },
+  "static": [],
+  "library": true
+}

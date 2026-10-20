@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same worker reads the state as JSON.",
+  "cwe": "CWE-502",
+  "location": {
+    "path": "state.py",
+    "line": 4,
+    "endLine": 6
+  },
+  "static": [],
+  "library": true
+}

@@ -43,7 +43,9 @@ type SubjectKind =
   | "mcp_client"
   | "model"
   | "prompt"
-  | "code";
+  | "code"
+  /** A public function or method, in a library scan. */
+  | "function";
 
 export interface Finding {
   /** Rule id. */

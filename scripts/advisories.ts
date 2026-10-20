@@ -5,9 +5,11 @@
 //          Queries the GitHub advisory database through `gh` and writes the manifest.
 //        node scripts/advisories.ts run [--manifest <file>] [--cache <dir>]
 //          [--only <GHSA id>]... [--concurrency <n>] [--output <file.md>] [--json <file>]
+//          [--library]
 //          Downloads, for both commits of every advisory, the source files in and below
 //          the directories the fix changed, scans them and reports detection on the code
-//          the fix changed. Needs `gh` for the GitHub API.
+//          the fix changed. Needs `gh` for the GitHub API until the cache holds every
+//          advisory. --library scans as `plenger scan --library` does.
 
 import { execFile } from "node:child_process";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -120,6 +122,7 @@ const { positionals, values } = parseArgs({
     concurrency: { type: "string" },
     output: { type: "string" },
     json: { type: "string" },
+    library: { type: "boolean" },
   },
 });
 const manifestPath = values.manifest ?? "test/fixtures/advisories/manifest.json";
@@ -197,6 +200,8 @@ interface Version {
   matched: string[];
   /** Any rule citing that code. */
   cited: string[];
+  /** Findings anywhere in the scanned files, by rule. */
+  findings: Record<string, number>;
 }
 
 interface Outcome {
@@ -248,8 +253,10 @@ async function measureOne(advisory: Advisory, cache: string): Promise<Outcome> {
     for (const [version, sha] of Object.entries(versions) as [keyof typeof versions, string][]) {
       const root = join(trees, version);
       await downloadOnce(advisory, version, sha, root, join(trees, "vulnerable"));
-      const scanned = await scan(root, { facts: true });
-      const result: Version = { matched: [], cited: [] };
+      const scanned = await scan(root, { facts: true, library: values.library === true });
+      const result: Version = { matched: [], cited: [], findings: {} };
+      for (const finding of scanned.findings)
+        result.findings[finding.rule] = (result.findings[finding.rule] ?? 0) + 1;
       for (const file of advisory.files) {
         const facts = scanned.files.find((item) => item.path === file)?.facts;
         const labels = labelSpans(
@@ -477,6 +484,12 @@ function format(manifest: Manifest, outcomes: Outcome[]): string {
     "",
     `Manifest selected ${manifest.selected}: ${manifest.rule}`,
     "",
+    ...(values.library
+      ? [
+          "Library scan: the parameters of public functions and methods count as untrusted input (`plenger scan --library`).",
+          "",
+        ]
+      : []),
     "A version counts as reported when a rule of the advisory's weakness family cites the code the fix changed: the innermost function around each changed hunk.",
     "",
     "| Advisories | Measured | Reported before the fix | Not reported after it | Still reported after the fix |",

@@ -1,3 +1,4 @@
+import type { PublicFunction } from "../capabilities/library.ts";
 import type { CallFact } from "../facts/model.ts";
 import { isEnabled, select } from "../facts/query.ts";
 import type {
@@ -54,6 +55,8 @@ const DATABASE_READ = /\.(?:find\w*|select|aggregate|query_?\w*|get|fetch\w*|cou
 export class RuleContext {
   readonly project: Project;
   readonly inventory: Inventory;
+  /** In a library scan, the public functions and methods and what they reach; otherwise empty. */
+  readonly functions: PublicFunction[];
   readonly tools: Map<string, Tool>;
   readonly agents: Map<string, Agent>;
   readonly llmCalls: Map<string, LlmCall>;
@@ -61,10 +64,11 @@ export class RuleContext {
   readonly exposure = new Map<string, string>();
   readonly #index: ProjectIndex;
 
-  constructor(project: Project, inventory: Inventory) {
+  constructor(project: Project, inventory: Inventory, functions: PublicFunction[] = []) {
     this.project = project;
     this.#index = new ProjectIndex(project);
     this.inventory = inventory;
+    this.functions = functions;
     this.tools = new Map(inventory.tools.map((tool) => [tool.id, tool]));
     this.agents = new Map(inventory.agents.map((agent) => [agent.id, agent]));
     this.llmCalls = new Map(inventory.llmCalls.map((call) => [locationKey(call.location), call]));

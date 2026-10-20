@@ -1,9 +1,11 @@
+import { functionId, type PublicFunction } from "../capabilities/library.ts";
 import type { Inventory, Location, TraceGaps } from "../inventory/model.ts";
 import type { Project } from "../project/project.ts";
 import { compareStrings } from "../shared/compare.ts";
 import { locationKey } from "../shared/location.ts";
 import { RULE_BY_ID } from "./catalog.ts";
 import { agentChecks } from "./checks/agents.ts";
+import { libraryChecks } from "./checks/library.ts";
 import { mcpChecks } from "./checks/mcp.ts";
 import { optionChecks } from "./checks/options.ts";
 import { outputChecks } from "./checks/output.ts";
@@ -23,10 +25,23 @@ import { traceGapText } from "./text.ts";
  */
 const OUTPUT_EFFECT_RULE = "PLG401";
 const TOOL_RULE = /^PLG1\d\d$/;
+/**
+ * A library rule (PLG9xx) at an effect a tool or route rule already reports says less:
+ * a model or a request is a known untrusted source, a caller's parameter is not.
+ */
+const LIBRARY_RULE = /^PLG9\d\d$/;
+const SOURCE_RULE = /^PLG[18]\d\d$/;
 
-/** Runs every risk rule over the inventory and returns the findings, most urgent first. */
-export function evaluateRules(project: Project, inventory: Inventory): Finding[] {
-  const cx = new RuleContext(project, inventory);
+/**
+ * Runs every risk rule over the inventory and returns the findings, most urgent first.
+ * `functions`, from a library scan, adds the library rules.
+ */
+export function evaluateRules(
+  project: Project,
+  inventory: Inventory,
+  functions: PublicFunction[] = [],
+): Finding[] {
+  const cx = new RuleContext(project, inventory, functions);
   const drafts = [
     ...toolChecks(cx),
     ...agentChecks(cx),
@@ -36,21 +51,26 @@ export function evaluateRules(project: Project, inventory: Inventory): Finding[]
     ...mcpChecks(cx),
     ...optionChecks(cx),
     ...routeChecks(cx),
+    ...libraryChecks(cx),
   ];
+  const functionTraces = new Map(functions.map((item) => [functionId(item), item.trace]));
   for (const draft of drafts) {
     if (!RULE_BY_ID.has(draft.rule)) throw new Error(`finding for unknown rule ${draft.rule}`);
-    const note = traceNote(inventory, draft.subject);
+    const note = traceNote(inventory, functionTraces, draft.subject);
     if (note !== null) draft.notes.push(note);
   }
-  const toolSinks = new Set(
-    drafts
-      .filter((draft) => TOOL_RULE.test(draft.rule))
-      .map((draft) => locationKey(draft.location)),
-  );
+  const sinksOf = (rule: RegExp) =>
+    new Set(
+      drafts.filter((draft) => rule.test(draft.rule)).map((draft) => locationKey(draft.location)),
+    );
+  const toolSinks = sinksOf(TOOL_RULE);
+  const sourceSinks = sinksOf(SOURCE_RULE);
   return finalize(
-    drafts.filter(
-      (draft) => draft.rule !== OUTPUT_EFFECT_RULE || !toolSinks.has(locationKey(draft.location)),
-    ),
+    drafts.filter((draft) => {
+      const at = locationKey(draft.location);
+      if (draft.rule === OUTPUT_EFFECT_RULE) return !toolSinks.has(at);
+      return !LIBRARY_RULE.test(draft.rule) || !sourceSinks.has(at);
+    }),
   );
 }
 
@@ -58,7 +78,11 @@ export function evaluateRules(project: Project, inventory: Inventory): Finding[]
  * Where tracing the subject's handler, or its agent's tools, stopped short: an effect
  * behind those calls would be missing from this finding and from the scan.
  */
-function traceNote(inventory: Inventory, subject: Draft["subject"]): string | null {
+function traceNote(
+  inventory: Inventory,
+  functionTraces: Map<string, TraceGaps | undefined>,
+  subject: Draft["subject"],
+): string | null {
   const tool = (id: string | undefined) => inventory.tools.find((item) => item.id === id)?.trace;
   const traces =
     subject.kind === "tool"
@@ -67,7 +91,9 @@ function traceNote(inventory: Inventory, subject: Draft["subject"]): string | nu
         ? [inventory.entryPoints.find((item) => item.id === subject.id)?.trace]
         : subject.kind === "agent"
           ? (inventory.agents.find((item) => item.id === subject.id)?.tools ?? []).map(tool)
-          : [];
+          : subject.kind === "function" && subject.id !== undefined
+            ? [functionTraces.get(subject.id)]
+            : [];
   const found = traces.filter((item): item is TraceGaps => item !== undefined);
   if (found.length === 0) return null;
   const gaps = {

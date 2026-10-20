@@ -1,0 +1,14 @@
+{
+  "kind": "vulnerable",
+  "summary": "A worker restores the state it receives from a peer with pickle.",
+  "cwe": "CWE-502",
+  "location": {
+    "path": "state.py",
+    "line": 4,
+    "endLine": 6
+  },
+  "static": [
+    "PLG907"
+  ],
+  "library": true
+}

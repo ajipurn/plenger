@@ -1,0 +1,14 @@
+{
+  "kind": "vulnerable",
+  "summary": "A prompt formatter compiles the caller's template with Jinja's default environment, which can reach Python objects.",
+  "cwe": "CWE-1336",
+  "location": {
+    "path": "formatting.py",
+    "line": 4,
+    "endLine": 6
+  },
+  "static": [
+    "PLG906"
+  ],
+  "library": true
+}

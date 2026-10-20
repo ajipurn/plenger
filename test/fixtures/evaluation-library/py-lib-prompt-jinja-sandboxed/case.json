@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same formatter compiles templates in Jinja's sandboxed environment.",
+  "cwe": "CWE-1336",
+  "location": {
+    "path": "formatting.py",
+    "line": 6,
+    "endLine": 8
+  },
+  "static": [],
+  "library": true
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "vulnerable",
+  "summary": "A data layer downloads an element's content from the URL stored in the element it is given, whatever its host.",
+  "cwe": "CWE-918",
+  "location": {
+    "path": "elements.py",
+    "line": 5,
+    "endLine": 9
+  },
+  "static": [
+    "PLG904"
+  ],
+  "library": true
+}

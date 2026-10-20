@@ -42,6 +42,8 @@ Options:
   --all                          List every finding, not only the most urgent
   --no-gitignore                 Also scan files the project's .gitignore files ignore
   --no-inline-suppressions      Report findings that plenger-ignore comments suppress
+  --library                      Scan a package: parameters of its public functions and
+                                methods count as untrusted input (rules PLG901 to PLG907)
   --target <id>                  Select a candidate for redteam plan
   --port <0-65535>               Dashboard port; 0 chooses a free port (default: 0)
   --workspace <dir>              Dashboard project folder instead of a positional path

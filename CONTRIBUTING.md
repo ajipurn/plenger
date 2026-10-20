@@ -122,9 +122,12 @@ only findings that name the labeled weakness needs the finding's CWE to be in
 the label's family (`WEAKNESS_FAMILIES` in `scripts/lib/evaluation.ts`); it
 keeps a second weakness at the same lines from counting for the labeled one.
 `test/evaluation.test.ts` fails when the static results drift from the labels.
+`--corpus test/fixtures/evaluation-library` scores the library corpus, whose cases
+are scanned as `plenger scan --library` scans a package.
 
 ```sh
 pnpm evaluate
+pnpm evaluate --corpus test/fixtures/evaluation-library
 pnpm evaluate --provider "Claude review" --runs 3 --yes --output docs/qualifications/detection-claude-2026-10-16.md
 pnpm evaluate --provider "Claude review" --runs 1 --mode explore --yes --json explore.json
 ```
@@ -137,12 +140,14 @@ accuracy record, not a cache.
 GitHub advisories of AI and agent projects, listed in
 `test/fixtures/advisories/manifest.json`. It downloads the code around each fix,
 before and after it, scans both versions read-only, and needs `gh` and network
-access. Downloads stay in the cache for later runs. `node scripts/advisories.ts
+access. Downloads stay in the cache for later runs, which then need neither.
+`--library` scans both versions as library scans. `node scripts/advisories.ts
 select` rebuilds the manifest from the database with the fixed selection rule; a new
 selection changes the benchmark, so record its date.
 
 ```sh
 node scripts/advisories.ts run --cache ~/.cache/plenger-advisories --output docs/qualifications/<name>.md
+node scripts/advisories.ts run --library --cache ~/.cache/plenger-advisories --json library.json
 ```
 
 ## Generated artefacts

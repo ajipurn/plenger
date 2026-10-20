@@ -105,6 +105,27 @@ describe("evaluation corpus", () => {
     });
   });
 
+  it("matches each library case's label in a library scan, and finds nothing in a default one", async () => {
+    const cases = await loadCorpus(fixturePath("evaluation-library"));
+    expect(cases).toHaveLength(18);
+    expect(cases.every((item) => item.library === true)).toBe(true);
+    const outcomes = await evaluateStatic(cases);
+    for (const [index, outcome] of outcomes.entries()) {
+      const item = cases[index] as EvaluationCase;
+      expect(outcome.rules, item.id).toEqual(item.static);
+      expect(outcome.unlabeled, item.id).toEqual([]);
+    }
+    expect(metrics(outcomes)).toMatchObject({ truePositives: 9, falsePositives: 0 });
+    // The mode is opt-in: the same packages scanned as applications report nothing.
+    const plain = await evaluateStatic(cases.map(({ library: _library, ...item }) => item));
+    expect(plain.flatMap((outcome) => [...outcome.rules, ...outcome.unlabeled])).toEqual([]);
+    for (const cwe of new Set(cases.map((item) => item.cwe))) {
+      const kinds = cases.filter((item) => item.cwe === cwe).map((item) => item.kind);
+      expect(kinds, cwe).toContain("vulnerable");
+      expect(kinds, cwe).toContain("safe");
+    }
+  });
+
   it("keeps the deciding file of each large pair out of the first message", async () => {
     // The file that tells each twin apart, beside the labeled handler.
     const deciding: Record<string, string> = {

@@ -118,6 +118,7 @@ function fileLines(result: ScanResult, s: Styles): string[] {
     "",
     `  ${plural(result.files.length, "file")} parsed in ${(result.durationMs / 1000).toFixed(1)}s`,
   );
+  if (result.library) lines.push(`  ${libraryScanText(result.library.functions)}`);
 
   if (result.truncated) {
     lines.push(s.warn("  Stopped at the file limit; the rest of the project was not scanned."));
@@ -359,6 +360,12 @@ function clip(text: string, width: number): string {
 }
 
 /** The first `LIST_LIMIT` items, with a count of the rest. */
+/** What a library scan counted as input, for the terminal and Markdown. */
+export function libraryScanText(functions: number): string {
+  const traced = `${functions.toLocaleString("en-US")} public ${functions === 1 ? "function or method" : "functions and methods"}`;
+  return `Library scan: the parameters of ${traced} count as untrusted input.`;
+}
+
 function truncatedList(items: string[]): string[] {
   return items.length <= LIST_LIMIT
     ? items

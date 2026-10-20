@@ -414,6 +414,92 @@ export const RULES: Rule[] = [
     remediation:
       "Use a data-only format (JSON, `yaml.safe_load`, `safetensors`, `torch.load(weights_only=True)`) for anything a client sends or names.",
   },
+
+  // Library scans (`--library`): parameters of a package's public functions as input.
+  {
+    id: "PLG901",
+    name: "library-command-injection",
+    title: "Public function runs a command built from its parameters",
+    description:
+      "In a library scan, a public function or method, or a project function it calls, builds a shell command, names the program to run or passes program arguments from its parameters. A caller that passes untrusted text (a request field, a document, model output) lets that text run commands. Whether callers do is outside the scan.",
+    severity: "critical",
+    owasp: [],
+    cwe: [78, 77, 88],
+    remediation:
+      "Run a fixed program with an argument list and no shell, check each argument against an allow-list or a strict pattern, put `--` before positional arguments, and document which parameters must be trusted.",
+  },
+  {
+    id: "PLG902",
+    name: "library-path-traversal",
+    title: "Public function accesses a file path built from its parameters",
+    description:
+      'In a library scan, a public function or method joins a parameter below a base path, or reads a path from inside a parameter (`config["template_path"]`, `element.path`), and reads, writes or deletes that file. A value with `..` or an absolute path reaches files outside the base. A path the caller passes whole is the caller\'s choice and is not reported.',
+    severity: "high",
+    owasp: [],
+    cwe: [22, 73],
+    remediation:
+      "Resolve the path and check that it stays inside the base (`is_relative_to`, or a prefix that ends with a separator), or accept only names that match a strict pattern.",
+  },
+  {
+    id: "PLG903",
+    name: "library-sql-injection",
+    title: "Public function runs SQL text built from its parameters",
+    description:
+      "In a library scan, a public function or method puts parameter values into the text of a SQL query, or runs a parameter as SQL. A caller that passes untrusted values (a filter, a table name, model output) lets them read or change any data the connection can reach.",
+    severity: "high",
+    owasp: [],
+    cwe: [89],
+    remediation:
+      "Pass values as placeholders, check identifiers such as table and column names against a fixed set, and document parameters that run as SQL.",
+  },
+  {
+    id: "PLG904",
+    name: "library-ssrf",
+    title: "Public function requests a URL whose host comes from inside its parameters",
+    description:
+      "In a library scan, a public function or method fetches or opens a URL whose scheme or host it reads from inside a parameter (`element.url`, `form_data.url`, a link in a message), not from a URL the caller passes whole. A caller that passes untrusted data lets it reach internal services and cloud metadata endpoints.",
+    severity: "high",
+    owasp: [],
+    cwe: [918],
+    remediation:
+      "Allow only known hosts, or resolve the host and reject private, loopback and link-local addresses, and refuse redirects to other hosts.",
+  },
+  {
+    id: "PLG905",
+    name: "library-code-injection",
+    title: "Public function evaluates its parameters as code",
+    description:
+      "In a library scan, a public function or method evaluates a parameter as code (`eval`, `exec`, `Function`, `vm`) or imports a module its parameter names. A caller that passes untrusted text, such as model output or a file a user supplied, runs code in its own process.",
+    severity: "critical",
+    owasp: [],
+    cwe: [94, 95],
+    remediation:
+      "Parse the narrow format the function needs (`ast.literal_eval`, JSON, an expression parser), run untrusted code in an isolated sandbox, or check module names against a fixed set.",
+  },
+  {
+    id: "PLG906",
+    name: "library-template-injection",
+    title: "Public function compiles its parameters as a template",
+    description:
+      "In a library scan, a public function or method compiles a parameter as a template with an engine that can run code (`jinja2.Template`, `ejs.render`, `handlebars.compile`). A template from an untrusted source, such as a shared prompt or a user's file, can read the process's objects and run code.",
+    severity: "critical",
+    owasp: [],
+    cwe: [1336, 94],
+    remediation:
+      "Compile templates that callers pass in a sandboxed environment (`jinja2.sandbox.SandboxedEnvironment`), or use a logic-less format.",
+  },
+  {
+    id: "PLG907",
+    name: "library-unsafe-deserialization",
+    title: "Public function deserializes its parameters with a loader that can run code",
+    description:
+      "In a library scan, a public function or method loads parameter data, or a file at a path its parameter gives, with a deserializer that can run code (`pickle`, `torch.load`, `yaml.unsafe_load`, `node-serialize`). A caller that passes untrusted data or a downloaded file runs code.",
+    severity: "high",
+    owasp: [],
+    cwe: [502],
+    remediation:
+      "Use a data-only format (JSON, `yaml.safe_load`, `safetensors`) for data and files that callers pass.",
+  },
 ];
 
 export const RULE_BY_ID = new Map(RULES.map((rule) => [rule.id, rule]));

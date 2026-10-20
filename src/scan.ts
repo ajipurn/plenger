@@ -57,6 +57,11 @@ export interface ScanOptions extends CollectOptions {
   facts?: boolean;
   /** Worker threads for parsing; 0 parses on this thread. Larger projects use some by default. */
   workers?: number;
+  /**
+   * Treat the project as a library: the parameters of its public functions and methods
+   * count as untrusted input, reported by the PLG9xx rules. Off by default.
+   */
+  library?: boolean;
 }
 
 export type ScanSkipReason = SkipReason | ReadSkipReason;
@@ -77,6 +82,8 @@ export interface ScanResult {
   inventory: Inventory;
   /** Risk findings, most urgent first. */
   findings: Finding[];
+  /** Present for a library scan: how many public functions and methods were traced. */
+  library?: { functions: number };
   durationMs: number;
 }
 
@@ -106,8 +113,8 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
     tsconfig: await readOptional(join(collected.root, "tsconfig.json")),
   });
   const inventory = buildInventory(project);
-  analyzeCapabilities(project, inventory);
-  const findings = evaluateRules(project, inventory);
+  const functions = analyzeCapabilities(project, inventory, { library: options.library === true });
+  const findings = evaluateRules(project, inventory, functions);
   await attachSnippets(collected.root, findings);
 
   skipped.sort((a, b) => compareStrings(a.path, b.path));
@@ -131,6 +138,7 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
     truncated: collected.truncated,
     inventory,
     findings,
+    ...(options.library ? { library: { functions: functions.length } } : {}),
     durationMs: 0,
   };
   redactReport(result, literalCredentials(parsed));

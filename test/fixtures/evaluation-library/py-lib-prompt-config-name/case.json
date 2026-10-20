@@ -1,0 +1,12 @@
+{
+  "kind": "safe",
+  "summary": "The same loader takes a template name from the configuration, checks it against a strict pattern and reads it from the package's own templates.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "loading.py",
+    "line": 7,
+    "endLine": 16
+  },
+  "static": [],
+  "library": true
+}

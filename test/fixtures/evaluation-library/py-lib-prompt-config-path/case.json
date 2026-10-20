@@ -1,0 +1,14 @@
+{
+  "kind": "vulnerable",
+  "summary": "A prompt loader reads the template file a configuration dict names, so a shared configuration can read any file.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "loading.py",
+    "line": 4,
+    "endLine": 10
+  },
+  "static": [
+    "PLG902"
+  ],
+  "library": true
+}

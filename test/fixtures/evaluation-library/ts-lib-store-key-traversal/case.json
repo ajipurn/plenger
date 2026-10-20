@@ -1,0 +1,14 @@
+{
+  "kind": "vulnerable",
+  "summary": "An exported store class joins the caller's key to its root path for reads and writes.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "store.ts",
+    "line": 11,
+    "endLine": 17
+  },
+  "static": [
+    "PLG902"
+  ],
+  "library": true
+}

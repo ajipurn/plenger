@@ -121,6 +121,23 @@ describe("findings output", () => {
     const fired = new Set(result.findings.map((finding: { rule: string }) => finding.rule));
     expect(result.rules.map((rule: { id: string }) => rule.id).sort()).toEqual([...fired].sort());
   });
+
+  it("counts public functions' parameters as input with --library", async () => {
+    const store = fixturePath("evaluation-library/py-lib-store-key-traversal");
+    const plain = JSON.parse((await run("scan", store, "--json")).stdout);
+    expect(plain.library).toBeUndefined();
+    expect(plain.findings).toEqual([]);
+    const library = JSON.parse((await run("scan", store, "--json", "--library")).stdout);
+    expect(library.library).toEqual({ functions: 3 });
+    expect(library.findings.map((finding: { rule: string }) => finding.rule)).toEqual([
+      "PLG902",
+      "PLG902",
+    ]);
+    const { stdout } = await run("scan", store, "--library");
+    expect(stdout).toContain(
+      "Library scan: the parameters of 3 public functions and methods count as untrusted input.",
+    );
+  });
 });
 
 describe("plenger rules", () => {

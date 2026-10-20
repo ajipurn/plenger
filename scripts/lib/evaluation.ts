@@ -32,6 +32,8 @@ export interface EvaluationCase {
   /** Rules the static scanner reports at the location today. */
   static: string[];
   note?: string;
+  /** Scanned as a package (`plenger scan --library`): its public functions' parameters are input. */
+  library?: true;
 }
 
 export interface Metrics {
@@ -132,6 +134,7 @@ export async function loadCorpus(dir: string): Promise<EvaluationCase[]> {
       location,
       static: [...(label.static as string[])].sort(),
       ...(typeof label.note === "string" ? { note: label.note } : {}),
+      ...(label.library === true ? { library: true as const } : {}),
     });
   }
   return cases;
@@ -267,7 +270,10 @@ export function ruleMetrics(outcomes: readonly StaticOutcome[]) {
 
 export async function evaluateStatic(cases: readonly EvaluationCase[]): Promise<StaticOutcome[]> {
   const outcomes: StaticOutcome[] = [];
-  for (const item of cases) outcomes.push(staticOutcome(item, (await scan(item.root)).findings));
+  for (const item of cases)
+    outcomes.push(
+      staticOutcome(item, (await scan(item.root, { library: item.library === true })).findings),
+    );
   return outcomes;
 }
 
@@ -381,14 +387,22 @@ export function formatEvaluation(
   staticOutcomes: readonly StaticOutcome[],
   ai: readonly AiEvaluation[],
   date: string,
+  corpus = "test/fixtures/evaluation",
 ): string {
   const ratio = (value: number | null) => (value === null ? "n/a" : value.toFixed(2));
   const vulnerable = cases.filter((item) => item.kind === "vulnerable").length;
+  const libraries = cases.filter((item) => item.library).length;
   const lines = [
     `# Detection evaluation ${date}`,
     "",
-    `Corpus: ${cases.length} labeled cases in \`test/fixtures/evaluation\`, ${vulnerable} vulnerable and ${cases.length - vulnerable} safe near-misses. A finding counts for a case when it overlaps the labeled lines; AI findings dismissed by the second review do not count. The corpus is small and synthetic: these figures describe it, not arbitrary projects.`,
+    `Corpus: ${cases.length} labeled cases in \`${corpus}\`, ${vulnerable} vulnerable and ${cases.length - vulnerable} safe near-misses. A finding counts for a case when it overlaps the labeled lines; AI findings dismissed by the second review do not count. The corpus is small and synthetic: these figures describe it, not arbitrary projects.`,
     "",
+    ...(libraries > 0
+      ? [
+          `${libraries === cases.length ? "Every case is" : `${libraries} cases are`} scanned as a package (\`plenger scan --library\`): the parameters of public functions count as untrusted input.`,
+          "",
+        ]
+      : []),
     "## Static rules",
     "",
     tableOf(metrics(staticOutcomes), ratio),

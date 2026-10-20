@@ -106,6 +106,7 @@ const definitions: Record<string, Schema> = {
       operation: choices("read", "write", "unknown"),
       dataInputs: parts,
       host: parts,
+      given: parts,
       sandbox: choices("none", "container", "remote"),
       systemInputs: parts,
       guards: texts,
@@ -256,6 +257,7 @@ const definitions: Record<string, Schema> = {
             "model",
             "prompt",
             "code",
+            "function",
           ),
           name: text,
         },
@@ -440,6 +442,7 @@ export const REPORT_SCHEMA = document(
       review: object({ active: natural, suppressed: natural, unchanged: natural, new: natural }),
     },
     {
+      library: object({ functions: natural }),
       binaries: array(
         object({
           path: text,

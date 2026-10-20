@@ -1,0 +1,14 @@
+{
+  "kind": "vulnerable",
+  "summary": "An audio helper runs ffmpeg through a shell with the caller's file name and format in the command line.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "audio.py",
+    "line": 4,
+    "endLine": 8
+  },
+  "static": [
+    "PLG901"
+  ],
+  "library": true
+}

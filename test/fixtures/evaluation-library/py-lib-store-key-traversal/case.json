@@ -1,0 +1,14 @@
+{
+  "kind": "vulnerable",
+  "summary": "A file store's public get and put join the caller's key below the store's root without checking where the path ends up.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "store.py",
+    "line": 10,
+    "endLine": 14
+  },
+  "static": [
+    "PLG902"
+  ],
+  "library": true
+}

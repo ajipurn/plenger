@@ -9,6 +9,24 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- `plenger scan --library` scans a package: the parameters of its public functions
+  and methods count as untrusted input. Seven rules report them:
+  - PLG901: in a shell command, a program's name or its arguments;
+  - PLG902: in a file path on a base the function chooses, or read from inside a
+    parameter;
+  - PLG903: in SQL text;
+  - PLG904: deciding a URL's host, read from inside a parameter;
+  - PLG905: evaluated as code, or naming a module to import;
+  - PLG906: compiled as a template;
+  - PLG907: deserialized.
+
+  A path or URL whose start the caller passes is not reported. Confidence is medium
+  when the value is built into the effect and low when the function receives it
+  whole. Reports gain `library.functions`, findings about a `function` subject and
+  `given` inputs on capabilities. Scans without `--library` are unchanged.
+  `scripts/advisories.ts run --library` runs the advisory benchmark in that mode, and
+  `test/fixtures/evaluation-library` holds nine library pairs.
+
 - Four more static rules for web routes:
   - PLG804: request input deciding a URL's host;
   - PLG805: request input evaluated as code;
