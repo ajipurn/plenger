@@ -244,6 +244,16 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- Static data flow reads project functions: the result of a call carries only
+  the arguments its return values use, and the request globals the function
+  reads. A call to a check helper that returns true only for a confined path
+  (`isWithin(BASE, p)`, using `path.relative` or `os.path.relpath`) counts as
+  checking that argument. Code facts record a function's `checks`, `call`,
+  `descends` and `differs` guard tests, and JS functions that unpack their
+  parameters (`destructured`). A JS function that unpacks its parameters now
+  binds the entries of an object literal passed to it; it used to bind
+  nothing. The evaluation corpus gains four cases, two pairs.
+
 - The second review traces each candidate's path and dismisses it when the
   supplied code holds a control that defeats the described attack, names checks
   that do not count, and keeps needs-review for decisions that depend on code that

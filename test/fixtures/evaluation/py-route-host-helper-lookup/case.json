@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same helper maps the query's host name to a fixed table of hosts, with a fixed default.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "app.py",
+    "line": 10,
+    "endLine": 13
+  },
+  "static": []
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "A download route checks the resolved path with a helper in another module that measures it relative to the base and rejects any path that climbs out.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "server.ts",
+    "line": 9,
+    "endLine": 13
+  },
+  "static": []
+}

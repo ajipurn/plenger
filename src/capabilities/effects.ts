@@ -4,8 +4,16 @@
  * functions it calls, with the caller's arguments bound to the callee's parameters.
  */
 
-import type { CallFact, FileFacts, GuardFact, Span, Value } from "../facts/model.ts";
+import type {
+  CallFact,
+  DefinitionFact,
+  FileFacts,
+  GuardFact,
+  Span,
+  Value,
+} from "../facts/model.ts";
 import {
+  type CallFlow,
   callsStartingAt,
   type DynamicPart,
   definitionOf,
@@ -54,6 +62,12 @@ interface Guard {
   params: Set<string>;
 }
 
+/** What a project function's return value is computed from: its parameters and request globals. */
+interface ReturnFlow {
+  params: ReadonlySet<string>;
+  requests: readonly string[];
+}
+
 /** What a caller passes for a parameter: its non-constant parts, and those that decide a URL's host. */
 interface Bound {
   inputs: DynamicPart[];
@@ -71,6 +85,9 @@ export class EffectTracer {
   readonly #visits = new Map<string, Visit>();
   readonly #tracing: Visit[] = [];
   readonly #confined = new Map<string, boolean>();
+  readonly #flows = new WeakMap<ProjectFile, CallFlow>();
+  readonly #returnFlows = new Map<string, ReturnFlow | null>();
+  readonly #checked = new Map<string, Set<string>>();
 
   constructor(project: Project, index: ProjectIndex, inventory: Inventory) {
     this.#project = project;
@@ -160,15 +177,15 @@ export class EffectTracer {
     }
     // What guards around the call check, for file effects and for the others.
     const limits = limitsAt(file.facts, call);
+    const flow = this.flowFor(file);
+    const safeFor = (kind: CapabilityKind) => this.safeNames(file, kind, limits);
     const checked = new Map<boolean, ReadonlySet<string> | undefined>();
     const limitedFor = (kind: CapabilityKind) => {
       const forFile = FILE_KINDS.has(kind);
       if (!checked.has(forFile))
         checked.set(
           forFile,
-          limits.length === 0
-            ? undefined
-            : coveredNames(file.facts, call, safeSubjects(kind, limits, file.facts)),
+          limits.length === 0 ? undefined : coveredNames(file.facts, call, safeFor(kind), flow),
         );
       return checked.get(forFile);
     };
@@ -242,7 +259,7 @@ export class EffectTracer {
     }
     return limits.length === 0
       ? effects
-      : effects.map((effect) => narrowed(effect, limits, file.facts, call));
+      : effects.map((effect) => narrowed(effect, limits, file.facts, call, safeFor, flow));
   }
 
   /** Preparing SQL does not execute it; bind data separately from the SQL text. */
@@ -280,10 +297,14 @@ export class EffectTracer {
       query: true,
       operation: operation ?? "unknown",
       inputs: uniqueParts(
-        queries.flatMap((value) => inputsOf(value, file.facts, call.scope, limited)),
+        queries.flatMap((value) =>
+          inputsOf(value, file.facts, call.scope, limited, this.flowFor(file)),
+        ),
       ),
       dataInputs: uniqueParts(
-        data.flatMap((value) => inputsOf(value, file.facts, call.scope, limited)),
+        data.flatMap((value) =>
+          inputsOf(value, file.facts, call.scope, limited, this.flowFor(file)),
+        ),
       ),
     };
   }
@@ -299,32 +320,48 @@ export class EffectTracer {
     limited?: ReadonlySet<string>,
     paths = false,
   ): Map<string, Bound> {
-    const callee = this.#project.files.get(target.path);
-    const definition =
-      callee === undefined ? undefined : definitionOf(callee.facts, target.definition);
     const bindings = new Map<string, Bound>();
-    if (definition === undefined) return bindings;
-    let params = definition.params;
-    if (
-      callee?.language === "python" &&
-      definition.kind === "method" &&
-      /^(?:self|cls)$/.test(params[0] ?? "")
-    ) {
-      params = params.slice(1);
-    }
-    let position = 0;
-    for (const arg of call.arguments) {
-      if (arg.spread) continue;
-      const name = arg.keyword ?? params[position++];
-      if (name === undefined) continue;
-      const inputs = inputsOf(arg.value, file.facts, call.scope, limited);
+    const flow = this.flowFor(file);
+    for (const [name, value] of this.boundValues(file, call, target)) {
+      const inputs = inputsOf(value, file.facts, call.scope, limited, flow);
       bindings.set(name, {
-        inputs:
-          paths && this.confinedPath(file, arg.value) ? inputs.flatMap(withoutOrigin) : inputs,
-        host: hostInputs(arg.value, file.facts, call.scope, limited),
+        inputs: paths && this.confinedPath(file, value) ? inputs.flatMap(withoutOrigin) : inputs,
+        host: hostInputs(value, file.facts, call.scope, limited, flow),
       });
     }
     return bindings;
+  }
+
+  /**
+   * The value `call` gives each parameter it binds: by position or keyword, or, for a
+   * JS function that unpacks its parameters (`({ uri, options }) => ...`), the entries of
+   * an object literal passed to it, by key.
+   */
+  boundValues(
+    file: ProjectFile,
+    call: CallFact,
+    target: { path: string; definition: string },
+  ): [string, Value][] {
+    const callee = this.#project.files.get(target.path);
+    const definition =
+      callee === undefined ? undefined : definitionOf(callee.facts, target.definition);
+    if (definition?.destructured !== true)
+      return this.argumentParams(call, target).flatMap((name, index) => {
+        const arg = call.arguments[index];
+        return name === undefined || arg === undefined
+          ? []
+          : [[name, arg.value] as [string, Value]];
+      });
+    const params = new Set(definition.params);
+    return call.arguments.flatMap((arg) => {
+      const object = deref(arg.value, file.facts);
+      if (arg.spread || object.kind !== "object") return [];
+      return object.entries.flatMap((entry) =>
+        entry.key !== null && params.has(entry.key)
+          ? [[entry.key, entry.value] as [string, Value]]
+          : [],
+      );
+    });
   }
 
   sinkEffect(
@@ -360,7 +397,7 @@ export class EffectTracer {
     const partsOf = (items: Value[]) =>
       uniqueParts(
         items.flatMap((value) => {
-          const parts = inputsOf(value, facts, call.scope, limited);
+          const parts = inputsOf(value, facts, call.scope, limited, this.flowFor(file));
           return FILE_KINDS.has(kind) && this.confinedPath(file, value)
             ? parts.flatMap(withoutOrigin)
             : parts;
@@ -403,7 +440,7 @@ export class EffectTracer {
     }
     if (sink.query) capability.query = true;
     if ((kind === "network" || kind === "browser") && values[0] !== undefined) {
-      const host = hostInputs(values[0], facts, call.scope, limited);
+      const host = hostInputs(values[0], facts, call.scope, limited, this.flowFor(file));
       if (host.length > 0) capability.host = host;
     }
     return capability;
@@ -438,15 +475,171 @@ export class EffectTracer {
     const returns = file === undefined ? [] : (definitionOf(file.facts, definition)?.returns ?? []);
     if (file === undefined || returns.length === 0) return false;
     const guards = (file.facts.guards ?? []).filter(
-      (guard) => guard.scope === definition && guard.subject.kind === "name",
+      (guard) =>
+        guard.scope === definition && (guard.subject.kind === "name" || guard.test === "call"),
     );
-    const safe = safeSubjects("file_read", guards, file.facts, true);
+    const safe = this.safeNames(file, "file_read", guards, true);
     const result = returns.every((value) => {
-      const provenance = provenanceOf(value, file.facts, definition, safe);
+      const provenance = provenanceOf(value, file.facts, definition, safe, this.flowFor(file));
       if (provenance.params.size === 0 && provenance.requests.size === 0) return true;
       return this.confinedPath(file, value, depth);
     });
     this.#confined.set(key, result);
+    return result;
+  }
+
+  /**
+   * The parameter of the called function each argument of `call` is bound to: by keyword
+   * or position, after a Python method's `self`. Undefined where plenger cannot tell:
+   * a spread, an extra or unknown keyword, or a JS function that unpacks its parameters.
+   */
+  argumentParams(
+    call: CallFact,
+    target: { path: string; definition: string },
+  ): (string | undefined)[] {
+    const callee = this.#project.files.get(target.path);
+    const definition =
+      callee === undefined ? undefined : definitionOf(callee.facts, target.definition);
+    if (definition === undefined || definition.destructured)
+      return call.arguments.map(() => undefined);
+    const params = calleeParams(definition, callee?.language === "python");
+    const named = new Set(params);
+    let position = 0;
+    return call.arguments.map((arg) => {
+      if (arg.spread) return undefined;
+      if (arg.keyword !== null) return named.has(arg.keyword) ? arg.keyword : undefined;
+      return params[position++];
+    });
+  }
+
+  /** What the results of calls into project functions in a file are computed from. */
+  flowFor(file: ProjectFile): CallFlow {
+    const known = this.#flows.get(file);
+    if (known !== undefined) return known;
+    const flow: CallFlow = (call) => {
+      const target = this.#index.calledFunction(file, call);
+      const summary = target === null ? null : this.returnFlow(target.path, target.definition);
+      if (target === null || summary === null) return null;
+      const args = new Set<number>();
+      for (const [index, name] of this.argumentParams(call, target).entries())
+        if (name === undefined || summary.params.has(name)) args.add(index);
+      return { args, requests: summary.requests };
+    };
+    this.#flows.set(file, flow);
+    return flow;
+  }
+
+  /**
+   * The parameters and request globals a project function's return values are computed
+   * from, or null when plenger cannot tell: a class, no recorded or too many returns
+   * (a generator, ten or more), or a function that reaches itself again.
+   */
+  returnFlow(path: string, definition: string): ReturnFlow | null {
+    const key = `${path}|${definition}`;
+    if (this.#returnFlows.has(key)) return this.#returnFlows.get(key) ?? null;
+    this.#returnFlows.set(key, null);
+    const file = this.#project.files.get(path);
+    const fact = file === undefined ? undefined : definitionOf(file.facts, definition);
+    const returns = fact?.returns;
+    if (
+      file === undefined ||
+      fact?.kind === "class" ||
+      returns === undefined ||
+      returns.length >= 10
+    )
+      return null;
+    const params = new Set<string>();
+    const requests = new Set<string>();
+    for (const value of returns) {
+      const provenance = provenanceOf(value, file.facts, definition, undefined, this.flowFor(file));
+      for (const param of provenance.params) params.add(param);
+      for (const request of provenance.requests) requests.add(request);
+    }
+    const result = { params, requests: [...requests] };
+    this.#returnFlows.set(key, result);
+    return result;
+  }
+
+  /**
+   * Names an effect of `kind` cannot be steered through where `limits` hold: the checked
+   * values of `safeSubjects`, and the arguments a check helper the test calls confines
+   * (`if not is_within(BASE, path): raise`).
+   */
+  safeNames(
+    file: ProjectFile,
+    kind: CapabilityKind,
+    limits: GuardFact[],
+    parameterBases = false,
+  ): Set<string> {
+    const safe = safeSubjects(kind, limits, file.facts, parameterBases);
+    for (const guard of limits)
+      if (guard.test === "call")
+        for (const name of this.helperChecked(file, guard.subject, kind)) safe.add(name);
+    return safe;
+  }
+
+  /** The names passed to a check helper (`isWithin(BASE, inputPath)`) for parameters it checks. */
+  helperChecked(file: ProjectFile, value: Value, kind: CapabilityKind, depth = 0): string[] {
+    const call = value.kind === "call" ? file.facts.calls[value.call] : undefined;
+    const target = call === undefined ? null : this.#index.calledFunction(file, call);
+    if (call === undefined || target === null || depth > MAX_DEPTH) return [];
+    const checked = this.checkedParams(target.path, target.definition, kind, depth + 1);
+    const names: string[] = [];
+    for (const [index, param] of this.argumentParams(call, target).entries()) {
+      const arg = call.arguments[index]?.value;
+      if (param !== undefined && checked.has(param) && arg?.kind === "name") names.push(arg.text);
+    }
+    return names;
+  }
+
+  /**
+   * The parameters a function checks whenever it returns a true value, for an effect of
+   * `kind`: what its returned tests and the guards around those returns limit, followed
+   * back through resolving calls (`path.resolve(inner)`, `os.path.relpath(p, BASE)`) to a
+   * parameter. A base may come from the function's parameters.
+   */
+  checkedParams(
+    path: string,
+    definition: string,
+    kind: CapabilityKind,
+    depth: number,
+  ): Set<string> {
+    const key = `${path}|${definition}|${FILE_KINDS.has(kind)}`;
+    const cached = this.#checked.get(key);
+    if (cached !== undefined) return cached;
+    const result = new Set<string>();
+    this.#checked.set(key, result);
+    const file = this.#project.files.get(path);
+    const fact = file === undefined ? undefined : definitionOf(file.facts, definition);
+    if (file === undefined || fact === undefined) return result;
+    const guards: GuardFact[] = (fact.checks ?? []).map((check) => ({
+      ...check,
+      scope: definition,
+      region: fact.span,
+    }));
+    const safe = safeSubjects(kind, guards, file.facts, true);
+    for (const guard of guards) {
+      if (guard.test === "call")
+        for (const name of this.helperChecked(file, guard.subject, kind, depth)) safe.add(name);
+    }
+    for (const guard of guards) {
+      if (guard.subject.kind !== "name" && guard.test !== "call") continue;
+      const subjects =
+        guard.test === "call"
+          ? (
+              file.facts.calls[guard.subject.kind === "call" ? guard.subject.call : -1]
+                ?.arguments ?? []
+            )
+              .map((arg) => arg.value)
+              .filter((arg) => arg.kind === "name" && safe.has(arg.text))
+          : safe.has(guard.subject.kind === "name" ? guard.subject.text : "")
+            ? [guard.subject]
+            : [];
+      for (const subject of subjects) {
+        const param = checkedParam(subject, file.facts, fact);
+        if (param !== null) result.add(param);
+      }
+    }
     return result;
   }
 
@@ -536,7 +729,7 @@ function limitsAt(facts: FileFacts, call: CallFact): GuardFact[] {
   return (facts.guards ?? []).filter(
     (guard) =>
       guard.scope === call.scope &&
-      guard.subject.kind === "name" &&
+      (guard.subject.kind === "name" || guard.test === "call") &&
       within(call.span, guard.region) &&
       !reassigned(facts, guard, call),
   );
@@ -579,6 +772,18 @@ function safeSubjects(
       case "relative":
         if (file) excluded.set(subject, new Set([...(excluded.get(subject) ?? []), "<relative>"]));
         break;
+      case "descends":
+      case "differs": {
+        // Only the result of `path.relative` stays inside its base when it does not climb.
+        const text =
+          guard.test === "descends"
+            ? climbPrefix(guard.allowed, facts)
+            : literalString(guard.allowed, facts);
+        if (!file || relativeTarget(guard.subject, facts) === null || text === null) break;
+        const marker = guard.test === "differs" ? `!${text}` : `^${text}`;
+        excluded.set(subject, new Set([...(excluded.get(subject) ?? []), marker]));
+        break;
+      }
       case "within":
       case "inside":
         if (
@@ -591,9 +796,79 @@ function safeSubjects(
         break;
     }
   }
-  for (const [subject, texts] of excluded)
+  for (const [subject, texts] of excluded) {
+    // `rel` from `path.relative(BASE, p)`: not absolute, and starting with neither `..`
+    // nor `../`, or not `..` itself.
+    const climbs = texts.has("^..") || (texts.has("^../") && texts.has("!.."));
     if (texts.has("..") && (texts.has("/") || texts.has("<relative>"))) safe.add(subject);
+    else if (climbs && texts.has("<relative>")) safe.add(subject);
+  }
   return safe;
+}
+
+/** Relative-path calls: `path.relative(from, to)` and `os.path.relpath(path, start)`. */
+const RELATIVE = /(?:^|[.#])(?:relative|relpath)$/;
+
+/**
+ * The path a relative-path call measures (`to` in `path.relative(from, to)`, `path` in
+ * `os.path.relpath(path, start)`), or null when the value is not one.
+ */
+function relativeTarget(value: Value, facts: FileFacts): Value | null {
+  const target = deref(value, facts);
+  const call = target.kind === "call" ? facts.calls[target.call] : undefined;
+  const name = call?.ref?.name ?? call?.callee ?? "";
+  if (call === undefined || !RELATIVE.test(name)) return null;
+  const index = name.endsWith("relpath") ? 0 : 1;
+  return call.arguments[index]?.value ?? null;
+}
+
+/** `..` or `../` for a prefix test (`rel.startsWith(`..${path.sep}`)`), or null. */
+function climbPrefix(value: Value, facts: FileFacts): string | null {
+  const target = deref(value, facts);
+  if (target.kind !== "string") return null;
+  if (target.value === "..") return "..";
+  return /^\.\.(?:[/\\]|\$?\{(?:os\.|path\.)?sep\})$/.test(target.value) ? "../" : null;
+}
+
+/**
+ * The parameter a checked value is, following resolving calls and relative-path calls
+ * (`path.relative(BASE, path.resolve(inner))` is `inner`), or null.
+ */
+function checkedParam(value: Value, facts: FileFacts, definition: DefinitionFact): string | null {
+  let current: Value | null = value;
+  for (let depth = 0; current !== null && depth < 8; depth++) {
+    if (current.kind === "name" && current.param) {
+      const root = /^[\w$]+/.exec(current.text)?.[0] ?? "";
+      return definition.params.includes(root) && root === current.text ? root : null;
+    }
+    const measured = relativeTarget(current, facts);
+    if (measured !== null) {
+      current = measured;
+      continue;
+    }
+    const target = deref(current, facts);
+    const call = target.kind === "call" ? facts.calls[target.call] : undefined;
+    if (call === undefined) return null;
+    const name = call.ref?.name ?? call.callee;
+    const [only] = call.arguments;
+    const single = call.arguments.length === 1 && only !== undefined;
+    if (single && (RESOLVING.test(name) || PATH_WRAPPER.test(name))) current = only.value;
+    else if (call.arguments.length === 0 && call.object !== undefined && RESOLVING.test(name))
+      current = call.object;
+    else return null;
+  }
+  return null;
+}
+
+/** Calls that make a path absolute without moving it: `resolve`, `realpath`, `abspath`, `normpath`. */
+const RESOLVING = /(?:^|[.#])(?:resolve|realpath|realpathSync|abspath|normpath)$/;
+
+/** A function's parameters as callers fill them: a Python method's `self` or `cls` left out. */
+function calleeParams(definition: DefinitionFact, python: boolean): string[] {
+  const params = definition.params;
+  return python && definition.kind === "method" && /^(?:self|cls)$/.test(params[0] ?? "")
+    ? params.slice(1)
+    : params;
 }
 
 /** A base that does not come from the caller, or, when `parameters`, comes at most from the function's parameters. */
@@ -682,7 +957,12 @@ function resolvedPath(value: Value, facts: FileFacts, depth = 0): boolean {
  * The names in `call`'s function whose values come only from `safe` names and fixed
  * values, `safe` included: a variable built from a checked name is checked too.
  */
-function coveredNames(facts: FileFacts, call: CallFact, safe: Set<string>): Set<string> {
+function coveredNames(
+  facts: FileFacts,
+  call: CallFact,
+  safe: Set<string>,
+  flow?: CallFlow,
+): Set<string> {
   const names = new Set(safe);
   if (names.size === 0) return names;
   const at = position(call.span.line, call.span.column);
@@ -697,7 +977,7 @@ function coveredNames(facts: FileFacts, call: CallFact, safe: Set<string>): Set<
       position(assignment.span.line, assignment.span.column) >= at
     )
       continue;
-    const provenance = provenanceOf(assignment.value, facts, call.scope, names);
+    const provenance = provenanceOf(assignment.value, facts, call.scope, names, flow);
     const fixed =
       provenance.params.size === 0 && provenance.requests.size === 0 && clean.get(target) !== false;
     clean.set(target, fixed);
@@ -773,8 +1053,10 @@ function narrowed(
   limits: GuardFact[],
   facts: FileFacts,
   call: CallFact,
+  safeFor: (kind: CapabilityKind) => Set<string>,
+  flow: CallFlow,
 ): Capability {
-  const names = coveredNames(facts, call, safeSubjects(effect.kind, limits, facts));
+  const names = coveredNames(facts, call, safeFor(effect.kind), flow);
   const hosts = new Set(
     limits.flatMap((guard) =>
       guard.test === undefined && isFixed(guard.allowed, facts)
@@ -875,17 +1157,18 @@ export function inputsOf(
   facts: FileFacts,
   scope: string | null,
   limited?: ReadonlySet<string>,
+  flow?: CallFlow,
 ): DynamicPart[] {
-  const summary = summarizeText(value, facts, scope, limited);
+  const summary = summarizeText(value, facts, scope, limited, flow);
   if (summary !== null) return summary.dynamic;
   const target = deref(value, facts);
   if (target.kind === "list")
-    return target.items.flatMap((item) => inputsOf(item, facts, scope, limited));
+    return target.items.flatMap((item) => inputsOf(item, facts, scope, limited, flow));
   if (target.kind === "name" || target.kind === "call")
-    return [dynamicPart(target, facts, scope, limited)];
+    return [dynamicPart(target, facts, scope, limited, flow)];
   if (target.kind === "other") {
     // `args[0]`, `cmd or "ls"`: an input when it comes from somewhere plenger can name.
-    const part = dynamicPart(target, facts, scope, limited);
+    const part = dynamicPart(target, facts, scope, limited, flow);
     return part.from !== undefined || part.calls !== undefined ? [part] : [];
   }
   return [];
@@ -902,9 +1185,10 @@ function hostInputs(
   facts: FileFacts,
   scope: string | null,
   limited?: ReadonlySet<string>,
+  flow?: CallFlow,
 ): DynamicPart[] {
-  const summary = summarizeText(value, facts, scope, limited);
-  if (summary === null) return inputsOf(value, facts, scope, limited);
+  const summary = summarizeText(value, facts, scope, limited, flow);
+  if (summary === null) return inputsOf(value, facts, scope, limited, flow);
   const first = summary.text.search(/\$?\{/);
   const prefix = first === -1 ? summary.text : summary.text.slice(0, first);
   if (prefix.startsWith("/") || /^[a-z][\w+.-]*:\/\/[^/?#@]+[/?#]/i.test(prefix)) return [];

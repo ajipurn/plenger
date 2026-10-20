@@ -351,6 +351,8 @@ describe("JavaScript facts: guards and fixed collections", () => {
     ).toEqual([
       ["excludes", "name"],
       ["relative", "name"],
+      // The body of the test that holds: a call, read only when it is a project function.
+      ["call", "call"],
       ["relative", "other"],
     ]);
   });
@@ -378,5 +380,35 @@ describe("JavaScript facts: guards and fixed collections", () => {
       ["INDEXED", true],
       ["REMOVED", true],
     ]);
+  });
+
+  it("records check helpers, climbing tests and unpacked parameters", async () => {
+    const facts = await factsOf(
+      "javascript",
+      [
+        'const path = require("path");',
+        "function isWithin(outer, inner) {",
+        "  const rel = path.relative(path.resolve(outer), path.resolve(inner));",
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: JavaScript source under test
+        '  return !rel.startsWith(`..${path.sep}`) && rel !== ".." && !path.isAbsolute(rel);',
+        "}",
+        "function use(p) {",
+        "  if (!isWithin(BASE, p)) return null;",
+        "  return p;",
+        "}",
+        "const pick = ({ name }) => name;",
+        "",
+      ].join("\n"),
+    );
+    expect(
+      (definition(facts, "isWithin").checks ?? []).map((check) => [check.test, check.subject.kind]),
+    ).toEqual([
+      ["descends", "name"],
+      ["differs", "name"],
+      ["relative", "name"],
+    ]);
+    expect(facts.guards?.map((guard) => guard.test)).toEqual(["call"]);
+    expect(definition(facts, "pick").destructured).toBe(true);
+    expect(definition(facts, "use").destructured).toBeUndefined();
   });
 });

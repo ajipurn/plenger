@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "The same route's helper only checks that the path starts with the base, so a sibling such as downloads_old passes.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "server.ts",
+    "line": 9,
+    "endLine": 13
+  },
+  "static": ["PLG802"]
+}

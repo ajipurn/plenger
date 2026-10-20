@@ -1818,6 +1818,9 @@
                   "$ref": "#/definitions/value"
                 }
               },
+              "destructured": {
+                "const": true
+              },
               "injected": {
                 "type": "array",
                 "items": {
@@ -1828,6 +1831,35 @@
                 "type": "array",
                 "items": {
                   "type": "string"
+                }
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "subject": {
+                      "$ref": "#/definitions/value"
+                    },
+                    "allowed": {
+                      "$ref": "#/definitions/value"
+                    },
+                    "test": {
+                      "type": "string",
+                      "enum": [
+                        "matches",
+                        "excludes",
+                        "within",
+                        "inside",
+                        "relative",
+                        "descends",
+                        "differs",
+                        "call"
+                      ]
+                    }
+                  },
+                  "required": ["subject", "allowed"]
                 }
               }
             },
@@ -1963,7 +1995,16 @@
               },
               "test": {
                 "type": "string",
-                "enum": ["matches", "excludes", "within", "inside", "relative"]
+                "enum": [
+                  "matches",
+                  "excludes",
+                  "within",
+                  "inside",
+                  "relative",
+                  "descends",
+                  "differs",
+                  "call"
+                ]
               }
             },
             "required": ["scope", "subject", "allowed", "region"]

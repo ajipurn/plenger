@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A trace route runs a shell command with a host that a helper in another module reads from the query string.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "app.py",
+    "line": 10,
+    "endLine": 13
+  },
+  "static": ["PLG801"]
+}

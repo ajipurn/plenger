@@ -1,3 +1,4 @@
+import { requestObjectOf } from "../../facts/query.ts";
 import type { Capability, DynamicPart, EntryPoint } from "../../inventory/model.ts";
 import { routeLabel } from "../../shared/text.ts";
 import type { RuleContext } from "../context.ts";
@@ -33,9 +34,10 @@ export function routeChecks(cx: RuleContext): Draft[] {
 }
 
 /**
- * What request input is, by the names an input part comes from: a handler parameter the
- * framework fills from the request (not a dependency, the response or a validated
- * FastAPI scalar), or a request global (`flask.request`).
+ * What request input is, by the names an input part comes from: a parameter of the
+ * handler that the framework fills from the request (not a dependency, the response or
+ * a validated FastAPI scalar), or a request global (`flask.request`). A parameter of a
+ * function further down that tracing could not bind is neither.
  */
 function requestSources(cx: RuleContext, entry: EntryPoint): (name: string) => boolean {
   const facts = cx.project.files.get(entry.handlerPath ?? entry.location.path)?.facts;
@@ -45,7 +47,11 @@ function requestSources(cx: RuleContext, entry: EntryPoint): (name: string) => b
     ...(handler?.injected ?? []),
     ...(entry.framework === "fastapi" ? (handler?.scalars ?? []) : []),
   ]);
-  return (name) => !excluded.has(name) && !RESPONSE_PARAMS.test(name);
+  const params = new Set(handler?.params ?? []);
+  return (name) =>
+    (params.has(name) || requestObjectOf(name) === name) &&
+    !excluded.has(name) &&
+    !RESPONSE_PARAMS.test(name);
 }
 
 function verdictFor(

@@ -35,6 +35,8 @@ export function extractPython(root: Node): FileFacts {
 }
 
 const LITERALS = new Set(["integer", "float", "true", "false", "none", "ellipsis"]);
+/** Returned values that are always false. */
+const FALSY = /^(?:False|None|0|""|'')$/;
 const PATTERN_TARGETS = new Set(["pattern_list", "tuple_pattern", "list_pattern", "tuple", "list"]);
 /** Statements that leave the enclosing block. */
 const EXITS = new Set([
@@ -82,6 +84,12 @@ function limits(node: Node, truth: boolean): Limit[] {
         ((operator === "in" && !truth) || (operator === "not in" && truth))
       )
         return [{ subject: right, allowed: left, test: "excludes" }];
+      // `rel != ".."` holding: the value is not that text.
+      if (
+        right.type === "string" &&
+        ((operator === "!=" && truth) || (operator === "==" && !truth))
+      )
+        return [{ subject: left, allowed: right, test: "differs" }];
       const holds =
         ((operator === "in" || operator === "==") && truth) ||
         ((operator === "not in" || operator === "!=") && !truth);
@@ -98,12 +106,18 @@ function limits(node: Node, truth: boolean): Limit[] {
       );
       const object = callee?.type === "attribute" ? callee.childForFieldName("object") : null;
       const method = callee?.childForFieldName("attribute")?.text;
-      if (object === null || object === undefined) return [];
+      // `is_within(BASE, path)` holding: what the function checks, read later.
+      const helper: Limit[] = truth ? [{ subject: node, allowed: node, test: "call" }] : [];
+      if (object === null || object === undefined)
+        return callee?.type === "identifier" ? helper : [];
       // `name.startswith("/")` or `os.path.isabs(name)` failing: a relative path.
       const [first] = args;
       if (!truth && first !== undefined && args.length === 1) {
         if (method === "startswith" && /^["'][/\\]+["']$/.test(first.text))
           return [{ subject: object, allowed: first, test: "relative" }];
+        // `rel.startswith("..")` failing: a relative path that does not climb out.
+        if (method === "startswith" && /^f?["']\.\.(?:[/\\]|\{os\.sep\})?["']$/.test(first.text))
+          return [{ subject: object, allowed: first, test: "descends" }];
         if (callee?.text === "os.path.isabs")
           return [{ subject: first, allowed: first, test: "relative" }];
       }
@@ -123,7 +137,7 @@ function limits(node: Node, truth: boolean): Limit[] {
             test: method === "startswith" ? "within" : "inside",
           },
         ];
-      return [];
+      return helper;
     }
     default:
       return [];
@@ -230,7 +244,8 @@ class PythonExtractor implements LanguageHooks {
         break;
       case "return_statement": {
         const value = node.namedChildren[0];
-        if (value != null) this.cx.addReturn(value, scope);
+        if (value != null)
+          this.cx.addReturn(value, scope, limits(value, true), FALSY.test(value.text));
         break;
       }
       case "augmented_assignment": {

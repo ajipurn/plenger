@@ -4,6 +4,7 @@ import {
   ANONYMOUS,
   type AssignmentFact,
   type CallFact,
+  type Check,
   type Decorator,
   type DefinitionFact,
   type FileFacts,
@@ -133,7 +134,7 @@ export class Context {
   readonly #definitions: DefinitionDraft[] = [];
   readonly #assignments: AssignmentDraft[] = [];
   readonly #calls: { node: Node; scope: Scope }[] = [];
-  readonly #returns: { node: Node; scope: Scope }[] = [];
+  readonly #returns: { node: Node; scope: Scope; limits: Limit[]; falsy: boolean }[] = [];
   readonly #guards: GuardDraft[] = [];
   readonly #mutated = new Set<number>();
   /** JS/TS: the name `export default` refers to. */
@@ -204,9 +205,13 @@ export class Context {
     this.#calls.push({ node, scope });
   }
 
-  /** Records a value returned directly by the function that opens `scope`. */
-  addReturn(node: Node, scope: Scope): void {
-    if (scope.kind === "function" && scope.definition !== null) this.#returns.push({ node, scope });
+  /**
+   * Records a value returned directly by the function that opens `scope`, with the
+   * limits that hold when it is true and whether it is a falsy literal (`False`, `null`).
+   */
+  addReturn(node: Node, scope: Scope, limits: Limit[] = [], falsy = false): void {
+    if (scope.kind === "function" && scope.definition !== null)
+      this.#returns.push({ node, scope, limits, falsy });
   }
 
   /**
@@ -232,6 +237,33 @@ export class Context {
       endColumn: block.endPosition.column + 1,
     };
     for (const limit of afterExit) this.#guards.push({ ...limit, scope, region });
+  }
+
+  /**
+   * Per function, the limits that hold at every return of a value that is not a falsy
+   * literal: what the return tests, and the guards whose region holds the return.
+   */
+  #returnChecks(): Map<string, (Limit & { scope: Scope })[]> {
+    const byFunction = new Map<string, (Limit & { scope: Scope })[][]>();
+    for (const { node, scope, limits, falsy } of this.#returns) {
+      if (falsy) continue;
+      const at = { line: node.startPosition.row + 1, column: node.startPosition.column + 1 };
+      const around = this.#guards.filter(
+        (guard) => guard.scope === scope && contains(guard.region, at),
+      );
+      const holding = [...limits.map((limit) => ({ ...limit, scope })), ...around];
+      const id = scope.definition as string;
+      byFunction.set(id, [...(byFunction.get(id) ?? []), holding]);
+    }
+    const result = new Map<string, (Limit & { scope: Scope })[]>();
+    const key = (limit: Limit) => `${limit.test ?? ""}|${limit.subject.text}|${limit.allowed.text}`;
+    for (const [id, [first = [], ...rest]] of byFunction) {
+      const common = first.filter((limit) =>
+        rest.every((other) => other.some((candidate) => key(candidate) === key(limit))),
+      );
+      result.set(id, common);
+    }
+    return result;
   }
 
   callIndex(node: Node): number | undefined {
@@ -357,6 +389,18 @@ export class Context {
       definition.returns ??= [];
       if (definition.returns.length < 10) definition.returns.push(hooks.value(node, scope, 0));
     }
+    for (const [id, limits] of this.#returnChecks()) {
+      const definition = byId.get(id);
+      if (definition === undefined || limits.length === 0) continue;
+      definition.checks = limits.map(({ subject, allowed, test, scope }) => {
+        const check: Check = {
+          subject: hooks.value(subject, scope, 0),
+          allowed: hooks.value(allowed, scope, 0),
+        };
+        if (test !== undefined) check.test = test;
+        return check;
+      });
+    }
     const facts: FileFacts = { imports: this.imports, definitions, assignments, calls };
     const guards = this.#guards.map(({ subject, allowed, test, scope, region }): GuardFact => {
       const fact: GuardFact = {
@@ -372,6 +416,15 @@ export class Context {
     if (this.defaultExport !== undefined) facts.defaultExport = this.defaultExport;
     return facts;
   }
+}
+
+/** Whether a position lies inside a span. */
+function contains(region: Span, at: { line: number; column: number }): boolean {
+  const position = at.line * 1e6 + at.column;
+  return (
+    position >= region.line * 1e6 + region.column &&
+    position <= region.endLine * 1e6 + region.endColumn
+  );
 }
 
 function joinPath(path: string, segment: string): string {

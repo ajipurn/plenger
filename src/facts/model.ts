@@ -139,10 +139,18 @@ export interface DefinitionFact {
   doc: string | null;
   /** Values the function returns directly (not from nested functions), at most 10. */
   returns?: Value[];
+  /** JS/TS: a parameter unpacks its argument, so `params` do not line up with arguments. */
+  destructured?: true;
   /** Python: parameters a framework fills in from a dependency (`Depends(...)`), not from the caller. */
   injected?: string[];
   /** Python: parameters annotated with a number, boolean, UUID or date type (`id: int`). */
   scalars?: string[];
+  /**
+   * Limits that hold whenever the function returns a value that is not a falsy literal:
+   * the tests it returns (`return rel != ".." and not os.path.isabs(rel)`) and the
+   * guards around each such return. A check helper is read through these.
+   */
+  checks?: Check[];
   span: Span;
 }
 
@@ -202,12 +210,28 @@ export interface GuardFact {
    * (`str(path).startswith(str(BASE) + os.sep)`). `inside`: it is a path inside
    * `allowed` component by component (`path.is_relative_to(BASE)`). `relative`: it is
    * not an absolute path (`not name.startswith("/")`, `not os.path.isabs(name)`).
+   * `descends`: it does not start with `..` (`not rel.startswith("..")`), which keeps
+   * the result of `path.relative` or `os.path.relpath` inside its base, and `differs`:
+   * it is not the text `allowed` (`rel != ".."`). `call`: the
+   * subject, a call to a function the code defines (`is_within(BASE, path)`), returned
+   * a true value; `allowed` is the same call.
    */
-  test?: "matches" | "excludes" | "within" | "inside" | "relative";
+  test?:
+    | "matches"
+    | "excludes"
+    | "within"
+    | "inside"
+    | "relative"
+    | "descends"
+    | "differs"
+    | "call";
   allowed: Value;
   /** The code that runs only while the limit holds. */
   region: Span;
 }
+
+/** A limit a function's true result establishes; see `DefinitionFact.checks`. */
+export type Check = Omit<GuardFact, "scope" | "region">;
 
 export interface FileFacts {
   imports: ImportFact[];

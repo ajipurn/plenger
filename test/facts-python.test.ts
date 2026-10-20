@@ -423,6 +423,8 @@ describe("Python facts: guards and fixed collections", () => {
     ).toEqual([
       ["excludes", "name"],
       ["relative", "name"],
+      // The body of the test that holds: a call, read only when it is a project function.
+      ["call", "call"],
       ["relative", "other"],
     ]);
   });
@@ -487,5 +489,44 @@ describe("Python facts: guards and fixed collections", () => {
     expect(definition(facts, "route").injected).toEqual(["db", "user", "base"]);
     expect(definition(facts, "route").scalars).toEqual(["limit", "day", "key"]);
     expect(definition(facts, "plain").injected).toBeUndefined();
+  });
+
+  it("records what a check helper establishes when it returns true", async () => {
+    const facts = await factsOf(
+      "python",
+      [
+        "import os",
+        "def is_within(base, path):",
+        "    rel = os.path.relpath(os.path.realpath(path), base)",
+        "    if rel == '':",
+        "        return False",
+        "    return rel != '..' and not rel.startswith('../') and not os.path.isabs(rel)",
+        "def allowed(cmd):",
+        "    if cmd not in COMMANDS:",
+        "        return False",
+        "    return True",
+        "def mixed(name):",
+        "    if name == 'a':",
+        "        return True",
+        "    return name.isalpha()",
+        "",
+      ].join("\n"),
+    );
+    const checks = (id: string) =>
+      (definition(facts, id).checks ?? []).map((check) => [
+        check.test ?? "member",
+        check.subject.kind === "name" ? check.subject.text : check.subject.kind,
+      ]);
+    // `rel != '..'`, `rel.startswith('../')` failing, `os.path.isabs(rel)` failing, and
+    // `rel != ''` from the early return.
+    expect(checks("is_within")).toEqual([
+      ["differs", "rel"],
+      ["descends", "rel"],
+      ["relative", "rel"],
+      ["differs", "rel"],
+    ]);
+    expect(checks("allowed")).toEqual([["member", "cmd"]]);
+    // A check that only one of the true returns makes is not established.
+    expect(checks("mixed")).toEqual([]);
   });
 });

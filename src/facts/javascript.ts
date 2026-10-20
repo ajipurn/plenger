@@ -45,6 +45,8 @@ const FUNCTIONS = new Set([
 ]);
 const CLASSES = new Set(["class_declaration", "abstract_class_declaration", "class"]);
 const LITERALS = new Set(["number", "true", "false", "null", "undefined", "regex"]);
+/** Returned values that are always false. */
+const FALSY = /^(?:false|null|undefined|0|""|''|``)$/;
 const WRAPPERS = new Set([
   "await_expression",
   "parenthesized_expression",
@@ -108,7 +110,11 @@ function limits(node: Node, truth: boolean): Limit[] {
           : [];
       if (operator === "in") return truth ? [{ subject: left, allowed: right }] : [];
       const equal = operator === "===" || operator === "==";
-      if (!((equal && truth) || ((operator === "!==" || operator === "!=") && !truth))) return [];
+      const unequal = operator === "!==" || operator === "!=";
+      // `rel !== ".."` holding: the value is not that text.
+      if ((unequal && truth) || (equal && !truth))
+        return right.type === "string" ? [{ subject: left, allowed: right, test: "differs" }] : [];
+      if (!((equal && truth) || (unequal && !truth))) return [];
       return LITERALS.has(left.type) || left.type === "string"
         ? [{ subject: right, allowed: left }]
         : [{ subject: left, allowed: right }];
@@ -119,25 +125,34 @@ function limits(node: Node, truth: boolean): Limit[] {
       const [argument] = args;
       const object = callee?.childForFieldName("object");
       const method = nameText(callee?.childForFieldName("property") ?? null) ?? "";
+      // `isWithin(BASE, path)` holding: what the function checks, read later.
+      const helper: Limit[] = truth ? [{ subject: node, allowed: node, test: "call" }] : [];
       if (
         callee?.type !== "member_expression" ||
         args.length !== 1 ||
         argument == null ||
         object == null
       )
-        return [];
+        return helper;
       // `name.includes("..")` failing: the name does not contain that text.
       if (method === "includes" && argument.type === "string" && !truth)
         return [{ subject: object, allowed: argument, test: "excludes" }];
       // `name.startsWith("/")` or `path.isAbsolute(name)` failing: a relative path.
       if (!truth && method === "startsWith" && /^["'`][/\\]+["'`]$/.test(argument.text))
         return [{ subject: object, allowed: argument, test: "relative" }];
+      // `rel.startsWith("..")` failing: a relative path that does not climb out.
+      if (
+        !truth &&
+        method === "startsWith" &&
+        /^["'`]\.\.(?:[/\\]|\$\{path\.sep\})?["'`]$/.test(argument.text)
+      )
+        return [{ subject: object, allowed: argument, test: "descends" }];
       if (!truth && method === "isAbsolute" && object.text === "path")
         return [{ subject: argument, allowed: argument, test: "relative" }];
       if (!truth) return [];
       if (method === "test") return [{ subject: argument, allowed: object, test: "matches" }];
       if (method === "startsWith") return [{ subject: object, allowed: argument, test: "within" }];
-      return MEMBERSHIP.test(method) ? [{ subject: argument, allowed: object }] : [];
+      return MEMBERSHIP.test(method) ? [{ subject: argument, allowed: object }] : helper;
     }
     default:
       return [];
@@ -255,7 +270,8 @@ class JavaScriptExtractor implements LanguageHooks {
         break;
       case "return_statement": {
         const value = node.namedChildren[0];
-        if (value != null) this.cx.addReturn(value, scope);
+        if (value != null)
+          this.cx.addReturn(value, scope, limits(value, true), FALSY.test(value.text));
         break;
       }
       case "if_statement": {
@@ -484,6 +500,7 @@ class JavaScriptExtractor implements LanguageHooks {
       doc: null,
       span: spanOf(node),
     };
+    if (parameters !== null && destructures(parameters)) fact.destructured = true;
     this.#definitions.push(fact);
     this.cx.addDefinition(
       fact,
@@ -509,7 +526,7 @@ class JavaScriptExtractor implements LanguageHooks {
       if (body.type === "statement_block") this.visitChildren(body, inner);
       else {
         // `() => value` returns its body.
-        this.cx.addReturn(body, inner);
+        this.cx.addReturn(body, inner, limits(body, true), FALSY.test(body.text));
         this.visit(body, inner);
       }
     }
@@ -1098,6 +1115,18 @@ function patternNames(node: Node): string[] {
     default:
       return [];
   }
+}
+
+/** Whether a parameter list unpacks an argument (`({ a, b }) => ...`, `([x]) => ...`). */
+function destructures(parameters: Node): boolean {
+  const patterns = new Set(["object_pattern", "array_pattern"]);
+  if (patterns.has(parameters.type)) return true;
+  return parameters.namedChildren.some((parameter) => {
+    if (parameter === null) return false;
+    const inner =
+      parameter.childForFieldName("pattern") ?? parameter.childForFieldName("left") ?? parameter;
+    return patterns.has(inner.type);
+  });
 }
 
 function defaultValues(parameter: Node): Node[] {

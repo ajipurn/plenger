@@ -303,6 +303,14 @@ function property(value: Value, key: string, facts: FileFacts, depth = 0): Value
   return [];
 }
 
+/**
+ * What a call's result is computed from, when the code it calls is known: the indices of
+ * the arguments that reach it and the request globals it reads. Null: every argument.
+ */
+export type CallFlow = (
+  call: CallFact,
+) => { args: ReadonlySet<number>; requests: readonly string[] } | null;
+
 /** Where a value comes from, traced within one file. */
 interface Provenance {
   /** Parameters of the function the value is evaluated in (never `self` or `cls`). */
@@ -317,6 +325,11 @@ const PROVENANCE_DEPTH = 16;
 const REQUEST_GLOBAL = /^((?:flask|quart|bottle)\.request)(?:\.|\(|$)/;
 const RECEIVER = /^(?:self|cls)$/;
 const IDENTIFIER = /(?<![\w$.])[A-Za-z_$][\w$]*/g;
+
+/** The web framework request global a name reads (`flask.request` for `flask.request.args`), or null. */
+export function requestObjectOf(name: string): string | null {
+  return REQUEST_GLOBAL.exec(name)?.[1] ?? null;
+}
 
 const definitionIndex = new WeakMap<FileFacts, Map<string, DefinitionFact>>();
 
@@ -341,21 +354,23 @@ function paramsOf(facts: FileFacts, scope: string | null): Set<string> {
  * Traces a value back through variables (loop variables included), calls (their
  * receivers and arguments) and string building to the parameters, calls and request
  * objects it is computed from. Over-approximates: a call's result is taken to depend
- * on everything passed to it. Names in `limited` (variables or parameters of `scope`
- * that a guard has checked) count as fixed and are not followed.
+ * on everything passed to it, unless `flow` knows which arguments reach it. Names in
+ * `limited` (variables or parameters of `scope` that a guard has checked) count as fixed
+ * and are not followed.
  */
 export function provenanceOf(
   value: Value,
   facts: FileFacts,
   scope: string | null,
   limited?: ReadonlySet<string>,
+  flow?: CallFlow,
 ): Provenance {
   const params = paramsOf(facts, scope);
   const result: Provenance = { params: new Set(), calls: new Set(), requests: new Set() };
   const seen = new Set<string>();
   const request = (name: string | undefined) => {
-    const match = name === undefined ? null : REQUEST_GLOBAL.exec(name);
-    if (match !== null) result.requests.add(match[1] as string);
+    const object = name === undefined ? null : requestObjectOf(name);
+    if (object !== null) result.requests.add(object);
   };
   const assignment = (index: number, depth: number) => {
     if (seen.has(`a${index}`)) return;
@@ -400,7 +415,10 @@ export function provenanceOf(
         const checked = call.scope === scope && limited?.has(root) === true;
         if (call.scope === scope && params.has(root) && !checked) result.params.add(root);
         if (call.receiver !== undefined && !checked) assignment(call.receiver, depth);
-        for (const arg of call.arguments) visit(arg.value, call.scope, depth + 1);
+        const reached = flow?.(call) ?? null;
+        for (const name of reached?.requests ?? []) result.requests.add(name);
+        for (const [index, arg] of call.arguments.entries())
+          if (reached === null || reached.args.has(index)) visit(arg.value, call.scope, depth + 1);
         // A chained call (`docs.map(...).join()`) is computed from the calls before it.
         for (const index of chainOf(facts, current.call))
           visit({ kind: "call", call: index }, call.scope, depth + 1);
@@ -490,10 +508,11 @@ export function summarizeText(
   facts: FileFacts,
   scope: string | null = null,
   limited?: ReadonlySet<string>,
+  flow?: CallFlow,
 ): TextSummary | null {
   const origin = originOf(value, facts);
   const summary: TextSummary = { text: "", dynamic: [], truncated: false, fixed: [], origin };
-  return appendText(summary, value, facts, scope, 0, limited) ? summary : null;
+  return appendText(summary, value, facts, scope, 0, limited, flow) ? summary : null;
 }
 
 function appendText(
@@ -503,6 +522,7 @@ function appendText(
   scope: string | null,
   depth: number,
   limited: ReadonlySet<string> | undefined,
+  flow: CallFlow | undefined,
 ): boolean {
   const target = depth < DEREF_DEPTH ? deref(value, facts) : value;
   // A constant from another variable is evaluated where that variable was assigned.
@@ -516,13 +536,13 @@ function appendText(
       summary.fixed.push(target.value);
       if (target.truncated) summary.truncated = true;
       for (const part of target.template ?? [])
-        summary.dynamic.push(dynamicPart(part, facts, here, limited));
+        summary.dynamic.push(dynamicPart(part, facts, here, limited, flow));
       return true;
     }
     case "concat":
       for (const part of target.parts) {
-        if (!appendText(summary, part, facts, here, depth + 1, limited)) {
-          const dynamic = dynamicPart(part, facts, here, limited);
+        if (!appendText(summary, part, facts, here, depth + 1, limited, flow)) {
+          const dynamic = dynamicPart(part, facts, here, limited, flow);
           summary.text += `{${dynamic.text}}`;
           summary.dynamic.push(dynamic);
         }
@@ -531,7 +551,7 @@ function appendText(
     case "name":
     case "call": {
       if (depth > 0) return false;
-      const dynamic = dynamicPart(value, facts, scope, limited);
+      const dynamic = dynamicPart(value, facts, scope, limited, flow);
       summary.text += `{${dynamic.text}}`;
       summary.dynamic.push(dynamic);
       return true;
@@ -547,6 +567,7 @@ export function dynamicPart(
   facts: FileFacts,
   scope: string | null = null,
   limited?: ReadonlySet<string>,
+  flow?: CallFlow,
 ): DynamicPart {
   let part: DynamicPart;
   switch (value.kind) {
@@ -570,7 +591,7 @@ export function dynamicPart(
     default:
       part = { text: value.kind, source: "other" };
   }
-  const provenance = provenanceOf(value, facts, scope, limited);
+  const provenance = provenanceOf(value, facts, scope, limited, flow);
   const from = [...provenance.params, ...provenance.requests];
   if (from.length > 0) part.from = from;
   const calls: string[] = [];

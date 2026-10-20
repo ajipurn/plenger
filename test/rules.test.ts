@@ -380,6 +380,106 @@ def read_user_file(name: str) -> str:
     expect(findings[0]?.notes).toContain("Request input traced: `name`.");
   });
 
+  it("read check helpers and what helpers return, across files", async () => {
+    const root = await project({
+      "helpers.py": `import os
+from flask import request
+
+BASE = os.path.realpath("files")
+
+
+def is_within(base: str, path: str) -> bool:
+    rel = os.path.relpath(os.path.realpath(path), base)
+    return not rel.startswith("..") and not os.path.isabs(rel)
+
+
+def loosely_within(base: str, path: str) -> bool:
+    return os.path.realpath(path).startswith(base)
+
+
+def label(kind: str, name: str) -> str:
+    return f"report-{kind}.txt"
+
+
+def requested_name() -> str:
+    return request.args.get("name", "")
+`,
+      "app.py": `import os
+import subprocess
+
+from flask import Flask, request
+
+from helpers import BASE, is_within, label, loosely_within, requested_name
+
+app = Flask(__name__)
+
+
+@app.get("/checked")
+def checked():
+    target = os.path.join(BASE, request.args["name"])
+    if not is_within(BASE, target):
+        return "no", 400
+    return open(target).read()
+
+
+@app.get("/loose")
+def loose():
+    target = os.path.join(BASE, request.args["name"])
+    if not loosely_within(BASE, target):
+        return "no", 400
+    return open(target).read()
+
+
+@app.get("/label")
+def labelled():
+    return open(os.path.join(BASE, label("daily", request.args["name"]))).read()
+
+
+@app.get("/cat")
+def cat():
+    return subprocess.run(f"cat {requested_name()}", shell=True).stdout
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG801 GET /cat",
+      "PLG802 GET /loose",
+    ]);
+    expect(findings.find((finding) => finding.rule === "PLG801")?.notes).toContain(
+      "Request input traced: `flask.request`.",
+    );
+  });
+
+  it("bind unpacked parameters by key, and count only the handler's own parameters", async () => {
+    const root = await project({
+      "files.js": `const fs = require("fs");
+const path = require("path");
+const BASE = path.resolve("saved");
+function save({ name, body }) {
+  fs.writeFileSync(path.join(BASE, name), body);
+}
+module.exports = { save };
+`,
+      "server.js": `const express = require("express");
+const { save } = require("./files.js");
+const app = express();
+app.post("/save", (req, res) => {
+  save({ name: req.body.name, body: req.body.text });
+  res.end();
+});
+app.post("/defaults", (req, res) => {
+  save(loadDefaults());
+  res.end();
+});
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`)).toEqual([
+      "PLG802 POST /save",
+    ]);
+    expect(findings[0]?.notes).toContain("Request input traced: `req`.");
+  });
+
   it("tell input that names the program from input among its arguments", async () => {
     const root = await project({
       "tools.py": `import shutil

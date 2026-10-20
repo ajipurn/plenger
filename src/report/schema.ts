@@ -9,6 +9,17 @@ const fingerprint: Schema = { type: "string", pattern: "^[0-9a-f]{16}$" };
 const ruleId: Schema = { type: "string", pattern: "^PLG[0-9]{3}$" };
 const severity = choices("critical", "high", "medium", "low");
 const confidence = choices("high", "medium", "low");
+/** `GuardFact["test"]` in src/facts/model.ts. */
+const guardTest = choices(
+  "matches",
+  "excludes",
+  "within",
+  "inside",
+  "relative",
+  "descends",
+  "differs",
+  "call",
+);
 const texts = array(text);
 const locations = array(ref("location"));
 const parts = array(ref("dynamicPart"));
@@ -334,7 +345,15 @@ const definitions: Record<string, Schema> = {
             doc: nullable(text),
             span: ref("span"),
           },
-          { returns: values, injected: texts, scalars: texts },
+          {
+            returns: values,
+            destructured: yes,
+            injected: texts,
+            scalars: texts,
+            checks: array(
+              object({ subject: ref("value"), allowed: ref("value") }, { test: guardTest }),
+            ),
+          },
         ),
       ),
       assignments: array(
@@ -365,7 +384,7 @@ const definitions: Record<string, Schema> = {
             allowed: ref("value"),
             region: ref("span"),
           },
-          { test: choices("matches", "excludes", "within", "inside", "relative") },
+          { test: guardTest },
         ),
       ),
       defaultExport: text,

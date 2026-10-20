@@ -108,6 +108,15 @@ a table the code fills or changes at run time is not followed. Other dynamic
 dispatch, callbacks passed in from other files and framework-internal effects are
 not followed.
 
+The result of a call into a project function is computed only from the arguments
+its return values use, and from the request globals it reads (`flask.request`):
+`label("daily", name)` that returns `f"report-{kind}.txt"` does not carry `name`.
+Plenger cannot always tell what a function returns. It then takes the result to
+depend on every argument. This happens for a class, a generator, a function with
+ten or more returns, or a JS function that unpacks its parameters. Such a function
+gets the entries of an object literal passed to it, by key
+(`processAsFile({ uri: link })`).
+
 A check before an effect takes the input it limits out of the model's reach, when
 it leaves the function or the block on failure (`if name not in REPORTS: raise`) or
 holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
@@ -119,7 +128,13 @@ holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
   value checked for `..` and for `/` or for being absolute; or a resolved path
   (`realpath`, `resolve`) checked to lie in a fixed base with `is_relative_to` or a
   prefix that ends with a separator (`BASE + os.sep`), since `/srv/notes_old`
-  starts with `/srv/notes`
+  starts with `/srv/notes`; or a path measured against a base
+  (`path.relative(BASE, p)`, `os.path.relpath(p, BASE)`) that is not absolute and
+  does not start with `..`, or with `../` once it is also not `..` itself
+- for any of these: a call to a project function that returns true only when one of
+  its parameters passes such a check (`if not is_within(BASE, path): raise`). What
+  the function returns is read: the tests it returns and the guards around each
+  return of something other than `False`, `None` or `null`
 
 Values built from a checked name are checked too. A path returned by a project
 function counts as checked when every value the function returns is a resolved path
