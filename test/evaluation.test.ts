@@ -7,6 +7,7 @@ import {
   formatEvaluation,
   loadCorpus,
   metrics,
+  RATE_LIMIT_PAUSE_MS,
   reviewSnapshot,
   ruleMetrics,
   sameWeakness,
@@ -195,6 +196,61 @@ describe("AI review evaluation", () => {
     });
     const { exploration: _exploration, ...batch } = review;
     expect(aiOutcome(item, batch).read).toBeUndefined();
+  });
+
+  it("reviews cases concurrently in case order and reruns a review the provider rate-limited", async () => {
+    const cases = (await loadCorpus(fixturePath("evaluation"))).filter((item) =>
+      ["py-sql-tool", "ts-idor-route"].includes(item.id),
+    );
+    // The first request for each case is rejected with HTTP 429, as a busy provider does.
+    const limited = new Set<string>();
+    const dispatch: typeof fetch = async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      const messages = body.messages as { content: { text: string }[] }[];
+      const data = JSON.parse(messages[0]?.content[0]?.text ?? "{}");
+      const source = data.files.map((file: { source: string }) => file.source).join("\n");
+      const id = source.includes("findUnique") ? "ts-idor-route" : "py-sql-tool";
+      if (!data.candidates && !limited.has(id)) {
+        limited.add(id);
+        return new Response("{}", { status: 429 });
+      }
+      if (data.candidates) {
+        const ids = data.candidates.map((item: { id: string }) => item.id);
+        return new Response(JSON.stringify(nativeReviewReply(reviewDecision(ids))));
+      }
+      return new Response(JSON.stringify(nativeReviewReply(discovery(null))));
+    };
+    const waits: number[] = [];
+    const result = await evaluateAi(
+      cases,
+      {
+        connection: { provider, access },
+        runs: 1,
+        concurrency: 2,
+        pause: async (ms) => {
+          waits.push(ms);
+        },
+      },
+      dispatch,
+    );
+    const outcomes = required(result.runs[0]);
+    expect(outcomes.map((item) => [item.id, item.status, item.rateLimitedReruns])).toEqual([
+      ["py-sql-tool", "completed", 1],
+      ["ts-idor-route", "completed", 1],
+    ]);
+    expect(waits).toEqual([RATE_LIMIT_PAUSE_MS, RATE_LIMIT_PAUSE_MS]);
+    const markdown = formatEvaluation(cases, await evaluateStatic(cases), [result], "2026-10-21");
+    expect(markdown).toContain(
+      "0 of 2 reviews did not complete. 2 reviews were rerun after the provider answered HTTP 429.",
+    );
+    // Other failures are never rerun.
+    const failing = await evaluateAi(
+      cases.slice(0, 1),
+      { connection: { provider, access }, runs: 1, pause: async () => {} },
+      async () => new Response("{}", { status: 500 }),
+    );
+    expect(failing.runs[0]?.[0]).toMatchObject({ status: "failed" });
+    expect(failing.runs[0]?.[0]?.rateLimitedReruns).toBeUndefined();
   });
 
   it("scores each run, ignores dismissed findings and counts findings outside the labels", async () => {

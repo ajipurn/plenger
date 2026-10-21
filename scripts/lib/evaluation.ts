@@ -85,6 +85,8 @@ export interface AiOutcome {
   read?: string[];
   /** Why the host rejected exploring submissions, when it did. */
   rejected?: string[];
+  /** Times the review was rerun after the provider answered HTTP 429. */
+  rateLimitedReruns?: number;
   tokens: number | null;
   costUsd: number | null;
 }
@@ -295,10 +297,15 @@ export interface AiConnection {
   inputTokens?: number | null;
 }
 
+/** How long to wait before rerunning a review the provider rate-limited, per attempt. */
+export const RATE_LIMIT_PAUSE_MS = 30_000;
+
 /**
- * Reviews every case `runs` times, one case at a time, and scores each run. A batch
- * review makes at most two model requests; an exploring one stays within its sessions'
- * limits. Nothing is retried.
+ * Reviews every case `runs` times and scores each run, `concurrency` cases at a time. A
+ * batch review makes at most two model requests; an exploring one stays within its
+ * sessions' limits. A review that fails because the provider answered HTTP 429 is rerun
+ * after a pause, up to `rateLimitReruns` times, since a rate limit says nothing about the
+ * model; the outcome counts its reruns. Nothing else is retried.
  */
 export async function evaluateAi(
   cases: readonly EvaluationCase[],
@@ -307,18 +314,26 @@ export async function evaluateAi(
     validator?: AiConnection;
     runs: number;
     mode?: ReviewMode;
+    /** Cases reviewed at the same time; 1 when omitted. */
+    concurrency?: number;
+    /** Reruns of a review rejected with HTTP 429; 4 when omitted. */
+    rateLimitReruns?: number;
+    pause?: (ms: number) => Promise<void>;
     onReview?: (item: EvaluationCase, run: number, outcome: AiOutcome) => void;
   },
   dispatch: typeof fetch = fetch,
 ): Promise<AiEvaluation> {
+  const pause =
+    options.pause ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const reruns = options.rateLimitReruns ?? 4;
   const snapshots = new Map<string, Awaited<ReturnType<typeof scan>>>();
   for (const item of cases) snapshots.set(item.id, await reviewSnapshot(item));
   const runs: AiOutcome[][] = [];
   for (let run = 0; run < options.runs; run++) {
-    const outcomes: AiOutcome[] = [];
-    for (const item of cases) {
+    const outcomes: AiOutcome[] = new Array(cases.length);
+    const review = (item: EvaluationCase) => {
       const { connection, validator } = options;
-      const review = await reviewProject(
+      return reviewProject(
         snapshots.get(item.id) as Awaited<ReturnType<typeof scan>>,
         {
           scanId: `evaluation-${item.id}-${run + 1}`,
@@ -340,10 +355,34 @@ export async function evaluateAi(
         },
         dispatch,
       );
-      const outcome = aiOutcome(item, review);
-      options.onReview?.(item, run + 1, outcome);
-      outcomes.push(outcome);
-    }
+    };
+    let next = 0;
+    const worker = async () => {
+      while (next < cases.length) {
+        const index = next++;
+        const item = cases[index] as EvaluationCase;
+        let result = await review(item);
+        let rerun = 0;
+        while (
+          rerun < reruns &&
+          result.status === "failed" &&
+          /HTTP 429\b/.test(result.reason ?? "")
+        ) {
+          rerun += 1;
+          await pause(RATE_LIMIT_PAUSE_MS * rerun);
+          result = await review(item);
+        }
+        const outcome = {
+          ...aiOutcome(item, result),
+          ...(rerun ? { rateLimitedReruns: rerun } : {}),
+        };
+        options.onReview?.(item, run + 1, outcome);
+        outcomes[index] = outcome;
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.max(1, Math.min(options.concurrency ?? 1, cases.length)) }, worker),
+    );
     runs.push(outcomes);
   }
   return {
@@ -435,6 +474,7 @@ export function formatEvaluation(
     const failed = outcomes.filter((item) => item.status !== "completed").length;
     const costs = outcomes.map((item) => item.costUsd).filter((cost) => cost !== null);
     const requests = outcomes.reduce((sum, item) => sum + item.calls, 0);
+    const rerun = outcomes.reduce((sum, item) => sum + (item.rateLimitedReruns ?? 0), 0);
     const tools = Object.entries(
       outcomes.reduce<Record<string, number>>((sum, item) => {
         for (const [name, count] of Object.entries(item.toolCalls ?? {}))
@@ -450,7 +490,7 @@ export function formatEvaluation(
       "",
       `## AI review: ${evaluation.provider.model}${evaluation.validator ? `, second review ${evaluation.validator.model}` : ""}`,
       "",
-      `${evaluation.mode === "explore" ? "Explore" : "Batch"} mode, prompt digest \`${evaluation.promptDigest.slice(0, 12)}\`, ${evaluation.runs.length} ${evaluation.runs.length === 1 ? "run" : "runs"}, Standard depth. ${failed} of ${outcomes.length} reviews did not complete.${costs.length ? ` Estimated cost USD ${costs.reduce((sum, cost) => sum + cost, 0).toFixed(4)}.` : ""} ${requests} model requests${tools.length ? `; tool calls: ${tools.map(([name, count]) => `${name} ${count}`).join(", ")}` : ""}.`,
+      `${evaluation.mode === "explore" ? "Explore" : "Batch"} mode, prompt digest \`${evaluation.promptDigest.slice(0, 12)}\`, ${evaluation.runs.length} ${evaluation.runs.length === 1 ? "run" : "runs"}, Standard depth. ${failed} of ${outcomes.length} reviews did not complete.${rerun ? ` ${rerun} ${rerun === 1 ? "review was" : "reviews were"} rerun after the provider answered HTTP 429.` : ""}${costs.length ? ` Estimated cost USD ${costs.reduce((sum, cost) => sum + cost, 0).toFixed(4)}.` : ""} ${requests} model requests${tools.length ? `; tool calls: ${tools.map(([name, count]) => `${name} ${count}`).join(", ")}` : ""}.`,
       "",
       `Precision ${range(precision)}. Recall ${range(recall)}. Counting only source-supported findings: precision ${range(strictPrecision)}, recall ${range(strictRecall)}. Counting only findings that name the labeled weakness: precision ${range(weaknessPrecision)}, recall ${range(weaknessRecall)}.`,
       "",

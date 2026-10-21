@@ -2,11 +2,13 @@
 // of each saved provider when asked. Developer-only; the CLI never runs it.
 // Usage: pnpm evaluate [--provider <name|id>]... [--validator <name|id>] [--runs <n>]
 //                      [--corpus <dir>] [--data-dir <dir>] [--output <file.md>]
-//                      [--json <file>] [--mode batch|explore] [--yes]
+//                      [--json <file>] [--mode batch|explore] [--concurrency <n>] [--yes]
 //   Without --provider only the static scanner is evaluated, offline.
 //   With --provider, redacted corpus source is sent to that connection: up to two model
 //   requests per case and run in batch mode, and up to the session limits in explore
 //   mode, where the model reads the case through read-only tools. --yes is required.
+//   --concurrency reviews that many cases at a time (default 1). A review the provider
+//   rejects with HTTP 429 is rerun after a pause, and the report counts the reruns.
 
 import { writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
@@ -33,6 +35,7 @@ const { values } = parseArgs({
     output: { type: "string" },
     json: { type: "string" },
     mode: { type: "string" },
+    concurrency: { type: "string" },
     yes: { type: "boolean" },
   },
 });
@@ -40,6 +43,9 @@ const mode = values.mode ?? "batch";
 if (mode !== "batch" && mode !== "explore") throw new Error("Use --mode batch or explore.");
 const runs = Number(values.runs ?? 3);
 if (!Number.isSafeInteger(runs) || runs < 1 || runs > 10) throw new Error("Use --runs 1 to 10.");
+const concurrency = Number(values.concurrency ?? 1);
+if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 8)
+  throw new Error("Use --concurrency 1 to 8.");
 const corpus = values.corpus ?? "test/fixtures/evaluation";
 const cases = await loadCorpus(corpus);
 const staticOutcomes = await evaluateStatic(cases);
@@ -83,6 +89,7 @@ if (names.length) {
           ...(validator ? { validator } : {}),
           runs,
           mode,
+          concurrency,
           onReview: (item, run, outcome) =>
             console.log(
               `run ${run} ${item.id}: ${outcome.status}${outcome.detected ? ", detected" : ""}`,
