@@ -277,7 +277,7 @@ still completes. A failed discovery request fails the review. There are no
 model retries. No candidates means one request. The limit per batch is two
 requests, 400,000 accounted tokens and 120 seconds. Full coverage stops further
 batches after a failed or refused review. Output is capped at the smaller of
-the provider setting and 8,192 tokens per request.
+the provider setting and 12,288 tokens per request.
 
 ## Explore mode
 

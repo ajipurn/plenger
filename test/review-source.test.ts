@@ -326,16 +326,16 @@ describe("AI review source selection", () => {
     expect(reviewBudget([200_000, undefined])).toEqual(defaults);
     const wide = reviewBudget([200_000]);
     expect(wide).toEqual({
-      contextBytes: 108_460,
+      contextBytes: 105_593,
       fileBytes: SECURITY_REVIEW_LIMITS.maxFileBytes,
       files: SECURITY_REVIEW_LIMITS.maxFiles,
-      relatedBytes: 46_483,
+      relatedBytes: 45_254,
       inputTokens: 200_000,
     });
     // Half the 400,000-token ceiling caps every window; the smaller window decides.
     expect(reviewBudget([1_000_000])).toEqual({ ...wide, inputTokens: 1_000_000 });
     expect(reviewBudget([1_000_000, 64_000]).contextBytes).toBe(
-      Math.floor((64_000 - 8192 - 36 * 1024) * 0.7),
+      Math.floor((64_000 - SECURITY_REVIEW_LIMITS.outputTokens - 36 * 1024) * 0.7),
     );
     // The larger validation reservation, at one token per byte, fits half the ceiling.
     const validation =
@@ -358,7 +358,7 @@ describe("AI review source selection", () => {
       model.dispatch,
     );
     expect(review.status).toBe("completed");
-    expect(review.scope.budget).toMatchObject({ contextBytes: 108_460, inputTokens: 200_000 });
+    expect(review.scope.budget).toMatchObject({ contextBytes: 105_593, inputTokens: 200_000 });
     expect(Buffer.byteLength(JSON.stringify(model.bodies[0]))).toBeGreaterThan(48 * 1024);
     const ops = required(
       review.scope.files.find((file) => file.path === "ops.py"),
@@ -370,7 +370,7 @@ describe("AI review source selection", () => {
     );
     expect(submitted).toBeGreaterThan(2000);
     expect(review.limitations).toContain(
-      "The batch budget was 106 KiB of source for a 200,000-token model window, within the 400,000-token review ceiling.",
+      "The batch budget was 103 KiB of source for a 200,000-token model window, within the 400,000-token review ceiling.",
     );
   });
 

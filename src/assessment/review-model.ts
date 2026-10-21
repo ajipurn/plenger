@@ -35,7 +35,8 @@ export const SECURITY_REVIEW_LIMITS = {
   changeRanges: 20,
   snippetLines: 13,
   text: 1200,
-  outputTokens: 8192,
+  /** Per request; discovery also returns up to 16 path closures. */
+  outputTokens: 12_288,
   tokens: 400_000,
   timeoutMs: 120_000,
   /** Reviews one static scan can hold: the batches of a Full coverage scan. */

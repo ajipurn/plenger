@@ -881,7 +881,7 @@ describe("local project security workspace", () => {
       });
       await supervisor.settled();
       expect(store.security.scan(started.id)?.reviews[0]?.scope.budget).toMatchObject({
-        contextBytes: 108_460,
+        contextBytes: 105_593,
         inputTokens: 200_000,
       });
     } finally {

@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { SECURITY_REVIEW_LIMITS } from "../src/assessment/review-model.ts";
 import { captureRelatedSource } from "../src/assessment/review-related.ts";
 import { captureReviewSource, ReviewSourceReader } from "../src/assessment/review-source.ts";
 import { REVIEW_PROMPT_DIGEST, reviewProject } from "../src/assessment/security-review.ts";
@@ -154,7 +155,11 @@ describe("second review context", () => {
     ]);
     expect(review.validator).toEqual(validator.provider);
     // The record says which instructions and settings produced each request.
-    const settings = { temperature: null, maxOutputTokens: 8192, structuredOutput: true };
+    const settings = {
+      temperature: null,
+      maxOutputTokens: SECURITY_REVIEW_LIMITS.outputTokens,
+      structuredOutput: true,
+    };
     expect(review.generation).toEqual({
       promptDigest: REVIEW_PROMPT_DIGEST,
       discovery: { provider: "anthropic", model: "claude-discovery-test", ...settings },
