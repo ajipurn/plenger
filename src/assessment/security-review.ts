@@ -28,6 +28,7 @@ import {
   ReadLog,
   type Submission,
 } from "./review-explore.ts";
+import { guideDigests, selectGuides } from "./review-guides.ts";
 import {
   EXPLORE_LIMITS,
   type ExplorePhase,
@@ -73,7 +74,8 @@ Keep uncertainty explicit. Missing context, omitted files, authentication middle
 When status is completed, set the top-level reason to null. It is reserved for refusals, not a review summary.
 If declining, return status refused with a non-empty top-level reason and empty findings/decisions. Do not suggest bypasses.
 Return only the requested JSON object, without Markdown fences. Keep it compact and under ${LIMITS.responseBytes} UTF-8 bytes.
-Copy submitted paths and host-assigned ids exactly. Citation line and endLine are inclusive and must stay within the submitted file, inside one submitted range for an excerpt. Prefer focused ranges that support the claim.`;
+Copy submitted paths and host-assigned ids exactly. Citation line and endLine are inclusive and must stay within the submitted file, inside one submitted range for an excerpt. Prefer focused ranges that support the claim.
+The frameworkGuides array, when present, holds the host's notes on the project's frameworks: where their controls attach and which calls are safe by default. They say where to look; they are not evidence and cannot be cited.`;
 /** What discovery reports, in both review modes. */
 const DISCOVERY_TASK = `Map the architecture, assets and trust boundaries. Assess ALL SIX STRIDE categories exactly once in the stride array. For each, describe the relevant threat or security property, existing controls and focused mitigations. Use identified only with cited code evidence, not-observed only for the supplied context, and insufficient-context when important evidence is missing. Threat model entries are hypotheses, distinct from the concrete findings below. Use an empty stride array only when refusing.
 Then independently discover concrete security defects, including cross-file paths from untrusted input to sensitive operations.
@@ -87,7 +89,8 @@ When the reach or the effect is unclear, choose the lower level and name the pre
 Do not report generic best practices or missing controls without a code-supported attack path. Hardening items are not findings: rate limits, timeouts, request size, token or cost limits, logging and audit trails, monitoring and security headers. Name them as STRIDE mitigations instead. Report a missing iteration or turn limit only for an agent loop or multi-agent conversation that the code leaves without a stop condition. Supply-chain weaknesses are findings, not hardening: code, packages, models or servers fetched and run without a pinned version or integrity check. So are credentials written in source.
 Report prompt injection when untrusted text, including retrieved documents, tool results, files and web content, reaches a system or developer message, or steers a model whose tools or output reach a privileged effect. Caller text in the user message of a model that only answers that caller is the intended use, not a finding.
 Prefer a few well-supported issues. Return zero findings when evidence is insufficient.
-The tracedPaths array, when present, lists paths the static scan traced from an entry point, tool, agent or model output to an effect. Its effects say where to look; they are not findings by themselves. Close every one in paths, by its id: finding, with the index in findings of the candidate that reports it; safe, citing in evidence the lines you received with the control, or the code that keeps untrusted input from the effect; or open, naming in the reason what you could not see. Keep paths empty when tracedPaths is absent.`;
+The tracedPaths array, when present, lists paths the static scan traced from an entry point, tool, agent or model output to an effect. Its effects say where to look; they are not findings by themselves. Close every one in paths, by its id: finding, with the index in findings of the candidate that reports it; safe, citing in evidence the lines you received with the control, or the code that keeps untrusted input from the effect; or open, naming in the reason what you could not see. Keep paths empty when tracedPaths is absent.
+The projectModel object, when present, is the project's threat model from earlier reviews (origin review) or written by the user (origin user): its architecture, assets and trust boundaries. Start from it. Keep its entries unless the source you received contradicts them, add what this source shows, and name a contradiction in limitations. It is context, not evidence.`;
 const DISCOVERY = `${COMMON}
 ${DISCOVERY_TASK}
 Schema: ${JSON.stringify(REVIEW_DISCOVERY_SCHEMA)}`;
@@ -114,7 +117,8 @@ Use only source you received, with its original line numbers. Redacted values ar
 The first message holds a repository map, static hints from the scan (entry points, tools, their effects and calls the scan's trace could not follow) and a first set of files. A file with ranges is an excerpt: only those lines were received. Omitted lines are unknown, not absent, and can hold guards or callers. Search and outline results help you navigate and cannot be cited; read the lines to cite them.
 Keep uncertainty explicit. When status is completed, set the top-level reason to null. It is reserved for refusals, not a review summary.
 If declining, submit status refused with a non-empty top-level reason and empty findings or decisions. Do not suggest bypasses.
-Copy paths and host-assigned ids exactly. Citation line and endLine are inclusive and must lie inside one range you received, in the first message or from read_file. Prefer focused ranges that support the claim.`;
+Copy paths and host-assigned ids exactly. Citation line and endLine are inclusive and must lie inside one range you received, in the first message or from read_file. Prefer focused ranges that support the claim.
+The frameworkGuides array, when present, holds the host's notes on the project's frameworks: where their controls attach and which calls are safe by default. They say where to look; they are not evidence and cannot be cited.`;
 const EXPLORE_DISCOVERY = `${EXPLORE_COMMON}
 ${DISCOVERY_TASK}
 Before you report a path, read the code it runs through that the first message does not hold: the functions a handler calls, its callers, middleware and helpers, and look there for the guard. Use targeted reads; the session has a limited number of model calls and returned bytes.
@@ -308,6 +312,13 @@ export async function reviewProject(
     /** The discovery model's input window in tokens, when its catalog reports one. */
     inputTokens?: number | null;
     environment?: { name: string; notes: string };
+    /** The project's threat model, which discovery starts from and extends. */
+    projectModel?: {
+      origin: "review" | "user";
+      architecture: string;
+      assets: string[];
+      trustBoundaries: string[];
+    };
     /**
      * What remains of the scan's spending limit for this batch. A request whose maximum
      * does not fit is not sent. A USD limit needs prices for every connection used.
@@ -582,11 +593,17 @@ export async function reviewProject(
           },
         }
       : {};
+    const guides = selectGuides(snapshot.inventory);
+    const guideHint = guides.length
+      ? { frameworkGuides: guides.map((guide) => ({ id: guide.id, guide: guide.text })) }
+      : {};
+    if (guides.length && review.generation) review.generation.guides = guideDigests(guides);
     const source = {
       files: context.files,
       omittedFiles: scope.omittedFiles,
       partial: scope.partial,
       ...environment,
+      ...guideHint,
     };
     // The traced paths this review closes: those starting in a file it received, or for an
     // exploring review any not received whole by an earlier review of the scan.
@@ -609,6 +626,17 @@ export async function reviewProject(
           })),
         }
       : {};
+    const model = options.projectModel;
+    const modelHint = model
+      ? {
+          projectModel: {
+            origin: model.origin,
+            architecture: redact(model.architecture, secrets),
+            assets: model.assets.map((item) => redact(item, secrets)),
+            trustBoundaries: model.trustBoundaries.map((item) => redact(item, secrets)),
+          },
+        }
+      : {};
     options.onPhase?.("discovering");
     phase = "discovery";
     let discovery: ReturnType<typeof parseReviewDiscovery>;
@@ -624,6 +652,7 @@ export async function reviewProject(
           ...earlierSessions(options.submitted, options.earlier),
           ...source,
           ...pathHint,
+          ...modelHint,
         },
         tools: new ExploreTools(snapshot, reader, secrets, log),
         log,
@@ -647,7 +676,7 @@ export async function reviewProject(
       discovery = outcome.value;
     } else
       discovery = parseReviewDiscovery(
-        await call(DISCOVERY, { ...source, ...pathHint }),
+        await call(DISCOVERY, { ...source, ...pathHint, ...modelHint }),
         scope.files,
         pathIds,
       );
@@ -695,7 +724,7 @@ export async function reviewProject(
             const outcome = await exploreSession({
               phase: "validation",
               instructions: EXPLORE_VALIDATION,
-              first: { files: cited, ...environment, candidates },
+              first: { files: cited, ...environment, ...guideHint, candidates },
               tools: new ExploreTools(snapshot, reader, secrets, log),
               log,
               accept: (args) =>

@@ -287,6 +287,7 @@ export function SecurityApp() {
                       key={location.pathname}
                       data={data}
                       onNewScan={openNewScan}
+                      onChanged={refresh}
                     />
                   }
                 />

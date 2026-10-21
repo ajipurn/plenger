@@ -23,6 +23,7 @@ import {
   type SecurityScan,
   type StartSecurityScan,
 } from "../security/model.ts";
+import { extendThreatModel, type ThreatModelContent } from "../security/threat-model.ts";
 import type { DashboardStore } from "../storage/store.ts";
 import { HttpError } from "./http.ts";
 import type { OperationSupervisor } from "./operations.ts";
@@ -153,6 +154,14 @@ export class SecurityCoordinator {
         ...(validator ? { validator: validator.provider } : {}),
         revision,
         environment: structuredClone(repository.environment),
+        ...(repository.threatModel
+          ? {
+              threatModel: {
+                version: repository.threatModel.version,
+                origin: repository.threatModel.origin,
+              },
+            }
+          : {}),
         findingCount: 0,
         modelCalls: 0,
         tokens: null,
@@ -191,6 +200,17 @@ export class SecurityCoordinator {
               job.error =
                 "No readable source, template or configuration files were found in this folder.";
             }
+            // Each review starts from the project model; one the user wrote stays as written,
+            // and one the reviews derived grows with every completed review.
+            const start = repository.threatModel;
+            let model: (ThreatModelContent & { origin: "review" | "user" }) | null = start
+              ? {
+                  origin: start.origin,
+                  architecture: start.architecture,
+                  assets: start.assets,
+                  trustBoundaries: start.trustBoundaries,
+                }
+              : null;
             // Earlier batches' files: whole ones are skipped, excerpts continue.
             const submitted: ReviewSourceFile[] = [];
             let stop: ScanCoverage["stop"] = null;
@@ -236,6 +256,7 @@ export class SecurityCoordinator {
                     }
                   : {}),
                 environment: repository.environment,
+                ...(model ? { projectModel: model } : {}),
                 onPhase: (phase) => {
                   job.phase = phase;
                   this.#store.security.saveScan(job);
@@ -278,6 +299,8 @@ export class SecurityCoordinator {
                 job.error = review.reason ?? review.summary;
                 break;
               }
+              if (model?.origin !== "user")
+                model = { origin: "review", ...extendThreatModel(model, review) };
               const readBefore = readLines(submitted);
               submitted.push(...review.scope.files);
               coverage.sentFiles = new Set(submitted.map((file) => file.path)).size;
@@ -301,6 +324,26 @@ export class SecurityCoordinator {
                   )
                 : null;
             if (job.status === "running") job.status = "completed";
+            // The project keeps the model this scan extended, unless the user wrote one,
+            // also while the scan ran.
+            const saved = this.#store.security.repository(repository.id);
+            if (
+              job.status === "completed" &&
+              model?.origin === "review" &&
+              saved &&
+              saved.threatModel?.origin !== "user"
+            ) {
+              saved.threatModel = {
+                version: (saved.threatModel?.version ?? 0) + 1,
+                updatedAt: new Date().toISOString(),
+                origin: "review",
+                scanId: job.id,
+                architecture: model.architecture,
+                assets: model.assets,
+                trustBoundaries: model.trustBoundaries,
+              };
+              this.#store.security.saveRepository(saved);
+            }
             const previous = this.#store.security.findings(repository.id);
             job.findings = scanFindings(job, result.scan, RULES, job.reviews, previous);
             job.findingCount = job.findings.length;

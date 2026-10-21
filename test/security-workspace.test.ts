@@ -196,6 +196,84 @@ async function finished(id: string, timeout = 1000): Promise<SecurityScan> {
   return result;
 }
 
+describe("project threat model", () => {
+  /** The discovery messages the model server received, in order. */
+  const discoveries = () =>
+    bodies
+      .map((body) =>
+        JSON.parse(
+          (body.messages as { content: { text: string }[] }[])[0]?.content[0]?.text ?? "{}",
+        ),
+      )
+      .filter((data) => data.files && !data.candidates);
+  const saved = async (id: string) =>
+    (await workspace()).repositories.find((item) => item.id === id)?.threatModel;
+
+  it("derives a model from a scan, sends it to later reviews and keeps one the user wrote", async () => {
+    const repo = await repository();
+    const expected = reviewDiscovery();
+    const first = await finished((await start(repo.id)).id);
+    expect(first.status).toBe("completed");
+    expect(first.threatModel).toBeUndefined();
+    expect(discoveries()[0]?.projectModel).toBeUndefined();
+    expect(await saved(repo.id)).toMatchObject({
+      version: 1,
+      origin: "review",
+      scanId: first.id,
+      architecture: expected.architecture,
+      assets: expected.assets,
+      trustBoundaries: expected.trustBoundaries,
+    });
+
+    bodies.length = 0;
+    const second = await finished((await start(repo.id)).id);
+    expect(second.threatModel).toEqual({ version: 1, origin: "review" });
+    expect(discoveries()[0]?.projectModel).toEqual({
+      origin: "review",
+      architecture: expected.architecture,
+      assets: expected.assets,
+      trustBoundaries: expected.trustBoundaries,
+    });
+    expect((await saved(repo.id))?.version).toBe(2);
+
+    const written = {
+      architecture: "An invoice API behind a gateway.",
+      assets: ["Invoices"],
+      trustBoundaries: ["Gateway to API"],
+    };
+    const update = await dashboard.request(pathFor(API.updateRepository, repo.id), {
+      threatModel: written,
+    });
+    expect(update.status, await update.clone().text()).toBe(200);
+    expect(((await update.json()) as LocalRepository).threatModel).toMatchObject({
+      ...written,
+      version: 3,
+      origin: "user",
+      scanId: null,
+    });
+    bodies.length = 0;
+    const third = await finished((await start(repo.id)).id);
+    expect(third.threatModel).toEqual({ version: 3, origin: "user" });
+    expect(discoveries()[0]?.projectModel).toEqual({ origin: "user", ...written });
+    // Reviews keep a model the user wrote.
+    expect(await saved(repo.id)).toMatchObject({ ...written, version: 3, origin: "user" });
+
+    for (const threatModel of [
+      { ...written, assets: Array.from({ length: 13 }, (_, index) => `Asset ${index}`) },
+      { ...written, assets: [""] },
+      { ...written, notes: "extra" },
+      "An invoice API.",
+    ])
+      expect(
+        (await dashboard.request(pathFor(API.updateRepository, repo.id), { threatModel })).status,
+      ).toBe(400);
+    const reset = await dashboard.request(pathFor(API.updateRepository, repo.id), {
+      threatModel: null,
+    });
+    expect(((await reset.json()) as LocalRepository).threatModel).toBeUndefined();
+  });
+});
+
 describe("local project security workspace", () => {
   it("uses a per-scan model and snapshots cache-aware USD prices without changing the provider default", async () => {
     const rates = { input: 2, output: 10, cacheWrite5m: 2.5, cacheWrite1h: 4, cacheRead: 0.1 };

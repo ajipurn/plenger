@@ -10,7 +10,9 @@ import {
   SCAN_DEPTHS,
   type ScanBudget,
   type SelectableScanDepth,
+  THREAT_MODEL_LIMITS,
 } from "../../security/model.ts";
+import { isRecord } from "../../shared/guards.ts";
 import { StoreValidationError } from "../../storage/store.ts";
 import { API, type RepositorySource, WORKSPACE_LIMITS } from "../contract.ts";
 import { expectKeys, HttpError, jsonRequest, requireInt, requireString } from "../http.ts";
@@ -99,7 +101,7 @@ export function securityWorkspaceRoutes({
         const body = await jsonRequest(request);
         expectKeys(
           body,
-          ["environment", "notes", "pauseMonitoring"],
+          ["environment", "notes", "pauseMonitoring", "threatModel"],
           "Project update contains unsupported fields.",
         );
         return supervisor.exclusive(async () => {
@@ -120,6 +122,15 @@ export function securityWorkspaceRoutes({
               "Keep environment context under 2000 characters.",
               { max: WORKSPACE_LIMITS.contextCharacters },
             );
+          if (body.threatModel === null) delete repository.threatModel;
+          else if (body.threatModel !== undefined)
+            repository.threatModel = {
+              ...userThreatModel(body.threatModel),
+              version: (repository.threatModel?.version ?? 0) + 1,
+              updatedAt: new Date().toISOString(),
+              origin: "user",
+              scanId: null,
+            };
           return { status: 200, body: store.security.saveRepository(repository) };
         });
       },
@@ -256,4 +267,34 @@ function scanBudget(value: unknown): ScanBudget {
     return { kind: "usd", usd };
   }
   throw new HttpError(400, "Set the limit as tokens or USD.");
+}
+
+/** A threat model from the project page, checked against the limits both sides share. */
+function userThreatModel(value: unknown) {
+  if (!isRecord(value)) throw new HttpError(400, "Send the threat model as an object.");
+  expectKeys(
+    value,
+    ["architecture", "assets", "trustBoundaries"],
+    "The threat model has unsupported fields.",
+  );
+  const L = THREAT_MODEL_LIMITS;
+  const list = (items: unknown, name: string) => {
+    if (!Array.isArray(items) || items.length > L.items)
+      throw new HttpError(400, `List at most ${L.items} ${name}.`);
+    return items.map((item) =>
+      requireString(item, `Keep each of the ${name} under ${L.itemCharacters} characters.`, {
+        min: 1,
+        max: L.itemCharacters,
+      }).trim(),
+    );
+  };
+  return {
+    architecture: requireString(
+      value.architecture,
+      `Keep the architecture under ${L.textCharacters} characters.`,
+      { max: L.textCharacters },
+    ).trim(),
+    assets: list(value.assets, "assets"),
+    trustBoundaries: list(value.trustBoundaries, "trust boundaries"),
+  };
 }

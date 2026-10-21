@@ -78,7 +78,12 @@ Adding a project saves its configuration without making a model request.
 
 Select a project name to open its detail page. **Findings** shows its saved
 findings and triage statuses. **Scans** lists that project's scan history.
-The side panel shows the local folder, review context and latest scan details.
+The side panel shows the local folder, review context, the project threat model
+and latest scan details. The threat model lists the architecture, assets and
+trust boundaries that scans derived or that you wrote. **Edit** saves your own
+version, which later reviews start from and keep. **Let scans derive it** hands
+it back to the reviews. See
+[ai-security-review.md](ai-security-review.md#project-threat-model).
 **View scan outputs** opens the latest scan's threat model and source coverage.
 **New Scan** selects the project automatically. Project links in scan and finding
 details return to the same project page.

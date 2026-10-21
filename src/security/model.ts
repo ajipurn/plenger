@@ -58,6 +58,27 @@ export interface SourceRevision {
   /** Unknown (null) for new scans: reading working-tree status can run project filters. */
   dirty: boolean | null;
 }
+/** Bounds of a project's threat model, which the host and the page both enforce. */
+export const THREAT_MODEL_LIMITS = {
+  textCharacters: 1200,
+  items: 12,
+  itemCharacters: 300,
+} as const;
+/**
+ * A project's threat model: what earlier reviews derived, or what the user edited. Every
+ * review of a scan starts from it, and each scan records the version it used.
+ */
+export interface ProjectThreatModel {
+  version: number;
+  updatedAt: string;
+  /** `review`: derived from a scan's reviews. `user`: edited, so reviews keep it as it is. */
+  origin: "review" | "user";
+  /** For `review`: the scan it came from. */
+  scanId: string | null;
+  architecture: string;
+  assets: string[];
+  trustBoundaries: string[];
+}
 export interface LocalRepository {
   id: string;
   name: string;
@@ -65,6 +86,8 @@ export interface LocalRepository {
   createdAt: string;
   revision: SourceRevision;
   environment: { name: string; notes: string };
+  /** Absent until a scan derives one or the user writes one. */
+  threatModel?: ProjectThreatModel;
   monitoring: {
     enabled: boolean;
     providerId: string | null;
@@ -127,6 +150,8 @@ export interface SecurityScanSummary {
   budget?: ScanBudget;
   /** Absent on older scans. */
   coverage?: ScanCoverage;
+  /** The project threat model the scan started from; absent when there was none. */
+  threatModel?: { version: number; origin: ProjectThreatModel["origin"] };
   error: string | null;
 }
 export interface SecurityScan extends SecurityScanSummary {

@@ -7,14 +7,17 @@ import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 import { costLabel } from "./ScanBilling.tsx";
 import { ScansTable } from "./ScansTable.tsx";
+import { ThreatModelPanel } from "./ThreatModelPanel.tsx";
 import { date, Empty, FindingsTable, Pagination, ScanDuration, ScanStatus } from "./ui.tsx";
 
 export function ProjectDetailPage({
   data,
   onNewScan,
+  onChanged,
 }: {
   data: SecurityWorkspace;
   onNewScan: (id: string) => void;
+  onChanged: () => Promise<void>;
 }) {
   const { id } = useParams();
   const searchId = useId();
@@ -244,6 +247,7 @@ export function ProjectDetailPage({
               </details>
             )}
           </section>
+          <ThreatModelPanel project={project} onChanged={onChanged} />
           <section>
             <h2>
               <Icon name="scan" /> Latest scan

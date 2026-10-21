@@ -188,6 +188,31 @@ closures are the model's account. Files without a parser have no traced paths.
 Outputs show each path with its closure, reason, cited lines and the candidate
 that reports it.
 
+### Framework guides
+
+Plenger carries short review notes for the frameworks the static inventory
+recognizes: FastAPI and Starlette, Flask, Django, aiohttp, Express, Fastify,
+Koa, Hono, NestJS, Next.js, LangChain and LangGraph, MCP, the OpenAI SDKs,
+CrewAI, smolagents, the Vercel AI SDK and Mastra, and other agent frameworks.
+Each says where the framework attaches its controls, which calls are safe by
+default and which mistakes are common. Both requests of a review carry the
+guides for the project's frameworks, at most 4 KiB, in a fixed order. They tell
+the model where to look and are never evidence. A review records each guide's
+id and the SHA-256 of its text. Frameworks in files without a parser get no
+guide, because the inventory does not see them.
+
+### Project threat model
+
+A project keeps a threat model: its architecture, assets and trust boundaries.
+The first completed review of a project's first scan derives it. Every later
+review, in the same scan and in later scans, starts from it, keeps its entries
+unless the source contradicts them, and adds what its own source shows. When a
+scan completes, the project saves the extended model as a new version. A model
+written on the project page is kept as written: reviews start from it and do
+not change it. **Let scans derive it** returns the choice to the reviews. Each
+scan records the version it started from. STRIDE stays per review, because it
+assesses the source that review read.
+
 When candidates exist, a second request reviews them against the same source.
 It checks callers, guards, sanitization, scope and counterevidence. Each receives
 one outcome:

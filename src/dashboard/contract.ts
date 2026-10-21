@@ -37,6 +37,7 @@ export { REA_LIMITS } from "../evidence/rea-model.ts";
 export type {
   FindingStatus,
   LocalRepository,
+  ProjectThreatModel,
   ScanBudget,
   ScanCoverage,
   ScanDepth,
@@ -52,6 +53,7 @@ export {
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
   SECURITY_POLL_MS,
+  THREAT_MODEL_LIMITS,
 } from "../security/model.ts";
 
 // --- Routes -----------------------------------------------------------------------
@@ -204,6 +206,8 @@ export interface UpdateRepositoryRequest {
   environment?: string;
   notes?: string;
   pauseMonitoring?: true;
+  /** A threat model the user wrote, which reviews then keep; null lets the next scan derive one. */
+  threatModel?: { architecture: string; assets: string[]; trustBoundaries: string[] } | null;
 }
 
 export interface ReaImportRequest {

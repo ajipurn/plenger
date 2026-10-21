@@ -836,6 +836,24 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-scan-context {
   @apply mt-4 text-[12px];
 }
+.security-threat-model {
+  @apply text-[12px];
+}
+.security-threat-model p {
+  @apply mt-2 leading-relaxed whitespace-pre-wrap wrap-anywhere;
+}
+.security-threat-model h3 {
+  @apply mt-3 font-medium;
+}
+.security-threat-model ul {
+  @apply mt-1 pl-4 list-disc leading-relaxed wrap-anywhere;
+}
+.security-threat-model textarea {
+  @apply w-full;
+}
+.security-threat-model-actions {
+  @apply flex flex-wrap gap-2 mt-3;
+}
 .security-scan-context summary,
 .security-error-details summary {
   @apply cursor-pointer font-medium;

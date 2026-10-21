@@ -49,6 +49,13 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   host checks every closure; a path without one that checks out is Not closed.
   Scan Outputs list the paths with their closures, and `pnpm evaluate` counts
   them.
+- M10c framework guides and project threat model. Both review requests carry
+  short review notes for the frameworks the static inventory found, at most
+  4 KiB, recorded by id and digest. A project keeps a threat model of its
+  architecture, assets and trust boundaries: the first review derives it, later
+  reviews in the scan and in later scans start from and extend it, and each scan
+  records the version it used. The project page shows it and lets you write
+  your own, which reviews keep.
 - Five more static rules:
   - PLG808: a tar archive extracted with no `filter` and no member selection,
     whoever passed it;

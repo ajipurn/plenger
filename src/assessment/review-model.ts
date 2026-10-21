@@ -27,6 +27,8 @@ export const SECURITY_REVIEW_LIMITS = {
   pathEffects: 6,
   /** Lines a safe closure cites. */
   closureEvidence: 2,
+  /** Framework guides one request may carry; the request overhead below holds them. */
+  guideBytes: 4 * 1024,
   snippetLines: 13,
   text: 1200,
   outputTokens: 8192,
@@ -38,8 +40,9 @@ export const SECURITY_REVIEW_LIMITS = {
   /** Largest request a review sends, so a scaled batch fits the provider transport. */
   requestBytes: 256 * 1024,
   /**
-   * Instructions, schema, environment notes and candidates a validation request adds,
-   * plus the 4,096-token margin providers add to every reservation.
+   * Instructions, schema, environment notes, framework guides, traced paths and the
+   * candidates a request adds, plus the 4,096-token margin providers add to every
+   * reservation.
    */
   requestOverheadBytes: 36 * 1024,
   maxContextBytes: 112 * 1024,
@@ -346,6 +349,8 @@ export interface ReviewGeneration {
   discovery: ReviewSampling;
   /** Present once candidates went to a second review. */
   validation?: ReviewSampling;
+  /** Framework guides the requests carried, by id and SHA-256 of their text. */
+  guides?: { id: string; digest: string }[];
 }
 
 /** A file the second review read besides the batch, and how it relates to a cited file. */
