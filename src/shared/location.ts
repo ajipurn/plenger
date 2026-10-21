@@ -12,3 +12,20 @@ export function sameStart(
 ): boolean {
   return a.line === b.line && a.column === b.column;
 }
+
+/** A position as one number that orders positions in a file: by line, then column. */
+export function positionOrder(line: number, column: number): number {
+  return line * 1e6 + column;
+}
+
+/** Whether a position lies inside a span, both ends included. */
+export function inSpan(
+  span: { line: number; column: number; endLine: number; endColumn: number },
+  at: { line: number; column: number },
+): boolean {
+  const position = positionOrder(at.line, at.column);
+  return (
+    position >= positionOrder(span.line, span.column) &&
+    position <= positionOrder(span.endLine, span.endColumn)
+  );
+}

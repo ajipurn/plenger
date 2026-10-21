@@ -43,8 +43,11 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   `@Controller` prefix).
 
 - `plenger-ignore PLGxxx reason` comments suppress findings of the named rules
-  on the comment's line or the line below. SARIF marks them `inSource`.
-  `--no-inline-suppressions` reports them.
+  on the comment's line, or on the line below when the comment stands alone.
+  SARIF marks them `inSource`. The terminal lists each finding a comment in the
+  scanned code suppresses, with its reason, and Markdown labels them apart from
+  suppression file entries. `--no-inline-suppressions` reports them. The
+  dashboard does not read the comments.
 
 - `scripts/advisories.ts` measures the static rules on reviewed GitHub
   advisories of AI and agent projects:
@@ -335,7 +338,8 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - A file name built so that it holds no path separator and is never `.` or `..`
   carries nothing to a file effect. Such names come from:
   - `secure_filename`, `sanitize-filename`, `get_valid_filename` and
-    python-slugify;
+    python-slugify, unless its `separator`, `replacements` or `regex_pattern` can
+    put a separator back;
   - a `basename`, `parse().name`, `slugify`, host or separator-removing
     `replace` combined with fixed text, or made from text with a fixed letter.
 
@@ -350,12 +354,15 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   whose block ends in `abort()` or `sys.exit()` protects the code after it.
 
 - A JavaScript or TSX file the grammar rejects is parsed again with the TSX
-  grammar and with bare `&` in JSX read as `+`, keeping the tree with the
-  fewest errors. All 28 files with syntax errors in the measured open-source
+  grammar and with bare `&` in JSX text, JSX attribute strings and the rejected
+  code read as `+`, keeping the tree with the fewest errors. String literals and
+  operators elsewhere keep their `&`. All 28 files with syntax errors in the measured open-source
   projects now parse.
 
 - Projects of 64 files or more are parsed on up to four worker threads, about
-  1.8 times faster on 1,000-file projects, with the same result.
+  1.8 times faster on 1,000-file projects, with the same result. When a worker
+  fails or exits early, every worker is stopped and the files left are parsed on
+  the main thread.
 
 - Static data flow reads project functions: the result of a call carries only
   the arguments its return values use, and the request globals the function

@@ -151,10 +151,18 @@ describe("CLI reports and CI", () => {
           "shell=True)  # plenger-ignore PLG104 wrong rule",
         ),
       );
+      // A comment at the end of the line above belongs to that line, not the next one.
+      await writeFile(
+        join(root, "third.py"),
+        unsafe.replace(
+          "    return subprocess.run(command, shell=True)",
+          '    print("run")  # plenger-ignore PLG101 meant for the print\n    return subprocess.run(command, shell=True)',
+        ),
+      );
       const result = await run("scan", root, "--json", "--fail-on", "critical");
       const report = JSON.parse(result.stdout);
       expect(result.code).toBe(3);
-      expect(report.review).toMatchObject({ active: 1, suppressed: 1 });
+      expect(report.review).toMatchObject({ active: 2, suppressed: 1 });
       expect(
         report.findings.find(
           (finding: { location: { path: string } }) => finding.location.path === "tool.py",
@@ -173,7 +181,16 @@ describe("CLI reports and CI", () => {
       const audit = JSON.parse(
         (await run("scan", root, "--json", "--no-inline-suppressions")).stdout,
       );
-      expect(audit.review).toMatchObject({ active: 2, suppressed: 0 });
+      expect(audit.review).toMatchObject({ active: 3, suppressed: 0 });
+      // The code under review chose to hide these, so the terminal names each one.
+      const terminal = (await run("scan", root)).stdout;
+      expect(terminal).toContain(
+        "Suppressed by plenger-ignore comments in the scanned code (--no-inline-suppressions reports them):",
+      );
+      expect(terminal).toContain("PLG101 critical tool.py:7: runs only in the build sandbox");
+      expect((await run("scan", root, "--format", "markdown")).stdout).toContain(
+        "Suppressed by a comment in the code: runs only in the build sandbox",
+      );
     });
   });
 

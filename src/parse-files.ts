@@ -79,7 +79,8 @@ export async function parseFiles(
       : Math.min(MAX_WORKERS, Math.max(1, availableParallelism() - 1)));
   const results: (ParseResult | undefined)[] = new Array(tasks.length);
   if (count > 0) await parseOnWorkers(tasks, maxFileBytes, count, results).catch(() => undefined);
-  // Whatever workers did not parse (none started, or one failed) is parsed here.
+  // Whatever workers did not parse (none started, or one failed and all were stopped)
+  // is parsed here.
   const missing = tasks.flatMap((_task, index) => (results[index] === undefined ? [index] : []));
   if (missing.length > 0) {
     const parser = await SourceParser.create();
@@ -93,37 +94,62 @@ export async function parseFiles(
   return results as ParseResult[];
 }
 
-async function parseOnWorkers(
+/** The worker script, run as TypeScript under `pnpm dev` and tests and as JavaScript once built. */
+const WORKER_URL = new URL(
+  `./parse-worker.${import.meta.url.endsWith(".ts") ? "ts" : "js"}`,
+  import.meta.url,
+);
+
+/**
+ * Parses tasks on `count` workers into `results`. When one fails, or exits before it has
+ * no task left, every worker is stopped before this rejects, so none writes to `results`
+ * afterwards and nothing is left running.
+ */
+export async function parseOnWorkers(
   tasks: readonly ParseTask[],
   maxFileBytes: number,
   count: number,
   results: (ParseResult | undefined)[],
+  url: URL = WORKER_URL,
 ): Promise<void> {
-  // The sources run as TypeScript under `pnpm dev` and tests, and as JavaScript once built.
-  const extension = import.meta.url.endsWith(".ts") ? "ts" : "js";
-  const url = new URL(`./parse-worker.${extension}`, import.meta.url);
   let next = 0;
+  let stopped = false;
+  const workers: Worker[] = [];
   const run = () =>
     new Promise<void>((resolve, reject) => {
       const worker = new Worker(url, { workerData: { maxFileBytes } });
+      workers.push(worker);
+      let done = false;
+      const finish = (error?: Error) => {
+        if (done) return;
+        done = true;
+        if (error === undefined) resolve();
+        else reject(error);
+      };
       const send = () => {
-        if (next >= tasks.length) {
+        if (stopped || next >= tasks.length) {
+          finish();
           void worker.terminate();
-          resolve();
           return;
         }
         const index = next++;
         worker.postMessage({ index, task: tasks[index] });
       };
       worker.on("message", (message: { index: number; result: ParseResult }) => {
+        if (stopped) return;
         results[message.index] = message.result;
         send();
       });
-      worker.on("error", reject);
-      worker.on("exit", (code) => {
-        if (code !== 0 && next < tasks.length) reject(new Error(`parse worker exited ${code}`));
-      });
+      worker.on("error", (error) => finish(error));
+      // An exit while a task is still out, whatever its code, leaves that task unparsed.
+      worker.on("exit", (code) => finish(new Error(`parse worker exited ${code}`)));
       send();
     });
-  await Promise.all(Array.from({ length: count }, run));
+  try {
+    await Promise.all(Array.from({ length: count }, run));
+  } catch (error) {
+    stopped = true;
+    await Promise.all(workers.map((worker) => worker.terminate()));
+    throw error;
+  }
 }

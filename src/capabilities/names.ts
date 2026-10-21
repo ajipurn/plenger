@@ -6,9 +6,17 @@
  */
 
 import type { CallFact, DefinitionFact, FileFacts, Value } from "../facts/model.ts";
-import { callsStartingAt, definitionOf, deref, literalString, select } from "../facts/query.ts";
+import {
+  argumentParameters,
+  callsStartingAt,
+  definitionOf,
+  deref,
+  literalString,
+  select,
+} from "../facts/query.ts";
 import type { ProjectIndex } from "../project/index.ts";
 import type { Project, ProjectFile } from "../project/project.ts";
+import { inSpan, positionOrder } from "../shared/location.ts";
 
 /**
  * How a value works as one path component, from worst to best. `plain`: it holds no path
@@ -150,10 +158,10 @@ export class PathValues {
       if (call.arguments.length !== 1) return "unknown";
       return lettered(first) ? "named" : "safe";
     }
-    // python-slugify keeps lowercase letters, digits and hyphens.
+    // python-slugify keeps lowercase letters, digits and hyphens, unless its options put
+    // other characters back.
     if (python && name === "slugify.slugify") {
-      if (call.arguments.some((arg) => arg.keyword === "regex_pattern")) return "unknown";
-      return lettered(first) ? "named" : "safe";
+      return slugifyKeepsName(call, facts) ? (lettered(first) ? "named" : "safe") : "unknown";
     }
     // The `slugify` package removes every character outside `\w`, spaces and `$*_+~.()'"!-:@`,
     // then puts its replacement (`-`, or the second argument) between words.
@@ -364,7 +372,7 @@ export class PathValues {
   }
 }
 
-/** What `call` passes for each parameter of `definition`, read by `read`; nothing for names a pattern unpacks. */
+/** What `call` passes for each parameter of `definition` (see `argumentParameters`), read by `read`. */
 function bindArguments<T>(
   call: CallFact,
   definition: DefinitionFact,
@@ -372,23 +380,9 @@ function bindArguments<T>(
   read: (value: Value) => T,
 ): Map<string, T> {
   const bound = new Map<string, T>();
-  if (definition.unpacks !== undefined) {
-    for (const [index, arg] of call.arguments.entries()) {
-      if (arg.spread) break;
-      const param = definition.unpacks[index];
-      if (typeof param === "string") bound.set(param, read(arg.value));
-    }
-    return bound;
-  }
-  const params =
-    python && definition.kind === "method" && /^(?:self|cls)$/.test(definition.params[0] ?? "")
-      ? definition.params.slice(1)
-      : definition.params;
-  let position = 0;
-  for (const arg of call.arguments) {
-    if (arg.spread) break;
-    const name = arg.keyword ?? params[position++];
-    if (name !== undefined) bound.set(name, read(arg.value));
+  for (const [index, name] of argumentParameters(call, definition, python).entries()) {
+    const arg = call.arguments[index];
+    if (name !== undefined && arg !== undefined) bound.set(name, read(arg.value));
   }
   return bound;
 }
@@ -404,7 +398,7 @@ function receiverOf(facts: FileFacts, call: CallFact): Value | undefined {
     if (holder !== undefined && holder.member === undefined)
       return { kind: "name", text: holder.target, ref: null, assignment: call.receiver };
   }
-  const end = (span: CallFact["span"]) => span.endLine * 1e6 + span.endColumn;
+  const end = (span: CallFact["span"]) => positionOrder(span.endLine, span.endColumn);
   let previous: number | undefined;
   for (const index of callsStartingAt(facts, call.span)) {
     const span = facts.calls[index]?.span;
@@ -456,13 +450,10 @@ function pathPieces(value: Value, python: boolean): (string | Value)[] | null {
  */
 function endsWithLetters(facts: FileFacts, call: CallFact, value: Value): boolean {
   if (value.kind !== "name") return false;
-  const at = call.span.line * 1e6 + call.span.column;
   return (facts.guards ?? []).some((guard) => {
     if (guard.test !== "ends" || guard.scope !== call.scope) return false;
     if (guard.subject.kind !== "name" || guard.subject.text !== value.text) return false;
-    const { region } = guard;
-    if (at < region.line * 1e6 + region.column || at > region.endLine * 1e6 + region.endColumn)
-      return false;
+    if (!inSpan(guard.region, call.span)) return false;
     const suffix = literalString(guard.allowed, facts);
     return suffix !== null && /[A-Za-z0-9]/.test(suffix) && !/[/\\]/.test(suffix);
   });
@@ -506,6 +497,36 @@ function lowest(levels: NameLevel[]): NameLevel {
 function keepsLetters(lettered: boolean, effect: Replacement): NameLevel {
   if (effect === "none") return "unknown";
   return lettered && effect === "separators-keeping-letters" ? "named" : "plain";
+}
+
+/**
+ * Whether a python-slugify call keeps its result one name: no `regex_pattern` that
+ * admits other characters, a `separator` without `/` or `\`, and `replacements` pairs
+ * that add neither. Its signature is `slugify(text, entities, decimal, hexadecimal,
+ * max_length, word_boundary, separator, save_order, stopwords, regex_pattern, lowercase,
+ * replacements, allow_unicode)`.
+ */
+function slugifyKeepsName(call: CallFact, facts: FileFacts): boolean {
+  if (call.arguments.some((arg) => arg.spread)) return false;
+  const positional = call.arguments.filter((arg) => arg.keyword === null);
+  const option = (keyword: string, index: number) =>
+    (call.arguments.find((arg) => arg.keyword === keyword) ?? positional[index])?.value;
+  if (option("regex_pattern", 9) !== undefined) return false;
+  const separator = option("separator", 6);
+  if (separator !== undefined) {
+    const text = literalString(separator, facts);
+    if (text === null || /[/\\]/.test(text)) return false;
+  }
+  const replacements = option("replacements", 11);
+  if (replacements === undefined) return true;
+  const list = deref(replacements, facts);
+  if (list.kind !== "list") return false;
+  return list.items.every((pair) => {
+    const items = deref(pair, facts);
+    const added = items.kind === "list" ? items.items[1] : undefined;
+    const text = added === undefined ? null : literalString(added, facts);
+    return text !== null && !/[/\\]/.test(text);
+  });
 }
 
 /**

@@ -1253,6 +1253,39 @@ def logged():
     ]);
   });
 
+  it("read python-slugify's separator and replacements", async () => {
+    const root = await project({
+      "app.py": `import os
+from flask import Flask, request
+from slugify import slugify
+
+app = Flask(__name__)
+NOTES = os.path.realpath("notes")
+
+
+@app.get("/plain")
+def plain():
+    return open(os.path.join(NOTES, slugify(request.args["title"], separator="_"))).read()
+
+
+@app.get("/nested")
+def nested():
+    return open(os.path.join(NOTES, slugify(request.args["title"], separator="/"))).read()
+
+
+@app.get("/replaced")
+def replaced():
+    name = slugify(request.args["title"], replacements=[["|", "/"]])
+    return open(os.path.join(NOTES, name)).read()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 GET /nested",
+      "PLG802 GET /replaced",
+    ]);
+  });
+
   it("tell input that names the program from input among its arguments", async () => {
     const root = await project({
       "tools.py": `import shutil

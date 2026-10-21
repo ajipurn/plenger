@@ -61,6 +61,20 @@ describe("SourceParser", () => {
     }
   });
 
+  it("reads a bare `&` in JSX as `+`, and keeps the ones in strings and code", async () => {
+    const source =
+      'const KEY = "p&ssw0rd";\nconst n = a & b;\nexport const C = () => <a href="?a=1&b=2">Reject & close</a>;\n';
+    const tree = await parser.parse("javascript", source);
+    try {
+      expect(tree.rootNode.hasError).toBe(false);
+      const strings = tree.rootNode.descendantsOfType("string").map((node) => node?.text);
+      expect(strings[0]).toBe('"p&ssw0rd"');
+      expect(tree.rootNode.descendantsOfType("binary_expression")[0]?.text).toBe("a & b");
+    } finally {
+      tree.delete();
+    }
+  });
+
   it("parses TSX with the TSX grammar, not the TypeScript one", async () => {
     const source = "const el = <div>{x}</div>;\n";
     const tsx = await parser.parse("tsx", source);

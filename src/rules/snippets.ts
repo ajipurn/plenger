@@ -11,13 +11,15 @@ const REASON_WIDTH = 1000;
  * style: the rule ids, then the reason.
  */
 const IGNORE =
-  /(?:#|\/\/|\/\*|<!--)\s*plenger-ignore\s+(PLG\d{3}(?:\s*,\s*PLG\d{3})*)\b[\s:-]*(.*?)\s*(?:\*\/|-->)?\s*$/;
+  /(?:#|\/\/|\/\*|<!--)\s*plenger-ignore\s+(PLG\d{3}(?:\s*,\s*PLG\d{3})*)\b[\s:-]*(.*?)\s*(?:\*\/\}?|-->)?\s*$/;
+/** A line that holds only a comment, a JSX `{/*` one too, so it can speak for the line below. */
+const COMMENT_LINE = /^\s*(?:#|\/\/|\/\*|<!--|\{\/\*)/;
 
 /**
  * Adds the source line of each finding and evidence location, trimmed, with anything
  * that looks like a secret replaced by `<redacted>`, and the `plenger-ignore` comment
- * for the finding's rule on its line or the line above. Files that cannot be read are
- * skipped.
+ * for the finding's rule on its line or alone on the line above. Files that cannot be
+ * read are skipped.
  */
 export async function attachSnippets(root: string, findings: Finding[]): Promise<void> {
   const lines = new Map<string, string[] | null>();
@@ -41,7 +43,10 @@ export async function attachSnippets(root: string, findings: Finding[]): Promise
     const snippet = await lineAt(finding.location.path, finding.location.line);
     if (snippet !== undefined) finding.snippet = snippet;
     for (const line of [finding.location.line, finding.location.line - 1]) {
-      const match = IGNORE.exec((await rawLine(finding.location.path, line)) ?? "");
+      const text = (await rawLine(finding.location.path, line)) ?? "";
+      // A comment at the end of the line above belongs to that line's code.
+      if (line !== finding.location.line && !COMMENT_LINE.test(text)) continue;
+      const match = IGNORE.exec(text);
       const rules = match?.[1]?.split(/\s*,\s*/) ?? [];
       if (match === null || !rules.includes(finding.rule)) continue;
       finding.inline = { line, reason: redact(match[2] ?? "").slice(0, REASON_WIDTH) };

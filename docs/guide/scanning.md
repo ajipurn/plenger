@@ -167,7 +167,8 @@ in the directory it is joined to, and carries nothing to a file effect. Such nam
 come from:
 
 - `secure_filename`, `sanitize-filename` and Django's `get_valid_filename`;
-- python-slugify;
+- python-slugify, unless its `separator`, `replacements` or `regex_pattern` can put a
+  separator back;
 - a name-only sanitizer (`basename`, `path.parse(p).name`, `PurePath(p).stem`, the
   `slugify` package, a URL's `hostname`, or a `replace` or `re.sub` that removes `/`
   and `\` everywhere, with no `count`, including chained Python `str.replace` calls)

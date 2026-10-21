@@ -1,4 +1,5 @@
 import type { Node } from "web-tree-sitter";
+import { inSpan } from "../shared/location.ts";
 import type { LanguageFamily } from "../source/languages.ts";
 import {
   ANONYMOUS,
@@ -255,7 +256,7 @@ export class Context {
     for (const { node, scope, limits, falsy } of this.#returns) {
       if (falsy) continue;
       const at = { line: node.startPosition.row + 1, column: node.startPosition.column + 1 };
-      const around = guards.filter((guard) => guard.scope === scope && contains(guard.region, at));
+      const around = guards.filter((guard) => guard.scope === scope && inSpan(guard.region, at));
       const holding = [...limits.map((limit) => ({ ...limit, scope })), ...around];
       const id = scope.definition as string;
       byFunction.set(id, [...(byFunction.get(id) ?? []), holding]);
@@ -427,15 +428,6 @@ export class Context {
     if (this.defaultExport !== undefined) facts.defaultExport = this.defaultExport;
     return facts;
   }
-}
-
-/** Whether a position lies inside a span. */
-function contains(region: Span, at: { line: number; column: number }): boolean {
-  const position = at.line * 1e6 + at.column;
-  return (
-    position >= region.line * 1e6 + region.column &&
-    position <= region.endLine * 1e6 + region.endColumn
-  );
 }
 
 function joinPath(path: string, segment: string): string {

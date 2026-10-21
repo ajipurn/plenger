@@ -354,6 +354,35 @@ export function definitionOf(facts: FileFacts, id: string | null): DefinitionFac
   return index.get(id);
 }
 
+/**
+ * The parameter of `definition` each argument of `call` fills: by keyword or position,
+ * after a Python method's `self` or `cls`. Undefined where that cannot be told: a
+ * spread and the positions after it, a keyword the function does not name, or an
+ * argument a JS pattern unpacks (see `DefinitionFact.unpacks`).
+ */
+export function argumentParameters(
+  call: CallFact,
+  definition: DefinitionFact,
+  python: boolean,
+): (string | undefined)[] {
+  const layout = definition.unpacks;
+  const params =
+    python && definition.kind === "method" && /^(?:self|cls)$/.test(definition.params[0] ?? "")
+      ? definition.params.slice(1)
+      : definition.params;
+  const named = new Set(params);
+  let position = 0;
+  let spread = false;
+  return call.arguments.map((arg) => {
+    if (arg.spread) spread = true;
+    if (arg.keyword !== null) return named.has(arg.keyword) ? arg.keyword : undefined;
+    const index = position++;
+    if (spread) return undefined;
+    const param = layout === undefined ? params[index] : layout[index];
+    return typeof param === "string" ? param : undefined;
+  });
+}
+
 /** Parameters of a function that callers fill in: all but a method's `self` or `cls`. */
 function paramsOf(facts: FileFacts, scope: string | null): Set<string> {
   const params = definitionOf(facts, scope)?.params ?? [];

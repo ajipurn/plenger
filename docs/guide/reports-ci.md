@@ -133,7 +133,8 @@ rule ids and unique fingerprints, are enforced by the CLI beyond the JSON schema
 ### Comments in the source
 
 A `plenger-ignore` comment suppresses the findings of the rules it names on its
-own line or the line below, with the rest of the comment as the reason:
+own line, or on the line below when the comment stands alone on its line, with the
+rest of the comment as the reason:
 
 ```python
 # plenger-ignore PLG801 reviewed: the host comes from the admin form behind SSO
@@ -148,6 +149,12 @@ A comment names one or more rule ids; one without a rule id suppresses nothing. 
 suppression file entry for the same finding wins over a comment. SARIF marks a
 comment's suppression `inSource`, a file's `external`. `--no-inline-suppressions`
 reports the findings comments suppress, for an audit of every comment.
+
+The comments come from the code under review, so a repository can use them to hide
+its own findings. The terminal therefore lists every finding a comment suppresses,
+with its rule, severity, location and reason, and Markdown marks them "Suppressed
+by a comment in the code". The dashboard does not read the comments: it shows every
+static finding. Scan a repository you do not maintain with `--no-inline-suppressions`.
 
 ## CI gate and exit codes
 

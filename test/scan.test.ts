@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
+import { type ParseResult, parseOnWorkers } from "../src/parse-files.ts";
 import { scan } from "../src/scan.ts";
 import { looksMinified } from "../src/source/read.ts";
 import { fixturePath } from "./support/fixtures.ts";
@@ -65,5 +67,26 @@ describe("parsing on worker threads", () => {
     const threaded = await scan(root, { workers: 2, facts: true });
     const strip = (result: Awaited<ReturnType<typeof scan>>) => ({ ...result, durationMs: 0 });
     expect(strip(threaded)).toEqual(strip(inline));
+  });
+
+  it("stops every worker and rejects when one exits with a task still out", async () => {
+    const dir = await temporaryDir();
+    const script = join(dir, "exits.mjs");
+    await writeFile(
+      script,
+      'import { parentPort } from "node:worker_threads";\nparentPort.on("message", () => process.exit(0));\n',
+    );
+    const tasks = ["a.py", "b.py", "c.py"].map((path) => ({
+      path,
+      absolutePath: join(dir, path),
+      grammar: "python" as const,
+      bytes: 0,
+    }));
+    const results: (ParseResult | undefined)[] = new Array(tasks.length);
+    // An exit with code 0 and no error event used to leave the scan waiting forever.
+    await expect(parseOnWorkers(tasks, 1024, 2, results, pathToFileURL(script))).rejects.toThrow(
+      "parse worker exited 0",
+    );
+    expect(results.every((result) => result === undefined)).toBe(true);
   });
 });

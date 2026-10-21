@@ -29,16 +29,33 @@ function loadLanguage(grammar: Grammar): Promise<Language> {
  * position: the TSX grammar, which accepts keywords as JSX names (`<Skeleton.default>`,
  * `<feBlend in="...">`) and `import ... assert { type: "json" }`, and both grammars with
  * each bare `&` in JSX text or attributes (`Reject & close`, `?a=1&b=2`) read as `+`.
- * Neither grammar accepts a bare `&`; React does.
+ * Neither grammar accepts a bare `&`; React does. `rejected` is the first tree.
  */
-function jsxRepairs(grammar: Grammar, text: string): [Grammar, string][] {
-  const ampersands = text.replace(/(?<![&=|])&(?![&=]|#?\w+;)/g, "+");
+function jsxRepairs(grammar: Grammar, text: string, rejected: Tree): [Grammar, string][] {
+  const ampersands = ampersandsInJsx(text, rejected);
   const repairs: [Grammar, string][] = grammar === "javascript" ? [["tsx", text]] : [];
   if (ampersands !== text) {
     if (grammar === "javascript") repairs.push(["javascript", ampersands]);
     repairs.push(["tsx", ampersands]);
   }
   return repairs;
+}
+
+/**
+ * `text` with each bare `&` read as `+` where JSX may hold one: in JSX text, in a JSX
+ * attribute's string, and in code the grammar rejected. String literals, comments and
+ * operators elsewhere keep theirs, so the facts read from them match the file.
+ */
+function ampersandsInJsx(text: string, rejected: Tree): string {
+  const ranges = rejected.rootNode
+    .descendantsOfType(["ERROR", "jsx_text", "string"])
+    .filter(
+      (node) => node !== null && (node.type !== "string" || node.parent?.type === "jsx_attribute"),
+    )
+    .map((node) => [node?.startIndex ?? 0, node?.endIndex ?? 0] as const);
+  return text.replace(/(?<![&=|])&(?![&=]|#?\w+;)/g, (match, offset: number) =>
+    ranges.some(([from, to]) => offset >= from && offset < to) ? "+" : match,
+  );
 }
 
 function errorCount(tree: Tree): number {
@@ -72,7 +89,7 @@ export class SourceParser {
     let best = await this.#parse(grammar, text);
     if (!best.rootNode.hasError || (grammar !== "javascript" && grammar !== "tsx")) return best;
     let errors = errorCount(best);
-    for (const [repair, source] of jsxRepairs(grammar, text)) {
+    for (const [repair, source] of jsxRepairs(grammar, text, best)) {
       const tree = await this.#parse(repair, source);
       const count = errorCount(tree);
       if (count < errors) {

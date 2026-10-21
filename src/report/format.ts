@@ -52,7 +52,35 @@ export function formatReport(
     const { active, suppressed, unchanged } = report.review;
     text += `\n  Review: ${active} active · ${suppressed} suppressed · ${unchanged} in baseline\n`;
   }
+  text += inSourceLines(report);
   return text;
+}
+
+/** Findings listed one per line before the rest are counted. */
+const IN_SOURCE_LIMIT = 10;
+
+/**
+ * The findings that `plenger-ignore` comments in the scanned code suppress, one per
+ * line with the comment's reason. The code under review chose to hide them, so the
+ * terminal names each one rather than only counting them.
+ */
+function inSourceLines(report: Report): string {
+  const hidden = report.findings.filter((finding) => finding.suppression?.inSource);
+  if (hidden.length === 0) return "";
+  const lines = hidden
+    .slice(0, IN_SOURCE_LIMIT)
+    .map(
+      (finding) =>
+        `    ${finding.rule} ${finding.severity} ${finding.location.path}:${finding.location.line}: ${finding.suppression?.reason ?? ""}`,
+    );
+  if (hidden.length > IN_SOURCE_LIMIT)
+    lines.push(`    … ${hidden.length - IN_SOURCE_LIMIT} more in JSON, SARIF or Markdown`);
+  return [
+    "",
+    `  Suppressed by plenger-ignore comments in the scanned code (--no-inline-suppressions reports them):`,
+    ...lines,
+    "",
+  ].join("\n");
 }
 
 const LEVELS: Record<Severity, string> = {
@@ -350,7 +378,10 @@ export function toMarkdown(
       "",
     );
     if (finding.suppression)
-      lines.push(`Suppressed: ${markdownText(finding.suppression.reason)}`, "");
+      lines.push(
+        `${finding.suppression.inSource ? "Suppressed by a comment in the code" : "Suppressed"}: ${markdownText(finding.suppression.reason)}`,
+        "",
+      );
     if (finding.snippet) lines.push(codeBlock(finding.snippet), "");
     for (const evidence of finding.evidence) {
       lines.push(
