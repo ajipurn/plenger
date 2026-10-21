@@ -10,7 +10,6 @@ vi.mock("../src/redteam/worker.ts", () => ({
   EXPIRES_LABEL: "org.plenger.expires",
   removeExpiredWorkers: vi.fn(async () => 0),
 }));
-vi.mock("../src/redteam/services.ts", () => ({ removeExpiredNetworks: vi.fn(async () => 0) }));
 
 import {
   BUILDKIT_IMAGE,
@@ -18,7 +17,6 @@ import {
   RUNTIME_BUILD_TIMEOUT_MS,
 } from "../src/redteam/constants.ts";
 import {
-  prepareFastapiRuntime,
   prepareLlmfyRuntime,
   prepareRunRuntime,
   RuntimeBuildError,
@@ -165,14 +163,6 @@ it("does not start workers when its build cache could not be removed", async () 
   );
   expect(tags.size).toBe(0);
   for (const context of contexts) await expect(access(context)).rejects.toThrow();
-});
-
-it("owns the FastAPI image until preparation releases it", async () => {
-  const runtime = await prepareFastapiRuntime("llmfy==0.6.0\n", new AbortController().signal);
-  expect(runtime).toMatchObject({ image: `docker:${image}`, platform: "native", engine: "docker" });
-  expect(tags.size).toBe(1);
-  await runtime.dispose();
-  expect(tags.size).toBe(0);
 });
 
 it("keeps qualification fixture images reusable", async () => {

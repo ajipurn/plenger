@@ -14,18 +14,13 @@ export function parseDashboardArgs(argv: string[]): {
   help: boolean;
   version: boolean;
 } {
-  const { values } = parseCommandArgs(
-    "plenger",
-    argv,
-    {
-      ...COMMON_OPTIONS,
-      version: { type: "boolean", short: "v" },
-      port: { type: "string" },
-      workspace: { type: "string" },
-      "data-dir": { type: "string" },
-    } as const,
-    0,
-  );
+  const { values } = parseCommandArgs("plenger", argv, {
+    ...COMMON_OPTIONS,
+    version: { type: "boolean", short: "v" },
+    port: { type: "string" },
+    workspace: { type: "string" },
+    "data-dir": { type: "string" },
+  } as const);
   if (values.workspace === "") throw new UsageError("--workspace needs a nonempty folder");
   if (values["data-dir"] === "") throw new UsageError("--data-dir needs a nonempty folder");
   return {

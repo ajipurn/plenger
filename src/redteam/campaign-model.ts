@@ -148,8 +148,3 @@ const CASES: Record<CaseId, SecurityCase> = {
 export function managedCases(profile: ProfileId): SecurityCase[] {
   return PROFILE_CASES[profile].map((id) => structuredClone(CASES[id]));
 }
-
-/** The title of a built-in case, for trial listings. */
-export function caseTitle(id: CaseId): string {
-  return CASES[id].title;
-}

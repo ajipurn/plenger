@@ -135,12 +135,6 @@ export interface ProjectRequest {
 export interface PlanRequest extends ProjectRequest {
   target?: string;
 }
-export interface IdRequest {
-  id: string;
-}
-export interface ThemeRequest {
-  theme: DashboardTheme;
-}
 export interface ThemeResult {
   theme: DashboardTheme;
 }
@@ -178,11 +172,6 @@ export interface FixPromptRequest {
   providerId: string;
   reaEvidenceId?: string;
   reviewId?: string;
-}
-
-export interface SecurityReviewRequest {
-  scanId: string;
-  providerId: string;
 }
 
 export const WORKSPACE_LIMITS = {

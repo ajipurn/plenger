@@ -76,20 +76,8 @@ export interface CollectOptions {
   maxFiles?: number;
   /** Leave out what the project's `.gitignore` files ignore (default true). */
   gitignore?: boolean;
-  /**
-   * Lowercase extensions (`.md`) of non-source files to list in `resources`, under the
-   * same ignore, symlink and size rules. Nothing is listed when absent.
-   */
-  resources?: readonly string[];
   /** Also list text files without a parser in `texts`, under the same rules. */
   texts?: boolean;
-}
-
-/** A non-source file a runtime profile may capture beside the code (prompts, templates). */
-export interface ResourceFile {
-  path: string;
-  absolutePath: string;
-  bytes: number;
 }
 
 /** A text file in another language, a template or configuration, for the AI review. */
@@ -118,8 +106,6 @@ interface CollectResult {
   /** The scan root with symlinks resolved. */
   root: string;
   files: SourceFile[];
-  /** Files matching `options.resources`, sorted by path; empty unless asked for. */
-  resources: ResourceFile[];
   /** Text files without a parser, sorted by path; empty unless `options.texts`. */
   texts: TextFile[];
   /** Compiled or packaged files outside excluded directories, sorted by path. */
@@ -151,14 +137,12 @@ export async function collectSourceFiles(
   const result: CollectResult = {
     root: absoluteRoot,
     files: [],
-    resources: [],
     texts: [],
     binaries: [],
     skipped: [],
     excludedDirs: [],
     truncated: false,
   };
-  const resourceExtensions = new Set(options.resources ?? []);
   const pending: { dir: string; rules: GitignoreRules[] }[] = [{ dir: "", rules: [] }];
 
   walk: while (pending.length > 0) {
@@ -213,9 +197,8 @@ export async function collectSourceFiles(
           if (bytes > maxFileBytes) result.skipped.push({ path, reason: "too_large" });
           else result.files.push({ path, absolutePath, grammar: classification.grammar, bytes });
         } else {
-          const resource = resourceExtensions.has(extensionOf(entry.name));
           const kind = options.texts ? textKindOf(entry.name) : null;
-          const binary = resource || kind !== null ? null : binaryKindOf(entry.name);
+          const binary = kind !== null ? null : binaryKindOf(entry.name);
           if (binary !== null) {
             try {
               const absolutePath = join(absoluteRoot, path);
@@ -226,8 +209,8 @@ export async function collectSourceFiles(
             }
             continue;
           }
-          if (!resource && kind === null) continue;
-          if (result.files.length + result.resources.length + result.texts.length >= maxFiles) {
+          if (kind === null) continue;
+          if (result.files.length + result.texts.length >= maxFiles) {
             result.truncated = true;
             break walk;
           }
@@ -240,15 +223,13 @@ export async function collectSourceFiles(
             continue;
           }
           if (bytes > maxFileBytes) result.skipped.push({ path, reason: "too_large" });
-          else if (resource) result.resources.push({ path, absolutePath, bytes });
-          else if (kind !== null) result.texts.push({ path, absolutePath, kind, bytes });
+          else result.texts.push({ path, absolutePath, kind, bytes });
         }
       }
     }
   }
 
   result.files.sort((a, b) => compareStrings(a.path, b.path));
-  result.resources.sort((a, b) => compareStrings(a.path, b.path));
   result.texts.sort((a, b) => compareStrings(a.path, b.path));
   result.binaries.sort((a, b) => compareStrings(a.path, b.path));
   result.skipped.sort((a, b) => compareStrings(a.path, b.path));
@@ -286,12 +267,6 @@ function isGitignored(rules: GitignoreRules[], path: string, isDirectory: boolea
   return false;
 }
 
-/** `.md` for `notes.md`; the empty string for a name without an extension. */
-function extensionOf(name: string): string {
-  const dot = name.lastIndexOf(".");
-  return dot > 0 ? name.slice(dot).toLowerCase() : "";
-}
-
 function collectSingleFile(
   absolutePath: string,
   bytes: number,
@@ -301,7 +276,6 @@ function collectSingleFile(
   const result: CollectResult = {
     root: dirname(absolutePath),
     files: [],
-    resources: [],
     texts: [],
     binaries: [],
     skipped: [],

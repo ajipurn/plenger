@@ -175,18 +175,16 @@ install scripts never run.
 ## Container runtimes
 
 The red-team profiles run project code in containers built from
-`runtimes/llmfy/`, `runtimes/vercel/` and `runtimes/fastapi/`. The launcher
+`runtimes/llmfy/` and `runtimes/vercel/`. The launcher
 (`src/redteam/runtime.ts`) uses Docker when `docker info` succeeds and falls
 back to Podman. Both need a running Linux backend. Regular `pnpm check` never
-touches them. The FastAPI preparation engine builds a project image from its recipe
-and the project's requirements.txt. See [docs/STATUS.md](docs/STATUS.md) for its
-qualification.
+touches them.
 
-Managed runs and FastAPI preparation remove their runtime images on completion,
+Managed runs remove their runtime images on completion,
 failure or cancellation. Campaign repetitions share one image and remove it at
 the end. Docker needs Buildx for a dedicated builder whose cache is removed after
-each build. Podman disables intermediate image caching. Shared base and service
-images stay reusable, as do images built by the developer qualification scripts.
+each build. Podman disables intermediate image caching. Shared base images stay
+reusable, as do images built by the developer qualification scripts.
 The next run builds a new runtime image.
 
 ```sh

@@ -27,8 +27,6 @@ function fileCanaryBlocker(plan: ProjectPlan): string | null {
 
 /** Why a plan cannot run in its profile's managed runtime, or null when it can. */
 export function runBlocker(plan: ProjectPlan): string | null {
-  if (plan.fastapiProfile)
-    return "This project uses the FastAPI project profile, which is in preparation: the preparation engine builds its dependencies and imports the application. Security tests for it are not available yet.";
   if (!plan.nextProfile) return fileCanaryBlocker(plan);
   if (!plan.selectedTarget || plan.preparation.status !== "ready")
     return "Review a supported Next.js booking route before running.";

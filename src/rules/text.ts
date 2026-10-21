@@ -34,11 +34,7 @@ export function clientLabel(target: string): string {
   return previous !== undefined && /^[A-Z]/.test(previous) ? `${previous}.${last}` : last;
 }
 
-/**
- * What capability kinds let an agent do, as verb phrases for finding titles. The
- * terminal summary has its own `CAPABILITY_LABEL` (report/summary.ts) with different
- * wording for `network` and `database`; the two are not interchangeable.
- */
+/** What capability kinds let an agent do, as verb phrases for finding titles. */
 export const ACTION_PHRASE: Record<CapabilityKind, string> = {
   process: "run commands",
   code: "execute code",

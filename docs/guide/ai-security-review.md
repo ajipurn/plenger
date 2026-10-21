@@ -2,8 +2,8 @@
 
 The dashboard can discover security findings from source code through a saved
 model provider, including Anthropic Claude. It also produces a STRIDE threat
-model. This review is separate from the offline rule scanner and from the
-retained facts-only assessment engine. See [../STATUS.md](../STATUS.md) for qualification.
+model. This review is separate from the offline rule scanner. See
+[../STATUS.md](../STATUS.md) for qualification.
 
 ## Run a review
 
@@ -15,8 +15,7 @@ retained facts-only assessment engine. See [../STATUS.md](../STATUS.md) for qual
 4. Press **Start Scan**. The job first captures an offline scan, then sends
    redacted source and context to that provider and consumes model usage.
 
-The static engine remains offline. The evidence-assessment engine has its own
-[guide](assessment.md).
+The static engine remains offline.
 
 The host rereads files from the static scan's allowlist. It reapplies current
 exclusions and `.gitignore` rules. The allowlist holds the parsed Python,

@@ -5,24 +5,13 @@ import { dirname, join } from "node:path";
 import { Ajv } from "ajv";
 import type { FormatsPlugin } from "ajv-formats";
 import { beforeAll, describe, expect, it } from "vitest";
-import {
-  artifactUri,
-  formatReport,
-  SourceRootError,
-  toMarkdown,
-  toSarif,
-} from "../src/report/format.ts";
+import { artifactUri, SourceRootError, toMarkdown, toSarif } from "../src/report/format.ts";
 import { createReport, failsGate, type Report, withoutSuppressed } from "../src/report/model.ts";
-import {
-  createBaseline,
-  matchesSuppression,
-  readBaseline,
-  readSuppressions,
-} from "../src/report/policy.ts";
+import { matchesSuppression, readBaseline, readSuppressions } from "../src/report/policy.ts";
 import { REPORT_SCHEMA, REPORT_SCHEMAS } from "../src/report/schema.ts";
-import { formatSummary } from "../src/report/summary.ts";
 import { SEVERITIES } from "../src/rules/model.ts";
 import { scan } from "../src/scan.ts";
+import { baselineOf } from "./support/baseline.ts";
 import { fixturePath } from "./support/fixtures.ts";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
@@ -49,13 +38,10 @@ beforeAll(async () => {
 
 describe("report contracts", () => {
   it("lists handlers whose trace stopped short in every coverage section", () => {
-    const line =
-      "tool calculate (js/tools.ts:30): 1 call through a callback, subscript or call result";
     expect(report.inventory.tools.find((tool) => tool.name === "calculate")?.trace).toMatchObject({
       depthLimited: 0,
       dynamic: 1,
     });
-    expect(formatSummary(report, { color: false })).toContain(line);
     expect(toMarkdown(report)).toContain(
       "- Trace incomplete: tool calculate (js/tools\\.ts:30): 1 call through a callback, subscript or call result",
     );
@@ -213,8 +199,7 @@ describe("baseline, suppression and finding gate", () => {
     const value = createReport(report, {
       suppressions: [{ fingerprint: first.fingerprint, reason: `Reviewed ${secret}` }],
     });
-    for (const format of ["json", "sarif", "markdown"] as const) {
-      const text = formatReport(value, format, { color: false });
+    for (const text of [JSON.stringify(value), JSON.stringify(toSarif(value)), toMarkdown(value)]) {
       expect(text).not.toContain(secret);
       expect(text).toContain("redacted");
     }
@@ -223,7 +208,7 @@ describe("baseline, suppression and finding gate", () => {
     const first = report.findings[0];
     if (!first) throw new Error("fixture needs findings");
     const value = createReport(report, {
-      baseline: createBaseline(report.findings),
+      baseline: baselineOf(report.findings),
       suppressions: [{ fingerprint: first.fingerprint, reason: "Reviewed; fixed at the gateway" }],
     });
     expect(value.findings).toHaveLength(report.findings.length);
@@ -304,13 +289,11 @@ describe("baseline, suppression and finding gate", () => {
     ).toBe(true);
   });
 
-  it("explains a fully suppressed terminal report and retains reasons in Markdown", () => {
+  it("retains suppression reasons in Markdown when every finding is suppressed", () => {
     const value = createReport(report, {
       suppressions: report.rules.map((rule) => ({ rule: rule.id, reason: "Reviewed" })),
     });
-    const text = formatReport(value, "terminal", { color: false });
-    expect(text).toContain("All detected findings are suppressed");
-    expect(text).not.toContain("No risks detected");
+    expect(value.review.active).toBe(0);
     expect(toMarkdown(value)).toContain("Suppressed: Reviewed");
   });
 
@@ -318,7 +301,7 @@ describe("baseline, suppression and finding gate", () => {
     const dir = await mkdtemp(join(tmpdir(), "plenger-policies-"));
     const path = join(dir, "policy.json");
     try {
-      const baseline = createBaseline(report.findings);
+      const baseline = baselineOf(report.findings);
       expect(ajv.compile(REPORT_SCHEMAS["baseline-v1.schema.json"])(baseline)).toBe(true);
       await writeFile(path, JSON.stringify(baseline));
       expect(await readBaseline(path)).toEqual(baseline);

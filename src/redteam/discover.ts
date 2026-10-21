@@ -9,13 +9,10 @@ import { sha256Hex } from "../shared/hash.ts";
 import { VERSION } from "../shared/runtime.ts";
 import type { CollectOptions } from "../source/files.ts";
 
-export { formatDiscovery } from "./format.ts";
-
 export interface DiscoveryTarget {
   id: string;
-  framework: "llmfy" | "vercel-ai" | "fastapi";
-  /** `app`: an ASGI application object, imported whole by the FastAPI profile. */
-  kind: "function" | "factory" | "unresolved" | "route" | "app";
+  framework: "llmfy" | "vercel-ai";
+  kind: "function" | "factory" | "unresolved" | "route";
   location: Location;
   symbol: string | null;
   async: boolean | null;
@@ -127,49 +124,6 @@ export interface StaticCoverage {
   /** Discovered scope, not a promise that a runtime adapter supports each surface. */
   surfaces?: DiscoveredSurface[];
   incomplete?: boolean;
-  /** ASGI application objects assigned at module level (`app = FastAPI()`). */
-  apps?: AsgiApp[];
-}
-
-export interface AsgiApp {
-  framework: "fastapi";
-  /** Dotted import path of the defining module, relative to the project root. */
-  module: string;
-  attribute: string;
-  location: Location;
-}
-
-/** `app/main.py` becomes `app.main`; a path that is not an importable module gives null. */
-export function moduleName(path: string): string | null {
-  if (!path.endsWith(".py")) return null;
-  const parts = path.slice(0, -3).split("/");
-  if (parts.at(-1) === "__init__") parts.pop();
-  if (parts.length === 0 || !parts.every((part) => /^[A-Za-z_]\w*$/.test(part))) return null;
-  return parts.join(".");
-}
-
-function asgiApps(result: ScanResult): AsgiApp[] {
-  const apps: AsgiApp[] = [];
-  for (const file of result.files) {
-    if (file.language !== "python" || file.facts === undefined) continue;
-    const module = moduleName(file.path);
-    if (module === null) continue;
-    for (const assignment of file.facts.assignments) {
-      if (assignment.scope !== null || assignment.value.kind !== "call") continue;
-      const call = file.facts.calls[assignment.value.call];
-      if (call?.ref?.name !== "fastapi.FastAPI" || !/^[A-Za-z_]\w*$/.test(assignment.target))
-        continue;
-      apps.push({
-        framework: "fastapi",
-        module,
-        attribute: assignment.target,
-        location: { path: file.path, ...assignment.span },
-      });
-    }
-  }
-  return apps.sort(
-    (a, b) => compare(a.location.path, b.location.path) || a.location.line - b.location.line,
-  );
 }
 
 export interface DiscoveredSurface {
@@ -416,7 +370,6 @@ export async function discoverProject(
       agentDeclarations: result.inventory.agents.length,
       toolUsingCalls: result.inventory.llmCalls.filter((call) => call.tools.length > 0).length,
       surfaces: inventorySurfaces(result),
-      apps: asgiApps(result),
       incomplete:
         result.truncated ||
         result.skipped.length > 0 ||

@@ -1,23 +1,5 @@
 import type { Rule } from "../rules/model.ts";
 
-/** The rule list for the terminal: id, highest severity, name and what each maps to. */
-export function formatRules(rules: Rule[]): string {
-  const lines: string[] = [];
-  for (const rule of rules) {
-    const cwe = rule.cwe.map((id) => `CWE-${id}`);
-    lines.push(
-      `${rule.id}  ${rule.severity.padEnd(8)}  ${rule.name}`,
-      `         ${rule.title}`,
-      `         ${[...rule.owasp, ...cwe].join(", ")}`,
-      "",
-    );
-  }
-  lines.push(
-    "OWASP: LLMxx:2025 is the Top 10 for LLM Applications 2025; ASIxx the Top 10 for Agentic Applications 2026.",
-  );
-  return `${lines.join("\n")}\n`;
-}
-
 const OWASP_LINK: Record<string, string> = {
   "LLM01:2025": "https://genai.owasp.org/llmrisk/llm01-prompt-injection/",
   "LLM02:2025": "https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/",

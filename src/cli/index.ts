@@ -47,7 +47,7 @@ export async function main(
   const updating = argv[0] === "update";
   try {
     if (updating) {
-      const { values } = parseCommandArgs("update", argv.slice(1), COMMON_OPTIONS, 0);
+      const { values } = parseCommandArgs("update", argv.slice(1), COMMON_OPTIONS);
       if (values.help) {
         io.stdout(UPDATE_USAGE);
         return 0;

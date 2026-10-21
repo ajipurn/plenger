@@ -1,5 +1,9 @@
 # Red-team contracts
 
+The `redteam` CLI commands, report formats and campaign comparisons named below
+were removed on 2026-10-21. Their clauses stay as design for a later dashboard
+adapter. See [../STATUS.md](../STATUS.md) for what exists now.
+
 These are the normative contracts for plenger's dynamic tests: what a test
 pack declares, how the model budget is enforced, how severity and gates work,
 how coverage and scope are reported, how repeated trials are summarised and

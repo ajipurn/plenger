@@ -5,12 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { errorMessage } from "../shared/guards.ts";
 import { BudgetStoppedError } from "./budget.ts";
-import {
-  FASTAPI_WORKER,
-  IMAGE_ID,
-  WORKER_PROTOCOL_VERSION,
-  WORKER_TIMEOUT_MS,
-} from "./constants.ts";
+import { IMAGE_ID, WORKER_PROTOCOL_VERSION, WORKER_TIMEOUT_MS } from "./constants.ts";
 import type { BudgetScenario } from "./qualification-broker.ts";
 
 /**
@@ -64,16 +59,11 @@ export function cleanupConfirmedFrom(error: unknown): boolean {
 }
 
 /** Refuse mutable tags, unbounded deadlines and already-cancelled launches before spawning. */
-export function validateLaunch(
-  image: string,
-  timeoutMs: number,
-  signal?: AbortSignal,
-  maxTimeoutMs = WORKER_TIMEOUT_MS,
-): void {
+export function validateLaunch(image: string, timeoutMs: number, signal?: AbortSignal): void {
   if (!IMAGE_ID.test(image))
     throw new Error("Worker launch requires a full sha256 image ID, not a mutable tag.");
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > maxTimeoutMs)
-    throw new Error(`Worker timeout must be an integer between 1 and ${maxTimeoutMs} ms.`);
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > WORKER_TIMEOUT_MS)
+    throw new Error(`Worker timeout must be an integer between 1 and ${WORKER_TIMEOUT_MS} ms.`);
   if (signal?.aborted) throw new WorkerInterruptedError("Worker cancelled before launch.");
 }
 
@@ -86,16 +76,8 @@ export interface WorkerLaunch {
   onMessage?: WorkerHandler;
   /** A managed project run instead of fixture qualification. */
   projectRequest?: Record<string, unknown>;
-  runtime?: "llmfy" | "vercel" | "fastapi";
+  runtime?: "llmfy" | "vercel";
   onLaunch?: (name: string) => void;
-  /** FastAPI preparation: the private service network instead of `--network=none`. */
-  network?: string;
-  /** Connection settings for the disposable services; never host environment. */
-  env?: Record<string, string>;
-  /** The platform the image was built for, when it is not the host's. */
-  platform?: string;
-  /** Upper bound for `timeoutMs`; the FastAPI import allows more than a trial. */
-  maxTimeoutMs?: number;
 }
 
 /**
@@ -107,7 +89,7 @@ export async function runWorker(image: string, options: WorkerLaunch): Promise<s
   const timeoutMs = options.timeoutMs ?? 30_000;
   const engine = image.startsWith("docker:") ? "docker" : "podman";
   if (engine === "docker") image = image.slice(7);
-  validateLaunch(image, timeoutMs, options.signal, options.maxTimeoutMs);
+  validateLaunch(image, timeoutMs, options.signal);
   const directory = await mkdtemp(join(tmpdir(), "plenger-qualification-"));
   const name = `${options.projectRequest ? "plenger-run" : "plenger-qualification"}-${randomUUID()}`;
   let attempted = false;
@@ -137,8 +119,7 @@ export async function runWorker(image: string, options: WorkerLaunch): Promise<s
             },
       ),
       timeoutMs,
-      maxOutputBytes:
-        options.runtime === "vercel" || options.runtime === "fastapi" ? 512 * 1024 : 64 * 1024,
+      maxOutputBytes: options.runtime === "vercel" ? 512 * 1024 : 64 * 1024,
       ...(options.signal ? { signal: options.signal } : {}),
       ...(options.onMessage ? { onMessage: options.onMessage } : {}),
     });
@@ -189,8 +170,6 @@ export function containerArguments(
   options: WorkerLaunch,
 ): string[] {
   const vercel = options.runtime === "vercel";
-  const fastapi = options.runtime === "fastapi";
-  const memory = fastapi ? `${FASTAPI_WORKER.memoryBytes}` : "256m";
   return [
     "run",
     "--rm",
@@ -201,17 +180,15 @@ export function containerArguments(
     "--label",
     `${EXPIRES_LABEL}=${Date.now() + timeoutMs + BACKSTOP_GRACE_MS}`,
     "--pull=never",
-    ...(options.platform ? [`--platform=${options.platform}`] : []),
-    // The FastAPI worker joins the private network of its disposable services; nothing else does.
-    fastapi && options.network ? `--network=${options.network}` : "--network=none",
+    "--network=none",
     "--read-only",
     ...(engine === "podman" ? ["--read-only-tmpfs=false"] : []),
     "--user=65532:65532",
     "--cap-drop=ALL",
     "--security-opt=no-new-privileges",
-    `--pids-limit=${fastapi ? FASTAPI_WORKER.pids : 64}`,
-    `--memory=${memory}`,
-    `--memory-swap=${memory}`,
+    "--pids-limit=64",
+    "--memory=256m",
+    "--memory-swap=256m",
     "--cpus=1",
     // Daemon-side backstop if this host process disappears entirely.
     ...(engine === "podman"
@@ -221,9 +198,8 @@ export function containerArguments(
     "--stop-timeout=0",
     "--no-healthcheck",
     ...(engine === "podman" ? ["--image-volume=ignore"] : []),
-    `--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=${fastapi ? FASTAPI_WORKER.tmpfsMiB : 16}m,mode=1777`,
+    "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777",
     "--log-driver=none",
-    ...Object.entries(options.env ?? {}).map(([key, value]) => `--env=${key}=${value}`),
     ...(engine === "podman"
       ? ["--http-proxy=false"]
       : [
@@ -241,12 +217,7 @@ export function containerArguments(
     image,
     ...(vercel
       ? ["/opt/plenger/worker.mjs"]
-      : fastapi
-        ? ["-I", "/opt/plenger/worker.py"]
-        : [
-            "-I",
-            options.projectRequest ? "/opt/plenger/worker.py" : "/opt/plenger/qualify.py",
-          ]),
+      : ["-I", options.projectRequest ? "/opt/plenger/worker.py" : "/opt/plenger/qualify.py"]),
   ];
 }
 
@@ -342,44 +313,6 @@ export async function runLlmfyWorker(
     ...(onLaunch ? { onLaunch } : {}),
   });
 }
-
-/** Options of a FastAPI preparation worker beyond the shared launch. */
-export interface FastapiWorkerOptions {
-  network: string;
-  env: Record<string, string>;
-  platform?: string;
-  onLaunch?: (name: string) => void;
-}
-/** Launch the FastAPI preparation worker on the private service network. */
-export type FastapiWorkerLauncher = (
-  image: string,
-  request: Record<string, unknown>,
-  signal: AbortSignal,
-  onMessage: WorkerHandler,
-  options: FastapiWorkerOptions,
-) => Promise<void>;
-
-/** The same controls for the FastAPI worker, plus its network, settings and longer deadline. */
-export const runFastapiWorker: FastapiWorkerLauncher = async (
-  image,
-  request,
-  signal,
-  onMessage,
-  options,
-) => {
-  await runWorker(image, {
-    projectRequest: request,
-    runtime: "fastapi",
-    signal,
-    timeoutMs: FASTAPI_WORKER.timeoutMs,
-    maxTimeoutMs: FASTAPI_WORKER.timeoutMs,
-    onMessage,
-    network: options.network,
-    env: options.env,
-    ...(options.platform ? { platform: options.platform } : {}),
-    ...(options.onLaunch ? { onLaunch: options.onLaunch } : {}),
-  });
-};
 
 /** The same controls for the managed Vercel route worker. */
 export async function runVercelWorker(

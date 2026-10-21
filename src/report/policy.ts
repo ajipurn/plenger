@@ -55,15 +55,6 @@ export async function readSuppressions(path: string): Promise<Suppression[]> {
   return value.suppressions as Suppression[];
 }
 
-export function createBaseline(findings: Finding[]): Baseline {
-  return {
-    schemaVersion: 1,
-    findings: findings
-      .map(({ fingerprint, rule, location }) => ({ fingerprint, rule, path: location.path }))
-      .sort((a, b) => a.fingerprint.localeCompare(b.fingerprint)),
-  };
-}
-
 export function matchesSuppression(item: Suppression, finding: Finding): boolean {
   return (
     (item.fingerprint === undefined || item.fingerprint === finding.fingerprint) &&

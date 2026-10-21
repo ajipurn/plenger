@@ -1,7 +1,7 @@
 import { access, mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { discoverProject, formatDiscovery } from "../src/redteam/discover.ts";
+import { discoverProject } from "../src/redteam/discover.ts";
 import { fixturePath } from "./support/fixtures.ts";
 import { temporaryDir } from "./support/tmp.ts";
 
@@ -36,7 +36,6 @@ describe("offline red-team discovery", () => {
     expect(report.targets[0]?.agentIds).toEqual(report.targets[1]?.agentIds);
     expect(report.targets[1]?.parameters).toEqual(["message"]);
     expect(report.manifests).toContainEqual({ path: "requirements.txt", status: "present" });
-    expect(formatDiscovery(report)).toContain("dynamic execution is not available yet");
   });
 
   it("retains unsupported context and nested functions alongside a FlowEngine factory", async () => {
@@ -178,7 +177,6 @@ class Service:
     expect(report.scan.truncated).toBe(true);
     expect(report.scan.syntaxErrors).toEqual(["a.py"]);
     expect(report.targets[0]?.reasons).toContain("source-has-syntax-errors");
-    expect(formatDiscovery(report)).toContain("file limit was reached");
   });
 
   it("honours gitignore and reports manifest symlinks without following them", async () => {
@@ -223,7 +221,6 @@ describe("file-canary pack binding", () => {
       expect(target.packs).toEqual([
         { profile: "llmfy-file-canary-v1", status: "bound", tools: ["save_note"], reasons: [] },
       ]);
-    expect(formatDiscovery(report)).toContain("pack llmfy-file-canary-v1: bound via save_note");
   });
 
   const agent = (tool: string) => `from pathlib import Path
@@ -257,6 +254,5 @@ def build_agent():
     expect(report.targets[0]?.packs).toEqual([
       { profile: "llmfy-file-canary-v1", status: "unbound", tools: [], reasons: [reason] },
     ]);
-    expect(formatDiscovery(report)).toContain(`pack llmfy-file-canary-v1: unbound (${reason})`);
   });
 });

@@ -1,8 +1,9 @@
 # FastAPI project profile (design, M6b)
 
-Status: checkpoint 1 (build pipeline and import) is implemented as
-the internal preparation engine; checkpoints 2 to 4 are design only. Current
-capabilities are in [../STATUS.md](../STATUS.md).
+Status: checkpoint 1 (build pipeline and import) was implemented, then removed
+on 2026-10-21 together with the CLI. Its code is in the Git history before that
+date. Checkpoints 2 to 4 are design only. Current capabilities are in
+[../STATUS.md](../STATUS.md).
 
 ## Why
 

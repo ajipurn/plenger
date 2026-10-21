@@ -7,7 +7,7 @@ See [../STATUS.md](../STATUS.md) for qualification evidence.
 
 ## Report engine
 
-The static engine supports terminal, JSON, SARIF 2.1.0 and Markdown reports.
+The static engine supports JSON, SARIF 2.1.0 and Markdown reports.
 Reports contain parsed and skipped files, inventory, capabilities, findings,
 source evidence, coverage and rule definitions. Facts can be included per file.
 Locations use 1-based lines and UTF-16 columns. Known secrets are redacted.
@@ -41,8 +41,9 @@ A baseline records rule, relative path and fingerprint:
 ```
 
 Fingerprints survive checkout relocation and unrelated line edits. Renaming
-a file or subject can create a new finding. The engine's createBaseline()
-builds this record from reviewed findings. Matched findings are unchanged;
+a file or subject can create a new finding. Take the fingerprints of reviewed
+findings from a SARIF upload (`partialFingerprints`, key `plenger/v1`) or the
+job summary. Matched findings are unchanged;
 others count as new. An explicit baseline does not suppress a finding.
 
 Suppressions need a reason and a fingerprint or known rule id:

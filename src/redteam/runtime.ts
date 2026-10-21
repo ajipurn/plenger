@@ -6,13 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { sha256Hex } from "../shared/hash.ts";
-import {
-  BUILDKIT_IMAGE,
-  DISPOSABLE_RUNTIME_TTL,
-  FASTAPI_WORKER,
-  RUNTIME_BUILD_TIMEOUT_MS,
-} from "./constants.ts";
-import { removeExpiredNetworks } from "./services.ts";
+import { BUILDKIT_IMAGE, DISPOSABLE_RUNTIME_TTL, RUNTIME_BUILD_TIMEOUT_MS } from "./constants.ts";
 import { EXPIRES_LABEL, removeExpiredWorkers } from "./worker.ts";
 
 const execute = promisify(execFile);
@@ -20,7 +14,6 @@ const execute = promisify(execFile);
 /** Every file of each managed runtime recipe; the binary build embeds exactly these. */
 export const RUNTIME_FILES = {
   llmfy: ["Dockerfile", "requirements.txt", "qualify.py", "worker.py", "project/agent.py"],
-  fastapi: ["Dockerfile", "preflight.py", "worker.py", "adapters/llmfy_0_6_0.py"],
   vercel: [
     "Dockerfile",
     "package.json",
@@ -67,16 +60,6 @@ export async function prepareVercelRuntime(signal: AbortSignal): Promise<string>
   return prepareRuntime("vercel", signal);
 }
 
-/** @deprecated Renamed to `prepareVercelRuntime`. */
-export const prepareNextRuntime = prepareVercelRuntime;
-
-/** A built FastAPI image: the project's dependencies on the pinned base, for one platform. */
-export interface FastapiRuntime extends DisposableRuntime {
-  /** `native`, or `linux/amd64` when a wheel exists only for that platform. */
-  platform: "native" | "linux/amd64";
-  engine: "docker" | "podman";
-}
-
 /** A build that ran and failed, with the engine's last lines for the user. */
 export class RuntimeBuildError extends Error {
   readonly output: string;
@@ -84,46 +67,6 @@ export class RuntimeBuildError extends Error {
     super(message, { cause });
     this.output = output;
   }
-}
-
-/**
- * Build the FastAPI image for one project: the bundled recipe plus the project's
- * `requirements.txt`, wheels only. Native first; on an arm64 host a missing wheel is
- * retried for linux/amd64, since many Linux-only wheels are published for x86-64 alone.
- */
-export async function prepareFastapiRuntime(
-  requirements: string,
-  signal: AbortSignal,
-): Promise<FastapiRuntime> {
-  const engine = await availableEngine(signal);
-  await removeExpiredWorkers(engine);
-  await removeExpiredNetworks(engine);
-  await removeExpiredRuntimes(engine);
-  const extraFiles = [{ path: "project-requirements.txt", content: Buffer.from(requirements) }];
-  const prefixed = (image: string) => (engine === "docker" ? `docker:${image}` : image);
-  try {
-    const runtime = await prepareManagedRuntime("fastapi", RUNTIME_FILES.fastapi, signal, engine, {
-      extraFiles,
-      timeoutMs: FASTAPI_WORKER.buildTimeoutMs,
-      disposable: true,
-    });
-    return { ...runtime, image: prefixed(runtime.image), platform: "native", engine };
-  } catch (error) {
-    if (
-      !(error instanceof RuntimeBuildError) ||
-      process.arch !== "arm64" ||
-      !/No matching distribution/.test(error.output)
-    )
-      throw error;
-    signal.throwIfAborted();
-  }
-  const runtime = await prepareManagedRuntime("fastapi", RUNTIME_FILES.fastapi, signal, engine, {
-    extraFiles,
-    platform: "linux/amd64",
-    timeoutMs: FASTAPI_WORKER.buildTimeoutMs,
-    disposable: true,
-  });
-  return { ...runtime, image: prefixed(runtime.image), platform: "linux/amd64", engine };
 }
 
 async function prepareRuntime(profile: RuntimeProfile, signal: AbortSignal): Promise<string> {
@@ -150,11 +93,7 @@ async function availableEngine(signal: AbortSignal): Promise<"docker" | "podman"
 }
 
 interface BuildOptions {
-  /** Per-project files written into the build context beside the recipe. */
-  extraFiles?: { path: string; content: Buffer }[];
-  platform?: string;
-  timeoutMs?: number;
-  /** Separate image ownership and build cache for a run or preparation. */
+  /** Separate image ownership and build cache for a run. */
   disposable?: boolean;
 }
 
@@ -166,22 +105,16 @@ async function prepareManagedRuntime(
   options: BuildOptions = {},
 ): Promise<DisposableRuntime> {
   signal.throwIfAborted();
-  const recipe = [
-    ...(await Promise.all(
-      files.map(async (path) => ({
-        path,
-        content: await readFile(
-          fileURLToPath(new URL(`../../runtimes/${profile}/${path}`, import.meta.url)),
-        ),
-      })),
-    )),
-    ...(options.extraFiles ?? []),
-  ];
+  const recipe = await Promise.all(
+    files.map(async (path) => ({
+      path,
+      content: await readFile(
+        fileURLToPath(new URL(`../../runtimes/${profile}/${path}`, import.meta.url)),
+      ),
+    })),
+  );
   const digest = sha256Hex(
-    Buffer.concat([
-      ...recipe.map((file) => Buffer.concat([Buffer.from(file.path), file.content])),
-      Buffer.from(options.platform ?? ""),
-    ]),
+    Buffer.concat(recipe.map((file) => Buffer.concat([Buffer.from(file.path), file.content]))),
   );
   const id = randomUUID();
   const tag = `localhost/plenger-${profile}:${options.disposable ? id : digest.slice(0, 20)}`;
@@ -239,7 +172,6 @@ async function prepareManagedRuntime(
         ...(options.disposable && engine === "podman"
           ? ["--layers=false", "--no-cache", "--force-rm"]
           : []),
-        ...(options.platform ? ["--platform", options.platform] : []),
         // A host that dies before disposing leaves this label for the next sweep.
         ...(options.disposable
           ? ["--label", `${EXPIRES_LABEL}=${Date.now() + DISPOSABLE_RUNTIME_TTL.imageMs}`]
@@ -250,9 +182,7 @@ async function prepareManagedRuntime(
       ],
       {
         signal,
-        timeout:
-          options.timeoutMs ??
-          (options.disposable || profile === "vercel" ? RUNTIME_BUILD_TIMEOUT_MS : 120_000),
+        timeout: options.disposable || profile === "vercel" ? RUNTIME_BUILD_TIMEOUT_MS : 120_000,
         maxBuffer: 4 * 1024 * 1024,
       },
     );
@@ -326,7 +256,7 @@ async function removeBuilder(engine: "docker" | "podman", builder: string): Prom
   }
 }
 
-const DISPOSABLE_TAG = /^localhost\/plenger-(?:llmfy|vercel|fastapi):[a-f0-9-]{36}$/;
+const DISPOSABLE_TAG = /^localhost\/plenger-(?:llmfy|vercel):[a-f0-9-]{36}$/;
 const BUILDER_CONTAINER = /^buildx_buildkit_(plenger-[a-f0-9-]{36})\d+$/;
 
 /**

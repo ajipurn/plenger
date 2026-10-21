@@ -1,21 +1,17 @@
 # Worker protocol
 
 The host (`src/redteam/`) and a container worker (`runtimes/llmfy/worker.py`,
-`runtimes/llmfy/qualify.py`, `runtimes/vercel/worker.mjs` with `bridge.mjs`,
-`runtimes/fastapi/worker.py` with `preflight.py`) exchange newline-delimited
-JSON over the container's stdin and stdout. This page is the message catalogue
-derived from that code. It documents direction, fields, limits, ordering and
-the differences between the runtimes. The FastAPI worker is a preparation
-stage: it imports an application and probes one route, and serves no model
-request yet.
+`runtimes/llmfy/qualify.py`, `runtimes/vercel/worker.mjs` with `bridge.mjs`)
+exchange newline-delimited JSON over the container's stdin and stdout. This
+page is the message catalogue derived from that code. It documents direction,
+fields, limits, ordering and the differences between the runtimes.
 
 ## Version
 
 The frames on this page are protocol version 2. The host holds the number in
 `WORKER_PROTOCOL_VERSION` (`src/redteam/constants.ts`). The workers hold it in
 `PROTOCOL_VERSION`: `runtimes/llmfy/qualify.py` (also used by `worker.py`),
-`runtimes/vercel/bridge.mjs` and `runtimes/fastapi/preflight.py`. Bump all of
-them together when a frame changes.
+and `runtimes/vercel/bridge.mjs`. Bump all of them together when a frame changes.
 
 Version 2 moved trial input to the host
 ([generated-attacks.md](generated-attacks.md#attack-templates)): the Vercel
@@ -43,11 +39,11 @@ container stdio.
   10 seconds, in epoch milliseconds. A live host stops its worker before then,
   so `removeExpiredWorkers()` treats a labelled container past that time as
   left by a host that died and removes it when a runtime is prepared.
-- Removing a worker or backing service also removes its anonymous volumes.
+- Removing a worker also removes its anonymous volumes.
   Trial data and writable container layers are disposable; reports stay on the host.
 - Runs own a unique runtime image tag and remove it after execution, including
   failure or cancellation. Campaign repetitions share one image until the campaign
-  ends. FastAPI preparation follows the same cleanup policy.
+  ends.
 - Docker builds use a dedicated Buildx container builder. Removing that builder
   after the build removes its cache volume. Podman builds disable intermediate
   image caching and remove build containers. Cleanup never prunes global storage.
@@ -110,22 +106,6 @@ scenario}` with `mode` one of `suite`, `wait`, `flood`, `budget` and
 other than `budget` print one report object or test the host's limits and are
 not part of this protocol. Budget mode refuses a different `protocolVersion`.
 
-FastAPI preparation (`runtimes/fastapi/worker.py`):
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `sources` | `[{path, content}]` | Python plus text resources (`SOURCE_SUFFIXES`: `.py .md .txt .json .yaml .yml .jinja .j2 .html .csv .sql`), no hidden segments; written read-only under `/tmp/project`, which is the import root |
-| `app` | `{module, attribute}` | The module to import and the ASGI application attribute, from the plan's `fastapiProfile` |
-| `llmfy` | string | The declared llmfy version; selects `/opt/plenger/adapters/llmfy_<version>.py` |
-| `env` | `{name: value}` | Settings the application reads: placeholders for standard SDK credentials, the user's `--env` settings, then the disposable services' `MYSQL_*` and `REDIS_*`, which win; identifier names only |
-| `probe` | `{method, path}` or absent | One in-process ASGI request after the import |
-| `policy` | string or null | Prepended as a system message if a model request happens |
-| `protocolVersion`, `hostMarker` | | Added by the launcher |
-
-The launcher starts this worker with `--network=<private network>` instead of
-`--network=none`, a 1 GiB memory limit, 128 processes, a 64 MiB `/tmp` and a
-300 second deadline (`FASTAPI_WORKER` in `constants.ts`).
-
 Vercel managed run (`worker.mjs`):
 
 | Field | Type | Notes |
@@ -150,20 +130,16 @@ any version or check list that does not match exactly.
 | --- | --- | --- |
 | llmfy | `protocolVersion`, `python`, `llmfy`, `isolationChecks[]` (`qualify.py` budget mode adds `os`, `arch`) | `protocolVersion == 2`, `python == "3.12.13"`, `llmfy == "0.11.0"`, all 18 check names below present; the broker also requires `os == "Linux"` and `arch == "aarch64"` |
 | Vercel | `protocolVersion`, `node`, `ai`, `databaseObserver`, `isolationChecks[]` | `protocolVersion == 2`, `node == "22.18.0"`, `ai == "7.0.29"`, `databaseObserver == "committed-snapshots-v1"`, all 16 check names present |
-| FastAPI | `protocolVersion`, `python`, `llmfy`, `packages[]`, `isolationChecks[]` | `protocolVersion == 2`, `python == "3.12.13"`, `llmfy` equal to the plan's declared version, all 19 check names present; `packages` is `[{name, version}]` from the build's `pip list`, at most 2000 |
 
 Isolation check names:
 
-| Check | llmfy | Vercel | FastAPI |
-| --- | --- | --- | --- |
-| `linux`, `non-root`, `no-capabilities`, `no-new-privileges`, `seccomp-filter`, `read-only-root`, `memory-limit`, `no-swap`, `process-limit`, `cpu-limit`, `no-host-file`, `no-host-environment`, `no-container-socket`, `private-temporary-files` | yes | yes | yes |
-| `loopback-only` | yes | yes | no |
-| `private-network-only`, `no-default-route` | no | no | yes: `lo` plus exactly one interface is up, and `/proc/net/route` has no default route |
-| `python-version` | yes | no | yes |
-| `node-version` | no | yes | no |
-| `image-write-denied`, `temporary-write` | yes | no (the Vercel `read-only-root` check is itself a write probe) | yes |
-
-The FastAPI `memory-limit` and `process-limit` checks expect 1 GiB and 128.
+| Check | llmfy | Vercel |
+| --- | --- | --- |
+| `linux`, `non-root`, `no-capabilities`, `no-new-privileges`, `seccomp-filter`, `read-only-root`, `memory-limit`, `no-swap`, `process-limit`, `cpu-limit`, `no-host-file`, `no-host-environment`, `no-container-socket`, `private-temporary-files` | yes | yes |
+| `loopback-only` | yes | yes |
+| `python-version` | yes | no |
+| `node-version` | no | yes |
+| `image-write-denied`, `temporary-write` | yes | no (the Vercel `read-only-root` check is itself a write probe) |
 
 The llmfy `loopback-only` check inspects interface `IFF_UP` flags, because
 Docker can expose dormant DOWN tunnel interfaces with networking disabled. The
@@ -258,35 +234,6 @@ worker's catch-all. `stage` names the phase (`reading-request`, `checking-isolat
 worker then exits with code 1. The host treats `failure` as an unknown frame
 and fails the trial; the fields are informational.
 
-### FastAPI-only frames
-
-`adapter` `{type, llmfy, patched[]}`: sent after the sources are staged and
-before the import. `patched` lists the llmfy names the broker adapter
-replaced: for 0.6.0, `llmfy.BedrockModel`, `llmfy.OpenAIModel` and
-`llmfy.GoogleAIModel`, their defining modules, and
-`llmfy.LLMfy.register_tool`.
-
-`imported` `{type, durationMs, application, routes[]}`: the application module
-imported and the attribute is callable. The import and the probe run inside a
-running asyncio event loop, as under an ASGI server, so schedulers and clients
-that bind to the loop at import find one. `routes` is `[{methods[], path}]`
-from the application's route table, at most 200.
-
-`probe` `{type, method, path, status, bytes}`: the result of one in-process
-ASGI request through the application's own routing and middleware. `status`
-is null when the application sent no response start.
-
-`failure` `{type, stage, error: {type, message}}`: a stage after `ready`
-raised; `stage` is `staging`, `environment`, `adapter`, `import`, `routes` or
-`probe`. Unlike the llmfy worker, the exception type and a message of at most
-400 characters are exported, because the user needs them to fix the import;
-the host redacts both. `finished {completed: false}` follows and the worker
-exits with code 1. `SystemExit` and cancellation raised by project code are
-reported the same way.
-
-A `model_request` during preparation is recorded as a failure at stage
-`model-call` and ends the worker: nothing serves a model here yet.
-
 ### `finished`
 
 Last frame. llmfy: `{type, completed}` where `completed` is false when the
@@ -309,7 +256,6 @@ own computation.
 ```
 host  -> request
 worker-> ready
-          [FastAPI] adapter, imported, [probe] | failure
           [Vercel] fixture
           repeat: model_request -> host model_response
                   event (tool_handler_entered / returned, llmfy canary_state)
@@ -324,13 +270,13 @@ out-of-sequence id or sequence number, and any unknown type end the worker.
 
 ## Differences between the runtimes
 
-| Aspect | llmfy | Vercel | FastAPI |
-| --- | --- | --- | --- |
-| Entrypoint | `python -I /opt/plenger/worker.py` (or `qualify.py`) | `node /opt/plenger/worker.mjs` | `python -I /opt/plenger/worker.py` |
-| Network | none | none | private internal network with the disposable services |
-| Failure frame | none; exceptions become `finished {completed: false}` or a non-zero exit | `failure {stage, check, message}` then exit 1 | `failure {stage, error: {type, message}}` then `finished {completed: false}` |
-| Tool proposal events | sent by the worker | synthesised by the host from the model reply | sent by the worker (none expected during preparation) |
-| Event correlation | by tool name within the trial | by `callId` and `requestId` | counted only; no trial yet |
+| Aspect | llmfy | Vercel |
+| --- | --- | --- |
+| Entrypoint | `python -I /opt/plenger/worker.py` (or `qualify.py`) | `node /opt/plenger/worker.mjs` |
+| Network | none | none |
+| Failure frame | none; exceptions become `finished {completed: false}` or a non-zero exit | `failure {stage, check, message}` then exit 1 |
+| Tool proposal events | sent by the worker | synthesised by the host from the model reply |
+| Event correlation | by tool name within the trial | by `callId` and `requestId` |
 | Effect observation | `canary_state` from a `Path.write_text` patch and a final file audit | `database_state` from committed SQLite snapshots |
 | Pre-model checks | none | `backend_check` worker without a model |
 | Output cap on the host | 64 KiB | 512 KiB |

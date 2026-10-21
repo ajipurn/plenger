@@ -1,5 +1,4 @@
 import type { CollectOptions } from "../source/files.ts";
-import type { FASTAPI_PROFILE, FastapiService } from "./constants.ts";
 import type { DependencyReview } from "./dependencies.ts";
 import type { DiscoveryReport, DiscoveryTarget, StaticCoverage } from "./discover.ts";
 
@@ -20,8 +19,7 @@ export interface ProjectPlan {
   targets: DiscoveryTarget[];
   preparation: { status: "ready" | "blocked"; reasons: string[] };
   sources: {
-    /** `python-resources-v1`: Python plus text resources under captured packages (FastAPI profile). */
-    policy: "python-only-v1" | "python-resources-v1" | "next-route-sqlite-v1";
+    policy: "python-only-v1" | "next-route-sqlite-v1";
     resources: "not-collected";
     files: { path: string; bytes: number; sha256: string }[];
     omitted: { path: string; reason: string }[];
@@ -33,26 +31,6 @@ export interface ProjectPlan {
   /** Separate static review of the original project; not part of the runtime snapshot digest. */
   coverage?: StaticCoverage;
   nextProfile?: NextProfile;
-  fastapiProfile?: FastapiProfile;
-}
-
-/**
- * The FastAPI project profile a plan was prepared for. Dependencies are resolved and
- * recorded at preparation, inside the build stage, never during planning.
- */
-export interface FastapiProfile {
-  id: typeof FASTAPI_PROFILE;
-  app: { path: string; module: string; attribute: string };
-  llmfy: { version: string | null; adapter: "available" | "missing" };
-  dependencies: {
-    manifest: string | null;
-    declared: number;
-    /** Declarations without an exact pin; the build resolves them and the report records the result. */
-    unpinned: string[];
-    policy: "resolve-and-record";
-  };
-  services: FastapiService[];
-  transport: "asgi-in-process";
 }
 
 export interface PlanOptions extends CollectOptions {

@@ -44,20 +44,17 @@ export interface Report extends Omit<ScanResult, "findings"> {
   review: { active: number; suppressed: number; unchanged: number; new: number };
 }
 
-/**
- * Reviews a scan result. A suppression file entry wins over a `plenger-ignore` comment;
- * comments count unless `inline` is false.
- */
+/** Reviews a scan result. A suppression file entry wins over a `plenger-ignore` comment. */
 export function createReport(
   result: ScanResult,
-  policy: { baseline?: Baseline; suppressions?: Suppression[]; inline?: boolean } = {},
+  policy: { baseline?: Baseline; suppressions?: Suppression[] } = {},
 ): Report {
   const baseline = new Map(policy.baseline?.findings.map((item) => [item.fingerprint, item]));
   const findings: ReportFinding[] = result.findings.map((finding) => {
     const previous = baseline.get(finding.fingerprint);
     const unchanged = previous?.rule === finding.rule && previous.path === finding.location.path;
     const suppression = policy.suppressions?.find((item) => matchesSuppression(item, finding));
-    const comment = policy.inline === false ? undefined : finding.inline;
+    const comment = finding.inline;
     return {
       ...finding,
       ...(policy.baseline ? ({ baselineState: unchanged ? "unchanged" : "new" } as const) : {}),

@@ -18,10 +18,10 @@ src/
   redteam/               dynamic testing engine: discovery, plans, campaigns, workers
   scan.ts                composition root of the static pipeline
   security/              repository, job and finding domain; read-only Git metadata
-  assessment/            source-based AI review, STRIDE and retained facts-only assessments
+  assessment/            source-based AI review and STRIDE
   remediation/           explicit model-generated coding agent prompts from saved findings
   evidence/              bounded, redacted imports of external REA JavaScript analysis
-  report/                report shapes, formats (terminal, JSON, SARIF, Markdown), policies
+  report/                report shapes, SARIF and Markdown formats, policies
   rules/                 risk rules, the engine that evaluates them, scoring
   capabilities/          what tools, agents and entry points can do
   inventory/             agent inventory detectors over linked facts
@@ -80,8 +80,8 @@ code:
    then `rules/scoring.ts` scores, fingerprints and de-duplicates the findings.
    `rules/snippets.ts` attaches source lines.
 8. `report/model.ts` applies baselines and suppressions and decides the CI gate;
-   `report/format.ts` and `report/summary.ts` render the result; `report/schema.ts`
-   is the source of the JSON schemas.
+   `report/format.ts` renders SARIF and Markdown; `report/schema.ts` is the source
+   of the JSON schemas.
 
 Secrets are redacted by `shared/secrets.ts` before anything is written.
 
@@ -153,7 +153,7 @@ explicit start.
   inventory. `plan.ts` (llmfy) and `vercel-plan.ts` (Next.js) capture a private
   source snapshot, review dependencies (`dependencies.ts`) and report readiness as
   a `ProjectPlan` (`plan-model.ts`). `profile.ts` decides whether a plan is
-  runnable. `format.ts` retains text rendering for both.
+  runnable.
 - **Model access.** `provider-config.ts` validates saved provider settings and
   converts them to `ProviderAccess`; `provider.ts` is the HTTP transport for
   OpenAI, Gemini and Ollama and the connection test. `anthropic-provider.ts`
@@ -164,11 +164,6 @@ explicit start.
   flow (PKCE, loopback callback, id-token verification, refresh, model
   catalog) and `chatgpt-provider.ts` is its streaming Responses API transport,
   which reports observed token thresholds instead of an enforced output cap.
-- **FastAPI preparation.** `fastapi-prepare.ts` builds a FastAPI project's image,
-  starts the disposable MySQL and Redis services from `services.ts` on a private
-  network and imports the application in a worker; it is the M6b profile's first
-  stage and makes no model calls. `runtimes/fastapi/` holds its recipe, preflight,
-  worker and the llmfy version adapters.
 - **Trial input.** `attack-model.ts` holds the built-in control and probe
   input as templates with `{{name}}` placeholders, the placeholders each
   profile's runner fills, and the fill and validation helpers. It has no
@@ -187,10 +182,7 @@ explicit start.
   prepared.
 - **Campaigns.** `campaign-model.ts` defines campaign plans, reports and the
   built-in case catalog; `campaign.ts` creates, validates and executes campaigns;
-  `campaign-evidence.ts` computes statistics and the gate; `campaign-report.ts`
-  formats evidence; `comparison.ts` and `comparison-report.ts` compare two
-  campaigns; `campaign-evidence-io.ts` and `artifact-io.ts` read and write the
-  private JSON evidence atomically.
+  `campaign-evidence.ts` computes statistics and the gate.
 - **Constants and schemas.** `constants.ts` is the single source for provider ids,
   limits, run states, case ids and runtime pins; `schema.ts` derives the JSON
   schemas from it.
@@ -199,10 +191,10 @@ explicit start.
 
 The host to container protocol is specified in
 [design/worker-protocol.md](design/worker-protocol.md); the workers live in
-`runtimes/llmfy/`, `runtimes/vercel/` and `runtimes/fastapi/`.
+`runtimes/llmfy/` and `runtimes/vercel/`.
 
 Modules the browser bundles must stay free of `node:` imports: `constants.ts`,
-`campaign-model.ts`, `campaign-evidence.ts`, `comparison.ts`, `profile.ts`,
+`campaign-model.ts`, `campaign-evidence.ts`, `profile.ts`,
 `plan-model.ts`, `run-model.ts`, `provider-config.ts` and `budget.ts`. The page
 imports only types from `run.ts`, `campaign.ts` and `plan.ts`.
 

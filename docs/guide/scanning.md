@@ -35,7 +35,7 @@ Compiled files are listed, not analysed: native libraries and objects (`.so`,
 executables (`.exe`, `.bin`, `.elf`, `.appimage`), WebAssembly, JVM bytecode
 (`.jar`, `.war`, `.class`) and Python packages (`.whl`, `.egg`). The JSON report lists each under `binaries`
 with its kind, size and SHA-256 (files up to 64 MiB are hashed), and the
-terminal and Markdown reports name them. The scan only reads their size and
+Markdown report names them. The scan only reads their size and
 bytes; it never loads or runs them.
 
 A completed scan is not proof of safety. Syntax errors, truncation, skipped
@@ -43,18 +43,6 @@ files and incomplete handler traces leave gaps, and the report shows them. A rul
 nothing: plenger reports what it can see in the code.
 
 ## Agent inventory
-
-```text
-  Agent inventory
-    Frameworks           llmfy (26 files), OpenAI SDK
-    Models           37  gemini-2.5-flash-lite ×10, ${OLLAMA_MODEL:-gemma4:e4b} ×4, …
-    LLM calls        39  llmfy invoke ×18, llmfy chat ×13, …
-    Agents           47  LLMfy ×36, FlowEngine ×11
-    Tools            12  get_current_weather, get_current_time
-    Prompts          31  0 with dynamic parts, 5 with template variables
-    Data stores      14  checkpointer ×8, embeddings ×6
-    Not understood yet: google.genai (1 file)
-```
 
 Per project the inventory lists:
 
@@ -204,16 +192,8 @@ a "Trace incomplete" note. Effects behind those calls are not seen.
 
 ## Findings
 
-```text
-  Findings  10 critical · 19 high · 7 medium · 4 low
-
-    CRITICAL 100  Tool `run` runs a shell command built from model input
-                  mcp_servers.py:13  PLG101 · high confidence · exposed
-                  │ return subprocess.run(command, shell=True, capture_output=True, text=True).stdout
-```
-
-Findings come last, most urgent first. Terminal output shows the first 20
-active findings; JSON, SARIF and Markdown list every one. Each finding has:
+Findings come last, most urgent first. JSON, SARIF and Markdown list every one.
+Each finding has:
 
 - a title that names the subject
 - a severity and a confidence

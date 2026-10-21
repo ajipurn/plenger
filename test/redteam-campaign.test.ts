@@ -1,8 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { Ajv } from "ajv";
-import type { FormatsPlugin } from "ajv-formats";
 import { describe, expect, it } from "vitest";
 import { ModelBudget } from "../src/redteam/budget.ts";
 import {
@@ -17,7 +14,6 @@ import {
   validateCampaignPlan,
   wilson,
 } from "../src/redteam/campaign.ts";
-import { formatCampaign } from "../src/redteam/campaign-report.ts";
 import { planProject } from "../src/redteam/plan.ts";
 import { newRun, type RedteamRun } from "../src/redteam/run.ts";
 import { fixturePath } from "./support/fixtures.ts";
@@ -267,9 +263,6 @@ describe("fixed campaign evidence and gates", () => {
       counts: { violation_observed: 0 },
     });
     expect(evaluateCampaignGate(report).exitCode).toBe(3);
-    expect(
-      JSON.parse(formatCampaign(report, "sarif")).runs[0].results[0].properties.backendObservations,
-    ).toBe(1);
     report.plan.policy.suppressions = [
       { caseId: "manager-price-override", reason: "Explicitly accepted backend boundary" },
     ];
@@ -364,39 +357,5 @@ describe("fixed campaign evidence and gates", () => {
     const child = malformed.runs[0] as RedteamRun;
     child.trials.push(child.trials[1] as (typeof child.trials)[number]);
     expect(summarizeCampaign(malformed)[0]).toMatchObject({ evaluable: 0, counts: { error: 1 } });
-  });
-  it("exports observed results and incomplete scope in terminal, JSON, Markdown and SARIF", async () => {
-    const report = completed(await plan());
-    report.runs[0] = run(report.plan, ["violation_observed", "inconclusive"]);
-    report.plan.policy.suppressions = [
-      { caseId: "direct-override", reason: "<img src=https://evil.example>" },
-    ];
-    const json = JSON.parse(formatCampaign(report, "json"));
-    expect(json.kind).toBe("redteam-campaign");
-    expect(json.statistics[1].rate).toBeNull();
-    expect(formatCampaign(report, "terminal")).toContain("unknown");
-    const markdown = formatCampaign(report, "markdown");
-    expect(markdown).toContain("95% Wilson");
-    expect(markdown).toContain("\\<img");
-    const sarif = JSON.parse(formatCampaign(report, "sarif"));
-    const ajv = new Ajv({ allErrors: true, strict: false, unicodeRegExp: false });
-    const addFormats: FormatsPlugin = createRequire(import.meta.url)("ajv-formats");
-    addFormats(ajv);
-    const validate = ajv.compile(
-      JSON.parse(
-        await readFile(
-          new URL("fixtures/reports/sarif-2.1.0.schema.json", import.meta.url),
-          "utf8",
-        ),
-      ),
-    );
-    expect(validate(sarif), JSON.stringify(validate.errors)).toBe(true);
-    expect(validate(JSON.parse(formatCampaign(newCampaign(report.plan), "sarif")))).toBe(true);
-    expect(sarif.runs[0].invocations[0].executionSuccessful).toBe(false);
-    expect(sarif.runs[0].results[0].suppressions[0].justification).toContain("<img");
-    expect(sarif.runs[0].results[0].ruleId).toBe("direct-override");
-    expect(await readFile(join(report.plan.root, "requirements.txt"), "utf8")).toBe(
-      "llmfy==0.11.0\n",
-    );
   });
 });

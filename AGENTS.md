@@ -38,7 +38,7 @@ pnpm evaluate                        # static detection on test/fixtures/evaluat
   `shared`; `dashboard` and `cli` are adapters on top of everything and nothing
   imports them back. The browser bundle (`dashboard/src`) imports only
   `src/dashboard/contract.ts` and modules that have no `node:` imports
-  (`redteam/{campaign-model,campaign-evidence,comparison,profile,constants,...}`);
+  (`redteam/{campaign-model,campaign-evidence,profile,constants,...}`);
   adding a `node:` import to one of those breaks `pnpm dashboard:build`.
 - **Generated files are never edited by hand.** `docs/RULES.md` and `schemas/*.json`
   come from `pnpm generate`; the golden files under `test/fixtures/*/expected-*.json`

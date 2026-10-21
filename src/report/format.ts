@@ -3,12 +3,7 @@ import type { Location } from "../inventory/model.ts";
 import type { Rule, Severity } from "../rules/index.ts";
 import { SEVERITIES } from "../rules/model.ts";
 import { traceGapText } from "../rules/text.ts";
-import { json } from "../shared/json.ts";
 import { activeFindings, incompleteTraces, type Report, type ReportFinding } from "./model.ts";
-import { formatSummary, libraryScanText, type SummaryOptions } from "./summary.ts";
-
-export const FORMATS = ["terminal", "json", "sarif", "markdown"] as const;
-export type ReportFormat = (typeof FORMATS)[number];
 
 interface SourceOptions {
   /**
@@ -31,53 +26,6 @@ export function sourcePrefix(report: Pick<Report, "root">, sourceRoot?: string):
     throw new SourceRootError(`the scanned path is not inside the source root ${sourceRoot}`);
   }
   return path.split(sep).join("/");
-}
-
-export function formatReport(
-  report: Report,
-  format: ReportFormat,
-  options: SummaryOptions & SourceOptions,
-): string {
-  if (format === "json") return json(report);
-  if (format === "sarif") return json(toSarif(report, options));
-  if (format === "markdown") return toMarkdown(report, options);
-  let text = formatSummary({ ...report, findings: activeFindings(report) }, options);
-  if (report.review.suppressed > 0 && report.review.active === 0) {
-    text = text.replace(
-      "No risks detected by plenger's rules. This is not proof that there are none.",
-      "All detected findings are suppressed. Review their reasons in JSON, SARIF or Markdown.",
-    );
-  }
-  if (report.review.suppressed > 0 || report.findings.some((item) => item.baselineState)) {
-    const { active, suppressed, unchanged } = report.review;
-    text += `\n  Review: ${active} active · ${suppressed} suppressed · ${unchanged} in baseline\n`;
-  }
-  text += inSourceLines(report);
-  return text;
-}
-
-/** Findings listed one per line before the rest are counted. */
-const IN_SOURCE_LIMIT = 10;
-
-/**
- * The findings that `plenger-ignore` comments in the scanned code suppress, one per
- * line with the comment's reason. The code under review chose to hide them, so the
- * terminal names each one rather than only counting them.
- */
-function inSourceLines(report: Report): string {
-  const hidden = report.findings.filter((finding) => finding.suppression?.inSource);
-  if (hidden.length === 0) return "";
-  const lines = hidden
-    .slice(0, IN_SOURCE_LIMIT)
-    .map(
-      (finding) =>
-        `    ${finding.rule} ${finding.severity} ${finding.location.path}:${finding.location.line}: ${finding.suppression?.reason ?? ""}`,
-    );
-  if (hidden.length > IN_SOURCE_LIMIT)
-    lines.push(`    … ${hidden.length - IN_SOURCE_LIMIT} more in JSON, SARIF or Markdown`);
-  return ["", `  Suppressed by plenger-ignore comments in the scanned code:`, ...lines, ""].join(
-    "\n",
-  );
 }
 
 const LEVELS: Record<Severity, string> = {
@@ -291,7 +239,7 @@ export function toSarif(report: Report, options: SourceOptions = {}) {
 }
 
 /** Escape source-derived text so it cannot turn into HTML, images or extra Markdown structure. */
-export function markdownText(text: string): string {
+function markdownText(text: string): string {
   return text
     .replaceAll("&", "&amp;")
     .replace(/[\\`*_{}[\]()#+.!|<>~-]/g, "\\$&")
@@ -307,6 +255,12 @@ function codeBlock(text: string): string {
 function sourceLink(location: Location, prefix: string, sourceBaseUrl = ""): string {
   const path = sourcePath(location.path, prefix);
   return `[${markdownText(`${path}:${location.line}`)}](${sourceBaseUrl}${artifactUri(path)}#L${location.line})`;
+}
+
+/** What a library scan counted as input. */
+function libraryScanText(functions: number): string {
+  const traced = `${functions.toLocaleString("en-US")} public ${functions === 1 ? "function or method" : "functions and methods"}`;
+  return `Library scan: the parameters of ${traced} count as untrusted input.`;
 }
 
 export function toMarkdown(

@@ -121,25 +121,10 @@ stops the run. `provider-config.ts` validates saved settings: temperature 0 to
 The Next.js runner also runs the backend-validation worker first and redacts
 the report on every update. `evaluateDatabaseTrial()` is the SQLite oracle.
 
-`prepareFastapiProject()` in `fastapi-prepare.ts` is the FastAPI profile's
-preparation stage, not a runner: it has no trials, cases or model calls. It
-prepares the snapshot, reads the project's `requirements.txt` against the
-reviewed digest, builds the project image through `prepareFastapiRuntime()`
-(wheels only; native first, `linux/amd64` on an arm64 host when a wheel exists
-only there), starts the disposable services from `services.ts` on an internal
-network, launches `runtimes/fastapi/worker.py` on that network and records the
-`ready`, `adapter`, `imported`, `probe` and `failure` frames in a
-`FastapiPreparation` report. Services and the network are removed whatever
-happens; `cleanupConfirmed` records whether every removal was confirmed.
-`removeExpiredNetworks()` sweeps networks left by a dead host, by the same
-label as workers. The preparation stage is internal; the public CLI no longer exposes it.
-
 `campaign.ts` creates campaign plans from a project plan, validates imported
 profiles, executes repetitions through the runners with one shared budget and
 evaluates the gates. `campaign-evidence.ts` computes per-case counts and
 Wilson intervals (z = 1.959963984540054, no continuity correction).
-`campaign-report.ts` renders terminal, JSON, Markdown and SARIF.
-`comparison.ts` implements the fixed-configuration before/after comparison.
 `schema.ts` defines the version 1 JSON schemas that `pnpm schemas` writes.
 
 ## Qualification broker

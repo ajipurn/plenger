@@ -18,12 +18,6 @@ export const LANGUAGE_OF: Record<Grammar, Language> = {
   tsx: "typescript",
 };
 
-export const LANGUAGE_LABEL: Record<Language, string> = {
-  python: "Python",
-  javascript: "JavaScript",
-  typescript: "TypeScript",
-};
-
 const GRAMMAR_BY_EXTENSION: Record<string, Grammar> = {
   ".py": "python",
   ".js": "javascript",

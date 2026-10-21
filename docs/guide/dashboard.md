@@ -287,8 +287,6 @@ to the browser or included in exports. The editor shows a masked preview with on
 the last four characters. Keys shorter than 12 characters stay fully masked.
 The preview is derived locally and excluded from stored settings and exports.
 Leave the key field blank to keep the saved key. Deleting a provider removes its key.
-Claude's native Messages transport also supports the facts-only `assess`
-command. See [assessment.md](assessment.md).
 
 ## Local service and saved data
 

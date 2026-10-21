@@ -65,7 +65,7 @@ Start → inspect outcomes and evidence → save cases and retest a fix.
 | Attack strategies | Delivery separate from the risk: direct input, transformed inputs, adaptive attempts, multi-turn, lower-trust content | Direct fixed prompts exist; M7 adds indirect delivery; transformations, adaptive and multi-turn are beyond the MVP |
 | Attack generation and grading | Optional attacker LLM; deterministic oracles with an optional judge LLM | Fixed attacks and deterministic observations exist; attacker and judge roles are planned |
 | Campaigns and evidence | Progress, cancellation, shared budgets, clean controls, scoped conclusions, observed effects | Delivered for the two profiles, including saved providers, repetitions, statistics, profiles and CLI gates |
-| Security regression | Save a failure as a reusable case, rerun against a fix, compare across builds, gate CI | Saved campaigns and before/after comparisons exist; reusable custom suites are planned |
+| Security regression | Save a failure as a reusable case, rerun against a fix, compare across builds, gate CI | Saved campaigns exist; before/after comparisons were removed on 2026-10-21 and return with a dashboard adapter; reusable custom suites are planned |
 
 Within managed red-team runs, target, attacker and judge models are distinct
 roles; choosing a provider configures the target model only. The sequence is: qualify M6a, broaden
@@ -201,7 +201,8 @@ the llmfy path blocks M6a; it is not deferred to M6b or made a user task.
   independently.
   The first new profile is the FastAPI project profile designed in
   [design/fastapi-profile.md](design/fastapi-profile.md), with the Dayatech
-  assessment-center project as its acceptance target.
+  assessment-center project as its acceptance target. Its first checkpoint was
+  removed on 2026-10-21 and is rebuilt when M6b resumes.
 - M6c: the MCP SDK go/no-go spike and adapter; qualified tool, web and
   retrieval delivery for surfaces that today stay unsupported in the scope
   matrix; a CLI option for dynamic suppressions. Repetitions, statistics,

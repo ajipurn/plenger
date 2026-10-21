@@ -4,7 +4,6 @@ import { Ajv } from "ajv";
 import type { FormatsPlugin } from "ajv-formats";
 import { describe, expect, it } from "vitest";
 import { createCampaignPlan, newCampaign, summarizeScope } from "../src/redteam/campaign.ts";
-import { compareCampaigns } from "../src/redteam/comparison.ts";
 import { planProject } from "../src/redteam/plan.ts";
 import { newRun } from "../src/redteam/run.ts";
 import { REDTEAM_SCHEMAS } from "../src/redteam/schema.ts";
@@ -19,7 +18,7 @@ const validators = Object.fromEntries(
 );
 
 describe("separate versioned dynamic evidence schemas", () => {
-  it("validates preparing, interrupted and completed managed evidence and unavailable comparisons", async () => {
+  it("validates preparing, interrupted and completed managed evidence", async () => {
     const project = await planProject(fixturePath("redteam/vercel"));
     const plan = createCampaignPlan(project, {
       provider: "ollama",
@@ -35,12 +34,10 @@ describe("separate versioned dynamic evidence schemas", () => {
       limits: plan.limits,
     });
     campaign.runs.push(run);
-    const after = newCampaign(plan);
     for (const [name, value] of [
       ["redteam-run-v1.schema.json", run],
       ["redteam-campaign-plan-v1.schema.json", plan],
       ["redteam-campaign-v1.schema.json", campaign],
-      ["redteam-comparison-v1.schema.json", compareCampaigns(campaign, after, "Require approval")],
     ] as const) {
       const validate = validators[name];
       expect(validate?.(value), JSON.stringify(validate?.errors)).toBe(true);

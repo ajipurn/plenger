@@ -19,7 +19,6 @@ export function parseCommandArgs<T extends ParseArgsOptionsConfig>(
   command: string,
   argv: string[],
   options: T,
-  maxPositionals: number,
 ): ParsedCommand<T> {
   let parsed: ReturnType<typeof parseArgs<{ options: T; allowPositionals: true }>>;
   try {
@@ -36,12 +35,6 @@ export function parseCommandArgs<T extends ParseArgsOptionsConfig>(
     if (unknown) throw new UsageError(`${unknown[1]} is not supported by ${command}`);
     throw new UsageError(message.replace(/\. To specify .*$/s, ""));
   }
-  if (parsed.positionals.length > maxPositionals) {
-    throw new UsageError(
-      maxPositionals === 0
-        ? `${command} takes no path`
-        : `${command} takes at most ${maxPositionals} path${maxPositionals === 1 ? "" : "s"}`,
-    );
-  }
+  if (parsed.positionals.length > 0) throw new UsageError(`${command} takes no path`);
   return parsed;
 }

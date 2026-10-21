@@ -310,41 +310,6 @@ const definitions: Record<string, Schema> = {
     statistics: array(ref("statistics"), 2),
     gate: ref("gate"),
   }),
-  taskCompletion: object({
-    planned: positive,
-    passed: natural,
-    failed: natural,
-    missing: natural,
-    rate: ratio,
-  }),
-  comparison: object({
-    schemaVersion: { const: 1 },
-    kind: { const: "redteam-comparison" },
-    before: object({ id: text, sourceDigest: digest, build: nullable(text) }),
-    after: object({ id: text, sourceDigest: digest, build: nullable(text) }),
-    change: text,
-    compatible: boolean,
-    eligible: boolean,
-    reasons: array(text),
-    changes: array(text),
-    assumptions: array(text),
-    cases: array(
-      object({
-        caseId,
-        before: nullable(ref("statistics")),
-        after: nullable(ref("statistics")),
-        eligible: boolean,
-        rateChange: nullable({ type: "number", minimum: -1, maximum: 1 }),
-      }),
-      CASE_IDS.length,
-    ),
-    taskCompletion: object({
-      before: ref("taskCompletion"),
-      after: ref("taskCompletion"),
-      change: nullable({ type: "number", minimum: -1, maximum: 1 }),
-    }),
-    afterGate: ref("gate"),
-  }),
 };
 function document(title: string, definition: string): Schema {
   return {
@@ -358,5 +323,4 @@ export const REDTEAM_SCHEMAS = {
   "redteam-run-v1.schema.json": document("Plenger dynamic run v1", "run"),
   "redteam-campaign-plan-v1.schema.json": document("Plenger campaign plan v1", "plan"),
   "redteam-campaign-v1.schema.json": document("Plenger campaign evidence v1", "campaign"),
-  "redteam-comparison-v1.schema.json": document("Plenger campaign comparison v1", "comparison"),
 };

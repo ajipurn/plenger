@@ -6,8 +6,8 @@ Current capabilities and qualifications are in [../STATUS.md](../STATUS.md).
 
 The engine and recipes remain in the codebase. The llmfy file-canary profile
 observes file writes. The Vercel booking profile observes changes to a disposable
-SQLite database. FastAPI preparation builds project dependencies, starts private
-backing services, imports the application and probes a route.
+SQLite database. Campaign comparisons and the FastAPI preparation stage were
+removed with the CLI; their designs stay in [../design/](../design/).
 
 The dashboard backend retains its existing red-team API. Removing CLI adapters
 does not remove that API or its engine. Model transport, authentication, budgets

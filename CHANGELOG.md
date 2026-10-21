@@ -18,6 +18,16 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   Dashboard analysis and shared engines remain. The GitHub Action calls the static
   engine directly. Installed-package checks use the default dashboard launcher.
 
+### Removed
+
+- Engine parts that only the removed commands used: the terminal report and rule
+  list, the facts-only Claude assessment and its schema, the red-team text,
+  Markdown and SARIF reports, campaign comparisons and their schema, and the
+  report engine's switch that ignores `plenger-ignore` comments.
+- The FastAPI project profile: its preparation stage, runtime recipe, disposable
+  MySQL and Redis services and the planner profile. Its design stays in
+  docs/design/fastapi-profile.md.
+
 ### Added
 
 - Five more static rules:

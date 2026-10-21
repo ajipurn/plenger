@@ -5,8 +5,9 @@ import { parse } from "yaml";
 import { runGitHubAction } from "../scripts/lib/github-action.ts";
 import { SourceRootError, sourcePrefix, toMarkdown, toSarif } from "../src/report/format.ts";
 import { createReport, failsGate, withoutSuppressed } from "../src/report/model.ts";
-import { createBaseline, readBaseline, readSuppressions } from "../src/report/policy.ts";
+import { readBaseline, readSuppressions } from "../src/report/policy.ts";
 import { scan } from "../src/scan.ts";
+import { baselineOf } from "./support/baseline.ts";
 import { temporaryDir } from "./support/tmp.ts";
 
 const unsafe = [
@@ -29,7 +30,7 @@ describe("report policies used by CI", () => {
   it("matches portable baselines after line edits and relocation, and gates new findings", async () => {
     await withProject(async (root) => {
       const baselineFile = join(root, "baseline.json");
-      await writeFile(baselineFile, JSON.stringify(createBaseline((await scan(root)).findings)));
+      await writeFile(baselineFile, JSON.stringify(baselineOf((await scan(root)).findings)));
       const baseline = await readBaseline(baselineFile);
       await writeFile(join(root, "tool.py"), `# unrelated line\n${unsafe}`);
       const unchanged = createReport(await scan(root), { baseline });
@@ -67,7 +68,7 @@ describe("report policies used by CI", () => {
     });
   });
 
-  it("keeps in-source suppressions visible and permits an engine audit without them", async () => {
+  it("keeps in-source suppressions visible in SARIF and Markdown", async () => {
     await withProject(async (root) => {
       await writeFile(
         join(root, "tool.py"),
@@ -88,10 +89,6 @@ describe("report policies used by CI", () => {
         { kind: "inSource", status: "accepted", justification: "runs only in the build sandbox" },
       ]);
       expect(toMarkdown(reviewed)).toContain("Suppressed by a comment in the code");
-      expect(createReport(result, { inline: false }).review).toMatchObject({
-        active: 2,
-        suppressed: 0,
-      });
     });
   });
 
@@ -157,7 +154,7 @@ describe("GitHub Action", () => {
   it("passes baseline and suppression inputs and supports disabling the gate", async () => {
     await withProject(async (root) => {
       const baseline = join(root, "baseline.json");
-      await writeFile(baseline, JSON.stringify(createBaseline((await scan(root)).findings)));
+      await writeFile(baseline, JSON.stringify(baselineOf((await scan(root)).findings)));
       const suppression = join(root, "suppression.json");
       await writeFile(
         suppression,
