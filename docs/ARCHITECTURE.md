@@ -107,6 +107,13 @@ conversation in `review-explore.ts`: `list_files`, `read_file`, `search` and
 `outline` over the same reader, a submit tool whose arguments the same parsers
 check, a read log that bounds citations, and per-session limits with a closing
 turn. Its limits live in `EXPLORE_LIMITS` in `review-model.ts`.
+`review-paths.ts` lists the paths the static scan traced from entry points,
+tools, agents and model output to effects, with ids stable for one scan, and
+picks the ones a review closes; `parseReviewDiscovery` keeps only closures that
+check out. `review-guides.ts` holds the framework review notes and selects them
+from the static inventory within a byte limit. A review can also take the
+project threat model and a change scope; both are plain options, so the
+assessment layer imports nothing from `security/`.
 `storage/review-repository.ts` persists per-scan results. The explicit dashboard
 route `routes/security-review.ts` remains available. The repository workspace
 coordinates new jobs through `security-coordinator.ts` and exposes coverage,
@@ -132,11 +139,21 @@ status is separate from an AI validation verdict.
 monitoring. It captures an offline scan, runs one or up to three independent
 source-review batches, saves results and stops at failures or refusals.
 `OperationSupervisor` serializes jobs with other project operations and owns
-cancellation. Navigating away does not abort a job. Monitoring checks local
+cancellation. The coordinator passes each review the project threat model and,
+for a change review, the change scope; it saves the extended model when a scan
+completes. `continueScan` reruns the batch loop on a scan that stopped at its
+limit, from its saved static scan and earlier reviews, under a new limit. Each
+request, read tool call and finished batch is recorded as job activity. Navigating away does not abort a job. Monitoring checks local
 HEAD every 30 seconds while the service runs. Provider failures pause it.
 
 `security/git.ts` reads revision metadata using fixed Git commands, disables
-hooks and fsmonitor, and removes inherited Git configuration variables. It is
+hooks and fsmonitor, and removes inherited Git configuration variables.
+`readGit` is that invocation for every caller. `security/changes.ts` builds a
+change scope: the base comes from Git objects (`rev-parse`, `ls-tree`,
+`cat-file blob`), the current text from the files on disk, compared by a Myers
+line diff in this process, so no project filter or diff driver runs.
+`security/threat-model.ts` extends a project threat model with one review's
+architecture, assets and trust boundaries. It is
 outside the static pipeline. The reported revision does not freeze source;
 review file digests identify captured content. No application code executes.
 
@@ -232,7 +249,9 @@ Private builds skip update checks and self-update. `UsageError` exits 2 and
 operational failures exit 1. `io.ts` lets tests call `main()` directly.
 `scripts/github-action.ts` is the composite Action entry. Its adapter in
 `scripts/lib/github-action.ts` calls the engine directly and has no dependency
-on the public dispatcher or update checks.
+on the public dispatcher or update checks. `scripts/lib/github-action-review.ts`
+runs the opt-in AI review there and turns its kept findings into a second SARIF
+run and a summary section.
 
 ## The dashboard
 
@@ -278,6 +297,7 @@ Container-gated suites skip unless `PLENGER_TEST_LLMFY_IMAGE` or
 | Add a risk rule | `src/rules/catalog.ts`, a check in `src/rules/checks/`, cases under `test/fixtures/risks/`, `pnpm generate` |
 | Add a tool capability or sink | `src/capabilities/sinks.ts` |
 | Add a report format | `src/report/format.ts` |
+| Add a framework review guide | `REVIEW_GUIDES` in `src/assessment/review-guides.ts`, measured with `pnpm evaluate` before and after |
 | Add a CLI command or option | `src/cli/`, usage text in `src/cli/index.ts`, a case in `test/cli.test.ts` |
 | Add a dashboard endpoint | `src/dashboard/contract.ts`, a handler in `src/dashboard/routes/`, `dashboard/src/api/client.ts`, a test in `test/dashboard-*.test.ts` |
 | Add a red-team profile | `src/redteam/constants.ts`, a planner and an executor, a worker under `runtimes/`, `RUNTIME_FILES`, the schemas via `pnpm generate` |
