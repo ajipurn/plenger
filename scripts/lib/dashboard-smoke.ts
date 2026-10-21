@@ -15,7 +15,7 @@ export async function launchDashboard(options: DashboardLaunch) {
   const { program, args = [], cwd, workspace, dataDir, env } = options;
   const server = spawn(
     program,
-    [...args, "serve", workspace, "--port", "0", "--data-dir", dataDir],
+    [...args, "--workspace", workspace, "--port", "0", "--data-dir", dataDir],
     {
       cwd,
       env,

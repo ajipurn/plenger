@@ -26,12 +26,6 @@ export async function writeOutput(path: string, text: string): Promise<void> {
   await writeFile(path, text, "utf8");
 }
 
-/** Writes to the output file when one is given, otherwise to stdout. */
-export async function emit(text: string, path: string | undefined, io: Io): Promise<void> {
-  if (path) await writeOutput(path, text);
-  else io.stdout(text);
-}
-
 /** A one-line description of an error for stderr. */
 export function describe(error: unknown): string {
   if (isErrno(error, "ENOENT") && "path" in error) {

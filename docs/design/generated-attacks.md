@@ -1,5 +1,9 @@
 # Generated attacks (design)
 
+The command examples below are design proposals from before the launcher-only
+CLI. They are not public commands. See [../guide/install.md](../guide/install.md)
+for the current interface.
+
 Status: checkpoint 1 (attack templates on the host) is implemented; it was
 brought forward on 2026-10-06. Checkpoints 2 to 4 are design only and follow
 M7 in the roadmap. Current capabilities are in [../STATUS.md](../STATUS.md).

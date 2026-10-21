@@ -1,7 +1,7 @@
 # FastAPI project profile (design, M6b)
 
 Status: checkpoint 1 (build pipeline and import) is implemented as
-`plenger redteam prepare`; checkpoints 2 to 4 are design only. Current
+the internal preparation engine; checkpoints 2 to 4 are design only. Current
 capabilities are in [../STATUS.md](../STATUS.md).
 
 ## Why
@@ -205,7 +205,7 @@ recorded under `docs/qualifications/`.
 1. **Build pipeline.** Resolve and build the target project's dependency set
    into a layer; worker starts with all isolation checks on Docker and Podman;
    the project imports under the 0.6.0 adapter with the disposable services
-   up. No model call yet. Implemented as `plenger redteam prepare`
+   up. No model call yet. Implemented in the internal preparation engine
    (`src/redteam/fastapi-prepare.ts`, `services.ts`, `runtimes/fastapi/`);
    the Docker qualification on the target project is
    [fastapi-prepare-dayatech-2026-10-06](../qualifications/fastapi-prepare-dayatech-2026-10-06.md).

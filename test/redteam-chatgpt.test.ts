@@ -2,7 +2,6 @@ import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { main } from "../src/cli/index.ts";
 import { API, type ChatgptLoginResult, TOKEN_HEADER } from "../src/dashboard/contract.ts";
 import { ModelBudget } from "../src/redteam/budget.ts";
 import { chatgptModels } from "../src/redteam/chatgpt-auth.ts";
@@ -146,40 +145,50 @@ async function loginHarness(
   });
   vi.stubGlobal("fetch", fetchMock);
   async function login() {
-    const out: string[] = [],
-      err: string[] = [];
-    let callback: Promise<void> | undefined;
-    const code = await main(
-      ["redteam", "login", "--provider", "My subscription", "--data-dir", root],
-      {
-        color: false,
-        stderr: (value) => err.push(value),
-        stdout: (value) => {
-          out.push(value);
-          const match = value.match(/https:\/\/auth\.openai\.com\/[^\s]+/);
-          if (!match) return;
-          const auth = new URL(match[0]);
-          authUrls.push(auth);
-          callback = (async () => {
-            const target = new URL(required(auth.searchParams.get("redirect_uri"), "callback"));
-            target.searchParams.set("state", required(auth.searchParams.get("state"), "state"));
-            target.searchParams.set("client_id", "oaiapp_plenger_test");
-            target.searchParams.set(
-              options.denied ? "error" : "code",
-              options.denied ? "access_denied" : "test-code",
-            );
-            if (options.wrongStateFirst) {
-              const bad = new URL(target);
-              bad.searchParams.set("state", "wrong");
-              expect((await actualFetch(bad)).status).toBe(400);
-            }
-            expect((await actualFetch(target)).status).toBe(200);
-          })();
-        },
-      },
-    );
-    await callback;
-    return { code, stdout: out.join(""), stderr: err.join("") };
+    const store = await ProviderRepository.open(root);
+    const previous = store.providers
+      .readProviders()
+      .find((item) => item.name === "My subscription");
+    store.close();
+    const dashboard = await startTestDashboard({ root: join(root, "login"), dataDir: root });
+    try {
+      const started = (await (
+        await dashboard.request(API.chatgptLogin, {
+          ...(previous ? { id: previous.id } : {}),
+          name: "My subscription",
+          provider: "chatgpt",
+          model: "pending-sign-in",
+          baseUrl: PROVIDER_URLS.chatgpt,
+          temperature: null,
+          maxOutputTokens: 1024,
+        })
+      ).json()) as ChatgptLoginResult;
+      const auth = new URL(required(started.authorizationUrl, "authorization URL"));
+      authUrls.push(auth);
+      const target = new URL(required(auth.searchParams.get("redirect_uri"), "callback"));
+      target.searchParams.set("state", required(auth.searchParams.get("state"), "state"));
+      target.searchParams.set("client_id", "oaiapp_plenger_test");
+      target.searchParams.set(
+        options.denied ? "error" : "code",
+        options.denied ? "access_denied" : "test-code",
+      );
+      if (options.wrongStateFirst) {
+        const bad = new URL(target);
+        bad.searchParams.set("state", "wrong");
+        expect((await actualFetch(bad)).status).toBe(400);
+      }
+      expect((await actualFetch(target)).status).toBe(200);
+      let result = started;
+      await vi.waitFor(async () => {
+        result = (await (
+          await dashboard.request(`${API.chatgptLoginStatus}?id=${started.id}`)
+        ).json()) as ChatgptLoginResult;
+        expect(result.state).not.toBe("pending");
+      });
+      return { code: result.state === "connected" ? 0 : 1, stdout: "", stderr: result.error ?? "" };
+    } finally {
+      await dashboard.close();
+    }
   }
   return { root, login, authUrls, modelRequests, tokenBodies, fetchMock };
 }
@@ -589,7 +598,7 @@ describe("ChatGPT streaming provider", () => {
       createRunProvider({ provider: "chatgpt", model: "test", baseUrl: "https://example.com" }),
     ).toThrow(/fixed endpoint/);
     expect(() => createRunProvider({ provider: "chatgpt", model: "test" })).toThrow(
-      /redteam login/,
+      /Settings > Providers/,
     );
   });
 });

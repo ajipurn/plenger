@@ -11,9 +11,6 @@ import {
   ASSESSMENT_REPORT_SCHEMA,
   type AssessmentData,
 } from "../src/assessment/model.ts";
-import { main } from "../src/cli/index.ts";
-import { PROVIDER_URLS } from "../src/redteam/provider-config.ts";
-import { ProviderRepository } from "../src/storage/provider-repository.ts";
 import { temporaryDir } from "./support/tmp.ts";
 
 const access = {
@@ -73,16 +70,6 @@ async function project() {
   const root = await temporaryDir("plenger-assessment-");
   await writeFile(join(root, "agent.py"), source);
   return root;
-}
-async function cli(...argv: string[]) {
-  const output: string[] = [],
-    errors: string[] = [];
-  const code = await main(argv, {
-    stdout: (text) => output.push(text),
-    stderr: (text) => errors.push(text),
-    color: false,
-  });
-  return { code, stdout: output.join(""), stderr: errors.join("") };
 }
 const ajv = new Ajv({ strict: false });
 const addFormats: FormatsPlugin = createRequire(import.meta.url)("ajv-formats");
@@ -296,103 +283,5 @@ describe("read-only Claude assessments", () => {
         ),
       ),
     ).toEqual(ASSESSMENT_REPORT_SCHEMA);
-  });
-});
-
-describe("plenger assess", () => {
-  it("runs through main with an explicitly named environment variable and saves a redacted report", async () => {
-    const root = await project();
-    const destination = join(await temporaryDir(), "report.json");
-    vi.stubEnv("PLENGER_TEST_ANTHROPIC_KEY", access.apiKey);
-    const dispatch = vi.fn<typeof fetch>(async () => response());
-    vi.stubGlobal("fetch", dispatch);
-    const result = await cli(
-      "assess",
-      root,
-      "--model",
-      access.model,
-      "--api-key-env",
-      "PLENGER_TEST_ANTHROPIC_KEY",
-      "--json",
-      "--output",
-      destination,
-    );
-    expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
-    const report = JSON.parse(await readFile(destination, "utf8"));
-    expect(report.status).toBe("completed");
-    expect(validate(report), JSON.stringify(validate.errors)).toBe(true);
-    expect(dispatch).toHaveBeenCalledTimes(1);
-  });
-
-  it("reuses a saved encrypted Anthropic connection", async () => {
-    const directory = join(await temporaryDir(), "data");
-    const store = await ProviderRepository.open(directory);
-    try {
-      store.providers.saveProvider({
-        name: "Claude review",
-        provider: "anthropic",
-        model: access.model,
-        baseUrl: PROVIDER_URLS.anthropic,
-        temperature: null,
-        maxOutputTokens: 4096,
-        apiKey: access.apiKey,
-      });
-    } finally {
-      store.close();
-    }
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof fetch>(async (_url, init) => {
-        expect(new Headers(init?.headers).get("x-api-key")).toBe(access.apiKey);
-        return response();
-      }),
-    );
-    const result = await cli(
-      "assess",
-      await project(),
-      "--provider",
-      "Claude review",
-      "--data-dir",
-      directory,
-      "--json",
-    );
-    expect(result.code).toBe(0);
-    expect(result.stdout).not.toContain(access.apiKey);
-    expect(JSON.parse(result.stdout).provider).toMatchObject({
-      name: "anthropic",
-      model: access.model,
-    });
-  });
-
-  it("returns exit 1 with the refusal reason, and rejects invalid options before a request", async () => {
-    vi.stubEnv("PLENGER_TEST_ANTHROPIC_KEY", access.apiKey);
-    const dispatch = vi.fn<typeof fetch>(async () => response("Request declined.", "refusal"));
-    vi.stubGlobal("fetch", dispatch);
-    const args = [
-      "assess",
-      await project(),
-      "--model",
-      access.model,
-      "--api-key-env",
-      "PLENGER_TEST_ANTHROPIC_KEY",
-      "--json",
-    ];
-    const refused = await cli(...args);
-    expect(refused.code).toBe(1);
-    expect(JSON.parse(refused.stdout)).toMatchObject({
-      status: "refused",
-      reason: "Request declined.",
-    });
-    for (const flags of [
-      ["--timeout", "0"],
-      ["--tokens", "no"],
-      ["--format", "sarif"],
-      ["--provider", "saved"],
-      ["--api-key", "secret"],
-    ]) {
-      expect((await cli(...args, ...flags)).code).toBe(2);
-    }
-    expect(dispatch).toHaveBeenCalledTimes(1);
-    expect((await cli("assess", "--help")).stdout).toContain("One model request");
   });
 });

@@ -8,7 +8,7 @@ import { fixturePath } from "./support/fixtures.ts";
 
 export { fixturePath };
 
-/** Facts for one fixture file, extracted the way `plenger facts` does. */
+/** Facts for one fixture file, extracted through the source parser. */
 export async function factsOfFixture(relative: string): Promise<FileFacts> {
   const result = await scan(fixturePath(relative), { facts: true });
   const facts = result.files[0]?.facts;

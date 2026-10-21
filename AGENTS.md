@@ -4,7 +4,8 @@ plenger is an npm package with a CLI and a local dashboard for security review o
 any repository, modeled on Codex Security Cloud. The dashboard is the main journey:
 a bounded AI source review with a second validation pass, STRIDE and findings.
 Static triage is the agentic AI specialty for Python, JavaScript and TypeScript.
-Managed red-team campaigns in containers stay in the CLI; that work is postponed.
+The public CLI starts the dashboard and provides confirmed npm updates. The
+red-team engine and recipes remain internal. See docs/STATUS.md for their status.
 The product direction is in [docs/ROADMAP.md](docs/ROADMAP.md#goal). Read
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the source layout and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the toolchain. This file lists the rules that
@@ -16,7 +17,7 @@ are easy to get wrong.
 source ~/.nvm/nvm.sh && nvm use     # Node 22; the shell default may be older
 pnpm install --ignore-scripts
 pnpm check                           # typecheck (engine + dashboard), biome, vitest; must pass
-pnpm dev <command> ...               # run the CLI from source, no build step
+pnpm dev [options]                   # launch the dashboard from source, no build step
 pnpm dashboard                       # Vite dev server + local API with hot reload
 pnpm generate                        # regenerate docs/RULES.md and schemas/*.json
 pnpm bench -- --write                # regenerate test/fixtures/*/expected-*.json
@@ -50,10 +51,10 @@ pnpm evaluate                        # static detection on test/fixtures/evaluat
 - **Runtime recipes are listed once.** `RUNTIME_FILES` in `src/redteam/runtime.ts`
   drives the container build and the image digest. Adding a file under
   `runtimes/` means adding it there and to the runtime's Dockerfile.
-- **Errors map to exit codes in `src/cli/index.ts`.** Throw `UsageError` for bad
-  command lines, `PolicyError` for bad policy files, `PreparationError` for
-  red-team preparation problems. Each CLI command parses only its own options with
-  `parseCommandArgs`.
+- **Launcher errors map to exit codes in `src/cli/index.ts`.** Throw `UsageError`
+  for invalid options (exit 2). Operational failures exit 1. Only the dashboard
+  launcher, help, version and confirmed update are public. The GitHub Action calls
+  the engine directly through `scripts/lib/github-action.ts`.
 - **Secrets are redacted before anything is written.** Use `redact`/`redactReport`
   from `src/shared/secrets.ts`; never log API keys, and never store a key outside
   `src/storage/provider-secrets.ts`.

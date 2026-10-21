@@ -7,6 +7,17 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ## Unreleased
 
+### Changed
+
+- The public CLI now launches the dashboard with `plenger`. It retains
+  `--help` and `--version` and adds `plenger update` with explicit confirmation.
+  Published builds check for stable updates in the background with a daily cache.
+  Updates verify the global npm installation and install the confirmed exact version.
+  Private builds skip registry checks and self-update.
+- The former scan, facts, rules, assess, serve and redteam commands are removed.
+  Dashboard analysis and shared engines remain. The GitHub Action calls the static
+  engine directly. Installed-package checks use the default dashboard launcher.
+
 ### Added
 
 - Five more static rules:
@@ -25,7 +36,7 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   `load_pickle`. Python comprehensions bind their loop names to items of their
   iterables, in a scope of their own.
 
-- `plenger scan --library` scans a package: the parameters of its public functions
+- The static engine can scan a package in library mode: the parameters of its public functions
   and methods count as untrusted input. Seven rules report them:
   - PLG901: in a shell command, a program's name or its arguments;
   - PLG902: in a file path on a base the function chooses, or read from inside a

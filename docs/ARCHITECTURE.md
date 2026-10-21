@@ -18,7 +18,7 @@ src/
   redteam/               dynamic testing engine: discovery, plans, campaigns, workers
   scan.ts                composition root of the static pipeline
   security/              repository, job and finding domain; read-only Git metadata
-  assessment/            explicit source-based AI review, STRIDE and facts-only CLI assessments
+  assessment/            source-based AI review, STRIDE and retained facts-only assessments
   remediation/           explicit model-generated coding agent prompts from saved findings
   evidence/              bounded, redacted imports of external REA JavaScript analysis
   report/                report shapes, formats (terminal, JSON, SARIF, Markdown), policies
@@ -73,7 +73,7 @@ code:
    (`effects.ts`, which also follows fixed tables of functions and drops input the
    guards around a call limit), which approvals guard it (`approvals.ts`) and which
    outputs it produces (`output.ts`), using the sink catalog in
-   `sinks.ts`/`catalog.ts`. A library scan (`scan --library`) also traces the
+   `sinks.ts`/`catalog.ts`. A library scan (`library: true`) also traces the
    package's public functions and methods, listed by `library.ts`, like handlers.
 7. `rules/engine.ts` evaluates the checks in `rules/checks/` with a `RuleContext`
    (`checks/library.ts` only has public functions to check in a library scan),
@@ -118,8 +118,8 @@ It selects bounded, redacted facts and finding snippets from the chosen path.
 `assessment/model.ts` validates the structured STRIDE response and its file/line
 references. It defines the generated assessment schema. `assessment/format.ts`
 renders JSON or escaped Markdown. Refusals and failures stop after one request.
-No project execution or model tools are exposed. `cli/commands/assess.ts` resolves
-an encrypted Anthropic connection or an explicitly named key environment variable.
+No project execution or model tools are exposed. This retained engine is no longer
+exposed as a public CLI command.
 
 ## Repository security workspace
 
@@ -153,7 +153,7 @@ explicit start.
   inventory. `plan.ts` (llmfy) and `vercel-plan.ts` (Next.js) capture a private
   source snapshot, review dependencies (`dependencies.ts`) and report readiness as
   a `ProjectPlan` (`plan-model.ts`). `profile.ts` decides whether a plan is
-  runnable. `format.ts` renders the CLI text for both.
+  runnable. `format.ts` retains text rendering for both.
 - **Model access.** `provider-config.ts` validates saved provider settings and
   converts them to `ProviderAccess`; `provider.ts` is the HTTP transport for
   OpenAI, Gemini and Ollama and the connection test. `anthropic-provider.ts`
@@ -208,8 +208,8 @@ imports only types from `run.ts`, `campaign.ts` and `plan.ts`.
 
 ## Storage
 
-`src/storage/` owns the SQLite database used by `plenger serve` and by
-`plenger redteam run` for saved providers. `database.ts` opens the file and
+`src/storage/` owns the SQLite database used by the dashboard, including saved
+provider connections. `database.ts` opens the file and
 applies `migrations.ts` (an ordered list keyed by `user_version`).
 `scan-repository.ts` keeps projects, scans, plans, the selected workspace and the
 theme; `redteam-repository.ts` keeps runs, campaigns and run profiles and
@@ -232,16 +232,15 @@ installation encryption key. Draft credentials are never saved with a catalog.
 
 ## The command line
 
-`src/cli/index.ts` maps a command name to a module in `src/cli/commands/` and maps
-errors to exit codes: `UsageError`, `PolicyError`, `SourceRootError` and
-`PreparationError` exit 2, anything else exits 1, and a failed finding gate exits 3.
-Each command parses only its own options with `parseCommandArgs` (`args.ts`), so an
-option of another command is reported as unsupported. `io.ts` abstracts stdout and
-stderr so tests can call `main()` directly. `redteam-run.ts`,
-`redteam-compare.ts`, `redteam-login.ts` (the ChatGPT sign-in) and
-`redteam-prepare.ts` (the FastAPI profile's build and import) are the heavier
-commands and are loaded on demand.
-`github-action.ts` is the entry of the composite GitHub Action.
+`src/cli/index.ts` exposes only the default dashboard launcher, help, version
+and explicit update. `dashboard.ts` parses launcher options and owns signal
+handling. `update.ts` checks stable npm metadata in the background, caches it for
+24 hours and installs a confirmed exact version only for an npm global install.
+Private builds skip update checks and self-update. `UsageError` exits 2 and
+operational failures exit 1. `io.ts` lets tests call `main()` directly.
+`scripts/github-action.ts` is the composite Action entry. Its adapter in
+`scripts/lib/github-action.ts` calls the engine directly and has no dependency
+on the public dispatcher or update checks.
 
 ## The dashboard
 
@@ -265,7 +264,7 @@ this shell. `providers/` retains the existing connection settings, `findings/`
 supplies fix prompt and REA components, `api/` owns the fetch client, and
 `shared/` owns UI primitives. The earlier overview, inventory, history and red-team
 views were removed; they remain in Git history. `/redteam` renders its placeholder.
-The red-team, campaign and plan HTTP routes remain for the CLI-compatible API and
+The red-team, campaign and plan HTTP routes remain for the internal API and
 their tests, without a page client. Styles live in `styles/`; the
 visual rules are in [design/dashboard-ui.md](design/dashboard-ui.md).
 
@@ -286,8 +285,8 @@ Container-gated suites skip unless `PLENGER_TEST_LLMFY_IMAGE` or
 | Support a new framework or library | `src/inventory/detectors/{python,javascript}.ts`, a fixture under `test/fixtures/frameworks/`, `pnpm bench -- --write` |
 | Add a risk rule | `src/rules/catalog.ts`, a check in `src/rules/checks/`, cases under `test/fixtures/risks/`, `pnpm generate` |
 | Add a tool capability or sink | `src/capabilities/sinks.ts` |
-| Add a report format | `src/report/format.ts` and `src/cli/commands/output.ts` |
-| Add a CLI command or option | `src/cli/commands/`, usage text in `src/cli/index.ts`, a case in `test/cli.test.ts` |
+| Add a report format | `src/report/format.ts` |
+| Add a CLI command or option | `src/cli/`, usage text in `src/cli/index.ts`, a case in `test/cli.test.ts` |
 | Add a dashboard endpoint | `src/dashboard/contract.ts`, a handler in `src/dashboard/routes/`, `dashboard/src/api/client.ts`, a test in `test/dashboard-*.test.ts` |
 | Add a red-team profile | `src/redteam/constants.ts`, a planner and an executor, a worker under `runtimes/`, `RUNTIME_FILES`, the schemas via `pnpm generate` |
 | Change persisted data | a new entry in `src/storage/migrations.ts` and the matching repository |

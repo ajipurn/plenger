@@ -11,7 +11,6 @@ import {
 } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { main } from "../src/cli/index.ts";
 import { reviewDependencies } from "../src/redteam/dependencies.ts";
 import { planProject, withPreparedProject } from "../src/redteam/plan.ts";
 import { readProjectFile } from "../src/redteam/project-files.ts";
@@ -278,19 +277,4 @@ describe("dependency review", () => {
     await symlink("missing", join(root, "pyproject.toml"));
     expect((await reviewDependencies(root)).status).toBe("needs-attention");
   });
-});
-
-it("exposes plan JSON in the CLI and validates target-only options", async () => {
-  const root = await project();
-  const stdout: string[] = [];
-  const io = { stdout: (text: string) => stdout.push(text), stderr: () => {}, color: false };
-  expect(await main(["redteam", "plan", root, "--json"], io)).toBe(0);
-  expect(JSON.parse(stdout.join(""))).toMatchObject({
-    kind: "redteam-project-plan",
-    executionReady: false,
-  });
-  expect(await main(["redteam", "plan", root, "--target", "unknown"], io)).toBe(2);
-  expect(await main(["redteam", "discover", root, "--target", "unknown"], io)).toBe(2);
-  expect(await main(["scan", root, "--target", "unknown"], io)).toBe(2);
-  expect(await main(["redteam", "plan", root, "--format", "sarif"], io)).toBe(2);
 });

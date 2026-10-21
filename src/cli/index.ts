@@ -1,151 +1,78 @@
-import { PreparationError } from "../redteam/plan.ts";
-import { SourceRootError } from "../report/format.ts";
-import { PolicyError } from "../report/policy.ts";
 import { VERSION } from "../shared/runtime.ts";
-import { ASSESS_USAGE, assessCommand } from "./commands/assess.ts";
-import { REDTEAM_USAGE, redteamCommand } from "./commands/redteam.ts";
-import { rulesCommand } from "./commands/rules.ts";
-import { factsCommand, scanCommand } from "./commands/scan.ts";
-import { SERVE_USAGE, serveCommand } from "./commands/serve.ts";
+import { COMMON_OPTIONS, parseCommandArgs } from "./args.ts";
+import { launchDashboard, parseDashboardArgs } from "./dashboard.ts";
 import { describe, type Io, processIo, UsageError } from "./io.ts";
+import { createUpdates, type Updates } from "./update.ts";
 
 export type { Io };
 export { VERSION };
 
-export const USAGE = `Usage:
-  plenger scan [path]            Triage the agentic AI code under path (default: .): inventory, capabilities, findings
-  plenger assess [path]          Review redacted scan evidence with Claude (read-only)
-  plenger rules                  List the risk rules
-  plenger serve [path]           Serve the local dashboard (default: .)
-  plenger facts [path]           Print the imports, definitions, assignments and calls in path as JSON
-  plenger redteam discover [path] Discover llmfy target candidates offline (no execution)
-  plenger redteam plan [path]     Review supported runtime preparation offline (no execution)
-  plenger redteam run [path]      Run managed security tests using a saved provider
-  plenger redteam compare        Compare exported fixed security campaigns
-  plenger redteam login          Connect a ChatGPT subscription provider
-  plenger redteam prepare [path] Build and import a FastAPI project (FastAPI profile)
-  plenger --version
-  plenger --help
+export const USAGE = [
+  "Usage:",
+  "  plenger                      Start the local dashboard",
+  "  plenger update               Update an npm global installation after confirmation",
+  "  plenger --help                Show this help",
+  "  plenger --version             Show the installed version",
+  "",
+  "Dashboard options:",
+  "  --workspace <folder>           Project folder (default: current directory)",
+  "  --port <0-65535>                Local port; 0 chooses a free port (default: 0)",
+  "  --data-dir <folder>            Local SQLite storage folder",
+  "",
+  "Open the printed URL in your browser. Press Ctrl+C to stop the dashboard.",
+  "Published builds check for updates in the background, at most once per day.",
+  "Set NO_UPDATE_NOTIFIER=1 to disable background update checks.",
+  "Updates never install automatically. Run plenger update when an update is available.",
+  "Exit codes: 0 success or cancelled update; 1 operation failed; 2 invalid options.",
+  "",
+].join("\n");
 
-Options:
-  --json                         Print the full result (or the rule list) as JSON
-  --format <format>              terminal, json, sarif or markdown (default: terminal)
-  --output <file>                Write the report to a file instead of stdout
-  --baseline <file>              Compare findings with a version 1 baseline
-  --write-baseline <file>        Write a baseline of every detected finding
-  --suppressions <file>          Apply a version 1 suppression file
-  --omit-suppressed              Leave suppressed findings out of the report (they are still counted)
-  --source-root <dir>            Make SARIF and Markdown paths relative to dir, such as the
-                                repository root, instead of the scanned path
-  --fail-on <severity>           Fail on new, unsuppressed findings at or above critical,
-                                high, medium or low (default: none)
-  --all                          List every finding, not only the most urgent
-  --no-gitignore                 Also scan files the project's .gitignore files ignore
-  --no-inline-suppressions      Report findings that plenger-ignore comments suppress
-  --library                      Scan a package: parameters of its public functions and
-                                methods count as untrusted input (rules PLG901 to PLG907)
-  --target <id>                  Select a candidate for redteam plan
-  --port <0-65535>               Dashboard port; 0 chooses a free port (default: 0)
-  --workspace <dir>              Dashboard project folder instead of a positional path
-  --data-dir <dir>               Dashboard SQLite storage folder (default: local application data)
+export const UPDATE_USAGE = [
+  "Usage:",
+  "  plenger update",
+  "",
+  "Update an official npm global installation. Stop any running dashboard first.",
+  "The current and new versions are shown before confirmation (default: cancel).",
+  "An interactive terminal is required. Dashboard data stays in its separate folder.",
+  "For npx, run npx plenger@latest. Update source checkouts through Git.",
+  "",
+].join("\n");
 
-Each command accepts only its own options; \`plenger <command> --help\` shows them.
-Exit codes: 0 success; 1 scan or I/O error; 2 invalid arguments or policy; 3 finding gate failed.
-`;
-
-interface Command {
-  run: (argv: string[], io: Io) => Promise<number>;
-  usage: string;
-}
-
-const COMMANDS: Record<string, Command> = {
-  scan: { run: scanCommand, usage: USAGE },
-  assess: { run: assessCommand, usage: ASSESS_USAGE },
-  facts: { run: factsCommand, usage: USAGE },
-  rules: { run: rulesCommand, usage: USAGE },
-  serve: { run: serveCommand, usage: SERVE_USAGE },
-  redteam: { run: redteamCommand, usage: REDTEAM_USAGE },
-};
-
-/** Runs the command line and returns the process exit code. */
-export async function main(argv: string[], io: Io = processIo()): Promise<number> {
-  const [name, ...rest] = argv;
-  if (name === "--version" || name === "-v") {
-    io.stdout(`${VERSION}\n`);
-    return 0;
-  }
-  if (name === undefined || name === "--help" || name === "-h") {
-    if (name === undefined) {
-      io.stderr(USAGE);
-      return 2;
-    }
-    io.stdout(USAGE);
-    return 0;
-  }
-  const command = COMMANDS[name];
-  if (command === undefined) {
-    io.stderr(`plenger: unknown command '${name}'\n\n${USAGE}`);
-    return 2;
-  }
-  const early = earlyOption(rest);
-  if (early === "version") {
-    io.stdout(`${VERSION}\n`);
-    return 0;
-  }
-  if (early === "help") {
-    io.stdout((await subcommandUsage(name, rest)) ?? command.usage);
-    return 0;
-  }
+/** Run the dashboard launcher or the explicit, confirmed updater. */
+export async function main(
+  argv: string[],
+  io: Io = processIo(),
+  updates?: Updates,
+): Promise<number> {
+  const updating = argv[0] === "update";
   try {
-    return await command.run(rest, io);
+    if (updating) {
+      const { values } = parseCommandArgs("update", argv.slice(1), COMMON_OPTIONS, 0);
+      if (values.help) {
+        io.stdout(UPDATE_USAGE);
+        return 0;
+      }
+      return await (updates ?? createUpdates()).run(io);
+    }
+    if (argv[0] !== undefined && !argv[0].startsWith("-"))
+      throw new UsageError(`unknown command '${argv[0]}'. Run plenger --help.`);
+    const { options, help, version } = parseDashboardArgs(argv);
+    if (help || version) {
+      io.stdout(help ? USAGE : `${VERSION}\n`);
+      return 0;
+    }
+    return await launchDashboard(
+      options,
+      io,
+      updates ??
+        createUpdates(options.dataDir === undefined ? {} : { dataDirectory: options.dataDir }),
+    );
   } catch (error) {
-    const usage =
-      error instanceof UsageError
-        ? `\n\n${(await subcommandUsage(name, rest)) ?? command.usage}`
-        : "\n";
-    io.stderr(`plenger: ${describe(error)}${usage}`);
-    return exitCode(error);
+    io.stderr(
+      "plenger: " +
+        describe(error) +
+        (error instanceof UsageError ? `\n\n${updating ? UPDATE_USAGE : USAGE}` : "\n"),
+    );
+    return error instanceof UsageError ? 2 : 1;
   }
-}
-
-/** Options that end the command line early, wherever they appear before `--`. */
-function earlyOption(argv: string[]): "help" | "version" | undefined {
-  for (const argument of argv) {
-    if (argument === "--") return undefined;
-    if (argument === "--help" || argument === "-h") return "help";
-    if (argument === "--version" || argument === "-v") return "version";
-  }
-  return undefined;
-}
-
-/** `redteam run` and `redteam compare` have their own options, loaded only when asked for. */
-async function subcommandUsage(name: string, rest: string[]): Promise<string | undefined> {
-  if (name !== "redteam") return undefined;
-  if (rest[0] === "login") {
-    const { REDTEAM_LOGIN_USAGE } = await import("./commands/redteam-login.ts");
-    return REDTEAM_LOGIN_USAGE;
-  }
-  if (rest[0] === "prepare") {
-    const { REDTEAM_PREPARE_USAGE } = await import("./commands/redteam-prepare.ts");
-    return REDTEAM_PREPARE_USAGE;
-  }
-  if (rest[0] === "run") {
-    const { REDTEAM_RUN_USAGE } = await import("./commands/redteam-run.ts");
-    return REDTEAM_RUN_USAGE;
-  }
-  if (rest[0] === "compare") {
-    const { REDTEAM_COMPARE_USAGE } = await import("./commands/redteam-compare.ts");
-    return REDTEAM_COMPARE_USAGE;
-  }
-  return undefined;
-}
-
-/** 2 for anything the user can fix on the command line or in a policy file, 1 otherwise. */
-function exitCode(error: unknown): number {
-  return error instanceof UsageError ||
-    error instanceof PolicyError ||
-    error instanceof SourceRootError ||
-    error instanceof PreparationError
-    ? 2
-    : 1;
 }

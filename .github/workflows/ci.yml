@@ -24,7 +24,12 @@ jobs:
       - run: pnpm check
       - run: pnpm build
       - run: pnpm dashboard:build
-      - run: node dist/bin.js scan src --format sarif --output plenger.sarif --fail-on high
+      - run: node scripts/github-action.ts
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          PLENGER_PATH: src
+          PLENGER_SARIF_FILE: plenger.sarif
+          PLENGER_FAIL_ON: high
   action:
     runs-on: ubuntu-latest
     steps:

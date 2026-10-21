@@ -3,7 +3,7 @@
 npm is the only distribution for the CLI and local dashboard. The user
 flow follows [promptfoo's npm installation](https://www.promptfoo.dev/docs/installation/):
 install a CLI package or run it with npx, then open the dashboard through a CLI
-command. Plenger uses `plenger serve [path]` with `--port`, `--workspace` and
+command. Plenger launches with `plenger`, accepting `--port`, `--workspace` and
 `--data-dir`. User steps are in [../guide/install.md](../guide/install.md).
 Release availability and platform evidence are in [../STATUS.md](../STATUS.md).
 
@@ -29,10 +29,11 @@ are bundled into the frontend. TypeScript sources, tests, developer scripts,
 source maps and standalone binaries are excluded from the package.
 
 Asset paths resolve relative to the installed package. The command works from
-any project directory without the source checkout. `serve` uses the packaged
+any project directory without the source checkout. The launcher uses the packaged
 frontend and keeps its SQLite data outside the installation directory.
 
-The package includes static and red-team commands. Static scans and plans
+The public CLI contains only the dashboard launcher, help, version and update.
+The static and red-team engines remain in the package. Static scans and plans
 never import project code, install its dependencies or load `.env` files.
 Dynamic runs require Docker or Podman and start only after an explicit action.
 `RUNTIME_FILES` remains the recipe list used by the container builder and checked
@@ -71,11 +72,11 @@ closure locally and installs all archives into a temporary directory without reg
 access. From that directory it checks:
 
 - npm executable resolution, version and command help
-- a JSON scan covering Python, JavaScript, TypeScript and TSX
-- offline preparation of the managed Next.js fixture
+- launcher and update help with no registry access
+- a dashboard API scan covering Python, JavaScript, TypeScript and TSX
 - runtime files that match `RUNTIME_FILES` exactly
 - no compiled file in `dist/` without a matching source file
-- `serve` with its real HTML, JavaScript, CSS and browser routes
+- the default launcher with real HTML, JavaScript, CSS and browser routes
 - session issuance, authenticated scanning and shutdown
 - packaged third-party notices without a bundled Node.js runtime
 

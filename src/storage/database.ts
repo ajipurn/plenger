@@ -60,7 +60,7 @@ export class Storage {
     if (!(await lstat(file)).isFile())
       throw new Error("Dashboard database must be a regular file.");
     await chmod(file, 0o600);
-    // Load SQLite only for serve; ordinary CLI scans keep their current startup behavior.
+    // Load SQLite only when the dashboard opens its data store.
     const { DatabaseSync } = await import("node:sqlite");
     const database = new DatabaseSync(file, { timeout: 5000 });
     const storage = new Storage(directory, database);

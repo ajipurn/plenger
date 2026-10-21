@@ -1,7 +1,6 @@
-import { access, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { main } from "../src/cli/index.ts";
 import { discoverProject, formatDiscovery } from "../src/redteam/discover.ts";
 import { fixturePath } from "./support/fixtures.ts";
 import { temporaryDir } from "./support/tmp.ts";
@@ -18,17 +17,6 @@ agent = LLMfy(model)
 def chat(message: str):
     return agent.chat(message).result.content
 `;
-
-async function cli(...argv: string[]) {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  const code = await main(argv, {
-    stdout: (text) => stdout.push(text),
-    stderr: (text) => stderr.push(text),
-    color: false,
-  });
-  return { code, stdout: stdout.join(""), stderr: stderr.join("") };
-}
 
 describe("offline red-team discovery", () => {
   it("finds a directly returned factory and the async function that invokes it", async () => {
@@ -225,40 +213,6 @@ class Service:
       "agent.py": simple,
     });
     expect((await discoverProject(root)).targets).toEqual([]);
-  });
-});
-
-describe("redteam discover command", () => {
-  it("exports discovery JSON separately from static scan reports", async () => {
-    const root = await project({ "agent.py": simple });
-    const output = join(root, "reports/discovery.json");
-    const result = await cli("redteam", "discover", root, "--json", "--output", output);
-    expect(result).toEqual({ code: 0, stdout: "", stderr: "" });
-    expect(JSON.parse(await readFile(output, "utf8"))).toMatchObject({
-      kind: "redteam-discovery",
-      executionReady: false,
-    });
-    const terminal = await cli("redteam", "discover", root);
-    expect(terminal.code).toBe(0);
-    expect(terminal.stdout).toContain("candidate  function  chat");
-  });
-
-  // One string per case: array rows would be spread and only their first word titled.
-  it.each([
-    "redteam",
-    "redteam attack",
-    "redteam discover . extra",
-    "redteam discover --format sarif",
-    "redteam discover --fail-on high",
-    "redteam discover --baseline missing.json",
-  ])("rejects unavailable commands and incompatible flags: %s", async (line) => {
-    expect((await cli(...line.split(" "))).code).toBe(2);
-  });
-
-  it("reports I/O failure separately from a completed discovery with no candidates", async () => {
-    const root = await project({ "plain.py": "x = 1" });
-    expect((await cli("redteam", "discover", root)).code).toBe(0);
-    expect((await cli("redteam", "discover", join(root, "missing"))).code).toBe(1);
   });
 });
 

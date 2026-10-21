@@ -76,7 +76,7 @@ export const EVIDENCE_EVENT_LIMIT = 256;
 /** Evaluable trials per case before two campaigns may be compared. */
 export const COMPARISON_MIN_EVALUABLE = 20;
 export const REPETITION_RANGE = { min: 1, max: 100 } as const;
-/** `plenger redteam run` defaults; the timeout is given in seconds on the command line. */
+/** Defaults for managed red-team campaigns; the timeout is in seconds. */
 export const CLI_DEFAULT_LIMITS = { calls: 12, tokens: 200_000, timeoutSeconds: 600 } as const;
 
 export const RUN_STATES = ["preparing", "running", "completed", "stopped", "failed"] as const;

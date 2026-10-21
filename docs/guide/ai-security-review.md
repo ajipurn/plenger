@@ -3,7 +3,7 @@
 The dashboard can discover security findings from source code through a saved
 model provider, including Anthropic Claude. It also produces a STRIDE threat
 model. This review is separate from the offline rule scanner and from the
-facts-only `assess` CLI command. See [../STATUS.md](../STATUS.md) for qualification.
+retained facts-only assessment engine. See [../STATUS.md](../STATUS.md) for qualification.
 
 ## Run a review
 
@@ -15,7 +15,7 @@ facts-only `assess` CLI command. See [../STATUS.md](../STATUS.md) for qualificat
 4. Press **Start Scan**. The job first captures an offline scan, then sends
    redacted source and context to that provider and consumes model usage.
 
-`plenger scan` remains offline. The facts-only `assess` command has its own
+The static engine remains offline. The evidence-assessment engine has its own
 [guide](assessment.md).
 
 The host rereads files from the static scan's allowlist. It reapplies current

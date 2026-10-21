@@ -479,7 +479,7 @@ export const RULES: Rule[] = [
       "Exchange a data-only format (JSON, msgpack, `safetensors`, `torch.load(weights_only=True)`), and authenticate and bind the socket to the peers that need it.",
   },
 
-  // Library scans (`--library`): parameters of a package's public functions as input.
+  // Library scans: parameters of a package's public functions as input.
   {
     id: "PLG901",
     name: "library-command-injection",

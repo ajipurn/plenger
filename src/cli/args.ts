@@ -45,13 +45,3 @@ export function parseCommandArgs<T extends ParseArgsOptionsConfig>(
   }
   return parsed;
 }
-
-/** Rejects `--key ""`, which would otherwise write to or read from the current directory. */
-export function requireNonemptyPaths(
-  values: Record<string, unknown>,
-  keys: readonly string[],
-): void {
-  for (const key of keys) {
-    if (values[key] === "") throw new UsageError(`--${key} needs a nonempty path`);
-  }
-}

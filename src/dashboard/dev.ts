@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parsePort } from "../cli/commands/serve.ts";
+import { parsePort } from "../cli/dashboard.ts";
 import { startDashboard } from "./server.ts";
 
 interface DevOptions {

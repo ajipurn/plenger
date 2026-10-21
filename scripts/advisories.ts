@@ -9,7 +9,7 @@
 //          Downloads, for both commits of every advisory, the source files in and below
 //          the directories the fix changed, scans them and reports detection on the code
 //          the fix changed. Needs `gh` for the GitHub API until the cache holds every
-//          advisory. --library scans as `plenger scan --library` does.
+//          advisory. --library scans in the engine's library mode.
 
 import { execFile } from "node:child_process";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -486,7 +486,7 @@ function format(manifest: Manifest, outcomes: Outcome[]): string {
     "",
     ...(values.library
       ? [
-          "Library scan: the parameters of public functions and methods count as untrusted input (`plenger scan --library`).",
+          "Library scan: the parameters of public functions and methods count as untrusted input (library mode).",
           "",
         ]
       : []),

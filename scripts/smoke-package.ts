@@ -13,9 +13,7 @@ import {
   type DashboardSession,
   TOKEN_HEADER,
 } from "../src/dashboard/contract.ts";
-import type { ProjectPlan } from "../src/redteam/plan-model.ts";
 import { RUNTIME_FILES } from "../src/redteam/runtime.ts";
-import type { Report } from "../src/report/model.ts";
 import { fixturePath } from "../test/support/fixtures.ts";
 import { launchDashboard } from "./lib/dashboard-smoke.ts";
 
@@ -164,27 +162,10 @@ async function main() {
     assert.doesNotMatch(notices, /Node\.js@/);
     const run = (args: string[]) => npm(["exec", "--offline", "--", "plenger", ...args], runtime);
     assert.equal((await run(["--version"])).stdout.trim(), pkg.version);
-    assert.match((await run(["serve", "--help"])).stdout, /--port/);
-    assert.match((await run(["redteam", "run", "--help"])).stdout, /--provider/);
+    assert.match((await run(["--help"])).stdout, /--port/);
+    assert.match((await run(["update", "--help"])).stdout, /confirmation/);
     const fixture = join(temporary, "project");
     await cp(fixturePath("mixed-agent"), fixture, { recursive: true });
-    const report = JSON.parse((await run(["scan", fixture, "--json"])).stdout) as Report;
-    assert.deepEqual(report.tool, { name: "plenger", version: pkg.version });
-    assert.equal(report.files.length, 6);
-    assert.ok(report.inventory.models.length > 0);
-    assert.ok(report.inventory.llmCalls.length > 0);
-    assert.ok(report.inventory.tools.length > 0);
-    console.log(
-      "Global npm install and npm exec passed outside the checkout (Python, JS, TS, TSX).",
-    );
-
-    const nextFixture = join(temporary, "next-project");
-    await cp(fixturePath("redteam/vercel"), nextFixture, { recursive: true });
-    const plan = JSON.parse(
-      (await run(["redteam", "plan", nextFixture, "--json"])).stdout,
-    ) as ProjectPlan;
-    assert.equal(plan.nextProfile?.id, "vercel-booking-sqlite-v1");
-    assert.equal(plan.preparation.status, "ready");
 
     const server = await launchDashboard({
       program: process.execPath,
@@ -218,13 +199,22 @@ async function main() {
       });
       assert.equal(response.status, 200);
       const saved = (await response.json()) as DashboardScan;
-      assert.deepEqual(saved.scan.inventory, report.inventory);
+      assert.equal(saved.scan.files.length, 6);
+      assert.deepEqual([...new Set(saved.scan.files.map((file) => file.language))].sort(), [
+        "javascript",
+        "python",
+        "typescript",
+      ]);
+      assert.ok(saved.scan.files.some((file) => file.path.endsWith(".tsx")));
+      assert.ok(saved.scan.inventory.models.length > 0);
+      assert.ok(saved.scan.inventory.llmCalls.length > 0);
+      assert.ok(saved.scan.inventory.tools.length > 0);
       await server.stop();
     } finally {
       await server.dispose();
     }
     console.log(
-      "Installed plenger serve passed: built frontend, deep links and authenticated scan.",
+      "Installed plenger launcher passed: built frontend, deep links and authenticated scan.",
     );
     console.log(`Verified npm archive: ${archives[0]}`);
   } finally {

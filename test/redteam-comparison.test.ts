@@ -1,7 +1,4 @@
-import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { main } from "../src/cli/index.ts";
 import {
   type CampaignPlan,
   type CampaignReport,
@@ -15,7 +12,6 @@ import { planProject } from "../src/redteam/plan.ts";
 import { newRun } from "../src/redteam/run.ts";
 import { fixturePath } from "./support/fixtures.ts";
 import { offlineProvider } from "./support/provider.ts";
-import { temporaryDir } from "./support/tmp.ts";
 
 let plan: CampaignPlan;
 beforeAll(async () => {
@@ -179,46 +175,17 @@ describe("security campaign comparisons", () => {
       "After: independent fresh workers were not established.",
     );
   });
-  it("validates exported evidence and executes an offline CLI comparison with gate precedence and private output", async () => {
-    const root = await temporaryDir("plenger-compare-");
+  it("validates exported evidence and preserves comparison gate precedence", () => {
     const before = report(10),
       after = report(1);
     after.plan.policy.failOn = "high";
-    await writeFile(join(root, "before.json"), JSON.stringify(before));
-    await writeFile(join(root, "after.json"), JSON.stringify(after));
-    const out: string[] = [],
-      err: string[] = [];
-    const code = await main(
-      [
-        "redteam",
-        "compare",
-        join(root, "before.json"),
-        join(root, "after.json"),
-        "--change",
-        "Require approval",
-        "--format",
-        "json",
-      ],
-      { stdout: (s) => out.push(s), stderr: (s) => err.push(s), color: false },
+    const comparison = compareCampaigns(
+      readCampaignEvidence(before),
+      readCampaignEvidence(after),
+      "Require approval",
     );
-    expect(code).toBe(3);
-    expect(err).toEqual([]);
-    expect(JSON.parse(out.join("")).kind).toBe("redteam-comparison");
-    expect(
-      await main(
-        [
-          "redteam",
-          "compare",
-          join(root, "before.json"),
-          join(root, "after.json"),
-          "--change",
-          "Fix",
-          "--output",
-          join(root, "after.json"),
-        ],
-        { stdout() {}, stderr() {}, color: false },
-      ),
-    ).toBe(2);
+    expect(comparison.afterGate.exitCode).toBe(3);
+    expect(JSON.parse(formatComparison(comparison, "json")).kind).toBe("redteam-comparison");
     const malformed = structuredClone(after);
     malformed.runs[1] = malformed.runs[0] as (typeof malformed.runs)[number];
     expect(() => readCampaignEvidence(malformed)).toThrow("duplicate repetitions");

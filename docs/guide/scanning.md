@@ -1,28 +1,20 @@
 # Scanning
 
-`plenger scan [path]` reads Python, JavaScript and TypeScript source and reports
+The static engine reads Python, JavaScript and TypeScript source and reports
 the agent inventory, tool capabilities and risk findings. It never runs,
-imports or installs the project and needs no network access. The path defaults
-to the current directory and can also be a single file.
+imports or installs the project and needs no network access. The dashboard
+uses this engine before its AI source review. See [reports-ci.md](reports-ci.md)
+for the direct-engine GitHub Action, baselines and suppressions.
 
-```sh
-plenger scan path/to/project
-plenger scan path/to/project --all
-plenger scan path/to/project --json
-plenger scan path/to/project --no-gitignore
-plenger scan path/to/package --library
-```
-
-`plenger scan --help` lists the options. See [reports-ci.md](reports-ci.md) for
-`--format`, `--output`, baselines, suppressions and the CI gate.
+The public CLI launches the dashboard with `plenger`. Contributors call
+`scan(root, options)` from src/scan.ts for offline engine work.
 
 ## Coverage
 
 The scan reports the files it parsed per language, files with syntax errors
 (results for those may be partial), files it skipped and why, and directories
 it excluded: dependencies, build output, virtualenvs (detected by `pyvenv.cfg`),
-and whatever the project's `.gitignore` files ignore. `--no-gitignore` turns the
-last rule off. The walker never follows symlinks and applies size and
+and whatever the project's `.gitignore` files ignore. The engine option `gitignore: false` turns the last rule off. The walker never follows symlinks and applies size and
 file-count limits. Type declarations and minified bundles are skipped with a
 reason. TypeScript 5 type syntax the bundled grammar does not know
 (`export type * from`, type arguments after an import type, `in`/`out` variance)
@@ -221,7 +213,7 @@ a "Trace incomplete" note. Effects behind those calls are not seen.
 ```
 
 Findings come last, most urgent first. Terminal output shows the first 20
-active findings; `--all` shows every one. Each finding has:
+active findings; JSON, SARIF and Markdown list every one. Each finding has:
 
 - a title that names the subject
 - a severity and a confidence
@@ -235,7 +227,7 @@ active findings; `--all` shows every one. Each finding has:
 - a fingerprint built from the rule, file and subject rather than line numbers,
   used by baselines
 
-`plenger rules` lists the 45 rules; [RULES.md](../RULES.md) describes each one
+The rule catalog lists the checks; [RULES.md](../RULES.md) describes each one
 with its remediation. Most are about agents, tools, prompts and MCP. PLG901 to PLG907
 report only in [library scans](#library-scans). PLG801 to PLG807
 cover web routes with no model in between. They report request input that reaches,
@@ -287,11 +279,12 @@ program's arguments is not reported.
 
 ## Library scans
 
-`plenger scan --library` scans a package rather than an application. A package's
+The engine option `library: true` scans a package rather than an application. A package's
 flaws are often in code that no route or tool of its own reaches: a loader, a store
 or a helper whose callers pass the input. A library scan counts the parameters of the
 package's public functions and methods as untrusted input and reports them with
-PLG901 to PLG907. Scans without `--library` are unchanged.
+PLG901 to PLG907. The dashboard uses the default application mode. Contributors exercise library
+mode with `pnpm evaluate --corpus test/fixtures/evaluation-library`.
 
 The public functions and methods are:
 
@@ -335,7 +328,7 @@ both, and the mode on 105 published advisories.
 
 ## JSON output and redaction
 
-`scan --json` includes every inventory item with its location, every capability
+The JSON report includes every inventory item with its location, every capability
 with its call chain and the non-constant inputs of the effect, and every finding
 with its evidence chain, source lines and fingerprint. The report has
 `schemaVersion: 1`; [schemas/report-v1.schema.json](../../schemas/report-v1.schema.json)
@@ -350,11 +343,10 @@ names stay readable. Redaction is not exhaustive.
 
 ## Code facts
 
-`plenger facts [path]` prints, per file, the imports, definitions (with
+The engine option `facts: true` includes, per file, the imports, definitions (with
 decorators, base classes and docstrings), assignments and calls as JSON. Call
 targets are resolved through imports, variables, `self`/`this` attributes and
 destructuring into canonical names such as `openai.OpenAI().chat.completions.create`
 (Python) or `openai#default().chat.completions.create` (JS/TS). The fact model
-is [src/facts/model.ts](../../src/facts/model.ts). `facts` uses the same report
-contract as `scan` with code facts in each parsed file; it supports `--output`
-and `--no-gitignore` and JSON only.
+is [src/facts/model.ts](../../src/facts/model.ts). Facts use the static report
+contract and are retained by the engine and offline evaluation tools.

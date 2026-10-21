@@ -17,7 +17,7 @@ own model connection. There is no hosted service, account system or
 multi-tenant deployment.
 
 Plenger reviews any repository, not only agentic AI projects. Its main
-journey is the local dashboard, opened with `plenger serve`. The first
+journey is the local dashboard, opened with `plenger`. The first
 source is local folders. A scan combines offline static triage with bounded
 LLM source discovery and skeptical validation. Provider settings remain
 configurable. Source leaves the machine only for the selected provider, after
@@ -112,7 +112,7 @@ dashboard and container runtime recipes.
 The dashboard is React and TypeScript with Vite, React Router 7, Tailwind CSS
 4, React Aria Components, Gravity icons, OverlayScrollbars and Torph, served by a loopback
 Node.js service that stores scans, plans, runs, campaigns, providers and
-preferences in SQLite. `plenger serve [path]` serves the bundled dashboard;
+preferences in SQLite. `plenger --workspace <folder>` serves the bundled dashboard;
 `pnpm dashboard` runs the Vite development server with hot reload against the
 same service. Managed runs execute project code in Docker or Podman workers;
 the model provider runs on the host. See [guide/dashboard.md](guide/dashboard.md).
@@ -299,9 +299,9 @@ separately from harness self-tests.
 
 **Delivered:** an npm package containing the compiled CLI, local service, built
 dashboard, parser WASM assets and managed runtime recipes. npm and npx expose
-`plenger scan`, `serve` and `redteam` through one CLI. A prepack build prepares
+the dashboard launcher, help, version and confirmed `plenger update`. A prepack build prepares
 the package. The installed-package check verifies global installation, npm
-command resolution, scanning, offline planning and the dashboard outside the
+command resolution and authenticated dashboard scanning outside the
 checkout. Installed-package CI jobs cover Linux on every push, and macOS and
 Windows on pull requests and manual runs.
 

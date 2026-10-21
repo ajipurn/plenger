@@ -145,7 +145,7 @@ export async function refreshChatgpt(
   signal: AbortSignal,
 ): Promise<ChatgptSession> {
   if (!session.credentials)
-    throw new ChatgptAuthError("Sign in with plenger redteam login --provider <name> first.");
+    throw new ChatgptAuthError("Sign in with ChatGPT in Settings > Providers first.");
   const token = await tokenRequest(
     {
       grant_type: "refresh_token",

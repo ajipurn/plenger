@@ -248,7 +248,7 @@ export async function testProviderConnection(
   } catch (error) {
     throw new Error(
       access.provider === "chatgpt"
-        ? "ChatGPT connection test failed. Sign in with plenger redteam login --provider <name>, then check the model and ChatGPT usage limits."
+        ? "ChatGPT connection test failed. Sign in with ChatGPT in Settings > Providers, then check the model and ChatGPT usage limits."
         : connectionTestFailure(error),
       { cause: error },
     );

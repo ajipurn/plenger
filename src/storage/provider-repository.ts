@@ -287,7 +287,7 @@ async function chatgptAccessToken(
     try {
       const { session, sealed } = store.providers.readChatgptSession(id);
       if (!session.credentials)
-        throw new Error("Sign in with plenger redteam login --provider <name> first.");
+        throw new Error("Sign in with ChatGPT in Settings > Providers first.");
       if (session.credentials.expiresAt > Date.now() + 60_000)
         return session.credentials.accessToken;
       if (!session.refreshLease || session.refreshLease.until <= Date.now()) {

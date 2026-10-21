@@ -1,89 +1,96 @@
-# Install
+# Install and update
 
-The primary distribution is an npm package. It contains the CLI, the built
-local dashboard, tree-sitter grammars and the managed container recipes.
-Users need Node.js 22.18 or newer with npm. They do not need pnpm or a frontend
-build. Release availability and platform evidence are in
-[../STATUS.md](../STATUS.md).
+Plenger is an npm package containing the local service, dashboard, static
+engine and bundled grammar assets. Users need Node.js 22.18 or newer with npm.
+Release availability is recorded in [../STATUS.md](../STATUS.md).
 
 ## npm
 
-For a published release, install globally:
+For a published release:
 
 ```sh
 npm install -g plenger
 plenger --version
-plenger scan path/to/project
+plenger
 ```
 
-npm adds the `plenger` command to its executable directory. The same package
-is used on Windows, Linux and macOS. The installation runs no Plenger build
-or install scripts.
+The same package runs on Windows, Linux and macOS. Installation uses prepared
+JavaScript and dashboard assets. No frontend build or pnpm installation is needed.
 
 ## npx
 
-For a published release, run a command without a global installation:
+Run a published release without installing it globally:
 
 ```sh
-npx plenger@latest --version
-npx plenger@latest scan path/to/project
-npx plenger@latest serve --port 4180
+npx plenger@latest
+npx plenger@latest --workspace path/to/project --port 4180
 ```
 
 The first invocation downloads the package and its production dependencies.
-Once installed, static scans and offline preparation need no network.
 
 ## Dashboard
 
-Start the local dashboard from the CLI:
-
 ```sh
-plenger serve
-plenger serve path/to/project --port 4180
-plenger serve --workspace path/to/project --port 4180 --data-dir path/to/data
+plenger
+plenger --workspace path/to/project --port 4180
+plenger --data-dir path/to/data
+plenger --help
+plenger --version
 ```
 
-Open the printed local URL in your browser. Without `--port`, Plenger chooses
-a free port. `--data-dir` selects the local SQLite data folder. Stop the service
-with Ctrl+C. See [dashboard.md](dashboard.md) for project selection, providers,
-red-team runs and saved data.
+Open the printed local URL in your browser. The workspace defaults to the
+current directory. Port 0, the default, chooses a free loopback port.
+`--data-dir` selects the SQLite data folder. Stop the service with Ctrl+C.
+See [dashboard.md](dashboard.md) for projects, scans and provider settings.
+
+The old scan, facts, rules, assess, serve and redteam commands are removed.
+The launcher accepts options directly. Analysis uses the dashboard and its local API.
+
+## Background update checks
+
+Published builds check the npm registry for a stable release after startup.
+The check has a three-second timeout and caches successful checks for 24 hours
+in the dashboard data folder. Missing releases are cached too. Registry failures
+leave the dashboard running. Checks send only a package metadata request.
+
+A newer version prints a notice with `plenger update`. Nothing installs
+automatically. Set `NO_UPDATE_NOTIFIER=1` to disable background checks.
+Private builds skip registry checks and self-update.
+
+## Update
+
+Stop any running dashboard, then use an interactive terminal:
+
+```sh
+plenger update
+```
+
+The updater verifies that the running package is the npm global installation.
+It fetches fresh release metadata, shows the installed and target versions,
+and asks for confirmation. Entering an empty answer or declining cancels.
+No non-interactive confirmation bypass is provided.
+
+After confirmation, npm installs that exact version into the existing prefix,
+with install scripts disabled and Node.js engine checks enforced. The updater
+checks the installed version before reporting success. Start the dashboard
+again with `plenger`.
+
+For npx, run `npx plenger@latest` again. Update project-local packages with
+their package manager and source checkouts through Git. An npm-linked checkout
+is treated as development source. Dashboard data and provider credentials live
+outside the installation directory.
 
 ## Local tarball
 
-Maintainers can build and verify the npm package before a registry release.
-From the repository root:
+Maintainers can build and verify the package before a registry release:
 
 ```sh
 pnpm install --ignore-scripts
 pnpm test:package
 npm install -g ./dist/npm/plenger-0.1.0.tgz
-plenger serve --port 4180
+plenger --port 4180
 ```
 
 Use the archive filename printed by the smoke check for the current version.
-The archive includes the compiled CLI and built dashboard. It runs outside
-the source checkout. See [../../CONTRIBUTING.md](../../CONTRIBUTING.md) and
-[../design/distribution.md](../design/distribution.md).
-
-## Update
-
-Stop any running `serve` process, then update a published release:
-
-```sh
-npm install -g plenger@latest
-```
-
-For a local tarball, install the new archive with `npm install -g <archive>`.
-Dashboard data is stored separately from the installed package.
-
-## Container prerequisites
-
-Red-team runs need Docker Desktop or a Docker engine with the Buildx plugin,
-reachable through the `docker` CLI, or Podman with a running Linux backend.
-Docker is preferred when `docker info` succeeds. Each run builds its own image
-from the pinned recipe without a shared build cache, so every build downloads
-dependency packages and needs network access. Static scanning needs neither.
-See [redteam.md](redteam.md#prerequisites).
-
-The npm package includes all red-team commands and recipes. Containers are
-started only by `plenger redteam run` or the dashboard's explicit Start action.
+For a private build, install its replacement archive directly with
+`npm install -g <archive>`. See [../../CONTRIBUTING.md](../../CONTRIBUTING.md).

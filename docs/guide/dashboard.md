@@ -1,6 +1,6 @@
 # Local dashboard
 
-`plenger serve` runs a local web dashboard for local projects, source-based AI
+`plenger` runs a local web dashboard for local projects, source-based AI
 security scans, findings and saved model connections. The npm package
 includes the built frontend and the local service. What is available and
 qualified is tracked in [../STATUS.md](../STATUS.md); the visual design rules
@@ -11,10 +11,10 @@ are in [../design/dashboard-ui.md](../design/dashboard-ui.md).
 After installing the npm package:
 
 ```sh
-plenger serve
-plenger serve path/to/project --port 4180
-plenger serve --workspace path/to/project --port 4180
-plenger serve --data-dir path/to/dashboard-data
+plenger
+plenger --workspace path/to/project --port 4180
+plenger --workspace path/to/project --port 4180
+plenger --data-dir path/to/dashboard-data
 ```
 
 For a published release, npx can launch the same dashboard:
@@ -36,14 +36,14 @@ For development, from the repository root:
 ```sh
 pnpm dashboard
 pnpm dashboard --workspace path/to/project --port 4180
-pnpm dev serve path/to/project --port 4180
+pnpm dev --workspace path/to/project --port 4180
 ```
 
 `pnpm dashboard` builds the frontend once, then starts Vite with hot reload and
 the local service. Frontend changes reload through Vite. Restart the command
 after changing service source code. Its Vite server binds to `127.0.0.1` and defaults to port
 5173; `--port` changes the Vite port, and the API service takes a free port.
-`pnpm dev serve` serves the last frontend build without Vite. See
+`pnpm dev` serves the last frontend build without Vite. See
 [../../CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## Navigation
@@ -138,8 +138,7 @@ reported as failed on restart.
 
 No project code, package scripts or model tools execute. The service reads
 source and uses fixed read-only Git metadata commands. It does not install
-project dependencies or probe a running application. For an offline scan with
-no model usage, use `plenger scan path/to/project`.
+project dependencies or probe a running application. The static engine and the repository's GitHub Action run without model usage.
 
 ## Review findings and outputs
 
@@ -174,7 +173,7 @@ uncached input, output, cache writes and cache hits. Missing prices or usage are
 unavailable. Partial totals are labeled **At least**.
 
 **Export scan** downloads the redacted job, its findings and review records.
-It is distinct from the CLI's versioned `scan --json` report. Dismissed model
+It is distinct from the static engine's versioned JSON report. Dismissed model
 candidates remain in the review records even though they are absent from the
 finding table.
 

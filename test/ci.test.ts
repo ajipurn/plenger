@@ -1,141 +1,73 @@
-import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { runGitHubAction } from "../src/cli/commands/github-action.ts";
-import { main } from "../src/cli/index.ts";
+import { runGitHubAction } from "../scripts/lib/github-action.ts";
+import { SourceRootError, sourcePrefix, toMarkdown, toSarif } from "../src/report/format.ts";
+import { createReport, failsGate, withoutSuppressed } from "../src/report/model.ts";
+import { createBaseline, readBaseline, readSuppressions } from "../src/report/policy.ts";
+import { scan } from "../src/scan.ts";
+import { temporaryDir } from "./support/tmp.ts";
 
-const unsafe = `from langchain_core.tools import tool
-import subprocess
+const unsafe = [
+  "from langchain_core.tools import tool",
+  "import subprocess",
+  "",
+  "@tool",
+  "def run(command: str):",
+  "    return subprocess.run(command, shell=True)",
+  "",
+].join("\n");
 
-@tool
-def run(command: str):
-    return subprocess.run(command, shell=True)
-`;
-async function run(...argv: string[]) {
-  let stdout = "";
-  let stderr = "";
-  const code = await main(argv, {
-    stdout: (text) => {
-      stdout += text;
-    },
-    stderr: (text) => {
-      stderr += text;
-    },
-    color: true,
-  });
-  return { code, stdout, stderr };
-}
 async function withProject(work: (root: string) => Promise<void>) {
-  const root = await mkdtemp(join(tmpdir(), "plenger-ci-"));
-  try {
-    await writeFile(join(root, "tool.py"), unsafe);
-    await work(root);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
+  const root = await temporaryDir("plenger-ci-");
+  await writeFile(join(root, "tool.py"), unsafe);
+  await work(root);
 }
 
-describe("CLI reports and CI", () => {
-  it("writes a complete SARIF file before failing the severity gate", async () => {
+describe("report policies used by CI", () => {
+  it("matches portable baselines after line edits and relocation, and gates new findings", async () => {
     await withProject(async (root) => {
-      const output = join(root, "reports", "scan.sarif");
-      const result = await run(
-        "scan",
-        root,
-        "--format",
-        "sarif",
-        "--output",
-        output,
-        "--fail-on",
-        "high",
-      );
-      expect(result).toMatchObject({
-        code: 3,
-        stdout: "",
-        stderr: expect.stringContaining("--fail-on high"),
-      });
-      const document = JSON.parse(await readFile(output, "utf8"));
-      expect(document.version).toBe("2.1.0");
-      expect(document.runs[0].results[0].ruleId).toBe("PLG101");
-    });
-  });
-
-  it("compares a portable baseline after unrelated line edits and gates newly introduced risks", async () => {
-    await withProject(async (root) => {
-      const baseline = join(root, "baseline.json");
-      expect((await run("scan", root, "--write-baseline", baseline)).code).toBe(0);
+      const baselineFile = join(root, "baseline.json");
+      await writeFile(baselineFile, JSON.stringify(createBaseline((await scan(root)).findings)));
+      const baseline = await readBaseline(baselineFile);
       await writeFile(join(root, "tool.py"), `# unrelated line\n${unsafe}`);
-      const compared = await run(
-        "scan",
-        root,
-        "--baseline",
-        baseline,
-        "--format",
-        "json",
-        "--fail-on",
-        "low",
-      );
-      expect(compared.code).toBe(0);
-      expect(JSON.parse(compared.stdout).review).toMatchObject({ new: 0, unchanged: 1 });
-      const copy = await mkdtemp(join(tmpdir(), "plenger-relocated-"));
-      try {
-        await writeFile(join(copy, "tool.py"), unsafe);
-        expect((await run("scan", copy, "--baseline", baseline, "--fail-on", "low")).code).toBe(0);
-      } finally {
-        await rm(copy, { recursive: true, force: true });
-      }
+      const unchanged = createReport(await scan(root), { baseline });
+      expect(unchanged.review).toMatchObject({ new: 0, unchanged: 1 });
+      expect(failsGate(unchanged, "low")).toBe(false);
+      const copy = await temporaryDir("plenger-relocated-");
+      await writeFile(join(copy, "tool.py"), unsafe);
+      expect(failsGate(createReport(await scan(copy), { baseline }), "low")).toBe(false);
       await writeFile(join(root, "second.py"), unsafe.replace("def run(", "def other("));
-      const changed = await run(
-        "scan",
-        root,
-        "--baseline",
-        baseline,
-        "--json",
-        "--fail-on",
-        "critical",
-      );
-      expect(changed.code).toBe(3);
-      expect(JSON.parse(changed.stdout).review).toMatchObject({ new: 1, unchanged: 1 });
+      const changed = createReport(await scan(root), { baseline });
+      expect(changed.review).toMatchObject({ new: 1, unchanged: 1 });
+      expect(failsGate(changed, "critical")).toBe(true);
     });
   });
 
-  it("suppresses an exact finding, retains its reason, and applies the gate to the remainder", async () => {
+  it("retains suppression reasons, excludes suppressed findings, and gates the remainder", async () => {
     await withProject(async (root) => {
-      const first = JSON.parse((await run("scan", root, "--json")).stdout).findings[0];
+      const first = (await scan(root)).findings[0];
       const suppression = join(root, "suppressions.json");
       await writeFile(
         suppression,
         JSON.stringify({
           schemaVersion: 1,
-          suppressions: [
-            { fingerprint: first.fingerprint, reason: "Shell input validated at the proxy" },
-          ],
+          suppressions: [{ fingerprint: first?.fingerprint, reason: "Reviewed proxy validation" }],
         }),
       );
-      const result = await run(
-        "scan",
-        root,
-        "--suppressions",
-        suppression,
-        "--json",
-        "--fail-on",
-        "low",
-      );
-      expect(result.code).toBe(0);
-      expect(JSON.parse(result.stdout)).toMatchObject({
-        review: { active: 0, suppressed: 1 },
-        findings: [{ suppression: { reason: "Shell input validated at the proxy" } }],
-      });
+      const suppressions = await readSuppressions(suppression);
+      const report = createReport(await scan(root), { suppressions });
+      expect(report.review).toMatchObject({ active: 0, suppressed: 1 });
+      expect(report.findings[0]?.suppression?.reason).toBe("Reviewed proxy validation");
+      expect(failsGate(report, "low")).toBe(false);
+      expect(withoutSuppressed(report).findings).toEqual([]);
       await writeFile(join(root, "second.py"), unsafe);
-      expect(
-        (await run("scan", root, "--suppressions", suppression, "--fail-on", "high")).code,
-      ).toBe(3);
+      expect(failsGate(createReport(await scan(root), { suppressions }), "high")).toBe(true);
     });
   });
 
-  it("honours plenger-ignore comments for the named rule, unless told not to", async () => {
+  it("keeps in-source suppressions visible and permits an engine audit without them", async () => {
     await withProject(async (root) => {
       await writeFile(
         join(root, "tool.py"),
@@ -146,121 +78,42 @@ describe("CLI reports and CI", () => {
       );
       await writeFile(
         join(root, "other.py"),
-        `${unsafe}# trailing\n`.replace(
-          "shell=True)",
-          "shell=True)  # plenger-ignore PLG104 wrong rule",
-        ),
+        unsafe.replace("shell=True)", "shell=True)  # plenger-ignore PLG104 wrong rule"),
       );
-      // A comment at the end of the line above belongs to that line, not the next one.
-      await writeFile(
-        join(root, "third.py"),
-        unsafe.replace(
-          "    return subprocess.run(command, shell=True)",
-          '    print("run")  # plenger-ignore PLG101 meant for the print\n    return subprocess.run(command, shell=True)',
-        ),
-      );
-      const result = await run("scan", root, "--json", "--fail-on", "critical");
-      const report = JSON.parse(result.stdout);
-      expect(result.code).toBe(3);
-      expect(report.review).toMatchObject({ active: 2, suppressed: 1 });
-      expect(
-        report.findings.find(
-          (finding: { location: { path: string } }) => finding.location.path === "tool.py",
-        ),
-      ).toMatchObject({
-        suppression: { reason: "runs only in the build sandbox", inSource: true },
-      });
-      const sarif = JSON.parse((await run("scan", root, "--format", "sarif")).stdout);
-      expect(
-        sarif.runs[0].results.flatMap(
-          (item: { suppressions?: unknown[] }) => item.suppressions ?? [],
-        ),
-      ).toEqual([
+      const result = await scan(root);
+      const reviewed = createReport(result);
+      expect(reviewed.review).toMatchObject({ active: 1, suppressed: 1 });
+      const sarif = toSarif(reviewed) as { runs: { results: { suppressions?: unknown[] }[] }[] };
+      expect(sarif.runs[0]?.results.flatMap((item) => item.suppressions ?? [])).toEqual([
         { kind: "inSource", status: "accepted", justification: "runs only in the build sandbox" },
       ]);
-      const audit = JSON.parse(
-        (await run("scan", root, "--json", "--no-inline-suppressions")).stdout,
-      );
-      expect(audit.review).toMatchObject({ active: 3, suppressed: 0 });
-      // The code under review chose to hide these, so the terminal names each one.
-      const terminal = (await run("scan", root)).stdout;
-      expect(terminal).toContain(
-        "Suppressed by plenger-ignore comments in the scanned code (--no-inline-suppressions reports them):",
-      );
-      expect(terminal).toContain("PLG101 critical tool.py:7: runs only in the build sandbox");
-      expect((await run("scan", root, "--format", "markdown")).stdout).toContain(
-        "Suppressed by a comment in the code: runs only in the build sandbox",
-      );
+      expect(toMarkdown(reviewed)).toContain("Suppressed by a comment in the code");
+      expect(createReport(result, { inline: false }).review).toMatchObject({
+        active: 2,
+        suppressed: 0,
+      });
     });
   });
 
-  it("writes Markdown and plain terminal output without ANSI and supports --json as an alias", async () => {
-    await withProject(async (root) => {
-      const output = join(root, "report.md");
-      expect((await run("scan", root, "--format", "markdown", "--output", output)).stdout).toBe("");
-      expect(await readFile(output, "utf8")).toContain("Remediation:");
-      expect((await run("scan", root, "--json", "--format", "json")).code).toBe(0);
-      await run("scan", root, "--output", output);
-      expect(await readFile(output, "utf8")).not.toContain("\u001b[");
-    });
-  });
-
-  it("makes SARIF paths relative to --source-root and can omit suppressed findings", async () => {
+  it("keeps SARIF paths relative to the repository and validates policy files", async () => {
     await withProject(async (root) => {
       await mkdir(join(root, "src"));
-      await rename(join(root, "tool.py"), join(root, "src", "tool.py"));
-      const scanned = join(root, "src");
-      const sarif = await run("scan", scanned, "--format", "sarif", "--source-root", root);
-      expect(sarif.code).toBe(0);
-      expect(
-        JSON.parse(sarif.stdout).runs[0].results[0].locations[0].physicalLocation.artifactLocation
-          .uri,
-      ).toBe("src/tool.py");
-      expect((await run("scan", root, "--format", "sarif", "--source-root", scanned)).code).toBe(2);
-      expect((await run("scan", scanned, "--source-root", join(root, "missing"))).code).toBe(2);
-      expect((await run("rules", "--source-root", root)).code).toBe(2);
-
-      const suppressions = join(root, "suppressions.json");
-      await writeFile(
-        suppressions,
-        JSON.stringify({
-          schemaVersion: 1,
-          suppressions: [{ rule: "PLG101", reason: "Reviewed" }],
-        }),
+      await rename(join(root, "tool.py"), join(root, "src/tool.py"));
+      const report = createReport(await scan(join(root, "src")));
+      sourcePrefix(report, root);
+      const sarif = toSarif(report, { sourceRoot: root }) as {
+        runs: {
+          results: { locations: { physicalLocation: { artifactLocation: { uri: string } } }[] }[];
+        }[];
+      };
+      expect(sarif.runs[0]?.results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe(
+        "src/tool.py",
       );
-      const omitted = await run(
-        "scan",
-        scanned,
-        "--json",
-        "--suppressions",
-        suppressions,
-        "--omit-suppressed",
-      );
-      const report = JSON.parse(omitted.stdout);
-      expect(report.findings).toEqual([]);
-      expect(report.review).toMatchObject({ active: 0, suppressed: 1 });
-    });
-  });
-
-  it("distinguishes usage/policy errors from scan and output failures", async () => {
-    for (const args of [
-      ["scan", "--format", "html"],
-      ["scan", "--fail-on", "urgent"],
-      ["scan", "--output", ""],
-      ["scan", "--baseline", ""],
-      ["scan", "--json", "--format", "sarif"],
-      ["facts", "--format", "markdown"],
-      ["rules", "--baseline", "baseline.json"],
-      ["rules", "--format", "sarif"],
-      ["scan", "--write-baseline", "same.json", "--output", "same.json"],
-    ])
-      expect((await run(...args)).code).toBe(2);
-    await withProject(async (root) => {
+      expect(() => sourcePrefix(report, join(root, "outside"))).toThrow(SourceRootError);
       const bad = join(root, "bad.json");
       await writeFile(bad, "{}");
-      expect((await run("scan", root, "--baseline", bad)).code).toBe(2);
-      expect((await run("scan", root, "--suppressions", join(root, "absent.json"))).code).toBe(1);
-      expect((await run("scan", root, "--output", root)).code).toBe(1);
+      await expect(readBaseline(bad)).rejects.toThrow();
+      await expect(readSuppressions(bad)).rejects.toThrow();
     });
   });
 });
@@ -289,7 +142,7 @@ describe("GitHub Action", () => {
         },
       );
       expect(code).toBe(3);
-      expect(stderr).toContain("--fail-on high");
+      expect(stderr).toContain("findings meet fail-on high");
       expect(await readFile(outputs, "utf8")).toBe("sarif-file=reports/scan.sarif\nexit-code=3\n");
       expect(await readFile(summary, "utf8")).toContain("PLG101");
       expect(await readFile(summary, "utf8")).toContain(
@@ -304,7 +157,7 @@ describe("GitHub Action", () => {
   it("passes baseline and suppression inputs and supports disabling the gate", async () => {
     await withProject(async (root) => {
       const baseline = join(root, "baseline.json");
-      await run("scan", root, "--write-baseline", baseline);
+      await writeFile(baseline, JSON.stringify(createBaseline((await scan(root)).findings)));
       const suppression = join(root, "suppression.json");
       await writeFile(
         suppression,
@@ -399,7 +252,7 @@ describe("GitHub Action", () => {
 
   it("rejects an output directory symlink that escapes the workspace", async () => {
     await withProject(async (root) => {
-      const outside = await mkdtemp(join(tmpdir(), "plenger-outside-"));
+      const outside = await temporaryDir("plenger-outside-");
       try {
         await symlink(
           outside,
@@ -420,7 +273,7 @@ describe("GitHub Action", () => {
           ),
         ).toBe(2);
       } finally {
-        await rm(outside, { recursive: true, force: true });
+        // temporaryDir removes both roots after this test.
       }
     });
   });

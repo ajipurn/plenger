@@ -1,14 +1,12 @@
 import { cp, realpath, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { main } from "../src/cli/index.ts";
 import {
   FASTAPI_ISOLATION_CHECKS,
   FASTAPI_SERVICES,
   FASTAPI_WORKER,
   WORKER_PROTOCOL_VERSION,
 } from "../src/redteam/constants.ts";
-import * as preparation from "../src/redteam/fastapi-prepare.ts";
 import {
   type FastapiDependencies,
   type FastapiPreparation,
@@ -114,7 +112,7 @@ describe("FastAPI profile planning", () => {
       "app/prompts/system.md",
     ]);
     expect(plan.preparation).toEqual({ status: "ready", reasons: [] });
-    expect(runBlocker(plan)).toContain("redteam prepare");
+    expect(runBlocker(plan)).toContain("preparation engine");
     expect(formatProjectPlan(plan)).toContain("app.main:app");
   });
 
@@ -319,52 +317,6 @@ describe("FastAPI preparation", () => {
       ),
     ).rejects.toBeInstanceOf(PreparationError);
     expect(built).toBe(false);
-  });
-
-  it("exposes the stage through the CLI with exit codes 0, 1 and 2", async () => {
-    const run = async (...argv: string[]) => {
-      const out: string[] = [];
-      const err: string[] = [];
-      const code = await main(argv, {
-        stdout: (text) => out.push(text),
-        stderr: (text) => err.push(text),
-        color: false,
-      });
-      return { code, stdout: out.join(""), stderr: err.join("") };
-    };
-    expect((await run("redteam", "prepare", fixturePath("redteam/llmfy"))).code).toBe(2);
-    expect((await run("redteam", "prepare", "--help")).stdout).toContain("FastAPI profile");
-    expect((await run("redteam", "prepare", fixture, "--env", "not-a-name=1")).code).toBe(2);
-    expect((await run("redteam", "prepare", fixture, "--env", "PLENGER_X=1")).code).toBe(2);
-    expect((await run("redteam", "prepare", fixture, "--env-file", "/nonexistent.env")).code).toBe(
-      2,
-    );
-    // Produce a real report through the stubs first; the spy then stands in for the build.
-    const report = await prepareFastapiProject(
-      fixture,
-      {},
-      stubs(async (_image, _request, _signal, receive) => {
-        await receive(ready);
-        await receive({ type: "adapter", llmfy: "0.6.0", patched: [] });
-        await receive({ type: "imported", durationMs: 1, application: "FastAPI", routes: [] });
-        await receive({ type: "finished", completed: true });
-      }).dependencies,
-    );
-    const spy = vi.spyOn(preparation, "prepareFastapiProject").mockResolvedValue(report);
-    const completed = await run("redteam", "prepare", fixture, "--json");
-    expect(completed.code).toBe(0);
-    expect(JSON.parse(completed.stdout)).toMatchObject({
-      kind: "redteam-fastapi-preparation",
-      state: "completed",
-    });
-    spy.mockResolvedValue({
-      ...(JSON.parse(completed.stdout) as FastapiPreparation),
-      state: "failed",
-      failure: { stage: "build", error: { type: "RuntimeBuildError", message: "no wheel" } },
-    });
-    const failed = await run("redteam", "prepare", fixture);
-    expect(failed.code).toBe(1);
-    expect(failed.stdout).toContain("Failure at build");
   });
 });
 

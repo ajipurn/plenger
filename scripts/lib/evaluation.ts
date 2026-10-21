@@ -32,7 +32,7 @@ export interface EvaluationCase {
   /** Rules the static scanner reports at the location today. */
   static: string[];
   note?: string;
-  /** Scanned as a package (`plenger scan --library`): its public functions' parameters are input. */
+  /** Scanned as a package (library mode): its public functions' parameters are input. */
   library?: true;
 }
 
@@ -400,7 +400,7 @@ export function formatEvaluation(
     "",
     ...(libraries > 0
       ? [
-          `${libraries === cases.length ? "Every case is" : `${libraries} cases are`} scanned as a package (\`plenger scan --library\`): the parameters of public functions count as untrusted input.`,
+          `${libraries === cases.length ? "Every case is" : `${libraries} cases are`} scanned as a package (library mode): the parameters of public functions count as untrusted input.`,
           "",
         ]
       : []),

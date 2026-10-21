@@ -75,12 +75,9 @@ function inSourceLines(report: Report): string {
     );
   if (hidden.length > IN_SOURCE_LIMIT)
     lines.push(`    … ${hidden.length - IN_SOURCE_LIMIT} more in JSON, SARIF or Markdown`);
-  return [
-    "",
-    `  Suppressed by plenger-ignore comments in the scanned code (--no-inline-suppressions reports them):`,
-    ...lines,
-    "",
-  ].join("\n");
+  return ["", `  Suppressed by plenger-ignore comments in the scanned code:`, ...lines, ""].join(
+    "\n",
+  );
 }
 
 const LEVELS: Record<Severity, string> = {
@@ -320,7 +317,7 @@ export function toMarkdown(
   const { active, suppressed, unchanged } = report.review;
   const syntaxErrors = report.files.filter((file) => file.syntaxErrors).length;
   const lines = [
-    "# plenger scan",
+    "# Plenger static analysis",
     "",
     `plenger ${markdownText(report.tool.version)} · ${report.files.length} ${report.files.length === 1 ? "file" : "files"} parsed · ${report.skipped.length} ${report.skipped.length === 1 ? "file" : "files"} skipped`,
     "",

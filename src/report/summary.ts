@@ -22,7 +22,7 @@ const SKIP_LABEL: Record<ScanSkipReason, string> = {
 const LIST_LIMIT = 10;
 const DETAIL_WIDTH = 100;
 
-/** Findings shown in the terminal unless `--all` is given. */
+/** Findings shown in a condensed terminal report. */
 const FINDING_LIMIT = 20;
 
 interface Styles {
@@ -89,12 +89,7 @@ function findingLines(findings: Finding[], s: Styles, all: boolean): string[] {
       lines.push(`                  ${s.dim(`│ ${finding.snippet}`)}`);
   }
   if (shown.length < findings.length) {
-    lines.push(
-      "",
-      s.dim(
-        `    … ${plural(findings.length - shown.length, "more finding")}; use --all to list them, or --json for the evidence of each`,
-      ),
-    );
+    lines.push("", s.dim(`    … ${plural(findings.length - shown.length, "more finding")}`));
   }
   return lines;
 }

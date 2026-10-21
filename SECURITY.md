@@ -2,11 +2,11 @@
 
 ## Execution policy
 
-- `plenger scan`, `facts`, `rules`, `redteam discover` and `redteam plan` read
+- The static scan, fact extraction, rule, discovery and offline planning engines read
   source files only. They never execute, import or install the project, never
   read its `.env` files and need no network access.
-- Dynamic red-team tests run only after an explicit Start in the dashboard or an
-  explicit `plenger redteam run`. Project code executes inside a fresh container
+- Dynamic red-team tests run only after an explicit start through the retained
+  engine or its local API. Project code executes inside a fresh container
   per trial with networking disabled, a read-only root filesystem, no host
   mounts, no forwarded credentials, all Linux capabilities dropped and memory,
   process and CPU limits. The worker verifies these controls before it imports
@@ -15,7 +15,8 @@
   each call against the run's budget. API keys stay on the host. Keys saved in
   the dashboard are encrypted at rest with AES-256-GCM in a local SQLite
   database; keys entered for one run stay in memory.
-- `plenger serve` binds to `127.0.0.1`, checks the request Host and Origin,
+- The dashboard launched by `plenger` binds to `127.0.0.1`, checks the request
+  Host and Origin,
   requires a per-launch session token for state-changing requests and serves
   the page with a Content Security Policy. It enables no CORS access.
 - Reports redact recognised secrets. Redaction is not exhaustive; review

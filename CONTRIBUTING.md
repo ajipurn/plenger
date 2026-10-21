@@ -57,15 +57,15 @@ turns them into `.js` in the compiled output.
 ## Running from source
 
 ```sh
-pnpm dev scan path/to/project
-pnpm dev redteam plan path/to/project --json
-pnpm dev serve path/to/project --port 4180
+pnpm dev --workspace path/to/project --port 4180
+pnpm dev --help
+pnpm dev update --help
 pnpm dashboard --workspace path/to/project --port 5173
 pnpm dashboard:build
 ```
 
 `pnpm dashboard` builds the frontend once, then starts Vite with hot reload and
-the local API service. `pnpm dev serve` serves the last frontend build without
+the local API service. `pnpm dev` serves the last frontend build without
 Vite. The `dashboard/` package has its own `package.json` and typecheck, run by
 `pnpm check`.
 
@@ -123,7 +123,7 @@ the label's family (`WEAKNESS_FAMILIES` in `scripts/lib/evaluation.ts`); it
 keeps a second weakness at the same lines from counting for the labeled one.
 `test/evaluation.test.ts` fails when the static results drift from the labels.
 `--corpus test/fixtures/evaluation-library` scores the library corpus, whose cases
-are scanned as `plenger scan --library` scans a package.
+are scanned as the engine's library mode scans a package.
 
 ```sh
 pnpm evaluate
@@ -178,9 +178,9 @@ The red-team profiles run project code in containers built from
 `runtimes/llmfy/`, `runtimes/vercel/` and `runtimes/fastapi/`. The launcher
 (`src/redteam/runtime.ts`) uses Docker when `docker info` succeeds and falls
 back to Podman. Both need a running Linux backend. Regular `pnpm check` never
-touches them. The FastAPI image is built per project by `plenger redteam
-prepare`, from the recipe plus the project's `requirements.txt`; there is no
-fixture image to qualify separately yet.
+touches them. The FastAPI preparation engine builds a project image from its recipe
+and the project's requirements.txt. See [docs/STATUS.md](docs/STATUS.md) for its
+qualification.
 
 Managed runs and FastAPI preparation remove their runtime images on completion,
 failure or cancellation. Campaign repetitions share one image and remove it at
@@ -247,8 +247,9 @@ execution.
 The smoke check writes `dist/npm/plenger-<version>.tgz`. It installs the archive
 and the locally packed production dependency closure in a temporary directory
 without registry access. It fails on runtime files outside `RUNTIME_FILES` and
-on compiled files without a matching source. It checks npm command resolution, all four grammars, offline
-Next.js preparation and `serve` with the real frontend and authenticated scans.
+on compiled files without a matching source. It checks npm command resolution,
+launcher and update help, and all four grammars through authenticated scans on
+the real dashboard.
 The npm package workflow runs it on Linux for pushes to main, and on Linux,
 macOS and Windows for pull requests and manual runs. It keeps no artifact.
 

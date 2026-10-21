@@ -1,7 +1,7 @@
 # Library evaluation corpus
 
 Labeled cases for `pnpm evaluate -- --corpus test/fixtures/evaluation-library`. Each
-folder is one small package, scanned as `plenger scan --library` scans one: the
+folder is one small package, scanned with the engine's library mode: the
 parameters of its public functions and methods count as untrusted input. The labels
 follow the [evaluation corpus](../evaluation/README.md) format, with `library: true`.
 

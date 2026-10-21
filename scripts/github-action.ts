@@ -1,3 +1,3 @@
-import { runGitHubAction } from "../src/cli/commands/github-action.ts";
+import { runGitHubAction } from "./lib/github-action.ts";
 
 process.exitCode = await runGitHubAction();

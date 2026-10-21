@@ -30,7 +30,7 @@ async function runServe(argv: string[], signal: "SIGINT" | "SIGTERM") {
     },
     stderr: (text) => stderr.push(text),
   };
-  const code = await main(["serve", ...argv], io);
+  const code = await main(argv, io, { notify: async () => {}, run: async () => 0 });
   expect(process.listenerCount("SIGINT")).toBe(initialInt);
   expect(process.listenerCount("SIGTERM")).toBe(initialTerm);
   return { code, stdout: stdout.join(""), stderr: stderr.join("") };
@@ -39,7 +39,7 @@ async function runServe(argv: string[], signal: "SIGINT" | "SIGTERM") {
 describe("dashboard command lifecycle", () => {
   it.each(["--help", "--version"])("prints %s without starting a server", async (option) => {
     const io: Io = { color: false, stdout: vi.fn(), stderr: vi.fn() };
-    expect(await main(["serve", option], io)).toBe(0);
+    expect(await main([option], io)).toBe(0);
     expect(io.stdout).toHaveBeenCalled();
     expect(io.stderr).not.toHaveBeenCalled();
     expect(start).not.toHaveBeenCalled();
@@ -53,8 +53,10 @@ describe("dashboard command lifecycle", () => {
     expect(result.stdout).toContain("http://127.0.0.1:12345");
   });
 
-  it("passes a positional folder and explicit port, then handles SIGTERM", async () => {
-    expect(await runServe(["my project", "--port", "4180"], "SIGTERM")).toMatchObject({
+  it("passes a workspace folder and explicit port, then handles SIGTERM", async () => {
+    expect(
+      await runServe(["--workspace", "my project", "--port", "4180"], "SIGTERM"),
+    ).toMatchObject({
       code: 0,
     });
     expect(start).toHaveBeenCalledWith({ port: 4180, workspace: "my project" });
@@ -66,12 +68,12 @@ describe("dashboard command lifecycle", () => {
     expect(start).toHaveBeenCalledWith({ port: 0, workspace: "my project" });
   });
 
-  it("accepts an isolated data directory and rejects it outside serve", async () => {
+  it("accepts an isolated data directory and rejects empty folders", async () => {
     await runServe(["--data-dir", "my data"], "SIGTERM");
     expect(start).toHaveBeenCalledWith({ port: 0, dataDir: "my data" });
     const io: Io = { color: false, stdout: vi.fn(), stderr: vi.fn() };
     expect(await main(["scan", "--data-dir", "my data"], io)).toBe(2);
-    expect(await main(["serve", "--data-dir="], io)).toBe(2);
+    expect(await main(["--data-dir="], io)).toBe(2);
   });
 
   it("reports shutdown failures and removes its signal listeners", async () => {

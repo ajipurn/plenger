@@ -132,7 +132,7 @@ network, launches `runtimes/fastapi/worker.py` on that network and records the
 `FastapiPreparation` report. Services and the network are removed whatever
 happens; `cleanupConfirmed` records whether every removal was confirmed.
 `removeExpiredNetworks()` sweeps networks left by a dead host, by the same
-label as workers. `plenger redteam prepare` is the command.
+label as workers. The preparation stage is internal; the public CLI no longer exposes it.
 
 `campaign.ts` creates campaign plans from a project plan, validates imported
 profiles, executes repetitions through the runners with one shared budget and
