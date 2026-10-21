@@ -47,6 +47,9 @@ export function ScanDetailPage({
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [rea, setRea] = useState<ImportedReaEvidence[]>([]);
+  // Bumped when the page restarts a scan, so polling resumes while it runs.
+  const [polling, setPolling] = useState(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new polling value restarts this effect after a continue
   useEffect(() => {
     if (!api || !id) return;
     let stopped = false;
@@ -68,7 +71,7 @@ export function ScanDetailPage({
       stopped = true;
       clearTimeout(timer);
     };
-  }, [api, id]);
+  }, [api, id, polling]);
   if (!scan)
     return (
       <div className="security-empty" role={error ? "alert" : "status"}>
@@ -199,7 +202,11 @@ export function ScanDetailPage({
               <ContinueScan
                 scan={scan}
                 disabled={data.scans.some((item) => item.status === "running")}
-                onContinued={onRefresh}
+                onContinued={async (next) => {
+                  setScan(next);
+                  setPolling((value) => value + 1);
+                  await onRefresh();
+                }}
               />
             )}
           {scan.error && (

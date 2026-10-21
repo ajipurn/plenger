@@ -15,7 +15,7 @@ export function ContinueScan({
 }: {
   scan: SecurityScan;
   disabled: boolean;
-  onContinued: () => Promise<void>;
+  onContinued: (scan: SecurityScan) => Promise<void>;
 }) {
   const api = useApi();
   const id = useId();
@@ -42,13 +42,13 @@ export function ContinueScan({
     setBusy(true);
     setError("");
     try {
-      await api.continueSecurityScan(
+      const next = await api.continueSecurityScan(
         scan.id,
         kind === "tokens"
           ? { kind: "tokens", tokens: amount }
           : { kind: "usd", usd: Math.round(amount * 100) / 100 },
       );
-      await onContinued();
+      await onContinued(next);
     } catch (failure) {
       setError(errorMessage(failure, "Unable to continue this scan."));
     } finally {
