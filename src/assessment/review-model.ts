@@ -25,8 +25,9 @@ export const SECURITY_REVIEW_LIMITS = {
   /** Traced paths one review is asked to close, and the effects listed for each. */
   paths: 16,
   pathEffects: 6,
-  /** Lines a safe closure cites. */
+  /** Lines a safe closure cites, and the length of a closure's reason. */
   closureEvidence: 2,
+  closureText: 300,
   /** Framework guides one request may carry; the request overhead below holds them. */
   guideBytes: 4 * 1024,
   /** Changed files and line ranges per file a change review lists in its first message. */
@@ -543,7 +544,12 @@ const closureProperties = {
     description:
       "For finding: the 0-based index in findings of the candidate that reports this path. Otherwise null.",
   },
-  reason: text,
+  reason: {
+    type: "string",
+    minLength: 1,
+    maxLength: SECURITY_REVIEW_LIMITS.closureText,
+    description: "One short sentence.",
+  },
   evidence: {
     ...list(citation(), SECURITY_REVIEW_LIMITS.closureEvidence),
     description:
@@ -710,7 +716,7 @@ function pathClosures(
     const item = fields(raw, Object.keys(closureProperties), location);
     const id = string(item.id, `${location}.id`);
     const closure = enumValue(item.closure, CLOSURES, `${location}.closure`);
-    const reason = clipped(item.reason, `${location}.reason`);
+    const reason = clipped(item.reason, `${location}.reason`, SECURITY_REVIEW_LIMITS.closureText);
     if (!ids.includes(id) || seen.has(id)) return;
     if (closure === "finding") {
       const finding = item.finding;
@@ -923,12 +929,16 @@ function string(value: unknown, location: string): string {
 }
 /** A decision's reason past the text limit is cut, with a note, rather than failing the decision. */
 const CUT_NOTE = " … (cut at the review's text limit)";
-function clipped(value: unknown, location: string): string {
+function clipped(
+  value: unknown,
+  location: string,
+  maximum: number = SECURITY_REVIEW_LIMITS.text,
+): string {
   if (typeof value !== "string" || !value.trim())
     throw invalid(location, "expected non-empty text");
   const reason = value.trim();
-  if (reason.length <= SECURITY_REVIEW_LIMITS.text) return reason;
-  const kept = reason.slice(0, SECURITY_REVIEW_LIMITS.text - CUT_NOTE.length);
+  if (reason.length <= maximum) return reason;
+  const kept = reason.slice(0, maximum - CUT_NOTE.length);
   // End at a word where one is near, so the cut does not split a path or a name.
   const space = kept.lastIndexOf(" ");
   return `${(space > kept.length - 80 ? kept.slice(0, space) : kept).trimEnd()}${CUT_NOTE}`;

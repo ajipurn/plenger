@@ -128,6 +128,17 @@ describe("path closures", () => {
       },
       { id: "path-6", closure: "open", reason: "The caller is not in the batch.", evidence: [] },
     ]);
+    // A long reason is cut to one short sentence instead of failing the review.
+    const long = parseReviewDiscovery(
+      JSON.stringify(
+        sqlDiscovery([closure("path-1", { reason: "The caller is unknown. ".repeat(30) })]),
+      ),
+      files,
+      ["path-1"],
+    );
+    const reason = long.closures[0]?.reason ?? "";
+    expect(reason.length).toBeLessThanOrEqual(SECURITY_REVIEW_LIMITS.closureText);
+    expect(reason.endsWith("(cut at the review's text limit)")).toBe(true);
     // Earlier replies and reviews without traced paths carry no paths field.
     const { paths: _paths, ...plain } = sqlDiscovery([]);
     expect(parseReviewDiscovery(JSON.stringify(plain), files).closures).toEqual([]);
