@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool's command lookup falls back to running the model's text as the program.",
   "cwe": "CWE-78",
+  "severity": "high",
   "location": {
     "path": "tools.py",
     "line": 12,

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "The same route takes the folder name with os.path.basename, which returns `..` for `..`, so the avatar is written above the avatars folder.",
   "cwe": "CWE-22",
+  "severity": "medium",
   "location": {
     "path": "app.py",
     "line": 10,

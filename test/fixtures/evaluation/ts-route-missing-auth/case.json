@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "One admin route is registered without the requireAdmin middleware the other admin route uses.",
   "cwe": "CWE-862",
+  "severity": "high",
   "location": {
     "path": "routes/admin.ts",
     "line": 11,

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool checks that the resolved path starts with the notes directory without a separator, so a sibling such as notes_old passes.",
   "cwe": "CWE-22",
+  "severity": "low",
   "location": {
     "path": "tools.py",
     "line": 9,

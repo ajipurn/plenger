@@ -39,6 +39,7 @@ import {
   REVIEW_DISCOVERY_SCHEMA,
   REVIEW_VALIDATION_SCHEMA,
   type ReviewCandidate,
+  type ReviewCitation,
   type ReviewMode,
   type ReviewRange,
   ReviewResponseError,
@@ -73,6 +74,12 @@ const DISCOVERY_TASK = `Map the architecture, assets and trust boundaries. Asses
 Then independently discover concrete security defects, including cross-file paths from untrusted input to sensitive operations.
 Review authorization, tenant isolation, injection, path handling, SSRF, secrets, deserialization and agent/tool trust where present. You are not summarizing scanner findings: none are supplied.
 For every candidate explain the reachable path, existing guards, exact root cause, attacker preconditions, impact and focused mitigation, and give the CWE id that best names its weakness. Cite short source/flow/sink/guard ranges as evidence.
+Rate severity by what an attacker who meets the preconditions gains in this application, not by the weakness class:
+- critical: input from an unauthenticated or ordinary caller reaches code execution, data of every user or tenant, or credentials that grant either, with no precondition beyond reaching the entry point.
+- high: the same effects behind a precondition an ordinary user meets, such as an account; or a bounded but direct effect: another user's or tenant's data, a privileged action, a file read or written outside its intended base, a request to an internal host.
+- medium: the path needs an uncommon precondition (an administrator, a non-default setting, another user's action, a specific deployment), or the effect is partial: limited disclosure, one record, the caller's own data.
+- low: little direct impact, or information that only helps another attack.
+Before rating high or critical, check who can reach the path from the cited source, which preconditions it needs and what the attacker gains. When an answer is unclear or limits the effect, choose the lower severity and name the limiting precondition. Uncertainty about impact lowers the severity; it is not a reason to leave out a candidate whose path the code supports.
 Do not report generic best practices or missing controls without a code-supported attack path. Hardening items are not findings: rate limits, timeouts, request size, token or cost limits, logging and audit trails, monitoring and security headers. Name them as STRIDE mitigations instead. Report a missing iteration or turn limit only for an agent loop or multi-agent conversation that the code leaves without a stop condition. Supply-chain weaknesses are findings, not hardening: code, packages, models or servers fetched and run without a pinned version or integrity check. So are credentials written in source.
 Report prompt injection when untrusted text, including retrieved documents, tool results, files and web content, reaches a system or developer message, or steers a model whose tools or output reach a privileged effect. Caller text in the user message of a model that only answers that caller is the intended use, not a finding.
 Prefer a few well-supported issues. Return zero findings when evidence is insufficient.`;
@@ -89,6 +96,7 @@ Verdicts:
 - dismissed: a control that counts is in the supplied code and defeats the attack, the effect cannot be reached with untrusted input, the source contradicts the claim, or the candidate duplicates another. Name the control and its lines in the reason.
 - source-supported: the supplied code establishes the path from untrusted input to the effect and no supplied control defeats it.
 - needs-review: only when the decision depends on code that was not supplied, such as an omitted range, a named file that is absent, or framework configuration outside the source. Name what is missing. Do not use needs-review for general deployment doubt, defense in depth or best practice when the supplied code already decides the question.
+A dismissal states its basis: control (a control that counts defeats the attack), unreachable (untrusted input cannot reach the effect), contradicted (the source contradicts the claim) or duplicate (another candidate reports the same path; set duplicateOf to that candidate's id). For control, unreachable and contradicted, cite in evidence the lines that decide it: the control with role guard, or the source that shows the effect is out of reach or the claim is wrong. Cite only lines you received. The host keeps a dismissal without a basis and a citation it can check as needs-review. For source-supported and needs-review, set basis and duplicateOf to null and evidence to an empty array.
 Provide one decision for every host-assigned candidate id. Do not add candidates. Explain the supporting or contradicting source locations and remaining assumptions in each decision's reason. Keep the top-level reason null when completed. Source-supported is a static analysis judgment, not a confirmed exploit.`;
 const VALIDATION = `${COMMON}
 ${VALIDATION_RULES}
@@ -606,7 +614,8 @@ export async function reviewProject(
               first: { files: cited, ...environment, candidates },
               tools: new ExploreTools(snapshot, reader, secrets, log),
               log,
-              accept: (args) => submission(() => parseReviewValidation(JSON.stringify(args), ids)),
+              accept: (args) =>
+                submission(() => parseReviewValidation(JSON.stringify(args), ids, log.files())),
               send,
               tokens: allowance("validation"),
               records: exploration,
@@ -654,6 +663,7 @@ export async function reviewProject(
                 candidates,
               }),
               ids,
+              [...scope.files, ...related],
             );
           }
         } catch (error) {
@@ -673,12 +683,21 @@ export async function reviewProject(
             review.limitations.push(
               `The second review did not finish, so its ${candidates.length === 1 ? "candidate is" : `${candidates.length} candidates are`} kept as unvalidated. ${stopped}`,
             );
-          // Explored citations can lie outside the first set; the reader has their lines.
+          // Explored citations, and the related files a dismissal cites, can lie outside
+          // the first set; the reader has their lines.
           const lines = new Map(context.lines);
-          for (const path of new Set(
-            candidates.flatMap((item) => item.evidence.map((cite) => cite.path)),
-          ))
+          for (const path of new Set([
+            ...candidates.flatMap((item) => item.evidence.map((cite) => cite.path)),
+            ...(decided?.decisions ?? []).flatMap(
+              (item) => item.dismissal?.evidence.map((cite) => cite.path) ?? [],
+            ),
+          ]))
             if (!lines.has(path)) lines.set(path, (await reader.read(path))?.lines ?? []);
+          const snippets = (evidence: readonly ReviewCitation[]) =>
+            evidence.map((cite) => ({
+              ...cite,
+              snippet: reviewSnippet({ ...context, lines }, cite.path, cite.line, cite.endLine),
+            }));
           review.findings = candidates.map((finding) => {
             const decision = decided?.decisions.find((item) => item.id === finding.id);
             if (decided && !decision) throw new Error("missing-decision");
@@ -686,12 +705,23 @@ export async function reviewProject(
               ...finding,
               validation: decision?.verdict ?? "unvalidated",
               validationReason: decision?.reason ?? `Not validated. ${stopped ?? ""}`.trim(),
-              evidence: finding.evidence.map((cite) => ({
-                ...cite,
-                snippet: reviewSnippet({ ...context, lines }, cite.path, cite.line, cite.endLine),
-              })),
+              evidence: snippets(finding.evidence),
+              ...(decision?.dismissal
+                ? {
+                    dismissal: {
+                      ...decision.dismissal,
+                      evidence: snippets(decision.dismissal.evidence),
+                    },
+                  }
+                : {}),
+              ...(decision?.unchecked ? { uncheckedDismissal: true as const } : {}),
             };
           });
+          const unchecked = review.findings.filter((item) => item.uncheckedDismissal).length;
+          if (unchecked)
+            review.limitations.push(
+              `${unchecked} ${unchecked === 1 ? "dismissal was" : "dismissals were"} kept as needs-review: the second review named no basis, cited no control or source line it received, or repeated a candidate that is not kept.`,
+            );
           review.status = "completed";
         }
       } else review.status = "completed";

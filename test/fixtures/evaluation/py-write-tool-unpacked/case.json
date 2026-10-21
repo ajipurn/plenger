@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool splits its input into a path and content and writes the file at that path.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "tools.py",
     "line": 9,

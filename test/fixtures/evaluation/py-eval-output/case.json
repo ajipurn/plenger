@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "Model output is evaluated as Python code.",
   "cwe": "CWE-95",
+  "severity": "high",
   "location": {
     "path": "calculator.py",
     "line": 6,

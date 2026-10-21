@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A FAISS index is loaded with pickle deserialization allowed.",
   "cwe": "CWE-502",
+  "severity": "high",
   "location": {
     "path": "index.py",
     "line": 4,

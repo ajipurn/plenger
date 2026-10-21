@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool emails whatever recipient the model chooses.",
   "cwe": "CWE-284",
+  "severity": "medium",
   "location": {
     "path": "tools.ts",
     "line": 7,

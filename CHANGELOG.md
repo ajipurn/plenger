@@ -33,6 +33,16 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - `pnpm evaluate --concurrency <n>` reviews several cases at a time in one
   process, and a review the provider rejects with HTTP 429 is rerun after a
   pause; the report counts the reruns.
+- M10a decision discipline in the AI review. Discovery rates severity with a
+  rubric and checks reach, preconditions and gain before high or critical. A
+  second-review dismissal names its basis (control, unreachable, contradicted or
+  duplicate) and cites the lines that decide it. The host checks the citation
+  against what the second review received; a dismissal that does not check out
+  becomes Needs review with a host note and a limitation. Scan Outputs list
+  dismissed candidates with their basis and cited lines.
+- Severity labels on the vulnerable evaluation cases. `pnpm evaluate` reports
+  severity agreement, vulnerable cases dismissed by mistake and dismissals the
+  host kept as Needs review.
 - Five more static rules:
   - PLG808: a tar archive extracted with no `filter` and no member selection,
     whoever passed it;

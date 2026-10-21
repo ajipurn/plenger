@@ -135,11 +135,11 @@ describe("source-based AI security review", () => {
       expect(() => parseReviewDiscovery(JSON.stringify({ ...discovery, reason }), files)).toThrow(
         /\$\.reason/,
       );
-      expect(() => parseReviewValidation(JSON.stringify({ ...validation, reason }), [])).toThrow(
-        /\$\.reason/,
-      );
+      expect(() =>
+        parseReviewValidation(JSON.stringify({ ...validation, reason }), [], files),
+      ).toThrow(/\$\.reason/);
     }
-    expect(() => parseReviewValidation(JSON.stringify(validation), ["candidate"])).toThrow(
+    expect(() => parseReviewValidation(JSON.stringify(validation), ["candidate"], files)).toThrow(
       /\$\.decisions/,
     );
     required(required(discovery.findings[0], "finding").evidence[0], "citation").path =
@@ -155,13 +155,18 @@ describe("source-based AI security review", () => {
         ),
       ).toThrow(/\$\.reason/);
       expect(() =>
-        parseReviewValidation(JSON.stringify({ ...validation, status: "refused", reason }), []),
+        parseReviewValidation(
+          JSON.stringify({ ...validation, status: "refused", reason }),
+          [],
+          files,
+        ),
       ).toThrow(/\$\.reason/);
     }
     expect(
       parseReviewValidation(
         JSON.stringify({ ...validation, status: "refused", reason: "Declined" }),
         ["candidate"],
+        files,
       ),
     ).toEqual({ status: "refused", reason: "Declined", decisions: [] });
   });
@@ -175,6 +180,7 @@ describe("source-based AI security review", () => {
         decisions: [{ id: "candidate", verdict: "needs-review", reason: long }],
       }),
       ["candidate"],
+      [],
     );
     const reason = required(result.decisions[0], "decision").reason;
     expect(long.length).toBeGreaterThan(SECURITY_REVIEW_LIMITS.text);
@@ -194,6 +200,7 @@ describe("source-based AI security review", () => {
             decisions: [{ id: "candidate", verdict: "dismissed", reason: empty }],
           }),
           ["candidate"],
+          [],
         ),
       ).toThrow(/\$\.decisions\[0\]\.reason: expected non-empty text/);
     }
@@ -414,6 +421,7 @@ describe("source-based AI security review", () => {
       return reviewDecision(
         data.candidates.map((item: { id: string }) => item.id),
         "dismissed",
+        { path: "store.ts", line: 3, endLine: 3 },
       );
     });
     const review = await reviewProject(
@@ -422,6 +430,39 @@ describe("source-based AI security review", () => {
       model.dispatch,
     );
     expect(review.findings[0]?.validation).toBe("dismissed");
+    // The dismissal keeps what it rests on, with the cited lines as the host read them.
+    expect(review.findings[0]?.dismissal).toMatchObject({
+      basis: "control",
+      evidence: [{ path: "store.ts", line: 3, endLine: 3, role: "guard" }],
+    });
+    expect(review.findings[0]?.dismissal?.evidence[0]?.snippet).toContain("findUnique");
+    expect(review.findings[0]?.uncheckedDismissal).toBeUndefined();
+    // Without a basis and a citation the host can check, the candidate needs review.
+    const uncited = stub((body, index) => {
+      if (!index) return reviewDiscovery();
+      const message = body.messages as { content: { text: string }[] }[];
+      const data = JSON.parse(message[0]?.content[0]?.text ?? "{}");
+      return reviewDecision(
+        data.candidates.map((item: { id: string }) => item.id),
+        "dismissed",
+      );
+    });
+    const kept = await reviewProject(
+      snapshot,
+      { scanId: "scan", provider, access },
+      uncited.dispatch,
+    );
+    expect(kept.findings[0]).toMatchObject({
+      validation: "needs-review",
+      uncheckedDismissal: true,
+    });
+    expect(kept.findings[0]?.dismissal).toBeUndefined();
+    expect(kept.findings[0]?.validationReason).toMatch(
+      /^The second review dismissed this candidate without naming its basis, so it needs review\. Second review: server\.ts:3/,
+    );
+    expect(kept.limitations).toContain(
+      "1 dismissal was kept as needs-review: the second review named no basis, cited no control or source line it received, or repeated a candidate that is not kept.",
+    );
     const invalid = stub((_body, index) =>
       index ? { status: "completed", reason: null, decisions: [] } : reviewDiscovery(),
     );
@@ -553,6 +594,91 @@ describe("source-based AI security review", () => {
     expect(JSON.stringify(changed.context.files)).not.toContain("outside-private-marker");
   });
 
+  it("keeps a dismissal as needs-review unless its basis and citation check out", () => {
+    const files = [
+      { path: "server.ts", lines: 7, digest: "" },
+      { path: "store.ts", lines: 4, digest: "" },
+    ];
+    const guard = { path: "store.ts", line: 3, endLine: 3, role: "guard", message: "Scoped." };
+    const dismissed = (id: string, fields: Record<string, unknown>) => ({
+      id,
+      verdict: "dismissed",
+      reason: `Decision ${id}.`,
+      basis: "control",
+      evidence: [guard],
+      duplicateOf: null,
+      ...fields,
+    });
+    const result = parseReviewValidation(
+      JSON.stringify({
+        status: "completed",
+        reason: null,
+        decisions: [
+          // A reply without the dismissal fields, as a model without structured output sends.
+          { id: "a", verdict: "dismissed", reason: "Decision a." },
+          dismissed("b", { evidence: [{ ...guard, path: "outside.ts" }] }),
+          dismissed("c", { evidence: [] }),
+          dismissed("d", {}),
+          dismissed("e", { basis: "duplicate", evidence: [], duplicateOf: "d" }),
+          dismissed("f", { basis: "duplicate", evidence: [], duplicateOf: "a" }),
+        ],
+      }),
+      ["a", "b", "c", "d", "e", "f"],
+      files,
+    );
+    const decision = (id: string) =>
+      required(
+        result.decisions.find((item) => item.id === id),
+        id,
+      );
+    for (const id of ["a", "b", "c", "e"])
+      expect(decision(id), id).toMatchObject({ verdict: "needs-review", unchecked: true });
+    expect(decision("a").reason).toBe(
+      "The second review dismissed this candidate without naming its basis, so it needs review. Second review: Decision a.",
+    );
+    expect(decision("b").reason).toContain("without citing a control or source line it received");
+    expect(decision("c").reason).toContain("without citing a control or source line it received");
+    // A duplicate of a dismissed candidate would leave the path unreported.
+    expect(decision("e").reason).toContain("as a duplicate without naming another candidate");
+    expect(decision("d")).toEqual({
+      id: "d",
+      verdict: "dismissed",
+      reason: "Decision d.",
+      dismissal: { basis: "control", evidence: [guard] },
+    });
+    // A duplicate stands beside a candidate that is kept, here one kept for review.
+    expect(decision("f")).toMatchObject({
+      verdict: "dismissed",
+      dismissal: { basis: "duplicate", evidence: [], duplicateOf: "a" },
+    });
+    // Other verdicts ignore dismissal fields, even ones that would not check out.
+    const supported = parseReviewValidation(
+      JSON.stringify({
+        status: "completed",
+        reason: null,
+        decisions: [
+          dismissed("a", { verdict: "source-supported", evidence: [{ ...guard, line: 99 }] }),
+        ],
+      }),
+      ["a"],
+      files,
+    );
+    expect(supported.decisions).toEqual([
+      { id: "a", verdict: "source-supported", reason: "Decision a." },
+    ]);
+    expect(() =>
+      parseReviewValidation(
+        JSON.stringify({
+          status: "completed",
+          reason: null,
+          decisions: [dismissed("a", { basis: "unknown" })],
+        }),
+        ["a"],
+        files,
+      ),
+    ).toThrow(/\$\.decisions\[0\]\.basis: unknown enum value/);
+  });
+
   it("validates exact evidence ranges and decision ids rather than trusting model provenance", () => {
     const files = [
       { path: "server.ts", lines: 7, digest: "" },
@@ -572,10 +698,10 @@ describe("source-based AI security review", () => {
       expect(() => parseReviewDiscovery(JSON.stringify(value), files)).toThrow();
     }
     expect(() =>
-      parseReviewValidation(JSON.stringify(reviewDecision(["invented"])), ["real"]),
+      parseReviewValidation(JSON.stringify(reviewDecision(["invented"])), ["real"], []),
     ).toThrow();
     expect(() =>
-      parseReviewValidation(JSON.stringify(reviewDecision(["real", "real"])), ["real"]),
+      parseReviewValidation(JSON.stringify(reviewDecision(["real", "real"])), ["real"], []),
     ).toThrow();
   });
 });

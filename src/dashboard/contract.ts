@@ -15,6 +15,7 @@ export type { ProviderModel } from "../redteam/provider-models.ts";
 import type { FixPromptDraft } from "../remediation/fix-prompt.ts";
 
 export type {
+  DismissalBasis,
   ExploreSessionRecord,
   ReviewFinding,
   ReviewMode,

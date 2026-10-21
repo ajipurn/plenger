@@ -4,6 +4,7 @@ import {
   EXPLORE_STOPS,
   type ExploreSessionRecord,
   type ImportedReaEvidence,
+  type ReviewFinding,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
   SECURITY_POLL_MS,
@@ -19,7 +20,7 @@ import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 import { costLabel, ScanBilling } from "./ScanBilling.tsx";
 import { ScanProgress } from "./ScanProgress.tsx";
-import { date, FindingsTable, ScanDuration, ScanStatus } from "./ui.tsx";
+import { date, dismissalLabel, FindingsTable, ScanDuration, ScanStatus } from "./ui.tsx";
 
 export function ScanDetailPage({
   data,
@@ -279,6 +280,7 @@ export function ScanDetailPage({
                         </details>
                       ))}
                     </div>
+                    <DismissedCandidates findings={review.findings} />
                     <details className="security-output-coverage">
                       <summary>Source coverage and limitations</summary>
                       <p className="muted">
@@ -507,6 +509,50 @@ const STOP_TEXT: Record<NonNullable<NonNullable<SecurityScan["coverage"]>["stop"
   quick: "one batch",
   explored: "the last exploring review read nothing new",
 };
+
+/**
+ * Candidates the second review dismissed, which the findings table leaves out: what each
+ * dismissal rests on and the lines it cites. Earlier reviews saved no basis.
+ */
+function DismissedCandidates({ findings }: { findings: ReviewFinding[] }) {
+  const dismissed = findings.filter((finding) => finding.validation === "dismissed");
+  if (!dismissed.length) return null;
+  return (
+    <>
+      <h3>Dismissed candidates</h3>
+      <div className="security-stride-list">
+        {dismissed.map((finding) => {
+          const dismissal = finding.dismissal;
+          const repeated = findings.find((item) => item.id === dismissal?.duplicateOf);
+          return (
+            <details key={finding.id}>
+              <summary>
+                <span>{finding.title}</span>
+                <span className="security-status">
+                  {dismissal ? dismissalLabel[dismissal.basis] : "Dismissed"}
+                </span>
+              </summary>
+              <p>{finding.validationReason}</p>
+              {repeated && <p className="muted">Repeats the candidate {repeated.title}.</p>}
+              {dismissal?.evidence.length ? (
+                <ul>
+                  {dismissal.evidence.map((cite) => (
+                    <li key={JSON.stringify(cite)}>
+                      <code>
+                        {cite.path}:{cite.line}
+                      </code>{" "}
+                      {cite.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </details>
+          );
+        })}
+      </div>
+    </>
+  );
+}
 
 /** What each exploring session read and searched, and why it stopped. */
 function ExplorationLog({ sessions }: { sessions: ExploreSessionRecord[] }) {

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "An invoice route looks up an invoice by its number through a repository method that skips the organization filter the other methods apply, and invoice numbers repeat across organizations.",
   "cwe": "CWE-639",
+  "severity": "high",
   "location": {
     "path": "app/api/routes/invoices.py",
     "line": 26,

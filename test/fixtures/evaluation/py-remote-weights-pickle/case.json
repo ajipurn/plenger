@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A loader passes downloaded bytes to `torch.load` without `weights_only=True`, so a crafted checkpoint runs code when it is unpickled.",
   "cwe": "CWE-502",
+  "severity": "high",
   "location": {
     "path": "weights.py",
     "line": 7,

@@ -327,6 +327,34 @@ describe("exploring AI review", () => {
     return (data.candidates as { id: string }[]).map((item) => item.id);
   }
 
+  it("accepts a dismissal that cites lines the second review read, and keeps one that cites unread lines", async () => {
+    const snapshot = await project();
+    const route = { path: "app.ts", line: 4, endLine: 4 };
+    for (const read of [true, false]) {
+      let ids: string[] = [];
+      const model = claude((body, index) => {
+        if (index === 0) return [use("submit_discovery", reviewDiscovery() as never)];
+        if (index === 1) ids = candidateIds(body);
+        if (index === 1 && read) return [use("read_file", { path: "app.ts" })];
+        return [use("submit_decisions", reviewDecision(ids, "dismissed", route) as never)];
+      });
+      const review = await reviewProject(
+        snapshot,
+        { scanId: "scan", provider, access, mode: "explore" },
+        model.dispatch,
+      );
+      expect(review.status).toBe("completed");
+      // The validation session starts with the cited files only; app.ts is read on request.
+      expect(review.findings[0]?.validation, String(read)).toBe(
+        read ? "dismissed" : "needs-review",
+      );
+      expect(review.findings[0]?.dismissal?.evidence[0]?.snippet).toEqual(
+        read ? expect.stringContaining("getInvoice") : undefined,
+      );
+      expect(review.findings[0]?.uncheckedDismissal).toBe(read ? undefined : true);
+    }
+  });
+
   it("explores, validates with tools and records both sessions", async () => {
     const snapshot = await project();
     let ids: string[] = [];

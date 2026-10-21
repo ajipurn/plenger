@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A handler returns any invoice by id: the repository method it calls ignores the caller's tenant.",
   "cwe": "CWE-639",
+  "severity": "high",
   "location": {
     "path": "app.py",
     "line": 10,

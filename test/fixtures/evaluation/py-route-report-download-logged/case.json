@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "The same route only logs a name outside the fixed reports and goes on, so `../config.py` is read outside the reports folder.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "app.py",
     "line": 11,

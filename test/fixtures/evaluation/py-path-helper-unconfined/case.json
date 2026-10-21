@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A route opens the file a helper in another module joins from the request's name, with no confinement.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "app.py",
     "line": 8,

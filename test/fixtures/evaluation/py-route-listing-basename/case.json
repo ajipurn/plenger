@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A route lists an upload folder named by `os.path.basename` of the request value, which keeps `..`, so the folder above the uploads is listed.",
   "cwe": "CWE-22",
+  "severity": "medium",
   "location": {
     "path": "app.py",
     "line": 9,

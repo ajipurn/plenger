@@ -1,9 +1,9 @@
 # Ideas adopted from Strix (design)
 
-Status: planned. Nothing on this page is implemented. The checkpoints are
-[M10](../ROADMAP.md#m10-review-discipline-and-scope-planned) and
-[M11](../ROADMAP.md#m11-validation-by-execution-planned). What works and what
-is qualified is in [../STATUS.md](../STATUS.md).
+Status: M10a is implemented; the other checkpoints are planned. The
+checkpoints are [M10](../ROADMAP.md#m10-review-discipline-and-scope-in-progress)
+and [M11](../ROADMAP.md#m11-validation-by-execution-planned). What works and
+what is qualified is in [../STATUS.md](../STATUS.md).
 
 ## Why
 

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool checks the unresolved path's prefix, which `notes/../secret` passes.",
   "cwe": "CWE-22",
+  "severity": "medium",
   "location": {
     "path": "tools.py",
     "line": 9,

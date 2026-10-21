@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "An MCP client starts a stdio server with uvx without a version.",
   "cwe": "CWE-829",
+  "severity": "medium",
   "location": {
     "path": "assistant.py",
     "line": 4,

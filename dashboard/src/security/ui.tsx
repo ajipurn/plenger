@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router";
 import type {
+  DismissalBasis,
   FindingStatus,
   SecurityFinding,
   SecurityScanSummary,
@@ -15,6 +16,13 @@ export const statusLabel: Record<FindingStatus, string> = {
   "in-progress": "In progress",
   resolved: "Resolved",
   dismissed: "Dismissed",
+};
+/** What a second-review dismissal rests on. */
+export const dismissalLabel: Record<DismissalBasis, string> = {
+  control: "Control",
+  unreachable: "Unreachable",
+  contradicted: "Contradicted",
+  duplicate: "Duplicate",
 };
 export const scanStatusLabel = {
   running: "Running",

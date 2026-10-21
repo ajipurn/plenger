@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A ticket file route passes the URL's file name to a helper deep in the utils package that joins it onto the ticket folder without confining the result.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "app/api/routes/attachments.py",
     "line": 26,

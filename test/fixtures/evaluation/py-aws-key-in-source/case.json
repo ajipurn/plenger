@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "An AWS access key is written in the source.",
   "cwe": "CWE-798",
+  "severity": "high",
   "location": {
     "path": "storage.py",
     "line": 3,

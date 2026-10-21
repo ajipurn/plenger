@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool checks a report name against a fixed set but writes the file even when the check fails.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "tools.py",
     "line": 9,

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool interpolates the model's input into a SQL statement.",
   "cwe": "CWE-89",
+  "severity": "high",
   "location": {
     "path": "tools.py",
     "line": 9,

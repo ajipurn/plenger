@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A FastAPI route puts the `api_key` query parameter into SQL text run with Prisma's `query_raw`.",
   "cwe": "CWE-89",
+  "severity": "critical",
   "location": {
     "path": "app.py",
     "line": 8,

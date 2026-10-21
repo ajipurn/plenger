@@ -35,7 +35,7 @@ Python, JavaScript and TypeScript also get static facts, which order the files
 along traced paths and excerpt them by function; other files are read as plain
 text. [M9](#m9-review-for-any-language-done) adds read-only exploration
 by the model next. Static parsing stays with the three languages.
-[M10](#m10-review-discipline-and-scope-planned) adopts review ideas from Strix
+[M10](#m10-review-discipline-and-scope-in-progress) adopts review ideas from Strix
 that need no execution.
 
 Validation is a second model review of the source. Validation by execution,
@@ -353,13 +353,17 @@ and five delivery checkpoints, is in
 stays with Python, JavaScript and TypeScript; a new grammar is added only for
 static rules in another language.
 
-### M10 Review discipline and scope (planned)
+### M10 Review discipline and scope (in progress)
 
 M10 adopts ideas from the white-box review of
 [Strix](https://github.com/usestrix/strix) that need no execution. Scans stay
 read-only. The design, the selection criteria and the ideas left out are in
 [design/strix-adoption.md](design/strix-adoption.md). Each checkpoint is
 reviewed and measured before the next.
+
+**In progress:** M10a. Discovery rates severity with a rubric, and a dismissal
+names its basis and cites lines the host checks. See [STATUS.md](STATUS.md) for
+what is measured and what remains.
 
 | Checkpoint | Deliverable | Acceptance |
 | --- | --- | --- |

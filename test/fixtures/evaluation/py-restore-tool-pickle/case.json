@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool unpickles state the model passes in.",
   "cwe": "CWE-502",
+  "severity": "high",
   "location": {
     "path": "tools.py",
     "line": 8,

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "The same route's helper only checks that the path starts with the base, so a sibling such as downloads_old passes.",
   "cwe": "CWE-22",
+  "severity": "medium",
   "location": {
     "path": "server.ts",
     "line": 9,

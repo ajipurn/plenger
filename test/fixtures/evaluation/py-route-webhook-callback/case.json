@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A job route posts to a callback URL from the request body through a helper in another module, so a client can make the server reach any host.",
   "cwe": "CWE-918",
+  "severity": "high",
   "location": { "path": "hooks.py", "line": 4, "endLine": 5 },
   "static": ["PLG804"]
 }

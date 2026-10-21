@@ -20,6 +20,8 @@ export const SECURITY_REVIEW_LIMITS = {
   relatedFiles: 8,
   findings: 6,
   evidence: 6,
+  /** Lines a dismissal cites: the control or source that decides it. */
+  dismissalEvidence: 3,
   snippetLines: 13,
   text: 1200,
   outputTokens: 8192,
@@ -226,6 +228,18 @@ export interface ReviewCandidate {
   mitigation: string;
   evidence: ReviewCitation[];
 }
+/**
+ * Why the second review dismissed a candidate: a control that defeats the attack, an
+ * effect untrusted input cannot reach, source that contradicts the claim, or a repeat.
+ */
+export type DismissalBasis = "control" | "unreachable" | "contradicted" | "duplicate";
+export interface ReviewDismissal {
+  basis: DismissalBasis;
+  /** Lines the second review received that decide it; empty for a duplicate. */
+  evidence: ReviewCitation[];
+  /** For a duplicate: the host-assigned id of the candidate it repeats. */
+  duplicateOf?: string;
+}
 export interface ReviewFinding extends ReviewCandidate {
   id: string;
   /**
@@ -235,6 +249,12 @@ export interface ReviewFinding extends ReviewCandidate {
   validation: "source-supported" | "needs-review" | "dismissed" | "unvalidated";
   validationReason: string;
   evidence: (ReviewCitation & { snippet: string })[];
+  /** What a dismissal rests on. Absent for other verdicts and on earlier reviews. */
+  dismissal?: Omit<ReviewDismissal, "evidence"> & {
+    evidence: (ReviewCitation & { snippet: string })[];
+  };
+  /** The second review dismissed it without a basis the host could check, so it needs review. */
+  uncheckedDismissal?: true;
 }
 export interface ReviewDiscovery {
   status: "completed" | "refused";
@@ -392,6 +412,7 @@ const REVIEW_STATES = ["completed", "refused"] as const;
 const CONFIDENCES = ["high", "medium", "low"] as const;
 const STRIDE_STATES = ["identified", "not-observed", "insufficient-context"] as const;
 const VERDICTS = ["source-supported", "needs-review", "dismissed"] as const;
+const DISMISSAL_BASES = ["control", "unreachable", "contradicted", "duplicate"] as const;
 const CITATION_ROLES = ["source", "flow", "sink", "guard"] as const;
 type Schema = Record<string, unknown>;
 const text: Schema = { type: "string", minLength: 1, maxLength: SECURITY_REVIEW_LIMITS.text };
@@ -424,25 +445,44 @@ const candidateProperties = {
   impact: text,
   preconditions: list(text, 4),
   mitigation: text,
-  evidence: list(
-    object({
-      path: {
-        ...text,
-        description: "Copy a submitted source path exactly, including case. Never invent a path.",
-      },
-      line: { type: "integer", minimum: 1 },
-      endLine: {
-        type: "integer",
-        minimum: 1,
-        description:
-          "Inclusive end line. Must be at or after line and within the submitted file. For an excerpt, line through endLine must stay inside one submitted range. Prefer focused ranges that support the claim.",
-      },
-      role: { enum: CITATION_ROLES },
-      message: text,
-    }),
-    SECURITY_REVIEW_LIMITS.evidence,
-    1,
-  ),
+  evidence: list(citation(), SECURITY_REVIEW_LIMITS.evidence, 1),
+};
+function citation(): Schema {
+  return object({
+    path: {
+      ...text,
+      description: "Copy a submitted source path exactly, including case. Never invent a path.",
+    },
+    line: { type: "integer", minimum: 1 },
+    endLine: {
+      type: "integer",
+      minimum: 1,
+      description:
+        "Inclusive end line. Must be at or after line and within the submitted file. For an excerpt, line through endLine must stay inside one submitted range. Prefer focused ranges that support the claim.",
+    },
+    role: { enum: CITATION_ROLES },
+    message: text,
+  });
+}
+const decisionProperties = {
+  id: text,
+  verdict: { enum: VERDICTS },
+  reason: text,
+  basis: {
+    anyOf: [{ enum: DISMISSAL_BASES }, { type: "null" }],
+    description:
+      "For dismissed: control, unreachable, contradicted or duplicate. Null for other verdicts.",
+  },
+  evidence: {
+    ...list(citation(), SECURITY_REVIEW_LIMITS.dismissalEvidence),
+    description:
+      "For a dismissal on control, unreachable or contradicted: the received lines that decide it, the control with role guard. Empty otherwise.",
+  },
+  duplicateOf: {
+    anyOf: [text, { type: "null" }],
+    description:
+      "For a duplicate: the host-assigned id of the candidate it repeats. Otherwise null.",
+  },
 };
 const discoveryProperties = {
   status: { enum: REVIEW_STATES },
@@ -468,14 +508,7 @@ export const REVIEW_DISCOVERY_SCHEMA = object(discoveryProperties);
 export const REVIEW_VALIDATION_SCHEMA = object({
   status: { enum: REVIEW_STATES },
   reason: reviewReason,
-  decisions: list(
-    object({
-      id: text,
-      verdict: { enum: VERDICTS },
-      reason: text,
-    }),
-    SECURITY_REVIEW_LIMITS.findings,
-  ),
+  decisions: list(object(decisionProperties), SECURITY_REVIEW_LIMITS.findings),
 });
 
 /** Canonicalize enums and completed-review reasons. Paths and host-assigned ids remain exact. */
@@ -571,30 +604,92 @@ export function parseReviewDiscovery(content: string, files: ReviewSourceFile[])
   };
 }
 
+export interface ReviewDecision {
+  id: string;
+  verdict: ReviewFinding["validation"];
+  reason: string;
+  dismissal?: ReviewDismissal;
+  /** A dismissal the host could not check, now needs-review; `reason` says why first. */
+  unchecked?: true;
+}
+
+/** Host notes for a dismissal it keeps as needs-review. They never quote the model. */
+const UNCHECKED = {
+  basis: "The second review dismissed this candidate without naming its basis",
+  evidence:
+    "The second review dismissed this candidate without citing a control or source line it received",
+  duplicate:
+    "The second review dismissed this candidate as a duplicate without naming another candidate that is kept",
+};
+
+/**
+ * `files` is what the second review received: a dismissal on a control, an unreachable
+ * effect or contradicting source must cite those lines. One that names no basis, cites
+ * nothing it received, or repeats a candidate that is not kept becomes needs-review.
+ */
 export function parseReviewValidation(
   content: string,
   ids: string[],
+  files: readonly ReviewSourceFile[],
 ): {
   status: "completed" | "refused";
   reason: string | null;
-  decisions: { id: string; verdict: ReviewFinding["validation"]; reason: string }[];
+  decisions: ReviewDecision[];
 } {
   const value = fields(parse(content), ["status", "reason", "decisions"], "$");
   const status = state(value);
   const remaining = new Set(ids);
-  const decisions = array(value.decisions, SECURITY_REVIEW_LIMITS.findings, "$.decisions").map(
+  const scope = new Map(files.map((file) => [file.path, file]));
+  const parsed = array(value.decisions, SECURITY_REVIEW_LIMITS.findings, "$.decisions").map(
     (value, index) => {
       const location = `$.decisions[${index}]`;
-      const decision = fields(value, ["id", "verdict", "reason"], location);
+      // A model without structured output may leave out what only a dismissal needs.
+      const raw = isRecord(value)
+        ? { basis: null, evidence: [], duplicateOf: null, ...value }
+        : value;
+      const decision = fields(raw, Object.keys(decisionProperties), location);
       const id = string(decision.id, `${location}.id`);
       if (!remaining.delete(id))
         throw invalid(`${location}.id`, "unknown or duplicate host-assigned candidate id");
-      return {
-        id,
-        verdict: enumValue(decision.verdict, VERDICTS, `${location}.verdict`),
-        reason: clipped(decision.reason, `${location}.reason`),
-      };
+      const verdict = enumValue(decision.verdict, VERDICTS, `${location}.verdict`);
+      const reason = clipped(decision.reason, `${location}.reason`);
+      if (verdict !== "dismissed") return { id, verdict, reason };
+      const basis =
+        decision.basis === null
+          ? null
+          : enumValue(decision.basis, DISMISSAL_BASES, `${location}.basis`);
+      if (basis === null) return unchecked(id, reason, UNCHECKED.basis);
+      if (basis === "duplicate") {
+        const target = typeof decision.duplicateOf === "string" ? decision.duplicateOf : "";
+        return target !== id && ids.includes(target)
+          ? { id, verdict, reason, dismissal: { basis, evidence: [], duplicateOf: target } }
+          : unchecked(id, reason, UNCHECKED.duplicate);
+      }
+      let evidence: ReviewCitation[] = [];
+      try {
+        evidence = citations(
+          decision.evidence,
+          scope,
+          `${location}.evidence`,
+          SECURITY_REVIEW_LIMITS.dismissalEvidence,
+        );
+      } catch (error) {
+        if (!(error instanceof ReviewResponseError)) throw error;
+      }
+      return evidence.length
+        ? { id, verdict, reason, dismissal: { basis, evidence } }
+        : unchecked(id, reason, UNCHECKED.evidence);
     },
+  );
+  // A duplicate stands only beside the candidate it repeats; two that point at each
+  // other, or at one dismissed for another reason, would leave nothing reported.
+  const dismissed = new Set(
+    parsed.filter((item) => item.verdict === "dismissed").map((item) => item.id),
+  );
+  const decisions = parsed.map((item) =>
+    item.dismissal?.duplicateOf !== undefined && dismissed.has(item.dismissal.duplicateOf)
+      ? unchecked(item.id, item.reason, UNCHECKED.duplicate)
+      : item,
   );
   if (status === "completed" ? remaining.size > 0 : decisions.length > 0)
     throw invalid(
@@ -610,6 +705,15 @@ export function parseReviewValidation(
   };
 }
 
+function unchecked(id: string, reason: string, note: string): ReviewDecision {
+  return {
+    id,
+    verdict: "needs-review",
+    reason: `${note}, so it needs review. Second review: ${reason}`,
+    unchecked: true,
+  };
+}
+
 export class ReviewResponseError extends Error {}
 /** Field locations and explanations are host-generated. Never echo rejected model values. */
 function invalid(field: string, detail: string): ReviewResponseError {
@@ -619,8 +723,9 @@ function citations(
   value: unknown,
   scope: Map<string, ReviewSourceFile>,
   location: string,
+  maximum: number = SECURITY_REVIEW_LIMITS.evidence,
 ): ReviewCitation[] {
-  return array(value, SECURITY_REVIEW_LIMITS.evidence, location).map((value, index) => {
+  return array(value, maximum, location).map((value, index) => {
     const field = `${location}[${index}]`;
     const cite = fields(value, ["path", "line", "endLine", "role", "message"], field);
     const path = string(cite.path, `${field}.path`);

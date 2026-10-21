@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A route loads an uploaded checkpoint with torch.load and weights_only=False, which unpickles any class the file names.",
   "cwe": "CWE-502",
+  "severity": "critical",
   "location": {
     "path": "app.py",
     "line": 10,

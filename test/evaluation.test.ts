@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  type AiOutcome,
   aiOutcome,
+  dismissedByMistake,
   type EvaluationCase,
   evaluateAi,
   evaluateStatic,
@@ -11,6 +13,7 @@ import {
   reviewSnapshot,
   ruleMetrics,
   sameWeakness,
+  severityAgreement,
   spread,
 } from "../scripts/lib/evaluation.ts";
 import { STRIDE } from "../src/assessment/model.ts";
@@ -73,6 +76,9 @@ describe("evaluation corpus", () => {
   it("pairs a vulnerable case with a safe near-miss for every weakness", async () => {
     const cases = await loadCorpus(fixturePath("evaluation"));
     expect(cases).toHaveLength(150);
+    // Every vulnerable case carries the severity the discovery rubric gives it.
+    for (const item of cases)
+      expect(item.severity === undefined, item.id).toBe(item.kind === "safe");
     for (const cwe of new Set(cases.map((item) => item.cwe))) {
       const kinds = cases.filter((item) => item.cwe === cwe).map((item) => item.kind);
       expect(kinds, cwe).toContain("vulnerable");
@@ -253,6 +259,43 @@ describe("AI review evaluation", () => {
     expect(failing.runs[0]?.[0]?.rateLimitedReruns).toBeUndefined();
   });
 
+  it("compares reported severity with the labels and counts vulnerable cases dismissed by mistake", () => {
+    const label = (id: string, severity?: "critical" | "high" | "medium") =>
+      ({ id, kind: severity ? "vulnerable" : "safe", ...(severity ? { severity } : {}) }) as never;
+    const cases: EvaluationCase[] = [
+      label("a", "critical"),
+      label("b", "high"),
+      label("c", "medium"),
+      label("d", "high"),
+      label("e"),
+    ];
+    const outcome = (id: string, fields: Partial<AiOutcome>) =>
+      ({
+        id,
+        kind: id === "e" ? "safe" : "vulnerable",
+        detected: true,
+        verdicts: [],
+        ...fields,
+      }) as AiOutcome;
+    const outcomes = [
+      outcome("a", { severity: "high" }),
+      outcome("b", { severity: "high" }),
+      outcome("c", { severity: "critical" }),
+      // Not detected: its only finding at the label was dismissed.
+      outcome("d", { severity: null, detected: false, verdicts: ["dismissed"] }),
+      // A safe case is never rated, whatever it reports.
+      outcome("e", { severity: "low" }),
+    ];
+    expect(severityAgreement(cases, outcomes)).toEqual({
+      rated: 3,
+      exact: 1,
+      withinOne: 2,
+      higher: 1,
+      lower: 1,
+    });
+    expect(dismissedByMistake(outcomes)).toBe(1);
+  });
+
   it("scores each run, ignores dismissed findings and counts findings outside the labels", async () => {
     const cases = (await loadCorpus(fixturePath("evaluation"))).filter((item) =>
       ["py-sql-tool", "py-sql-tool-param", "ts-idor-route", "ts-idor-route-scoped"].includes(
@@ -267,10 +310,17 @@ describe("AI review evaluation", () => {
       // Labels stay on the host.
       expect(data.files.map((file: { path: string }) => file.path)).not.toContain("case.json");
       if (data.candidates) {
-        // The second review dismisses the candidate on the scoped route.
-        const verdict = source.includes("tenantId") ? "dismissed" : "source-supported";
+        // The second review dismisses the candidate on the scoped route, citing its guard.
+        const scoped = source.includes("tenantId");
         const ids = data.candidates.map((item: { id: string }) => item.id);
-        return new Response(JSON.stringify(nativeReviewReply(reviewDecision(ids, verdict))));
+        const guard = required(cases.find((item) => item.id === "ts-idor-route-scoped")).location;
+        return new Response(
+          JSON.stringify(
+            nativeReviewReply(
+              reviewDecision(ids, scoped ? "dismissed" : "source-supported", guard),
+            ),
+          ),
+        );
       }
       const id = source.includes("tenantId")
         ? "ts-idor-route-scoped"
@@ -297,13 +347,16 @@ describe("AI review evaluation", () => {
     expect(outcome("ts-idor-route")).toMatchObject({
       detected: true,
       matched: true,
+      severity: "high",
       verdicts: ["source-supported"],
     });
     // A dismissed finding at the label is no false positive.
     expect(outcome("ts-idor-route-scoped")).toMatchObject({
       detected: false,
+      severity: null,
       verdicts: ["dismissed"],
       unlabeled: 0,
+      uncheckedDismissals: 0,
     });
     // The JSON keeps what each finding at the label claims and why it was decided.
     expect(outcome("ts-idor-route-scoped").findings).toEqual([
@@ -313,6 +366,7 @@ describe("AI review evaluation", () => {
         cwe: "CWE-639",
         severity: expect.any(String),
         verdict: "dismissed",
+        basis: "control",
         reason: expect.stringMatching(/\S/),
       },
     ]);
@@ -334,7 +388,13 @@ describe("AI review evaluation", () => {
       `Batch mode, prompt digest \`${REVIEW_PROMPT_DIGEST.slice(0, 12)}\``,
     );
     expect(markdown).toContain(
-      "| ts-idor-route | vulnerable | 2/2 | source-supported, source-supported | 0 |",
+      "| ts-idor-route | vulnerable | 2/2 | source-supported, source-supported | 0 | high: high, high |",
+    );
+    expect(markdown).toContain(
+      "| ts-idor-route-scoped | safe | 0/2 | dismissed, dismissed | 0 | n/a: none |",
+    );
+    expect(markdown).toContain(
+      "Severity of 2 rated detections across runs: 2 at the labeled level, 2 within one level, 0 rated higher and 0 lower. Vulnerable cases dismissed by mistake per run: 0, 0. Dismissals the host kept as needs-review: 0.",
     );
     expect(markdown).toContain(
       "Counting only source-supported findings: precision 1.00 (min 1.00, max 1.00), recall 0.50 (min 0.50, max 0.50).",

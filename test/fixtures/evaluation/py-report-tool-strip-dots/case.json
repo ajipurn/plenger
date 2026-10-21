@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool names a report after its title with `../` removed once, so `....//` turns back into `../` and the report is written outside the reports folder.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "tools.py",
     "line": 9,

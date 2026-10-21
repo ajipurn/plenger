@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A mail preview route compiles the request's template with jinja2.Template, whose expressions can reach Python objects and run code.",
   "cwe": "CWE-1336",
+  "severity": "critical",
   "location": { "path": "app.py", "line": 7, "endLine": 10 },
   "static": ["PLG806"]
 }

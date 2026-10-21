@@ -8,6 +8,20 @@ Labeled cases for `pnpm evaluate`. Each folder is one small project with a
 - `location`: the file and inclusive lines the label covers. A finding counts
   for the case when its location or evidence overlaps them.
 - `cwe`: the weakness the pair is about.
+- `severity`: vulnerable cases only. The level the discovery rubric in
+  `src/assessment/security-review.ts` gives the labeled weakness. `pnpm evaluate`
+  compares it with the severity the review reports. Labels follow these rules:
+  - An HTTP caller reaching code execution, or SQL over all data, is critical.
+  - An HTTP caller reaching another tenant's data, a privileged action, or a file
+    or host outside its bounds is high. A limited effect (one folder up, one file
+    type, a sibling folder) is medium.
+  - Input the model chooses and content from a remote service need the attacker
+    to steer the model or control that service. Code execution, deserialization,
+    SQL, and writes or deletes outside a base are high. Reads, requests and
+    actions are medium, or low when limited.
+  - Credentials in source or in a browser bundle are high.
+  - Plain transport, unpinned servers, and prompts that hold a secret or
+    untrusted text are medium. A missing loop limit is low.
 - `static`: the rules the static scanner reports at that location today. For a
   vulnerable case they are the expected detections; for a safe case they are known
   false positives. `test/evaluation.test.ts` fails when the scanner's behaviour

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A system prompt contains an API password.",
   "cwe": "CWE-200",
+  "severity": "medium",
   "location": {
     "path": "support.py",
     "line": 5,

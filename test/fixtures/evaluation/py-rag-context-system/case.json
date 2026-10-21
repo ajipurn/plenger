@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "Retrieved documents are placed in the system prompt.",
   "cwe": "CWE-1427",
+  "severity": "medium",
   "location": {
     "path": "rag.py",
     "line": 10,

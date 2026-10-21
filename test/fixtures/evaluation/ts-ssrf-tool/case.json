@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool fetches any URL the model chooses.",
   "cwe": "CWE-918",
+  "severity": "medium",
   "location": {
     "path": "tools.ts",
     "line": 4,

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool deletes the directory the model names and checks the name only afterwards.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "tools.py",
     "line": 7,

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A model downloader extracts the archive it fetched with `tarfile` and no filter, so a member named `../../.bashrc` is written outside the cache.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "models.py",
     "line": 13,

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A history route passes the query's branch to a helper in another module that runs it through a shell.",
   "cwe": "CWE-78",
+  "severity": "critical",
   "location": {
     "path": "git.ts",
     "line": 3,

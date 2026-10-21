@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool passes the model's ref to git's arguments, where it can become an option.",
   "cwe": "CWE-88",
+  "severity": "medium",
   "location": {
     "path": "tools.ts",
     "line": 5,

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "An authenticated route returns any invoice by id without checking the caller's tenant.",
   "cwe": "CWE-639",
+  "severity": "high",
   "location": {
     "path": "server.ts",
     "line": 6,

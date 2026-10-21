@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A route passes request text to a model call that can restart the service.",
   "cwe": "CWE-1427",
+  "severity": "high",
   "location": {
     "path": "app/api/agent/route.ts",
     "line": 12,

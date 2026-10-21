@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A route deletes a cache entry with `rm -f` on the resolved path of the request name. The absolute path cannot be an option, but `../../` takes it out of the cache folder.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "app.py",
     "line": 11,

@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A Go handler concatenates a query parameter into SQL.",
   "cwe": "CWE-89",
+  "severity": "critical",
   "location": {
     "path": "main.go",
     "line": 13,

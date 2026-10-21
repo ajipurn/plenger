@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool joins the model's name onto a notes folder with pathlib and reads it without confining the result.",
   "cwe": "CWE-22",
+  "severity": "medium",
   "location": {
     "path": "tools.py",
     "line": 9,

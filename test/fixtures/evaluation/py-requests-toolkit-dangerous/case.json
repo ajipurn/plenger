@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A LangChain requests toolkit may call any URL the model chooses.",
   "cwe": "CWE-918",
+  "severity": "medium",
   "location": {
     "path": "toolkit.py",
     "line": 4,

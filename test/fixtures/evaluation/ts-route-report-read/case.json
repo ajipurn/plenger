@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A report route reads the file a helper in another module joins from the URL's name, with no confinement.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "server.ts",
     "line": 7,

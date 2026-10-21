@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A LangChain tool runs the model's command through a shell.",
   "cwe": "CWE-78",
+  "severity": "high",
   "location": {
     "path": "tools.py",
     "line": 7,

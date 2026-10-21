@@ -11,7 +11,7 @@ import {
 } from "../../src/assessment/security-review.ts";
 import type { ModelPricing } from "../../src/redteam/model-pricing.ts";
 import type { ProviderAccess } from "../../src/redteam/provider.ts";
-import type { Finding } from "../../src/rules/model.ts";
+import { type Finding, SEVERITIES, type Severity } from "../../src/rules/model.ts";
 import { scan } from "../../src/scan.ts";
 import { isRecord } from "../../src/shared/guards.ts";
 
@@ -28,6 +28,8 @@ export interface EvaluationCase {
   kind: "vulnerable" | "safe";
   summary: string;
   cwe: string;
+  /** For a vulnerable case: the severity the discovery rubric gives the labeled weakness. */
+  severity?: Severity;
   location: Span;
   /** Rules the static scanner reports at the location today. */
   static: string[];
@@ -67,6 +69,11 @@ export interface AiOutcome {
   verdicts: string[];
   /** A kept finding at the labeled location names the labeled weakness (see `sameWeakness`). */
   matched: boolean;
+  /**
+   * The highest severity of the kept findings at the labeled location, of those that name
+   * the labeled weakness when any does; null without one.
+   */
+  severity: Severity | null;
   /** Those findings, with what they claim and why the second review decided as it did. */
   findings: {
     title: string;
@@ -74,10 +81,14 @@ export interface AiOutcome {
     cwe: string | null;
     severity: string;
     verdict: string;
+    /** What a dismissal rests on; null for other verdicts and earlier reviews. */
+    basis: string | null;
     reason: string;
   }[];
   /** Findings that were not dismissed and cite none of the labeled lines. */
   unlabeled: number;
+  /** Dismissals in the review that the host kept as needs-review. */
+  uncheckedDismissals: number;
   /** Model requests the review made, and tool calls by name in an exploring review. */
   calls: number;
   toolCalls?: Record<string, number>;
@@ -120,7 +131,9 @@ export async function loadCorpus(dir: string): Promise<EvaluationCase[]> {
       !Number.isSafeInteger(label.location.line) ||
       !Number.isSafeInteger(label.location.endLine) ||
       !Array.isArray(label.static) ||
-      !label.static.every((rule) => typeof rule === "string")
+      !label.static.every((rule) => typeof rule === "string") ||
+      (label.severity !== undefined &&
+        (label.kind !== "vulnerable" || !SEVERITIES.includes(label.severity as Severity)))
     )
       throw new Error(`Invalid case label: ${entry.name}`);
     const location = label.location as unknown as Span;
@@ -133,6 +146,7 @@ export async function loadCorpus(dir: string): Promise<EvaluationCase[]> {
       kind: label.kind,
       summary: label.summary,
       cwe: label.cwe,
+      ...(label.severity !== undefined ? { severity: label.severity as Severity } : {}),
       location,
       static: [...(label.static as string[])].sort(),
       ...(typeof label.note === "string" ? { note: label.note } : {}),
@@ -197,6 +211,9 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
   const at = (finding: SecurityReview["findings"][number]) =>
     finding.evidence.some((cite) => overlaps(item.location, cite));
   const kept = review.findings.filter((finding) => finding.validation !== "dismissed");
+  const here = kept.filter(at);
+  const named = here.filter((finding) => sameWeakness(item.cwe, finding.cwe));
+  const rated = (named.length ? named : here).map((finding) => finding.severity);
   const usage = review.request.usage;
   const costs = [review.request.billing?.cost, review.request.validatorBilling?.cost];
   return {
@@ -204,8 +221,9 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
     kind: item.kind,
     status: review.status,
     ...(review.status !== "completed" && review.reason ? { reason: review.reason } : {}),
-    detected: kept.some(at),
-    matched: kept.some((finding) => at(finding) && sameWeakness(item.cwe, finding.cwe)),
+    detected: here.length > 0,
+    matched: named.length > 0,
+    severity: SEVERITIES.find((severity) => rated.includes(severity)) ?? null,
     verdicts: review.findings.filter(at).map((finding) => finding.validation),
     findings: review.findings.filter(at).map((finding) => ({
       title: finding.title,
@@ -214,9 +232,11 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
       cwe: finding.cwe ?? null,
       severity: finding.severity,
       verdict: finding.validation,
+      basis: finding.dismissal?.basis ?? null,
       reason: finding.validationReason,
     })),
     unlabeled: kept.filter((finding) => !at(finding)).length,
+    uncheckedDismissals: review.findings.filter((finding) => finding.uncheckedDismissal).length,
     calls: review.request.calls,
     ...(review.exploration
       ? {
@@ -410,6 +430,37 @@ export function weaknessMetrics(outcomes: readonly AiOutcome[]): Metrics {
   return metrics(outcomes.map((item) => ({ kind: item.kind, detected: item.matched })));
 }
 
+/**
+ * Reported severity against the labels, over vulnerable cases with a label and a kept
+ * finding at the location: the same level, at most one level apart, rated higher or lower.
+ */
+export function severityAgreement(
+  cases: readonly EvaluationCase[],
+  outcomes: readonly AiOutcome[],
+) {
+  const labels = new Map(cases.map((item) => [item.id, item.severity]));
+  const counts = { rated: 0, exact: 0, withinOne: 0, higher: 0, lower: 0 };
+  for (const outcome of outcomes) {
+    const label = labels.get(outcome.id);
+    if (outcome.kind !== "vulnerable" || !label || !outcome.severity) continue;
+    // Negative when the review rated it more severe than the label.
+    const gap = SEVERITIES.indexOf(outcome.severity) - SEVERITIES.indexOf(label);
+    counts.rated += 1;
+    if (gap === 0) counts.exact += 1;
+    if (Math.abs(gap) <= 1) counts.withinOne += 1;
+    if (gap < 0) counts.higher += 1;
+    if (gap > 0) counts.lower += 1;
+  }
+  return counts;
+}
+
+/** Vulnerable cases whose findings at the labeled location were all dismissed. */
+export function dismissedByMistake(outcomes: readonly AiOutcome[]): number {
+  return outcomes.filter(
+    (item) => item.kind === "vulnerable" && !item.detected && item.verdicts.includes("dismissed"),
+  ).length;
+}
+
 /** Mean, lowest and highest of the non-null values. */
 export function spread(values: readonly (number | null)[]) {
   const known = values.filter((value): value is number => value !== null);
@@ -486,6 +537,8 @@ export function formatEvaluation(
       value === null
         ? "n/a"
         : `${value.mean.toFixed(2)} (min ${value.min.toFixed(2)}, max ${value.max.toFixed(2)})`;
+    const agreement = severityAgreement(cases, outcomes);
+    const unchecked = outcomes.reduce((sum, item) => sum + item.uncheckedDismissals, 0);
     lines.push(
       "",
       `## AI review: ${evaluation.provider.model}${evaluation.validator ? `, second review ${evaluation.validator.model}` : ""}`,
@@ -494,6 +547,8 @@ export function formatEvaluation(
       "",
       `Precision ${range(precision)}. Recall ${range(recall)}. Counting only source-supported findings: precision ${range(strictPrecision)}, recall ${range(strictRecall)}. Counting only findings that name the labeled weakness: precision ${range(weaknessPrecision)}, recall ${range(weaknessRecall)}.`,
       "",
+      `Severity of ${agreement.rated} rated detections across runs: ${agreement.exact} at the labeled level, ${agreement.withinOne} within one level, ${agreement.higher} rated higher and ${agreement.lower} lower. Vulnerable cases dismissed by mistake per run: ${evaluation.runs.map((run) => dismissedByMistake(run)).join(", ")}. Dismissals the host kept as needs-review: ${unchecked}.`,
+      "",
       "| Run | TP | FP | FN | TN | Precision | Recall |",
       "| --- | --- | --- | --- | --- | --- | --- |",
       ...evaluation.metrics.map(
@@ -501,8 +556,8 @@ export function formatEvaluation(
           `| ${index + 1} | ${item.truePositives} | ${item.falsePositives} | ${item.falseNegatives} | ${item.trueNegatives} | ${ratio(item.precision)} | ${ratio(item.recall)} |`,
       ),
       "",
-      "| Case | Truth | Detected in runs | Verdicts at the location | Unlabeled findings |",
-      "| --- | --- | --- | --- | --- |",
+      "| Case | Truth | Detected in runs | Verdicts at the location | Unlabeled findings | Severity: label, reported |",
+      "| --- | --- | --- | --- | --- | --- |",
       ...cases.map((item) => {
         const own = evaluation.runs.map((outcomes) =>
           outcomes.find((outcome) => outcome.id === item.id),
@@ -510,7 +565,8 @@ export function formatEvaluation(
         const detected = own.filter((outcome) => outcome?.detected).length;
         const verdicts = own.flatMap((outcome) => outcome?.verdicts ?? []);
         const unlabeled = own.reduce((sum, outcome) => sum + (outcome?.unlabeled ?? 0), 0);
-        return `| ${item.id} | ${item.kind} | ${detected}/${own.length} | ${verdicts.join(", ") || "none"} | ${unlabeled} |`;
+        const reported = own.flatMap((outcome) => (outcome?.severity ? [outcome.severity] : []));
+        return `| ${item.id} | ${item.kind} | ${detected}/${own.length} | ${verdicts.join(", ") || "none"} | ${unlabeled} | ${item.severity ?? "n/a"}: ${reported.join(", ") || "none"} |`;
       }),
     );
   }

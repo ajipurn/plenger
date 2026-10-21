@@ -106,7 +106,16 @@ export function reviewDiscovery(): ReviewDiscovery {
   };
 }
 
-export function reviewDecision(ids: string[], verdict = "source-supported"): unknown {
+/**
+ * One decision per id. A dismissal cites `control` as its guard; without one it names no
+ * basis, which the host keeps as needs-review.
+ */
+export function reviewDecision(
+  ids: string[],
+  verdict = "source-supported",
+  control?: { path: string; line: number; endLine: number },
+): unknown {
+  const cited = verdict === "dismissed" && control !== undefined;
   return {
     status: "completed",
     reason: null,
@@ -115,6 +124,11 @@ export function reviewDecision(ids: string[], verdict = "source-supported"): unk
       verdict,
       reason:
         "server.ts:3 authenticates the caller, while store.ts:3 filters only by invoice id. Tenant policy at the database layer is not visible and requires human review.",
+      basis: cited ? "control" : null,
+      evidence: cited
+        ? [{ ...control, role: "guard", message: "The lookup is limited to the caller's rows." }]
+        : [],
+      duplicateOf: null,
     })),
   };
 }

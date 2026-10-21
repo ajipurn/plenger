@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool reads any path the model names.",
   "cwe": "CWE-22",
+  "severity": "medium",
   "location": {
     "path": "tools.py",
     "line": 5,

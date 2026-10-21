@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A model API key is written in the source.",
   "cwe": "CWE-798",
+  "severity": "high",
   "location": {
     "path": "client.py",
     "line": 3,

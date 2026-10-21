@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A Spring endpoint reads the file a request parameter names under the reports directory, without confinement.",
   "cwe": "CWE-22",
+  "severity": "high",
   "location": {
     "path": "src/main/java/com/example/reports/ReportController.java",
     "line": 16,

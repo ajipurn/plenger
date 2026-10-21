@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A CrewAI agent runs the code it writes on the host.",
   "cwe": "CWE-94",
+  "severity": "high",
   "location": {
     "path": "crew.py",
     "line": 3,

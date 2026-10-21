@@ -2,6 +2,7 @@
   "kind": "vulnerable",
   "summary": "A tool checks only the URL's scheme before fetching a URL the model chooses.",
   "cwe": "CWE-918",
+  "severity": "medium",
   "location": {
     "path": "tools.py",
     "line": 8,
