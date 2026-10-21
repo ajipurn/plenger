@@ -22,6 +22,11 @@ export const SECURITY_REVIEW_LIMITS = {
   evidence: 6,
   /** Lines a dismissal cites: the control or source that decides it. */
   dismissalEvidence: 3,
+  /** Traced paths one review is asked to close, and the effects listed for each. */
+  paths: 16,
+  pathEffects: 6,
+  /** Lines a safe closure cites. */
+  closureEvidence: 2,
   snippetLines: 13,
   text: 1200,
   outputTokens: 8192,
@@ -265,7 +270,42 @@ export interface ReviewDiscovery {
   trustBoundaries: string[];
   stride: StrideAssessment[];
   findings: ReviewCandidate[];
+  /** How discovery closed the traced paths it was given, keyed by host path id. */
+  closures: PathClosure[];
   limitations: string[];
+}
+
+/**
+ * A path the static scan traced from an entry point, tool, agent or model output to an
+ * effect. The host lists it; the review closes it.
+ */
+export interface TracedPath {
+  /** Host-assigned, stable within one scan: `path-1`, `path-2`. */
+  id: string;
+  kind: "entry-point" | "tool" | "agent" | "model-output";
+  /** A route, tool or agent name, or the model call's target. */
+  label: string;
+  at: { path: string; line: number };
+  effects: { kind: string; path: string; line: number }[];
+}
+/** Discovery's account of one traced path, as the host checked it. */
+export interface PathClosure {
+  id: string;
+  /** `finding`: a candidate reports it. `safe`: cited lines keep input from the effect. */
+  closure: "finding" | "safe" | "open";
+  /** For `finding`: the candidate's index in discovery's findings. */
+  finding?: number;
+  reason: string;
+  evidence: ReviewCitation[];
+}
+/** A traced path as a review saved it. `unclosed`: no closure that checks out. */
+export interface ReviewPath extends TracedPath {
+  closure: PathClosure["closure"] | "unclosed";
+  /** For `finding`: the host-assigned id of the candidate that reports it. */
+  findingId?: string;
+  /** The review's reason, or the host's note for an unclosed path. */
+  reason: string;
+  evidence: (ReviewCitation & { snippet: string })[];
 }
 export interface StrideAssessment {
   category: (typeof STRIDE)[number];
@@ -359,7 +399,7 @@ export interface ExploreSessionRecord {
 /** How a review read the source: one host-packed batch, or model-chosen reads. */
 export type ReviewMode = "batch" | "explore";
 
-export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findings"> {
+export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findings" | "closures"> {
   schemaVersion: 1;
   id: string;
   scanId: string;
@@ -406,6 +446,8 @@ export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findin
     limitReached?: true;
   };
   findings: ReviewFinding[];
+  /** The traced paths this review was asked to close. Absent on earlier reviews. */
+  paths?: ReviewPath[];
 }
 
 const REVIEW_STATES = ["completed", "refused"] as const;
@@ -484,6 +526,22 @@ const decisionProperties = {
       "For a duplicate: the host-assigned id of the candidate it repeats. Otherwise null.",
   },
 };
+const CLOSURES = ["finding", "safe", "open"] as const;
+const closureProperties = {
+  id: text,
+  closure: { enum: CLOSURES },
+  finding: {
+    anyOf: [{ type: "integer", minimum: 0 }, { type: "null" }],
+    description:
+      "For finding: the 0-based index in findings of the candidate that reports this path. Otherwise null.",
+  },
+  reason: text,
+  evidence: {
+    ...list(citation(), SECURITY_REVIEW_LIMITS.closureEvidence),
+    description:
+      "For safe: the received lines with the control, or the code that keeps untrusted input from the effect. Empty otherwise.",
+  },
+};
 const discoveryProperties = {
   status: { enum: REVIEW_STATES },
   reason: reviewReason,
@@ -502,6 +560,11 @@ const discoveryProperties = {
     STRIDE.length,
   ),
   findings: list(object(candidateProperties), SECURITY_REVIEW_LIMITS.findings),
+  paths: {
+    ...list(object(closureProperties), SECURITY_REVIEW_LIMITS.paths),
+    description:
+      "One closure per entry of tracedPaths, by its id. Empty when tracedPaths is absent or when refusing.",
+  },
   limitations: list(text, 8, 1),
 };
 export const REVIEW_DISCOVERY_SCHEMA = object(discoveryProperties);
@@ -511,9 +574,21 @@ export const REVIEW_VALIDATION_SCHEMA = object({
   decisions: list(object(decisionProperties), SECURITY_REVIEW_LIMITS.findings),
 });
 
-/** Canonicalize enums and completed-review reasons. Paths and host-assigned ids remain exact. */
-export function parseReviewDiscovery(content: string, files: ReviewSourceFile[]): ReviewDiscovery {
-  const data = fields(parse(content), Object.keys(discoveryProperties), "$");
+/**
+ * Canonicalize enums and completed-review reasons. Paths and host-assigned ids remain exact.
+ * `pathIds` are the traced paths the review was given; closures of other ids are dropped,
+ * and one that does not check out is left out, so the host lists its path as unclosed.
+ */
+export function parseReviewDiscovery(
+  content: string,
+  files: ReviewSourceFile[],
+  pathIds: readonly string[] = [],
+): ReviewDiscovery {
+  const parsed = parse(content);
+  // A model without structured output, or a review given no paths, may leave them out.
+  const raw =
+    isRecord(parsed) && !Object.hasOwn(parsed, "paths") ? { ...parsed, paths: [] } : parsed;
+  const data = fields(raw, Object.keys(discoveryProperties), "$");
   const status = state(data);
   const scope = new Map(files.map((file) => [file.path, file]));
   const findings = array(data.findings, SECURITY_REVIEW_LIMITS.findings, "$.findings").map(
@@ -587,6 +662,9 @@ export function parseReviewDiscovery(content: string, files: ReviewSourceFile[])
   if (!limitations.length) throw invalid("$.limitations", "at least one limitation is required");
   if (status === "refused" && findings.length)
     throw invalid("$.findings", "a refusal must have no findings");
+  const closures = pathClosures(data.paths, pathIds, findings.length, scope);
+  if (status === "refused" && closures.length)
+    throw invalid("$.paths", "a refusal must have no path closures");
   return {
     status,
     reason: status === "refused" ? string(data.reason, "$.reason") : null,
@@ -600,8 +678,58 @@ export function parseReviewDiscovery(content: string, files: ReviewSourceFile[])
     ),
     stride: stride.sort((a, b) => STRIDE.indexOf(a.category) - STRIDE.indexOf(b.category)),
     findings,
+    closures,
     limitations,
   };
+}
+
+/**
+ * The closures that check out: a known path id, once; a finding that exists; a safe
+ * closure that cites lines the review received. The rest are dropped without failing the
+ * review, which then lists those paths as unclosed.
+ */
+function pathClosures(
+  value: unknown,
+  ids: readonly string[],
+  findings: number,
+  scope: Map<string, ReviewSourceFile>,
+): PathClosure[] {
+  const seen = new Set<string>();
+  const closures: PathClosure[] = [];
+  array(value, SECURITY_REVIEW_LIMITS.paths, "$.paths").forEach((value, index) => {
+    const location = `$.paths[${index}]`;
+    const raw = isRecord(value) ? { finding: null, evidence: [], ...value } : value;
+    const item = fields(raw, Object.keys(closureProperties), location);
+    const id = string(item.id, `${location}.id`);
+    const closure = enumValue(item.closure, CLOSURES, `${location}.closure`);
+    const reason = clipped(item.reason, `${location}.reason`);
+    if (!ids.includes(id) || seen.has(id)) return;
+    if (closure === "finding") {
+      const finding = item.finding;
+      if (typeof finding !== "number" || !Number.isSafeInteger(finding) || finding >= findings)
+        return;
+      seen.add(id);
+      closures.push({ id, closure, finding, reason, evidence: [] });
+      return;
+    }
+    let evidence: ReviewCitation[] = [];
+    if (closure === "safe") {
+      try {
+        evidence = citations(
+          item.evidence,
+          scope,
+          `${location}.evidence`,
+          SECURITY_REVIEW_LIMITS.closureEvidence,
+        );
+      } catch (error) {
+        if (!(error instanceof ReviewResponseError)) throw error;
+      }
+      if (!evidence.length) return;
+    }
+    seen.add(id);
+    closures.push({ id, closure, reason, evidence });
+  });
+  return closures;
 }
 
 export interface ReviewDecision {

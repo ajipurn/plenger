@@ -43,6 +43,12 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - Severity labels on the vulnerable evaluation cases. `pnpm evaluate` reports
   severity agreement, vulnerable cases dismissed by mistake and dismissals the
   host kept as Needs review.
+- M10b path closure. Discovery receives the paths the static scan traced from
+  entry points, tools, agents and model output to an effect, at most 16 per
+  review, and closes each as a finding, safe with a cited control, or open. The
+  host checks every closure; a path without one that checks out is Not closed.
+  Scan Outputs list the paths with their closures, and `pnpm evaluate` counts
+  them.
 - Five more static rules:
   - PLG808: a tar archive extracted with no `filter` and no member selection,
     whoever passed it;

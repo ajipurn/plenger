@@ -394,7 +394,7 @@ describe("AI review evaluation", () => {
       "| ts-idor-route-scoped | safe | 0/2 | dismissed, dismissed | 0 | n/a: none |",
     );
     expect(markdown).toContain(
-      "Severity of 2 rated detections across runs: 2 at the labeled level, 2 within one level, 0 rated higher and 0 lower. Vulnerable cases dismissed by mistake per run: 0, 0. Dismissals the host kept as needs-review: 0.",
+      "Severity of 2 rated detections across runs: 2 at the labeled level, 2 within one level, 0 rated higher and 0 lower. Vulnerable cases dismissed by mistake per run: 0, 0. Dismissals the host kept as needs-review: 0. Traced paths listed across runs: 4, closed 0 (finding 0, safe 0, open 0), unclosed 4.",
     );
     expect(markdown).toContain(
       "Counting only source-supported findings: precision 1.00 (min 1.00, max 1.00), recall 0.50 (min 0.50, max 0.50).",

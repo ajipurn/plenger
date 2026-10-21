@@ -34,6 +34,7 @@ import {
   type ExploreSessionRecord,
   exploreTokenBound,
   SECURITY_REVIEW_LIMITS as LIMITS,
+  type PathClosure,
   parseReviewDiscovery,
   parseReviewValidation,
   REVIEW_DISCOVERY_SCHEMA,
@@ -41,6 +42,7 @@ import {
   type ReviewCandidate,
   type ReviewCitation,
   type ReviewMode,
+  type ReviewPath,
   type ReviewRange,
   ReviewResponseError,
   type ReviewSampling,
@@ -48,10 +50,13 @@ import {
   reviewBudget,
   type SecurityReview,
   type SpendingLimit,
+  type TracedPath,
 } from "./review-model.ts";
+import { pathsForReview, tracedPaths } from "./review-paths.ts";
 import { captureRelatedSource } from "./review-related.ts";
 import {
   captureReviewSource,
+  type ReviewContext,
   ReviewSourceError,
   ReviewSourceReader,
   reviewPaths,
@@ -81,7 +86,8 @@ Rate severity by who can reach the path and what they gain in this application, 
 When the reach or the effect is unclear, choose the lower level and name the precondition that limits it.
 Do not report generic best practices or missing controls without a code-supported attack path. Hardening items are not findings: rate limits, timeouts, request size, token or cost limits, logging and audit trails, monitoring and security headers. Name them as STRIDE mitigations instead. Report a missing iteration or turn limit only for an agent loop or multi-agent conversation that the code leaves without a stop condition. Supply-chain weaknesses are findings, not hardening: code, packages, models or servers fetched and run without a pinned version or integrity check. So are credentials written in source.
 Report prompt injection when untrusted text, including retrieved documents, tool results, files and web content, reaches a system or developer message, or steers a model whose tools or output reach a privileged effect. Caller text in the user message of a model that only answers that caller is the intended use, not a finding.
-Prefer a few well-supported issues. Return zero findings when evidence is insufficient.`;
+Prefer a few well-supported issues. Return zero findings when evidence is insufficient.
+The tracedPaths array, when present, lists paths the static scan traced from an entry point, tool, agent or model output to an effect. Its effects say where to look; they are not findings by themselves. Close every one in paths, by its id: finding, with the index in findings of the candidate that reports it; safe, citing in evidence the lines you received with the control, or the code that keeps untrusted input from the effect; or open, naming in the reason what you could not see. Keep paths empty when tracedPaths is absent.`;
 const DISCOVERY = `${COMMON}
 ${DISCOVERY_TASK}
 Schema: ${JSON.stringify(REVIEW_DISCOVERY_SCHEMA)}`;
@@ -236,6 +242,42 @@ async function citedSource(
     }
   }
   return files;
+}
+
+/**
+ * The traced paths as the review saves them: each with its checked closure, the
+ * candidate that reports it, and snippets of the lines a safe closure cites.
+ */
+async function closedPaths(
+  paths: readonly TracedPath[],
+  closures: readonly PathClosure[],
+  candidates: readonly { id: string }[],
+  { context, reader }: { context: ReviewContext; reader: ReviewSourceReader },
+): Promise<ReviewPath[]> {
+  const lines = new Map(context.lines);
+  for (const cite of closures.flatMap((item) => item.evidence))
+    if (!lines.has(cite.path)) lines.set(cite.path, (await reader.read(cite.path))?.lines ?? []);
+  return paths.map((path) => {
+    const closure = closures.find((item) => item.id === path.id);
+    if (!closure)
+      return {
+        ...path,
+        closure: "unclosed",
+        reason: "Discovery did not close this path with a closure the host could check.",
+        evidence: [],
+      };
+    const findingId = closure.finding === undefined ? undefined : candidates[closure.finding]?.id;
+    return {
+      ...path,
+      closure: closure.closure,
+      ...(findingId ? { findingId } : {}),
+      reason: closure.reason,
+      evidence: closure.evidence.map((cite) => ({
+        ...cite,
+        snippet: reviewSnippet({ ...context, lines }, cite.path, cite.line, cite.endLine),
+      })),
+    };
+  });
 }
 
 /**
@@ -546,6 +588,27 @@ export async function reviewProject(
       partial: scope.partial,
       ...environment,
     };
+    // The traced paths this review closes: those starting in a file it received, or for an
+    // exploring review any not received whole by an earlier review of the scan.
+    const selected = pathsForReview(
+      tracedPaths(snapshot.inventory),
+      explore ? null : new Set(scope.files.map((file) => file.path)),
+      new Set((options.submitted ?? []).filter((file) => !file.ranges).map((file) => file.path)),
+    );
+    const pathIds = selected.paths.map((path) => path.id);
+    const pathHint = selected.paths.length
+      ? {
+          tracedPaths: selected.paths.map((path) => ({
+            id: path.id,
+            kind: path.kind,
+            label: redact(path.label, secrets),
+            at: `${path.at.path}:${path.at.line}`,
+            effects: path.effects.map(
+              (effect) => `${effect.kind} at ${effect.path}:${effect.line}`,
+            ),
+          })),
+        }
+      : {};
     options.onPhase?.("discovering");
     phase = "discovery";
     let discovery: ReturnType<typeof parseReviewDiscovery>;
@@ -560,10 +623,12 @@ export async function reviewProject(
           repository: exploreHints(snapshot, reader, secrets),
           ...earlierSessions(options.submitted, options.earlier),
           ...source,
+          ...pathHint,
         },
         tools: new ExploreTools(snapshot, reader, secrets, log),
         log,
-        accept: (args) => submission(() => parseReviewDiscovery(JSON.stringify(args), log.files())),
+        accept: (args) =>
+          submission(() => parseReviewDiscovery(JSON.stringify(args), log.files(), pathIds)),
         send,
         tokens: allowance("discovery"),
         records: exploration,
@@ -580,7 +645,12 @@ export async function reviewProject(
               `Discovery stopped ${EXPLORE_STOPS[outcome.record.stop]} before it submitted a review.`,
             );
       discovery = outcome.value;
-    } else discovery = parseReviewDiscovery(await call(DISCOVERY, source), scope.files);
+    } else
+      discovery = parseReviewDiscovery(
+        await call(DISCOVERY, { ...source, ...pathHint }),
+        scope.files,
+        pathIds,
+      );
     redactReport(discovery, secrets);
     if (discovery.status === "refused") {
       review.status = "refused";
@@ -593,6 +663,21 @@ export async function reviewProject(
       review.stride = discovery.stride;
       review.limitations.push(...discovery.limitations);
       const candidates = discovery.findings.map((finding) => ({ ...finding, id: randomUUID() }));
+      if (selected.paths.length) {
+        review.paths = await closedPaths(selected.paths, discovery.closures, candidates, {
+          context,
+          reader,
+        });
+        const unclosed = review.paths.filter((path) => path.closure === "unclosed").length;
+        if (unclosed)
+          review.limitations.push(
+            `${unclosed} of ${review.paths.length} traced paths were not closed: discovery gave no closure the host could check.`,
+          );
+      }
+      if (selected.left)
+        review.limitations.push(
+          `${selected.left} more traced ${selected.left === 1 ? "path" : "paths"} in this review's files ${selected.left === 1 ? "was" : "were"} not listed; one review closes at most ${LIMITS.paths}.`,
+        );
       if (candidates.length) {
         options.onPhase?.("validating");
         phase = "validation";

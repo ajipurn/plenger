@@ -168,6 +168,26 @@ injection is reported when untrusted text, retrieved documents and tool results
 included, reaches a system or developer message, or steers a model whose tools
 or output reach a privileged effect.
 
+### Traced paths
+
+The static scan traces paths from HTTP and MCP entry points, tools, agents and
+model output to effects such as a command, a file, SQL or a request. Discovery
+receives the paths that start in its files, at most 16 per review, each with an
+id and up to six effects. In Explore mode a review gets the paths no earlier
+review of the scan received whole. Discovery closes each path:
+
+| Closure | Meaning | Host check |
+| --- | --- | --- |
+| Finding | A candidate reports the path | The candidate exists |
+| Safe | A control, or code that keeps untrusted input from the effect | A citation of lines the review received |
+| Open | Discovery could not decide | A reason that names what is missing |
+
+A path without a closure that checks out is **Not closed**, and the review adds a
+limitation with the count. The list of paths is the scan's observation; the
+closures are the model's account. Files without a parser have no traced paths.
+Outputs show each path with its closure, reason, cited lines and the candidate
+that reports it.
+
 When candidates exist, a second request reviews them against the same source.
 It checks callers, guards, sanitization, scope and counterevidence. Each receives
 one outcome:
@@ -317,8 +337,9 @@ only when their prompt digests match.
 Results and failures are saved per scan and survive navigation, refresh and
 restart. **Scans** opens the saved job. Its **Findings** tab shows static and
 non-dismissed AI findings; **Outputs** shows each batch's architecture, assets,
-trust boundaries, STRIDE, dismissed candidates with their basis and cited lines,
-and source coverage. **Export JSON** includes these redacted records and usage.
+trust boundaries, STRIDE, traced paths with their closures, dismissed candidates
+with their basis and cited lines, and source coverage. **Export JSON** includes
+these redacted records and usage.
 
 Native Claude reviews retain per-request cache usage and the model's manual
 price snapshot. Scan details show category costs and an estimated USD total.

@@ -19,6 +19,7 @@ export type {
   ExploreSessionRecord,
   ReviewFinding,
   ReviewMode,
+  ReviewPath,
   SecurityReview,
 } from "../assessment/review-model.ts";
 export {

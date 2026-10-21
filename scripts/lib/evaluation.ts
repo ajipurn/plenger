@@ -89,6 +89,8 @@ export interface AiOutcome {
   unlabeled: number;
   /** Dismissals in the review that the host kept as needs-review. */
   uncheckedDismissals: number;
+  /** Traced paths the review was asked to close, by how it closed them. */
+  paths: Record<"finding" | "safe" | "open" | "unclosed", number>;
   /** Model requests the review made, and tool calls by name in an exploring review. */
   calls: number;
   toolCalls?: Record<string, number>;
@@ -237,6 +239,13 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
     })),
     unlabeled: kept.filter((finding) => !at(finding)).length,
     uncheckedDismissals: review.findings.filter((finding) => finding.uncheckedDismissal).length,
+    paths: (["finding", "safe", "open", "unclosed"] as const).reduce(
+      (sum, closure) => {
+        sum[closure] = (review.paths ?? []).filter((path) => path.closure === closure).length;
+        return sum;
+      },
+      { finding: 0, safe: 0, open: 0, unclosed: 0 },
+    ),
     calls: review.request.calls,
     ...(review.exploration
       ? {
@@ -539,6 +548,16 @@ export function formatEvaluation(
         : `${value.mean.toFixed(2)} (min ${value.min.toFixed(2)}, max ${value.max.toFixed(2)})`;
     const agreement = severityAgreement(cases, outcomes);
     const unchecked = outcomes.reduce((sum, item) => sum + item.uncheckedDismissals, 0);
+    const paths = outcomes.reduce(
+      (sum, item) => ({
+        finding: sum.finding + item.paths.finding,
+        safe: sum.safe + item.paths.safe,
+        open: sum.open + item.paths.open,
+        unclosed: sum.unclosed + item.paths.unclosed,
+      }),
+      { finding: 0, safe: 0, open: 0, unclosed: 0 },
+    );
+    const listed = paths.finding + paths.safe + paths.open + paths.unclosed;
     lines.push(
       "",
       `## AI review: ${evaluation.provider.model}${evaluation.validator ? `, second review ${evaluation.validator.model}` : ""}`,
@@ -547,7 +566,7 @@ export function formatEvaluation(
       "",
       `Precision ${range(precision)}. Recall ${range(recall)}. Counting only source-supported findings: precision ${range(strictPrecision)}, recall ${range(strictRecall)}. Counting only findings that name the labeled weakness: precision ${range(weaknessPrecision)}, recall ${range(weaknessRecall)}.`,
       "",
-      `Severity of ${agreement.rated} rated detections across runs: ${agreement.exact} at the labeled level, ${agreement.withinOne} within one level, ${agreement.higher} rated higher and ${agreement.lower} lower. Vulnerable cases dismissed by mistake per run: ${evaluation.runs.map((run) => dismissedByMistake(run)).join(", ")}. Dismissals the host kept as needs-review: ${unchecked}.`,
+      `Severity of ${agreement.rated} rated detections across runs: ${agreement.exact} at the labeled level, ${agreement.withinOne} within one level, ${agreement.higher} rated higher and ${agreement.lower} lower. Vulnerable cases dismissed by mistake per run: ${evaluation.runs.map((run) => dismissedByMistake(run)).join(", ")}. Dismissals the host kept as needs-review: ${unchecked}. Traced paths listed across runs: ${listed}, closed ${listed - paths.unclosed} (finding ${paths.finding}, safe ${paths.safe}, open ${paths.open}), unclosed ${paths.unclosed}.`,
       "",
       "| Run | TP | FP | FN | TN | Precision | Recall |",
       "| --- | --- | --- | --- | --- | --- | --- |",

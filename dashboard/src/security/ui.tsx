@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import type {
   DismissalBasis,
   FindingStatus,
+  ReviewPath,
   SecurityFinding,
   SecurityScanSummary,
 } from "../../../src/dashboard/contract.ts";
@@ -23,6 +24,13 @@ export const dismissalLabel: Record<DismissalBasis, string> = {
   unreachable: "Unreachable",
   contradicted: "Contradicted",
   duplicate: "Duplicate",
+};
+/** How a review closed a path the static scan traced. */
+export const closureLabel: Record<ReviewPath["closure"], string> = {
+  finding: "Finding",
+  safe: "Safe",
+  open: "Open",
+  unclosed: "Not closed",
 };
 export const scanStatusLabel = {
   running: "Running",

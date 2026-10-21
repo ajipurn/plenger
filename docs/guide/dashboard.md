@@ -161,11 +161,11 @@ source analysis; they are separate from this workflow status.
 
 **Scans** lists start time, source, initiator, duration, reported tokens and job
 status. Open a scan for its findings and an **Outputs** tab containing
-architecture, assets, trust boundaries, all six STRIDE categories, dismissed
-candidates with what each dismissal rests on, source coverage and limitations.
-The right column records the observed revision, environment snapshot and
-provider. Git metadata names the commit and branch at
-start; it does not freeze the files. Plenger does not read working-tree status,
+architecture, assets, trust boundaries, all six STRIDE categories, traced paths
+with how the review closed each, dismissed candidates with what each dismissal
+rests on, source coverage and limitations. The right column records the observed
+revision, environment snapshot and provider. Git metadata names the commit and
+branch at start; it does not freeze the files. Plenger does not read working-tree status,
 because Git would run the filter commands that a project's own Git configuration
 names. Included file digests identify what the
 model actually received. Anthropic dollar estimates use the selected model's

@@ -5,6 +5,7 @@ import {
   type ExploreSessionRecord,
   type ImportedReaEvidence,
   type ReviewFinding,
+  type ReviewPath,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
   SECURITY_POLL_MS,
@@ -20,7 +21,14 @@ import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 import { costLabel, ScanBilling } from "./ScanBilling.tsx";
 import { ScanProgress } from "./ScanProgress.tsx";
-import { date, dismissalLabel, FindingsTable, ScanDuration, ScanStatus } from "./ui.tsx";
+import {
+  closureLabel,
+  date,
+  dismissalLabel,
+  FindingsTable,
+  ScanDuration,
+  ScanStatus,
+} from "./ui.tsx";
 
 export function ScanDetailPage({
   data,
@@ -280,6 +288,7 @@ export function ScanDetailPage({
                         </details>
                       ))}
                     </div>
+                    <TracedPaths paths={review.paths ?? []} findings={review.findings} />
                     <DismissedCandidates findings={review.findings} />
                     <details className="security-output-coverage">
                       <summary>Source coverage and limitations</summary>
@@ -509,6 +518,67 @@ const STOP_TEXT: Record<NonNullable<NonNullable<SecurityScan["coverage"]>["stop"
   quick: "one batch",
   explored: "the last exploring review read nothing new",
 };
+
+/**
+ * The paths the static scan traced to an effect, and how the review closed each: the
+ * list is the host's observation, the closure the model's account.
+ */
+function TracedPaths({ paths, findings }: { paths: ReviewPath[]; findings: ReviewFinding[] }) {
+  if (!paths.length) return null;
+  const closed = paths.filter((path) => path.closure !== "unclosed").length;
+  return (
+    <>
+      <h3>Traced paths</h3>
+      <p className="muted">
+        {closed} of {paths.length} closed. The static scan traced these paths; the closures are the
+        review's account.
+      </p>
+      <div className="security-stride-list">
+        {paths.map((path) => {
+          const finding = findings.find((item) => item.id === path.findingId);
+          return (
+            <details key={path.id}>
+              <summary>
+                <span>
+                  {path.label}{" "}
+                  <code>
+                    {path.at.path}:{path.at.line}
+                  </code>
+                </span>
+                <span className="security-status">{closureLabel[path.closure]}</span>
+              </summary>
+              <p className="muted">
+                Reaches{" "}
+                {path.effects
+                  .map((effect) => `${effect.kind} at ${effect.path}:${effect.line}`)
+                  .join(", ") || "an effect"}
+                .
+              </p>
+              <p>{path.reason}</p>
+              {finding && (
+                <p className="muted">
+                  Reported as {finding.title} · {finding.validation}
+                </p>
+              )}
+              {path.evidence.length ? (
+                <ul>
+                  {path.evidence.map((cite) => (
+                    <li key={JSON.stringify(cite)}>
+                      <code>
+                        {cite.path}:{cite.line}
+                      </code>{" "}
+                      {cite.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </details>
+          );
+        })}
+      </div>
+    </>
+  );
+}
 
 /**
  * Candidates the second review dismissed, which the findings table leaves out: what each

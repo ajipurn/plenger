@@ -32,7 +32,8 @@ export async function writeReviewProject(root: string): Promise<string> {
 }
 
 /** Synthetic protocol fixture. It does not measure a real model's detection quality. */
-export function reviewDiscovery(): ReviewDiscovery {
+// A model reply: closures arrive as `paths`, which these fixtures leave out.
+export function reviewDiscovery(): Omit<ReviewDiscovery, "closures"> {
   return {
     status: "completed",
     reason: null,
