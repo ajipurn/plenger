@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A sheet route evaluates every cell of the request rows with `eval` in a nested comprehension, so a cell can run any Python.",
+  "cwe": "CWE-95",
+  "location": {
+    "path": "app.py",
+    "line": 6,
+    "endLine": 9
+  },
+  "static": ["PLG805"]
+}

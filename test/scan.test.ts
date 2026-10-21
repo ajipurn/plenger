@@ -67,7 +67,8 @@ describe("parsing on worker threads", () => {
     const threaded = await scan(root, { workers: 2, facts: true });
     const strip = (result: Awaited<ReturnType<typeof scan>>) => ({ ...result, durationMs: 0 });
     expect(strip(threaded)).toEqual(strip(inline));
-  });
+    // Two scans of the risk fixtures, one of them starting workers.
+  }, 30000);
 
   it("stops every worker and rejects when one exits with a task still out", async () => {
     const dir = await temporaryDir();

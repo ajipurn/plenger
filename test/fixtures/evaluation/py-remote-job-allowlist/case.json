@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same worker maps the task name of the job to a fixed command list and runs it without a shell.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "worker.py",
+    "line": 8,
+    "endLine": 11
+  },
+  "static": []
+}

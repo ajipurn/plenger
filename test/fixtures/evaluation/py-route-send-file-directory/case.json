@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same route sends the file with `send_from_directory`, which joins the name safely and refuses paths outside the folder.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 9,
+    "endLine": 12
+  },
+  "static": []
+}

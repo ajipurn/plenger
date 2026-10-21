@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same downloader extracts with `filter=\"data\"`, which refuses members and links that leave the destination.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "models.py",
+    "line": 13,
+    "endLine": 14
+  },
+  "static": []
+}

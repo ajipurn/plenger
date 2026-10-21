@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same route passes the key as a bound parameter of `query_raw`.",
+  "cwe": "CWE-89",
+  "location": {
+    "path": "app.py",
+    "line": 8,
+    "endLine": 11
+  },
+  "static": []
+}

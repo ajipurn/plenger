@@ -1,4 +1,5 @@
 import type { PublicFunction } from "../capabilities/library.ts";
+import type { Receiver } from "../capabilities/received.ts";
 import type { CallFact } from "../facts/model.ts";
 import { isEnabled, select } from "../facts/query.ts";
 import type {
@@ -57,6 +58,8 @@ export class RuleContext {
   readonly inventory: Inventory;
   /** In a library scan, the public functions and methods and what they reach; otherwise empty. */
   readonly functions: PublicFunction[];
+  /** Calls that receive data over the network, with the effects that use it. */
+  readonly received: Receiver[];
   readonly tools: Map<string, Tool>;
   readonly agents: Map<string, Agent>;
   readonly llmCalls: Map<string, LlmCall>;
@@ -64,11 +67,17 @@ export class RuleContext {
   readonly exposure = new Map<string, string>();
   readonly #index: ProjectIndex;
 
-  constructor(project: Project, inventory: Inventory, functions: PublicFunction[] = []) {
+  constructor(
+    project: Project,
+    inventory: Inventory,
+    functions: PublicFunction[] = [],
+    received: Receiver[] = [],
+  ) {
     this.project = project;
     this.#index = new ProjectIndex(project);
     this.inventory = inventory;
     this.functions = functions;
+    this.received = received;
     this.tools = new Map(inventory.tools.map((tool) => [tool.id, tool]));
     this.agents = new Map(inventory.agents.map((agent) => [agent.id, agent]));
     this.llmCalls = new Map(inventory.llmCalls.map((call) => [locationKey(call.location), call]));

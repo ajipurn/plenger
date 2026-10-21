@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same job keeps only the last component of each listed name, which cannot leave the mirror folder as a file it writes.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "mirror.js",
+    "line": 6,
+    "endLine": 11
+  },
+  "static": []
+}

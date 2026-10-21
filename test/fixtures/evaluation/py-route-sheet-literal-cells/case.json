@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same route reads each cell with `ast.literal_eval`, which accepts only literals.",
+  "cwe": "CWE-95",
+  "location": {
+    "path": "app.py",
+    "line": 8,
+    "endLine": 11
+  },
+  "static": []
+}

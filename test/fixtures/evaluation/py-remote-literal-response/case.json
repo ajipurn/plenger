@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same client reads the body with `ast.literal_eval`, which accepts only literals.",
+  "cwe": "CWE-95",
+  "location": {
+    "path": "client.py",
+    "line": 6,
+    "endLine": 9
+  },
+  "static": []
+}

@@ -113,8 +113,10 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
     tsconfig: await readOptional(join(collected.root, "tsconfig.json")),
   });
   const inventory = buildInventory(project);
-  const functions = analyzeCapabilities(project, inventory, { library: options.library === true });
-  const findings = evaluateRules(project, inventory, functions);
+  const { functions, received } = analyzeCapabilities(project, inventory, {
+    library: options.library === true,
+  });
+  const findings = evaluateRules(project, inventory, functions, received);
   await attachSnippets(collected.root, findings);
 
   skipped.sort((a, b) => compareStrings(a.path, b.path));

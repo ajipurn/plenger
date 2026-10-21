@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A worker runs the command of the next job from a queue service through a shell, so whoever controls the queue runs commands on the worker.",
+  "cwe": "CWE-78",
+  "location": {
+    "path": "worker.py",
+    "line": 6,
+    "endLine": 9
+  },
+  "static": ["PLG809"]
+}

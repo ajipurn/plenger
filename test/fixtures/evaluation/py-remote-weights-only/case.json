@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same loader passes `weights_only=True`, which loads tensors and plain containers only.",
+  "cwe": "CWE-502",
+  "location": {
+    "path": "weights.py",
+    "line": 7,
+    "endLine": 10
+  },
+  "static": []
+}

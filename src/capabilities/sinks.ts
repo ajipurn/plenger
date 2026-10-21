@@ -143,6 +143,14 @@ export const PYTHON_SINKS: Sink[] = [
     projectClasses: true,
   },
   {
+    // Prisma Client Python's raw SQL, on the client or a project object holding it.
+    kind: "database",
+    calls: ["**.{query_raw,query_first,execute_raw}"],
+    input: "query|#0",
+    query: true,
+    projectClasses: true,
+  },
+  {
     kind: "deserialize",
     calls: [
       each("pickle", "load,loads"),
@@ -152,8 +160,18 @@ export const PYTHON_SINKS: Sink[] = [
       each("yaml", "unsafe_load,full_load"),
       "joblib.load",
       each("shelve", "open"),
+      "pandas.read_pickle",
+      "statsmodels.{iolib,iolib.api,iolib.smpickle,api}.load_pickle",
     ],
-    input: "#0",
+    input: "filepath_or_buffer|fname|#0",
+  },
+  {
+    // Hub code named by a model's `auto_map`, downloaded and imported.
+    kind: "code",
+    calls: [
+      "transformers{,.dynamic_module_utils}.{get_class_from_dynamic_module,get_cached_module_file}",
+    ],
+    input: "class_reference|#0",
   },
   {
     kind: "deserialize",
@@ -168,6 +186,13 @@ export const PYTHON_SINKS: Sink[] = [
     calls: ["open", "io.open", "aiofiles.open", "codecs.open"],
     input: "file|#0",
     mode: "mode|#1",
+    contents: true,
+  },
+  {
+    // Responses that send the file at a path (`send_from_directory` joins safely).
+    kind: "file_read",
+    calls: ["flask{,.helpers}.send_file", "{fastapi,starlette}.responses.FileResponse"],
+    input: "path_or_file|path|#0",
     contents: true,
   },
   {
@@ -220,6 +245,8 @@ export const PYTHON_SINKS: Sink[] = [
     calls: [`${PATH}**.{iterdir,glob,rglob}`],
     except: [PATH_TEXT],
     chainInput: true,
+    // `base.glob("../../*")` climbs out of the base its pattern is matched under.
+    input: "pattern|#0",
   },
   {
     kind: "file_read",
@@ -380,6 +407,20 @@ export const JAVASCRIPT_SINKS: Sink[] = [
     query: true,
   },
   {
+    // Prisma's unsafe raw SQL, and Pyodide's Python, on objects projects often wrap.
+    kind: "database",
+    calls: ["**.{$queryRawUnsafe,$executeRawUnsafe}"],
+    input: "#0",
+    query: true,
+    projectClasses: true,
+  },
+  {
+    kind: "code",
+    calls: ["**.{runPython,runPythonAsync}"],
+    input: "#0",
+    projectClasses: true,
+  },
+  {
     kind: "deserialize",
     calls: ["node-serialize{#default,}.unserialize", "node-serialize#unserialize"],
     input: "#0",
@@ -430,12 +471,16 @@ export const JAVASCRIPT_SINKS: Sink[] = [
     kind: "network",
     calls: [
       "fetch",
-      `axios{#default,}{,.${JS_HTTP.split(",").join(",.")}}`,
-      `axios{#default,}.create()**.{${JS_HTTP}}`,
+      // A default import reads `axios#default.get`; `require("axios")` reads `axios#get`.
+      "axios{#default,}",
+      `axios{#default.,#}{${JS_HTTP}}`,
+      `axios{#default.,#}create()**.{${JS_HTTP}}`,
       "{node:http,node:https,http,https}#{request,get}",
-      `got{#default,}{,.${JS_HTTP.split(",").join(",.")}}`,
+      "got{#default,}",
+      `got{#default.,#}{${JS_HTTP}}`,
       "undici#{fetch,request,stream}",
-      `ky{#default,}{,.${JS_HTTP.split(",").join(",.")}}`,
+      "ky{#default,}",
+      `ky{#default.,#}{${JS_HTTP}}`,
       "node-fetch{#default,}",
       "{node:net,net}#{connect,createConnection}",
       "WebSocket",

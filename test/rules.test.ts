@@ -1218,7 +1218,8 @@ app.post("/titled", (req, res) => {
   res.end();
 });
 `,
-      "app.py": `from pathlib import Path
+      "app.py": `import hashlib
+from pathlib import Path
 from flask import Flask, abort, request
 
 app = Flask(__name__)
@@ -1243,6 +1244,11 @@ def logged():
     except ValueError:
         app.logger.warning("outside %s", full)
     return full.read_text()
+
+
+@app.get("/digest")
+def digest():
+    return (DOCS / hashlib.sha256(request.args["name"].encode()).hexdigest()).read_text()
 `,
     });
     const findings = (await scan(root)).findings;
@@ -1283,6 +1289,161 @@ def replaced():
     expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
       "PLG802 GET /nested",
       "PLG802 GET /replaced",
+    ]);
+  });
+
+  it("read file responses, glob patterns, raw Prisma SQL, Pyodide, hub modules and comprehensions", async () => {
+    const root = await project({
+      "app.py": `import io
+import os
+from pathlib import Path
+
+import pandas as pd
+from flask import Flask, request, send_file, send_from_directory
+from prisma import Prisma
+from transformers.dynamic_module_utils import get_class_from_dynamic_module
+
+app = Flask(__name__)
+BASE = Path("data").resolve()
+db = Prisma()
+
+
+@app.post("/calc")
+def calc():
+    rows = request.json["rows"]
+    return str([eval(cell) for row in rows for cell in row])
+
+
+@app.post("/fixed-calc")
+def fixed_calc():
+    return str([eval(cell) for row in [["1 + 1"]] for cell in row])
+
+
+@app.get("/download")
+def download():
+    return send_file(os.path.join(BASE, request.args["name"]))
+
+
+@app.get("/served")
+def served():
+    return send_from_directory(BASE, request.args["name"])
+
+
+@app.get("/rendered")
+def rendered():
+    return send_file(io.BytesIO(request.args["text"].encode()), download_name="report.txt")
+
+
+@app.get("/find")
+def find():
+    return str(list(BASE.glob(request.args["pattern"])))
+
+
+@app.post("/frame")
+def frame():
+    return pd.read_pickle(request.files["data"]).to_json()
+
+
+@app.post("/model")
+def model():
+    return str(get_class_from_dynamic_module(request.json["class"], "org/model"))
+
+
+@app.get("/spend")
+async def spend():
+    return str(await db.query_raw(f"SELECT * FROM spend WHERE key = '{request.args['key']}'"))
+
+
+@app.get("/bound")
+async def bound():
+    return str(await db.query_raw("SELECT * FROM spend WHERE key = $1", request.args["key"]))
+`,
+      "server.ts": `import express from "express";
+import { loadPyodide } from "pyodide";
+
+const app = express();
+
+app.post("/run", async (req, res) => {
+  const pyodide = await loadPyodide();
+  res.json(await pyodide.runPythonAsync(\`import pandas as pd\\n\${req.body.code}\`));
+});
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // \`send_from_directory\` joins safely, a stream is not a path, and bound SQL values are
+    // not query text.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 GET /download",
+      "PLG802 GET /find",
+      "PLG803 GET /spend",
+      "PLG805 POST /calc",
+      "PLG805 POST /model",
+      "PLG805 POST /run",
+      "PLG807 POST /frame",
+    ]);
+  });
+
+  it("report request URLs fetched with CommonJS axios and got", async () => {
+    const root = await project({
+      "server.js": `const express = require("express");
+const axios = require("axios");
+const got = require("got");
+const app = express();
+app.get("/proxy", async (req, res) => res.send((await axios.get(req.query.url)).data));
+app.get("/got", async (req, res) => res.send(await got.get(req.query.url).text()));
+app.get("/fixed", async (req, res) => res.send((await axios.get("https://api.example.com/status")).data));
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // \`require("axios")\` names \`axios#get\`, where a default import names \`axios#default.get\`.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG804 GET /got",
+      "PLG804 GET /proxy",
+    ]);
+  });
+
+  it("follow data received over the network into code, paths and loaders", async () => {
+    const root = await project({
+      "sync.js": `const fs = require("fs");
+const path = require("path");
+const axios = require("axios");
+const DIR = path.resolve("mirror");
+async function runRemote(url) {
+  const response = await fetch(url);
+  return eval(await response.text());
+}
+async function mirror(url) {
+  const { data } = await axios.get(url);
+  for (const item of data.files) fs.writeFileSync(path.join(DIR, item.name), item.body);
+}
+module.exports = { runRemote, mirror };
+`,
+      "sync.py": `import os
+
+import requests
+from werkzeug.utils import secure_filename
+
+DIR = os.path.realpath("mirror")
+
+
+def mirror(url):
+    for item in requests.get(url, timeout=30).json()["files"]:
+        with open(os.path.join(DIR, secure_filename(item["name"])), "w") as handle:
+            handle.write(item["body"])
+
+
+def numbered(url):
+    for index, item in enumerate(requests.get(url, timeout=30).json()["files"]):
+        with open(os.path.join(DIR, f"part-{index}.txt"), "w") as handle:
+            handle.write(item["body"])
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // \`secure_filename\` keeps a received name in the mirror folder; an \`enumerate\` count
+    // is not what was received.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG810 mirror",
+      "PLG811 runRemote",
     ]);
   });
 

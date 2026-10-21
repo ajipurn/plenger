@@ -49,9 +49,12 @@ const URL_HOST = /^(?:(?:node:)?url#)?URL\(\)\.hostname$/;
 const CASE_OR_TRIM = /\.(?:toLowerCase|toUpperCase|trim|lower|upper|casefold|strip)$/;
 /** Calls that only change a value's type: `str(x)`, `String(x)`. */
 const TO_TEXT = /^(?:str|String)$/;
-/** Generated ids, which hold only letters, digits, `-` and `_`: UUIDs and nanoid's default ids. */
+/**
+ * Generated ids, which hold only letters, digits, `-` and `_`: UUIDs, nanoid's default
+ * ids and hex digests (`hashlib.md5(...).hexdigest()`).
+ */
 const GENERATED_ID =
-  /^(?:uuid(?:#default\.|#)v[1-7]|(?:node:)?crypto(?:#default\.|#)randomUUID|crypto\.randomUUID|nanoid#nanoid|uuid\.uuid[1345])$/;
+  /^(?:uuid(?:#default\.|#)v[1-7]|(?:node:)?crypto(?:#default\.|#)randomUUID|crypto\.randomUUID|nanoid#nanoid|uuid\.uuid[1345]|hashlib\.\w+\(\)\.hexdigest)$/;
 /** Calls whose result is always an absolute path. */
 const ABSOLUTE =
   /^(?:(?:node:)?path(?:#default\.|#)resolve|os\.path\.(?:abspath|realpath)|(?:node:)?fs(?:#default\.|#)realpathSync)$/;

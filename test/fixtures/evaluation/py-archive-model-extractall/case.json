@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A model downloader extracts the archive it fetched with `tarfile` and no filter, so a member named `../../.bashrc` is written outside the cache.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "models.py",
+    "line": 13,
+    "endLine": 14
+  },
+  "static": ["PLG808"]
+}

@@ -15,6 +15,7 @@ import { ApprovalFinder } from "./approvals.ts";
 import { EffectTracer, inputsOf, unique, uniqueParts } from "./effects.ts";
 import { callerParams, type PublicFunction, publicFunctions } from "./library.ts";
 import { attachOutputEffects } from "./output.ts";
+import { type Receiver, receivedEffects } from "./received.ts";
 import { BUILTIN_TOOL_CAPABILITIES } from "./sinks.ts";
 
 export interface AnalyzeOptions {
@@ -25,17 +26,21 @@ export interface AnalyzeOptions {
 /**
  * Fills in what tools, entry points and agents can do, by following their handlers
  * through project functions (across files) down to calls with an outside effect, and
- * where the output of model calls and agent runs is used. A library scan also returns
- * what each public function and method reaches; other scans return none.
+ * where the output of model calls and agent runs is used. Returns the calls that receive
+ * data over the network with the effects that use it, and, for a library scan, what each
+ * public function and method reaches.
  */
 export function analyzeCapabilities(
   project: Project,
   inventory: Inventory,
   options: AnalyzeOptions = {},
-): PublicFunction[] {
+): { functions: PublicFunction[]; received: Receiver[] } {
   const analyzer = new CapabilityAnalyzer(project, inventory, options);
   analyzer.run();
-  return options.library === true ? analyzer.publicFunctions(project) : [];
+  return {
+    functions: options.library === true ? analyzer.publicFunctions(project) : [],
+    received: analyzer.received(project),
+  };
 }
 
 class CapabilityAnalyzer {
@@ -77,6 +82,11 @@ class CapabilityAnalyzer {
       if (approval !== null) agent.approval = approval;
     }
     attachOutputEffects(this.#inventory, this.#effects, this.#index);
+  }
+
+  /** Calls that receive data over the network, with the effects that use it. */
+  received(project: Project): Receiver[] {
+    return receivedEffects(project, this.#index, this.#effects);
   }
 
   /** What each public function and method reaches, traced like a route handler. */

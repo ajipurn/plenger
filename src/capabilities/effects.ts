@@ -643,19 +643,32 @@ export class EffectTracer {
     let values: Value[] = sink.input === undefined ? [] : select(call.arguments, facts, sink.input);
     if (sink.chainInput) {
       // The path the method acts on: the first call of its chain (`Path(p).read_text()`),
-      // the expression it is called on (`(BASE / p).read_text()`), or the variable's value.
+      // the expression it is called on (`(BASE / p).read_text()`), or the variable's value,
+      // and what `input` selects as well (a `glob` pattern).
       const head = chainHead(facts, call);
       const holder = call.receiver === undefined ? undefined : facts.assignments[call.receiver];
-      values =
-        head !== undefined
+      const selected = values;
+      values = [
+        ...(head !== undefined
           ? select(head.arguments, facts, "#0")
           : call.object !== undefined
             ? [call.object]
             : holder !== undefined && holder.member === undefined && call.receiver !== undefined
               ? // The variable itself, so a guard that checked it applies.
-                [{ kind: "name", text: holder.target, ref: null, assignment: call.receiver }]
-              : [];
+                [
+                  {
+                    kind: "name" as const,
+                    text: holder.target,
+                    ref: null,
+                    assignment: call.receiver,
+                  },
+                ]
+              : []),
+        ...selected,
+      ];
     }
+    // A file object or an in-memory stream (`send_file(io.BytesIO(data))`) is not a path.
+    if (FILE_KINDS.has(kind)) values = values.filter((value) => !stream(value, facts));
     const fileFlow = this.flowFor(file, FILE_KINDS.has(kind) ? "file" : "other");
     // A name that may be `..` still cannot be read or written as a file when it ends the
     // path: `..` there is a directory. Only calls that open a file's contents get this
@@ -1276,6 +1289,15 @@ function lastComponent(
 
 /** Calls that only change a path's type: `Path(p)`, `str(p)`, `os.fspath(p)`, `String(p)`. */
 const PATH_WRAPPER = /^(?:(?:pathlib\.)?(?:Pure|Posix|Windows)?Path|str|os\.fspath|String)$/;
+
+/** Calls that make a file object or an in-memory stream rather than a path. */
+const STREAM = /^(?:io\.(?:BytesIO|StringIO|open)|open|codecs\.open|tempfile\.\w+)$/;
+
+function stream(value: Value, facts: FileFacts): boolean {
+  const target = deref(value, facts);
+  const call = target.kind === "call" ? facts.calls[target.call] : undefined;
+  return call !== undefined && STREAM.test(call.ref?.name ?? call.callee);
+}
 
 /** Marks a part as in an absolute path among a program's arguments (see `DynamicPart.path`). */
 function asPath(part: DynamicPart): DynamicPart {

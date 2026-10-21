@@ -5,8 +5,9 @@ import type { RuleContext } from "../context.ts";
 import type { Confidence, Draft, Severity } from "../model.ts";
 import { code, inputList, listed } from "../text.ts";
 
-/** Calls that import a module by name rather than evaluate code. */
-const DYNAMIC_IMPORT = /(?:^|[.#])(?:import_module|__import__|run_module)$/;
+/** Calls that import a module by name rather than evaluate code, hub modules included. */
+const DYNAMIC_IMPORT =
+  /(?:^|[.#])(?:import_module|__import__|run_module|get_class_from_dynamic_module|get_cached_module_file)$/;
 const CONFIDENCE_RANK: Record<Confidence, number> = { high: 2, medium: 1, low: 0 };
 
 interface Verdict {

@@ -9,6 +9,22 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- Five more static rules:
+  - PLG808: a tar archive extracted with no `filter` and no member selection,
+    whoever passed it;
+  - PLG809 to PLG812: data received over the network that reaches a shell command
+    or a program's name, a file path, code or a deserializer, at medium
+    confidence. Received data comes from an HTTP response (`requests`, `httpx`,
+    `aiohttp`, `urllib`, `fetch`, `axios`, `got`), a socket or zmq receive, an FTP
+    or S3 listing, or a project function that returns one of these.
+
+- More sinks: Flask's `send_file`, FastAPI's and Starlette's `FileResponse`, the
+  pattern of `Path.glob` and `rglob`, Prisma's raw SQL (`query_raw`,
+  `$queryRawUnsafe`), Pyodide's `runPython`, transformers'
+  `get_class_from_dynamic_module`, `pandas.read_pickle` and statsmodels'
+  `load_pickle`. Python comprehensions bind their loop names to items of their
+  iterables, in a scope of their own.
+
 - `plenger scan --library` scans a package: the parameters of its public functions
   and methods count as untrusted input. Seven rules report them:
   - PLG901: in a shell command, a program's name or its arguments;
@@ -229,6 +245,13 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   `protocolVersion` 1, and the host and both runtimes refuse other values.
 
 ### Fixed
+
+- HTTP requests through CommonJS `axios`, `got` and `ky` (`const axios =
+  require("axios")`, then `axios.get(url)`) were not network calls, so a route that
+  fetched a request URL with them was not reported.
+
+- The advisory benchmark counts the named path traversal variants (CWE-24 to
+  CWE-34, CWE-37 to CWE-40, such as `\..\filename` CWE-29) as path traversal.
 
 - Eight static false negatives found in a review of the unreleased rules:
   - a path helper's check counted for every return, though it guarded only some

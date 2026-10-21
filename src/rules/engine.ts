@@ -1,15 +1,18 @@
 import { functionId, type PublicFunction } from "../capabilities/library.ts";
+import type { Receiver } from "../capabilities/received.ts";
 import type { Inventory, Location, TraceGaps } from "../inventory/model.ts";
 import type { Project } from "../project/project.ts";
 import { compareStrings } from "../shared/compare.ts";
 import { locationKey } from "../shared/location.ts";
 import { RULE_BY_ID } from "./catalog.ts";
 import { agentChecks } from "./checks/agents.ts";
+import { archiveChecks } from "./checks/archives.ts";
 import { libraryChecks } from "./checks/library.ts";
 import { mcpChecks } from "./checks/mcp.ts";
 import { optionChecks } from "./checks/options.ts";
 import { outputChecks } from "./checks/output.ts";
 import { promptChecks } from "./checks/prompts.ts";
+import { receivedChecks } from "./checks/received.ts";
 import { routeChecks } from "./checks/routes.ts";
 import { secretChecks } from "./checks/secrets.ts";
 import { toolChecks } from "./checks/tools.ts";
@@ -34,14 +37,16 @@ const SOURCE_RULE = /^PLG[18]\d\d$/;
 
 /**
  * Runs every risk rule over the inventory and returns the findings, most urgent first.
- * `functions`, from a library scan, adds the library rules.
+ * `functions`, from a library scan, adds the library rules; `received` are the calls that
+ * receive data over the network.
  */
 export function evaluateRules(
   project: Project,
   inventory: Inventory,
   functions: PublicFunction[] = [],
+  received: Receiver[] = [],
 ): Finding[] {
-  const cx = new RuleContext(project, inventory, functions);
+  const cx = new RuleContext(project, inventory, functions, received);
   const drafts = [
     ...toolChecks(cx),
     ...agentChecks(cx),
@@ -51,6 +56,8 @@ export function evaluateRules(
     ...mcpChecks(cx),
     ...optionChecks(cx),
     ...routeChecks(cx),
+    ...archiveChecks(cx),
+    ...receivedChecks(cx),
     ...libraryChecks(cx),
   ];
   const functionTraces = new Map(functions.map((item) => [functionId(item), item.trace]));

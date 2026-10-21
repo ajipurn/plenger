@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "An export route sends the file at the request name joined to the exports folder with `send_file`, so `../config.py` is sent.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 9,
+    "endLine": 12
+  },
+  "static": ["PLG802"]
+}

@@ -44,6 +44,11 @@ Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-app
 | [PLG805](#plg805-route-code-injection) | critical | Route evaluates request input as code |
 | [PLG806](#plg806-route-template-injection) | critical | Route renders request input as a template |
 | [PLG807](#plg807-route-unsafe-deserialization) | high | Route deserializes request input with a loader that can run code |
+| [PLG808](#plg808-unchecked-archive-extraction) | medium | Tar archive extracted without checking its members |
+| [PLG809](#plg809-received-data-command) | critical | Data received over the network runs as a command |
+| [PLG810](#plg810-received-data-path) | high | Data received over the network builds a file path |
+| [PLG811](#plg811-received-data-code) | critical | Data received over the network is evaluated as code |
+| [PLG812](#plg812-received-data-deserialization) | high | Data received over the network is deserialized with a loader that can run code |
 | [PLG901](#plg901-library-command-injection) | critical | Public function runs a command built from its parameters |
 | [PLG902](#plg902-library-path-traversal) | high | Public function accesses a file path built from its parameters |
 | [PLG903](#plg903-library-sql-injection) | high | Public function runs SQL text built from its parameters |
@@ -379,6 +384,56 @@ An HTTP route handler, or a project function it calls, compiles request input as
 An HTTP route handler, or a project function it calls, loads request data, or data from a location the request chooses, with a deserializer that can run code (`pickle`, `yaml.unsafe_load`, `torch.load`, `node-serialize`).
 
 **Fix:** Use a data-only format (JSON, `yaml.safe_load`, `safetensors`, `torch.load(weights_only=True)`) for anything a client sends or names.
+
+**Maps to:** [CWE-502](https://cwe.mitre.org/data/definitions/502.html)
+
+## PLG808 unchecked-archive-extraction
+
+**Tar archive extracted without checking its members.** Severity up to medium.
+
+`tarfile` writes members named `../x`, members with absolute paths and links that point outside the destination wherever they say, unless a filter or a member check stops them. An archive from a user, a download or a model repository can then overwrite any file the process can.
+
+**Fix:** Pass `filter="data"` (Python 3.12 and later, and security releases of 3.8 to 3.11), or resolve each member's path and refuse members and links that leave the destination before extracting them.
+
+**Maps to:** [CWE-22](https://cwe.mitre.org/data/definitions/22.html), [CWE-59](https://cwe.mitre.org/data/definitions/59.html)
+
+## PLG809 received-data-command
+
+**Data received over the network runs as a command.** Severity up to critical.
+
+Data a program receives over the network (an HTTP response, a socket or zmq message) builds a shell command or names the program to run. Whoever controls the remote end, or the network between, runs commands on this host.
+
+**Fix:** Map what the response says to a fixed set of commands, run a fixed program with an argument list and no shell, and authenticate the remote end.
+
+**Maps to:** [CWE-78](https://cwe.mitre.org/data/definitions/78.html), [CWE-77](https://cwe.mitre.org/data/definitions/77.html)
+
+## PLG810 received-data-path
+
+**Data received over the network builds a file path.** Severity up to high.
+
+A name or path from an HTTP response, a message or a remote listing (`Content-Disposition`, an artifact list, S3 keys, FTP names) builds a file path that is read, written or deleted. A name such as `../../.bashrc` reaches files outside the intended folder.
+
+**Fix:** Keep only the last component of a received name and refuse `.` and `..` (`secure_filename`), or resolve the path and check that it stays inside the destination.
+
+**Maps to:** [CWE-22](https://cwe.mitre.org/data/definitions/22.html), [CWE-73](https://cwe.mitre.org/data/definitions/73.html)
+
+## PLG811 received-data-code
+
+**Data received over the network is evaluated as code.** Severity up to critical.
+
+Data a program receives over the network is passed to `eval`, `exec`, a template engine or a Python runtime. Whoever controls the remote end, or the network between, runs code in this process.
+
+**Fix:** Parse the data instead (`json.loads`, `ast.literal_eval`), and authenticate the remote end.
+
+**Maps to:** [CWE-94](https://cwe.mitre.org/data/definitions/94.html), [CWE-95](https://cwe.mitre.org/data/definitions/95.html)
+
+## PLG812 received-data-deserialization
+
+**Data received over the network is deserialized with a loader that can run code.** Severity up to high.
+
+Bytes from an HTTP response, a socket or a zmq message are loaded with `pickle`, `torch.load`, `joblib` or another loader that runs code it is given (zmq `recv_pyobj` unpickles too).
+
+**Fix:** Exchange a data-only format (JSON, msgpack, `safetensors`, `torch.load(weights_only=True)`), and authenticate and bind the socket to the peers that need it.
 
 **Maps to:** [CWE-502](https://cwe.mitre.org/data/definitions/502.html)
 

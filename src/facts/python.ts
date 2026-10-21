@@ -298,6 +298,22 @@ class PythonExtractor implements LanguageHooks {
           if (target?.type === "subscript")
             this.cx.markMutated(target.childForFieldName("value"), scope);
         break;
+      case "list_comprehension":
+      case "set_comprehension":
+      case "dictionary_comprehension":
+      case "generator_expression": {
+        // A comprehension has its own scope: each `for` name holds items of its iterable
+        // there (`[eval(cell) for row in rows for cell in row]`) and does not leak out.
+        const inner = new Scope(scope.kind, scope.definition, scope, scope.owner);
+        for (const clause of node.namedChildren) {
+          if (clause?.type !== "for_in_clause") continue;
+          const left = clause.childForFieldName("left");
+          const right = clause.childForFieldName("right");
+          if (left !== null && right !== null) this.bindLoop(left, right, inner, node.startIndex);
+        }
+        this.visitChildren(node, inner);
+        return;
+      }
       case "if_statement": {
         const condition = node.childForFieldName("condition");
         const body = node.childForFieldName("consequence");
@@ -559,6 +575,23 @@ class PythonExtractor implements LanguageHooks {
 
   /** `for item in items` and `for key, value in pairs`: each name holds part of an item of `right`. */
   bindLoop(target: Node, right: Node, scope: Scope, offset: number): void {
+    // `for i, item in enumerate(items)`: `i` is a count, `item` an item of `items`.
+    const iterable =
+      right.type === "call" ? right.childForFieldName("arguments")?.namedChildren[0] : null;
+    const pair = PATTERN_TARGETS.has(target.type)
+      ? target.namedChildren.filter((child) => child !== null && child.type !== "comment")
+      : [];
+    if (
+      right.type === "call" &&
+      right.childForFieldName("function")?.text === "enumerate" &&
+      iterable != null &&
+      pair.length === 2
+    ) {
+      const [count, item] = pair as [Node, Node];
+      this.bindUnknown(count, scope, offset);
+      this.bindLoop(item, iterable, scope, offset);
+      return;
+    }
     if (target.type === "identifier") {
       scope.bind(target.text, this.cx.assign(target, right, scope, offset, LOOP_ITEM));
       return;

@@ -415,6 +415,70 @@ export const RULES: Rule[] = [
       "Use a data-only format (JSON, `yaml.safe_load`, `safetensors`, `torch.load(weights_only=True)`) for anything a client sends or names.",
   },
 
+  // Application code patterns, whatever the input's source.
+  {
+    id: "PLG808",
+    name: "unchecked-archive-extraction",
+    title: "Tar archive extracted without checking its members",
+    description:
+      "`tarfile` writes members named `../x`, members with absolute paths and links that point outside the destination wherever they say, unless a filter or a member check stops them. An archive from a user, a download or a model repository can then overwrite any file the process can.",
+    severity: "medium",
+    owasp: [],
+    cwe: [22, 59],
+    remediation:
+      'Pass `filter="data"` (Python 3.12 and later, and security releases of 3.8 to 3.11), or resolve each member\'s path and refuse members and links that leave the destination before extracting them.',
+  },
+
+  // Data received over the network: an HTTP response, a socket message, a remote listing.
+  {
+    id: "PLG809",
+    name: "received-data-command",
+    title: "Data received over the network runs as a command",
+    description:
+      "Data a program receives over the network (an HTTP response, a socket or zmq message) builds a shell command or names the program to run. Whoever controls the remote end, or the network between, runs commands on this host.",
+    severity: "critical",
+    owasp: [],
+    cwe: [78, 77],
+    remediation:
+      "Map what the response says to a fixed set of commands, run a fixed program with an argument list and no shell, and authenticate the remote end.",
+  },
+  {
+    id: "PLG810",
+    name: "received-data-path",
+    title: "Data received over the network builds a file path",
+    description:
+      "A name or path from an HTTP response, a message or a remote listing (`Content-Disposition`, an artifact list, S3 keys, FTP names) builds a file path that is read, written or deleted. A name such as `../../.bashrc` reaches files outside the intended folder.",
+    severity: "high",
+    owasp: [],
+    cwe: [22, 73],
+    remediation:
+      "Keep only the last component of a received name and refuse `.` and `..` (`secure_filename`), or resolve the path and check that it stays inside the destination.",
+  },
+  {
+    id: "PLG811",
+    name: "received-data-code",
+    title: "Data received over the network is evaluated as code",
+    description:
+      "Data a program receives over the network is passed to `eval`, `exec`, a template engine or a Python runtime. Whoever controls the remote end, or the network between, runs code in this process.",
+    severity: "critical",
+    owasp: [],
+    cwe: [94, 95],
+    remediation:
+      "Parse the data instead (`json.loads`, `ast.literal_eval`), and authenticate the remote end.",
+  },
+  {
+    id: "PLG812",
+    name: "received-data-deserialization",
+    title: "Data received over the network is deserialized with a loader that can run code",
+    description:
+      "Bytes from an HTTP response, a socket or a zmq message are loaded with `pickle`, `torch.load`, `joblib` or another loader that runs code it is given (zmq `recv_pyobj` unpickles too).",
+    severity: "high",
+    owasp: [],
+    cwe: [502],
+    remediation:
+      "Exchange a data-only format (JSON, msgpack, `safetensors`, `torch.load(weights_only=True)`), and authenticate and bind the socket to the peers that need it.",
+  },
+
   // Library scans (`--library`): parameters of a package's public functions as input.
   {
     id: "PLG901",

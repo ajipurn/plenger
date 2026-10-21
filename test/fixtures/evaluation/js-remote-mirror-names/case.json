@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A mirror job writes each file of a remote listing under the mirror folder by its listed name, so a name such as `../../.npmrc` is written outside it.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "mirror.js",
+    "line": 6,
+    "endLine": 11
+  },
+  "static": ["PLG810"]
+}

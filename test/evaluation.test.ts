@@ -71,7 +71,7 @@ function discovery(cite: { path: string; line: number; endLine: number } | null)
 describe("evaluation corpus", () => {
   it("pairs a vulnerable case with a safe near-miss for every weakness", async () => {
     const cases = await loadCorpus(fixturePath("evaluation"));
-    expect(cases).toHaveLength(134);
+    expect(cases).toHaveLength(150);
     for (const cwe of new Set(cases.map((item) => item.cwe))) {
       const kinds = cases.filter((item) => item.cwe === cwe).map((item) => item.kind);
       expect(kinds, cwe).toContain("vulnerable");
@@ -88,22 +88,22 @@ describe("evaluation corpus", () => {
       expect(outcome.unlabeled, item.id).toEqual([]);
     }
     expect(metrics(outcomes)).toEqual({
-      truePositives: 61,
+      truePositives: 69,
       falsePositives: 0,
       falseNegatives: 7,
-      trueNegatives: 66,
+      trueNegatives: 74,
       precision: 1,
-      recall: 61 / 68,
+      recall: 69 / 76,
     });
     // Every rule has at least one vulnerable case in the corpus.
-    expect(ruleMetrics(outcomes)).toHaveLength(33);
+    expect(ruleMetrics(outcomes)).toHaveLength(38);
     expect(ruleMetrics(outcomes).find((row) => row.rule === "PLG101")).toEqual({
       rule: "PLG101",
       vulnerable: 3,
       safe: 0,
       precision: 1,
     });
-    // 134 projects scanned one after another.
+    // 150 projects scanned one after another.
   }, 30000);
 
   it("matches each library case's label in a library scan, and finds nothing in a default one", async () => {
@@ -166,6 +166,10 @@ describe("weakness matching", () => {
   it("matches a CWE to the label directly or within its family, never a missing one", () => {
     expect(sameWeakness("CWE-22", "CWE-22")).toBe(true);
     expect(sameWeakness("CWE-22", "CWE-23")).toBe(true);
+    // `\..\filename` and `C:dirname` are traversal variants too.
+    expect(sameWeakness("CWE-29", "CWE-22")).toBe(true);
+    expect(sameWeakness("CWE-39", "CWE-73")).toBe(true);
+    expect(sameWeakness("CWE-41", "CWE-22")).toBe(false);
     expect(sameWeakness("CWE-639", "CWE-862")).toBe(true);
     expect(sameWeakness("CWE-89", "CWE-639")).toBe(false);
     expect(sameWeakness("CWE-918", "CWE-400")).toBe(false);

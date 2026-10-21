@@ -235,21 +235,24 @@ active findings; `--all` shows every one. Each finding has:
 - a fingerprint built from the rule, file and subject rather than line numbers,
   used by baselines
 
-`plenger rules` lists the 40 rules; [RULES.md](../RULES.md) describes each one
+`plenger rules` lists the 45 rules; [RULES.md](../RULES.md) describes each one
 with its remediation. Most are about agents, tools, prompts and MCP. PLG901 to PLG907
 report only in [library scans](#library-scans). PLG801 to PLG807
 cover web routes with no model in between. They report request input that reaches,
 in the handler or in project functions it calls in other files:
 
 - a command;
-- a file path;
+- a file path, including Flask's `send_file`, FastAPI's `FileResponse` and the
+  pattern of `Path.glob`;
 - SQL text, including Django `cursor().execute`, `raw` and `extra`, SQLAlchemy
-  `text`, Sequelize and TypeORM `query`;
+  `text`, Sequelize and TypeORM `query`, and Prisma's `query_raw` and
+  `$queryRawUnsafe`;
 - the host of a URL;
-- code;
+- code, including hub modules loaded with `get_class_from_dynamic_module` and
+  Pyodide's `runPython`;
 - a template: `render_template_string`, `jinja2.Template`, `ejs.render`,
   `handlebars.compile` and others;
-- a deserializer.
+- a deserializer, including `pandas.read_pickle` and statsmodels' `load_pickle`.
 
 Routes are read for FastAPI, Flask, Django, Starlette, aiohttp, Express, Fastify,
 Hono, Koa, NestJS (with the `@Controller` prefix) and Next.js. Request input is a
@@ -262,11 +265,25 @@ input:
 
 A row returned by a database lookup (`.query(...).first()`, `Model.objects.get(...)`,
 `prisma.user.findUnique(...)`) does not carry the values it was found by, so stored
-data is not traced (second-order injection). An approval or input check done by a proxy, middleware or
+data is not traced (second-order injection). Data received over the network is, by
+PLG809 to PLG812 below. An approval or input check done by a proxy, middleware or
 configuration outside the code is not seen and leaves a finding at medium
 confidence. Checks other than the ones under [Capabilities](#capabilities), such as
 a call to a sanitizer, are recognised by name, not verified, and lower confidence
 instead of removing the finding.
+
+PLG808 reports a tar archive extracted with `tarfile` and neither `filter="data"` (or
+`"tar"`) nor a `members` selection, wherever the archive comes from: its members are
+the untrusted input. An archive opened from a literal path ships with the code and is
+left out.
+
+PLG809 to PLG812 report data received over the network that reaches a shell command
+or a program's name, a file path, code or a deserializer. Received data is the result
+of an HTTP client (`requests`, `httpx`, `aiohttp`, `urllib`, `fetch`, `axios`,
+`got`), a socket or zmq receive (`recv_pyobj` unpickles too), an FTP listing or an S3
+listing, and of a project function that returns one of these. Confidence is medium:
+whether the remote end is trusted is outside the scan. Received data among a fixed
+program's arguments is not reported.
 
 ## Library scans
 

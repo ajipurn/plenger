@@ -168,7 +168,8 @@ export function staticOutcome(item: EvaluationCase, findings: readonly Finding[]
  */
 const WEAKNESS_FAMILIES: readonly (readonly number[])[] = [
   [77, 78, 88],
-  [22, 23, 35, 36, 59, 73],
+  // Path traversal with its named relative (23 to 35) and absolute (36 to 40) variants.
+  [22, ...Array.from({ length: 18 }, (_, index) => 23 + index), 59, 73],
   [89, 564, 943],
   [94, 95, 96, 1336, 1426],
   [74, 1427],

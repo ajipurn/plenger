@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A settings client evaluates the body of an HTTP response with `eval`, so whoever controls the server, or the network to it, runs code in the client.",
+  "cwe": "CWE-95",
+  "location": {
+    "path": "client.py",
+    "line": 4,
+    "endLine": 7
+  },
+  "static": ["PLG811"]
+}
