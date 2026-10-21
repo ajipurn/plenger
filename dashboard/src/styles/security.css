@@ -343,103 +343,223 @@
 body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   background: color-mix(in oklab, var(--canvas) 70%, transparent);
 }
-.security-project-control {
-  @apply flex flex-wrap items-center gap-2 min-w-0;
-}
-.security-project-control > .ui-select {
-  @apply flex-1 min-w-0;
-  flex-basis: 16rem;
-}
-.security-project-path {
-  @apply block wrap-anywhere text-[12px] leading-relaxed;
-}
-.security-review-context summary {
-  @apply text-[13px] font-medium;
-}
-.security-review-context textarea {
-  @apply mt-2;
-}
-.security-review-context p {
-  @apply mt-2;
+/* New Scan: hairline sections, paired fields and choice cards. */
+.security-scan-drawer .security-drawer-heading,
+.security-scan-drawer .security-form-footer {
+  @apply px-6;
 }
 .security-form.security-scan-form {
-  @apply gap-5;
+  @apply gap-0 p-0;
 }
-.security-scan-field-heading {
-  @apply flex flex-wrap items-center justify-between gap-x-3 gap-y-1 min-w-0;
+.security-scan-section {
+  @apply grid gap-4 min-w-0 px-6 py-5;
 }
-.security-scan-source {
-  @apply flex items-start gap-2 min-w-0 text-muted;
+.security-scan-section + .security-scan-section {
+  @apply border-t border-line;
 }
-.security-scan-source > .icon {
-  @apply shrink-0 mt-0.5;
+.security-scan-section-heading {
+  @apply flex items-center justify-between gap-3 h-5 min-w-0;
 }
-.security-scan-settings {
-  @apply grid gap-4 min-w-0 m-0 p-0 border-0;
+.security-scan-section-heading h3 {
+  @apply text-[13px] font-semibold;
 }
-.security-scan-pricing {
-  @apply flex items-start gap-2;
+/* Inline actions keep their row at label height, so paired fields stay aligned. */
+.security-scan-form .security-scan-section-heading .button-quiet,
+.security-scan-form .security-scan-field-label .button-quiet {
+  @apply h-5 min-h-0 py-0 border-0 text-[12px] leading-5;
 }
-.security-scan-pricing > .icon {
-  @apply shrink-0 mt-0.5;
-}
-.security-scan-depth {
-  @apply grid gap-2 min-w-0;
-}
-.security-scan-depth-options {
-  @apply grid gap-3;
+.security-scan-fields {
+  @apply grid gap-3 min-w-0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.security-scan-form .security-scan-depth-option {
-  @apply flex items-start gap-2.5 min-w-0 p-3 rounded-ui border border-line-strong font-normal cursor-pointer;
+.security-scan-field {
+  @apply grid content-start gap-1.5 min-w-0;
 }
-.security-scan-depth-option[data-hovered] {
-  @apply bg-hover border-subtle;
+.security-scan-field > .ui-select,
+.security-scan-section > .ui-select {
+  @apply w-full;
 }
-.security-scan-depth-option[data-selected] {
-  @apply bg-paper border-muted;
+.security-scan-field-label {
+  @apply flex items-center justify-between gap-3 h-5 min-w-0;
 }
-.security-scan-depth-option[data-focus-visible] {
+.security-scan-form .security-scan-field-label > label,
+.security-scan-form .security-scan-field-label > span,
+.security-scan-form .security-scan-limit-heading > span {
+  @apply text-[12px] font-medium text-muted;
+}
+.security-scan-hints {
+  @apply grid gap-1 min-w-0 -mt-2;
+}
+.security-scan-note {
+  @apply flex items-start gap-2;
+}
+.security-scan-note > .icon {
+  @apply size-3.5 shrink-0 mt-[3px];
+}
+.security-scan-source {
+  @apply flex flex-wrap items-start justify-between gap-x-4 gap-y-1 min-w-0 text-[12px] leading-relaxed text-muted;
+}
+.security-scan-source-path {
+  @apply flex items-start gap-2 min-w-0;
+}
+.security-scan-source-path > .icon {
+  @apply size-3.5 shrink-0 mt-[3px];
+}
+.security-scan-source-path > code {
+  @apply wrap-anywhere;
+}
+.security-scan-source-size {
+  @apply shrink-0 tabular-nums whitespace-nowrap;
+}
+.security-scan-notes {
+  @apply min-w-0 rounded-ui border border-line;
+}
+.security-scan-notes > summary {
+  @apply flex items-center gap-2 min-h-10 px-3 py-0 list-none rounded-ui text-[13px] font-medium;
+  transition: background-color 150ms ease;
+}
+.security-scan-notes > summary::-webkit-details-marker {
+  display: none;
+}
+.security-scan-notes > summary:hover {
+  @apply bg-hover;
+}
+.security-scan-notes > summary > .icon {
+  @apply size-3.5 shrink-0 text-subtle;
+  transition: rotate 150ms ease;
+}
+.security-scan-notes[open] > summary > .icon {
+  rotate: 90deg;
+}
+.security-scan-notes-status {
+  @apply inline-flex items-center gap-1 ms-auto text-[12px] font-normal text-muted;
+}
+.security-scan-notes-status > .icon {
+  @apply size-3.5;
+}
+.security-scan-notes-body {
+  @apply grid gap-2 px-3 pb-3;
+}
+.security-scan-choices {
+  @apply grid gap-2.5 min-w-0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.security-scan-form .security-scan-choice {
+  @apply flex flex-col gap-1 min-w-0 p-3 rounded-ui border border-line-strong bg-surface text-[12px] font-normal leading-relaxed text-muted cursor-pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    scale 120ms ease-out;
+}
+.security-scan-choice[data-hovered] {
+  @apply border-subtle;
+}
+.security-scan-choice[data-pressed] {
+  scale: 0.99;
+}
+.security-scan-choice[data-selected] {
+  @apply bg-paper;
+  border-color: var(--ink);
+}
+.security-scan-choice[data-focus-visible] {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-.security-scan-depth-option[data-disabled] {
+.security-scan-choice[data-disabled] {
   @apply opacity-50 cursor-not-allowed;
 }
-.security-scan-depth-indicator {
-  @apply grid place-items-center size-3.5 mt-0.5 shrink-0 rounded-full border border-subtle;
+.security-scan-choice-head {
+  @apply flex items-center justify-between gap-3;
 }
-.security-scan-depth-option[data-selected] .security-scan-depth-indicator {
-  @apply border-ink;
-}
-.security-scan-depth-option[data-selected] .security-scan-depth-indicator::after {
-  content: "";
-  @apply size-1.5 rounded-full bg-ink;
-}
-.security-scan-depth-copy {
-  @apply grid gap-1 min-w-0 text-[12px] leading-relaxed;
-}
-.security-scan-depth-name {
+.security-scan-choice-name {
   @apply text-[13px] font-medium text-ink;
 }
-.security-scan-depth-calls {
-  @apply mt-1 text-muted tabular-nums;
+.security-scan-choice-indicator {
+  @apply grid place-items-center size-4 shrink-0 rounded-full border border-subtle bg-field;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
 }
-.security-scan-estimate {
-  @apply m-0 text-[12px] leading-relaxed;
+.security-scan-choice-indicator::after {
+  content: "";
+  @apply size-1.5 rounded-full opacity-0;
+  background: var(--primary-fg);
+  scale: 0.4;
+  transition:
+    scale 150ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 150ms ease;
 }
-.security-scan-limit-kind {
-  @apply grid gap-2 min-w-0;
+.security-scan-choice[data-selected] .security-scan-choice-indicator {
+  background: var(--primary-bg);
+  border-color: var(--primary-bg);
 }
-.security-scan-limit-options {
-  @apply grid gap-3;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.security-scan-choice[data-selected] .security-scan-choice-indicator::after {
+  @apply opacity-100;
+  scale: 1;
 }
-.security-scan-form .security-scan-limit-options .security-scan-depth-option {
-  @apply items-center py-2;
+.security-scan-choice-meta {
+  @apply mt-auto pt-1.5 font-medium tabular-nums;
 }
-.security-review-context.security-scan-context {
-  @apply m-0 p-0;
+.security-scan-choice[data-selected] .security-scan-choice-meta {
+  @apply text-ink;
+}
+.security-scan-limit {
+  @apply grid gap-2.5 min-w-0 p-3 rounded-ui border border-line bg-paper;
+  transition:
+    opacity 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    translate 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@starting-style {
+  .security-scan-limit {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+}
+/* Field errors read inline; the boxed message is for whole-form failures. */
+.security-scan-limit .error-message {
+  @apply p-0 border-0 bg-transparent;
+}
+.security-scan-limit-heading {
+  @apply flex flex-wrap items-center justify-between gap-3 min-w-0;
+}
+.security-scan-segmented {
+  @apply inline-grid grid-flow-col auto-cols-fr gap-0.5 p-0.5 rounded-ui border border-line-strong bg-field;
+}
+.security-scan-form .security-scan-segment {
+  @apply grid place-items-center min-h-6 px-3 rounded-[6px] text-[12px] font-medium text-muted cursor-pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.security-scan-segment[data-hovered] {
+  @apply text-ink;
+}
+.security-scan-segment[data-selected] {
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+}
+.security-scan-segment[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.security-scan-segment[data-disabled] {
+  @apply opacity-50 cursor-not-allowed;
+}
+.security-scan-limit-input {
+  @apply relative min-w-0;
+}
+.security-scan-limit-input > input {
+  @apply tabular-nums;
+  padding-inline-end: 64px;
+  appearance: textfield;
+}
+.security-scan-limit-input > input::-webkit-inner-spin-button,
+.security-scan-limit-input > input::-webkit-outer-spin-button {
+  @apply m-0;
+  appearance: none;
+}
+.security-scan-limit-unit {
+  @apply absolute end-2.5 top-1/2 -translate-y-1/2 text-[12px] text-subtle pointer-events-none;
 }
 .security-scan-context > summary {
   @apply flex items-center gap-2 px-3 py-3 list-none rounded-ui;
@@ -450,39 +570,36 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-scan-context > summary:hover {
   @apply bg-hover;
 }
-.security-scan-context > summary > .icon {
-  @apply size-3.5 shrink-0 text-muted;
-}
-.security-scan-context[open] > summary > .icon {
-  rotate: 90deg;
-}
-.security-scan-context-status {
-  @apply ms-auto text-[12px] font-normal;
-}
-.security-scan-context-body {
-  @apply px-3 pb-3;
-}
-.security-scan-context-body > p {
-  @apply mt-2;
-}
 .security-scan-includes {
-  @apply flex items-start gap-2.5 text-muted;
+  @apply flex items-start gap-2.5 mx-6 mb-6 p-3 rounded-ui bg-paper text-muted;
 }
 .security-scan-includes > .icon {
   @apply shrink-0 mt-0.5;
 }
 .security-scan-includes > div {
-  @apply grid gap-1 min-w-0;
+  @apply grid gap-0.5 min-w-0;
 }
 .security-scan-includes p:first-child {
-  @apply text-ink;
+  @apply text-ink font-medium;
+}
+.security-scan-form .security-scan-error {
+  @apply mx-6 mb-6 -mt-2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .security-scan-choice[data-pressed] {
+    scale: none;
+  }
+  .security-scan-limit {
+    transition: none;
+  }
 }
 @media (forced-colors: active) {
-  .security-scan-depth-option[data-selected],
-  .security-scan-depth-option[data-selected] .security-scan-depth-indicator {
+  .security-scan-choice[data-selected],
+  .security-scan-choice[data-selected] .security-scan-choice-indicator {
     border-color: Highlight;
   }
-  .security-scan-depth-option[data-selected] .security-scan-depth-indicator::after {
+  .security-scan-choice[data-selected] .security-scan-choice-indicator::after,
+  .security-scan-segment[data-selected] {
     background: Highlight;
   }
 }
@@ -1211,11 +1328,14 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   .security-form-footer {
     @apply px-4;
   }
-  .security-form.security-scan-form {
-    @apply p-4;
-  }
-  .security-scan-drawer .security-drawer-heading {
+  .security-scan-drawer .security-drawer-heading,
+  .security-scan-drawer .security-form-footer,
+  .security-scan-section {
     @apply px-4;
+  }
+  .security-scan-includes,
+  .security-scan-form .security-scan-error {
+    @apply mx-4;
   }
   .security-form-consent {
     flex-basis: 100%;
@@ -1226,7 +1346,8 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   }
 }
 @media (max-width: 480px) {
-  .security-scan-depth-options {
+  .security-scan-fields,
+  .security-scan-choices {
     @apply grid-cols-1;
   }
   .security-scan-actions .button {

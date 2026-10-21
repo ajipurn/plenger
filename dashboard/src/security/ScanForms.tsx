@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Label, Radio, RadioGroup } from "react-aria-components";
+import { Label, Radio, RadioGroup, Text } from "react-aria-components";
 import { Link } from "react-router";
 import {
   batchCostBound,
@@ -32,14 +32,15 @@ import { Button, Input, Select, TextArea } from "../shared/ui.tsx";
 
 /** The second review uses the discovery provider and model. */
 const SAME_VALIDATOR = "same";
-const DEPTH_COPY: Record<SelectableScanDepth, { description: string; calls: string }> = {
+const EXPLORE_CALLS = EXPLORE_LIMITS.discovery.modelCalls + EXPLORE_LIMITS.validation.modelCalls;
+const DEPTH_COPY: Record<SelectableScanDepth, Record<ReviewMode, string>> = {
   quick: {
-    description: "Reviews the most important files in one batch.",
-    calls: `Up to ${SECURITY_REVIEW_LIMITS.calls} model calls`,
+    batch: "Reviews the most important files in one batch.",
+    explore: "Explores once, starting from the most important files.",
   },
   full: {
-    description: "Reviews batch after batch until every file is covered or your limit is reached.",
-    calls: "Stops at your limit",
+    batch: "Reviews batch after batch until every file is covered or your limit is reached.",
+    explore: "Explores again until a review reads nothing new or your limit is reached.",
   },
 };
 const MODE_COPY: Record<ReviewMode, { label: string; description: string; calls: string }> = {
@@ -50,9 +51,8 @@ const MODE_COPY: Record<ReviewMode, { label: string; description: string; calls:
   },
   explore: {
     label: "Explore",
-    description:
-      "The model reads the project through read-only tools and follows paths across files.",
-    calls: `Up to ${EXPLORE_LIMITS.discovery.modelCalls + EXPLORE_LIMITS.validation.modelCalls} model calls per review`,
+    description: "Reads the project through read-only tools and follows paths across files.",
+    calls: `Up to ${EXPLORE_CALLS} model calls per review`,
   },
 };
 /** Rendered source is larger than file bytes: line numbers and JSON escaping. */
@@ -318,6 +318,8 @@ export function NewScanForm({
       : batchCostBound(budget, usdPricing.discovery, usdPricing.validation)
     : null;
   const limitValue = Number(kind === "tokens" ? tokenLimit : usdLimit);
+  // Full coverage repeats batches, or exploring reviews; the limit counts either.
+  const [unit, units] = mode === "explore" ? ["review", "reviews"] : ["batch", "batches"];
   const limitError = (() => {
     if (depth !== "full") return "";
     const L = SCAN_BUDGET_LIMITS;
@@ -325,13 +327,13 @@ export function NewScanForm({
       if (!Number.isSafeInteger(limitValue) || limitValue < L.minTokens || limitValue > L.maxTokens)
         return `Enter whole tokens from ${L.minTokens.toLocaleString()} to ${L.maxTokens.toLocaleString()}.`;
       if (limitValue < mostTokens)
-        return `One batch can charge up to ${mostTokens.toLocaleString()} tokens. Raise the limit.`;
+        return `One ${unit} can charge up to ${mostTokens.toLocaleString()} tokens. Raise the limit.`;
       return "";
     }
     if (!Number.isFinite(limitValue) || limitValue < L.minUsd || limitValue > L.maxUsd)
       return `Enter USD from ${L.minUsd} to ${L.maxUsd.toLocaleString()}.`;
     if (mostUsd !== null && limitValue < mostUsd)
-      return `One batch can cost up to USD ${mostUsd.toFixed(2)}. Raise the limit.`;
+      return `One ${unit} can cost up to USD ${mostUsd.toFixed(2)}. Raise the limit.`;
     return "";
   })();
   const guaranteed =
@@ -347,6 +349,15 @@ export function NewScanForm({
         Math.ceil(source.files / budget.files),
       )
     : null;
+  const depthCalls: Record<SelectableScanDepth, string> = {
+    quick: `Up to ${mode === "explore" ? EXPLORE_CALLS : SECURITY_REVIEW_LIMITS.calls} model calls`,
+    full:
+      mode === "batch" && needed !== null
+        ? needed === 1
+          ? "One batch covers this project"
+          : `About ${needed.toLocaleString()} batches for this project`
+        : "Stops at your limit",
+  };
   async function submit() {
     if (!api || !project || !provider || !model.trim()) return;
     setBusy(true);
@@ -438,114 +449,247 @@ export function NewScanForm({
           void submit();
         }}
       >
-        <div className="security-form-block">
-          <div className="security-scan-field-heading">
-            <label htmlFor={`${id}-project`}>Project</label>
+        <section className="security-scan-section" aria-labelledby={`${id}-project-heading`}>
+          <div className="security-scan-section-heading">
+            <h3 id={`${id}-project-heading`}>Project</h3>
             <Button className="button button-quiet" onClick={onAddProject} disabled={busy}>
               <Icon name="plus" /> Add project
             </Button>
           </div>
-          <div className="security-project-control">
-            {project ? (
-              <Select
-                label="Project"
-                id={`${id}-project`}
-                value={project.id}
-                items={repositories.map((item) => ({
-                  value: item.id,
-                  label: item.name,
-                }))}
-                onValueChange={(value) => {
-                  setSelected(value);
-                  setNotes(repositories.find((item) => item.id === value)?.environment.notes ?? "");
-                }}
-                disabled={busy}
-              />
-            ) : (
-              <p className="muted">Add a local project to start a scan.</p>
-            )}
-          </div>
-          {project && (
-            <div className="security-scan-source">
-              <Icon name="folder" />
-              <code className="security-project-path muted">{project.path}</code>
-            </div>
+          {project ? (
+            <>
+              <div className="security-scan-field">
+                <Select
+                  label="Project"
+                  id={`${id}-project`}
+                  value={project.id}
+                  items={repositories.map((item) => ({
+                    value: item.id,
+                    label: item.name,
+                  }))}
+                  onValueChange={(value) => {
+                    setSelected(value);
+                    setNotes(
+                      repositories.find((item) => item.id === value)?.environment.notes ?? "",
+                    );
+                  }}
+                  disabled={busy}
+                />
+                <div className="security-scan-source">
+                  <span className="security-scan-source-path">
+                    <Icon name="folder" />
+                    <code>{project.path}</code>
+                  </span>
+                  {source && (
+                    <span className="security-scan-source-size">
+                      {source.files.toLocaleString()}
+                      {source.truncated ? "+" : ""} reviewable{" "}
+                      {source.files === 1 ? "file" : "files"} · {sizeText(source.bytes)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <details className="security-scan-notes">
+                <summary>
+                  <Icon name="chevron" />
+                  <span>Review context</span>
+                  <span className="security-scan-notes-status">
+                    {notes.trim() ? (
+                      <>
+                        <Icon name="check" /> Included
+                      </>
+                    ) : (
+                      "Optional"
+                    )}
+                  </span>
+                </summary>
+                <div className="security-scan-notes-body">
+                  <label htmlFor={`${id}-notes`} className="sr-only">
+                    Review context
+                  </label>
+                  <TextArea
+                    id={`${id}-notes`}
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    maxLength={WORKSPACE_LIMITS.contextCharacters}
+                    rows={4}
+                    placeholder="Authentication, tenant boundaries, and assets to protect."
+                    disabled={busy}
+                  />
+                  <p className="muted">
+                    Saved with this project and included in its source review.
+                  </p>
+                </div>
+              </details>
+            </>
+          ) : (
+            <p className="muted">Add a local project to start a scan.</p>
           )}
-        </div>
-        <fieldset className="security-scan-settings" aria-label="AI review">
-          <div className="security-form-block">
-            <label htmlFor={`${id}-provider`}>Provider</label>
-            {provider ? (
-              <Select
-                label="Provider"
-                id={`${id}-provider`}
-                value={provider.id}
-                items={providers.map((item) => ({
-                  value: item.id,
-                  label: item.name,
-                }))}
-                onValueChange={(value) => {
-                  const next = providers.find((item) => item.id === value);
-                  setProviderId(value);
-                  setModel(next?.model ?? "");
-                  setMode(defaultMode(next));
-                }}
-                disabled={busy}
-              />
-            ) : (
+        </section>
+        <section className="security-scan-section" aria-labelledby={`${id}-model-heading`}>
+          <div className="security-scan-section-heading">
+            <h3 id={`${id}-model-heading`}>Model</h3>
+          </div>
+          {provider ? (
+            <>
+              <div className="security-scan-fields">
+                <div className="security-scan-field">
+                  <div className="security-scan-field-label">
+                    <label htmlFor={`${id}-provider`}>Provider</label>
+                  </div>
+                  <Select
+                    label="Provider"
+                    id={`${id}-provider`}
+                    value={provider.id}
+                    items={providers.map((item) => ({
+                      value: item.id,
+                      label: item.name,
+                    }))}
+                    onValueChange={(value) => {
+                      const next = providers.find((item) => item.id === value);
+                      setProviderId(value);
+                      setModel(next?.model ?? "");
+                      setMode(defaultMode(next));
+                    }}
+                    disabled={busy}
+                  />
+                </div>
+                <div className="security-scan-field">
+                  <div className="security-scan-field-label">
+                    <label htmlFor={`${id}-model`}>Model</label>
+                    {hasProviderModelCatalog(provider.provider) && (
+                      <Button
+                        className="button button-quiet"
+                        disabled={busy || catalog.loading}
+                        onClick={() =>
+                          void catalog.load({
+                            id: provider.id,
+                            provider: provider.provider as "anthropic" | "openai",
+                            baseUrl: provider.baseUrl,
+                            refresh: true,
+                          })
+                        }
+                      >
+                        {catalog.loading
+                          ? "Loading models…"
+                          : catalog.loaded
+                            ? "Reload models"
+                            : "Load models"}
+                      </Button>
+                    )}
+                  </div>
+                  {hasProviderModelCatalog(provider.provider) ? (
+                    <Select
+                      label="Model"
+                      id={`${id}-model`}
+                      value={model}
+                      items={modelItems}
+                      onValueChange={setModel}
+                      disabled={busy || catalog.loading}
+                    />
+                  ) : (
+                    <Input
+                      id={`${id}-model`}
+                      value={model}
+                      maxLength={128}
+                      required
+                      onChange={(event) => setModel(event.target.value)}
+                      disabled={busy}
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="security-scan-hints">
+                <p className="muted">
+                  Used for this scan only. Your provider's default stays the same.
+                </p>
+                {provider.provider === "anthropic" && (
+                  <p className="muted security-scan-note">
+                    <Icon name="info" />
+                    <span>
+                      {selectedPricing
+                        ? "Cost estimates use saved USD prices and reported token usage."
+                        : "No saved prices for this model. Token usage is tracked; cost estimates are unavailable."}
+                    </span>
+                  </p>
+                )}
+                {catalog.error && (
+                  <p className="error-message" role="alert">
+                    {catalog.error}
+                  </p>
+                )}
+              </div>
+              <div className="security-scan-field">
+                <div className="security-scan-field-label">
+                  <label htmlFor={`${id}-validator`}>Second review</label>
+                </div>
+                <Select
+                  label="Second review"
+                  id={`${id}-validator`}
+                  value={validator ? validator.id : SAME_VALIDATOR}
+                  items={[
+                    { value: SAME_VALIDATOR, label: "Same provider and model" },
+                    ...providers.map((item) => ({
+                      value: item.id,
+                      label: `${item.name} · ${item.model}`,
+                    })),
+                  ]}
+                  onValueChange={setValidatorId}
+                  disabled={busy}
+                />
+                <p className="muted">
+                  Checks each candidate for counterevidence. A different model is less likely to
+                  repeat the first model's mistakes.
+                </p>
+              </div>
+            </>
+          ) : (
+            <p className="muted">
+              Save a model connection to review source.{" "}
               <Link className="security-row-link" to="/settings/providers" onClick={onClose}>
                 Configure a provider
               </Link>
-            )}
+            </p>
+          )}
+        </section>
+        <section className="security-scan-section" aria-labelledby={`${id}-review-heading`}>
+          <div className="security-scan-section-heading">
+            <h3 id={`${id}-review-heading`}>Review</h3>
           </div>
-          {provider && (
-            <div className="security-form-block">
-              <div className="security-scan-field-heading">
-                <label htmlFor={`${id}-model`}>Model</label>
-                {hasProviderModelCatalog(provider.provider) && (
-                  <Button
-                    className="button button-quiet"
-                    disabled={busy || catalog.loading}
-                    onClick={() =>
-                      void catalog.load({
-                        id: provider.id,
-                        provider: provider.provider as "anthropic" | "openai",
-                        baseUrl: provider.baseUrl,
-                        refresh: true,
-                      })
-                    }
-                  >
-                    {catalog.loading
-                      ? "Loading models…"
-                      : catalog.loaded
-                        ? "Reload models"
-                        : "Load models"}
-                  </Button>
-                )}
-              </div>
-              {hasProviderModelCatalog(provider.provider) ? (
-                <Select
-                  label="Model"
-                  id={`${id}-model`}
-                  value={model}
-                  items={modelItems}
-                  onValueChange={setModel}
-                  disabled={busy || catalog.loading}
-                />
-              ) : (
-                <Input
-                  id={`${id}-model`}
-                  value={model}
-                  maxLength={128}
-                  required
-                  onChange={(event) => setModel(event.target.value)}
-                  disabled={busy}
-                />
-              )}
-              <p className="muted">
-                Used for this scan only. Your provider's default stays the same.
-              </p>
-              <p className="muted">
+          <RadioGroup
+            className="security-scan-field"
+            name="mode"
+            value={mode}
+            onChange={(value) => setMode(value as ReviewMode)}
+            isDisabled={busy}
+          >
+            <div className="security-scan-field-label">
+              <Label>Mode</Label>
+            </div>
+            <div className="security-scan-choices">
+              {(["batch", "explore"] as const).map((value) => (
+                <Radio
+                  key={value}
+                  value={value}
+                  className="security-scan-choice"
+                  aria-labelledby={`${id}-mode-${value}-label`}
+                  aria-describedby={`${id}-mode-${value}-description ${id}-mode-${value}-calls`}
+                >
+                  <span className="security-scan-choice-head">
+                    <span id={`${id}-mode-${value}-label`} className="security-scan-choice-name">
+                      {MODE_COPY[value].label}
+                    </span>
+                    <span className="security-scan-choice-indicator" aria-hidden="true" />
+                  </span>
+                  <span id={`${id}-mode-${value}-description`}>{MODE_COPY[value].description}</span>
+                  <span id={`${id}-mode-${value}-calls`} className="security-scan-choice-meta">
+                    {MODE_COPY[value].calls}
+                  </span>
+                </Radio>
+              ))}
+            </div>
+            {provider && (
+              <Text slot="description" elementType="p" className="muted">
                 {mode === "explore"
                   ? `Explore starts from up to ${Math.round(Math.min(budget.contextBytes, EXPLORE_LIMITS.firstBytes) / 1024)} KiB of source and reads the rest through tools.`
                   : budget.inputTokens === null
@@ -554,208 +698,102 @@ export function NewScanForm({
                 {validator && mode === "batch"
                   ? " A second-review model with a smaller or unknown window lowers it."
                   : ""}
-              </p>
-              {provider.provider === "anthropic" && (
-                <p className="muted security-scan-pricing">
-                  <Icon name="info" />
-                  <span>
-                    {selectedPricing
-                      ? "Cost estimates use saved USD prices and reported token usage."
-                      : "No saved prices for this model. Token usage is tracked; cost estimates are unavailable."}
-                  </span>
-                </p>
-              )}
-              {catalog.error && (
-                <p className="error-message" role="alert">
-                  {catalog.error}
-                </p>
-              )}
-            </div>
-          )}
-          {provider && (
-            <div className="security-form-block">
-              <label htmlFor={`${id}-validator`}>Second review</label>
-              <Select
-                label="Second review"
-                id={`${id}-validator`}
-                value={validator ? validator.id : SAME_VALIDATOR}
-                items={[
-                  { value: SAME_VALIDATOR, label: "Same provider and model" },
-                  ...providers.map((item) => ({
-                    value: item.id,
-                    label: `${item.name} · ${item.model}`,
-                  })),
-                ]}
-                onValueChange={setValidatorId}
-                disabled={busy}
-              />
-              <p className="muted">
-                Checks each candidate for counterevidence with the provider's saved model. A
-                different model is less likely to repeat the first model's mistakes.
-              </p>
-            </div>
-          )}
-        </fieldset>
-        <RadioGroup
-          className="security-scan-depth"
-          name="mode"
-          value={mode}
-          onChange={(value) => setMode(value as ReviewMode)}
-          isDisabled={busy}
-        >
-          <Label>Review mode</Label>
-          <div className="security-scan-depth-options">
-            {(["batch", "explore"] as const).map((value) => (
-              <Radio
-                key={value}
-                value={value}
-                className="security-scan-depth-option"
-                aria-labelledby={`${id}-mode-${value}-label`}
-                aria-describedby={`${id}-mode-${value}-description ${id}-mode-${value}-calls`}
-              >
-                <span className="security-scan-depth-indicator" aria-hidden="true" />
-                <span className="security-scan-depth-copy">
-                  <span id={`${id}-mode-${value}-label`} className="security-scan-depth-name">
-                    {MODE_COPY[value].label}
-                  </span>
-                  <span id={`${id}-mode-${value}-description`} className="muted">
-                    {MODE_COPY[value].description}
-                  </span>
-                  <span id={`${id}-mode-${value}-calls`} className="security-scan-depth-calls">
-                    {MODE_COPY[value].calls}
-                  </span>
-                </span>
-              </Radio>
-            ))}
-          </div>
-        </RadioGroup>
-        <RadioGroup
-          className="security-scan-depth"
-          name="depth"
-          value={depth}
-          onChange={(value) => setDepth(value as SelectableScanDepth)}
-          isDisabled={busy}
-        >
-          <Label>Scan depth</Label>
-          <div className="security-scan-depth-options">
-            {(["quick", "full"] as const).map((value) => (
-              <Radio
-                key={value}
-                value={value}
-                className="security-scan-depth-option"
-                aria-labelledby={`${id}-${value}-label`}
-                aria-describedby={`${id}-${value}-description ${id}-${value}-calls`}
-              >
-                <span className="security-scan-depth-indicator" aria-hidden="true" />
-                <span className="security-scan-depth-copy">
-                  <span id={`${id}-${value}-label`} className="security-scan-depth-name">
-                    {SCAN_DEPTHS[value].label}
-                  </span>
-                  <span id={`${id}-${value}-description`} className="muted">
-                    {DEPTH_COPY[value].description}
-                  </span>
-                  <span id={`${id}-${value}-calls`} className="security-scan-depth-calls">
-                    {value === "quick" && mode === "explore"
-                      ? "One exploring review"
-                      : DEPTH_COPY[value].calls}
-                  </span>
-                </span>
-              </Radio>
-            ))}
-          </div>
-        </RadioGroup>
-        {source && (
-          <p className="muted security-scan-estimate">
-            {source.files.toLocaleString()} {source.files === 1 ? "file" : "files"} (
-            {sizeText(source.bytes)}) can be reviewed
-            {source.truncated ? ", counted up to the file limit" : ""}.{" "}
-            {mode === "explore"
-              ? "The model chooses which of them to read."
-              : needed === 1
-                ? "One batch can cover them."
-                : `Full coverage needs about ${needed?.toLocaleString()} batches.`}
-          </p>
-        )}
-        {depth === "full" && (
-          <div className="security-form-block security-scan-limit">
-            <RadioGroup
-              className="security-scan-limit-kind"
-              orientation="horizontal"
-              value={kind}
-              onChange={(value) => setLimitKind(value as ScanBudget["kind"])}
-              isDisabled={busy}
-            >
-              <Label>Limit</Label>
-              <div className="security-scan-limit-options">
-                <Radio value="tokens" className="security-scan-depth-option">
-                  <span className="security-scan-depth-indicator" aria-hidden="true" />
-                  <span className="security-scan-depth-name">Tokens</span>
-                </Radio>
-                <Radio value="usd" className="security-scan-depth-option" isDisabled={!usdPricing}>
-                  <span className="security-scan-depth-indicator" aria-hidden="true" />
-                  <span className="security-scan-depth-name">USD</span>
-                </Radio>
-              </div>
-            </RadioGroup>
-            <label htmlFor={`${id}-limit`} className="sr-only">
-              {kind === "tokens" ? "Token limit" : "USD limit"}
-            </label>
-            <Input
-              id={`${id}-limit`}
-              type="number"
-              inputMode={kind === "tokens" ? "numeric" : "decimal"}
-              min={kind === "tokens" ? SCAN_BUDGET_LIMITS.minTokens : SCAN_BUDGET_LIMITS.minUsd}
-              max={kind === "tokens" ? SCAN_BUDGET_LIMITS.maxTokens : SCAN_BUDGET_LIMITS.maxUsd}
-              step={kind === "tokens" ? 1000 : 0.01}
-              value={kind === "tokens" ? tokenLimit : usdLimit}
-              onChange={(event) =>
-                kind === "tokens"
-                  ? setTokenLimit(event.target.value)
-                  : setUsdLimit(event.target.value)
-              }
-              aria-invalid={Boolean(limitError)}
-              aria-describedby={`${id}-limit-help`}
-              disabled={busy}
-            />
-            <p id={`${id}-limit-help`} className={limitError ? "error-message" : "muted"}>
-              {limitError ||
-                `Each batch charges at most ${
-                  kind === "tokens"
-                    ? `${mostTokens.toLocaleString()} tokens`
-                    : `USD ${mostUsd?.toFixed(2)} at saved prices`
-                }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "batch" : "batches"}. Most batches charge less. A batch starts only when its maximum fits what remains.`}
-            </p>
-            {!usdPricing && (
-              <p className="muted">
-                USD limits need saved Claude prices for every model in this scan.
-              </p>
+              </Text>
             )}
-          </div>
-        )}
-        <details className="security-review-context security-scan-context">
-          <summary>
-            <Icon name="chevron" />
-            <span>Review context</span>
-            <span className="muted security-scan-context-status">
-              {notes.trim() ? "Included" : "Optional"}
-            </span>
-          </summary>
-          <div className="security-scan-context-body">
-            <label htmlFor={`${id}-notes`} className="sr-only">
-              Review context
-            </label>
-            <TextArea
-              id={`${id}-notes`}
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              maxLength={WORKSPACE_LIMITS.contextCharacters}
-              rows={4}
-              placeholder="Authentication, tenant boundaries, and assets to protect."
-              disabled={busy}
-            />
-            <p className="muted">Saved with this project and included in its source review.</p>
-          </div>
-        </details>
+          </RadioGroup>
+          <RadioGroup
+            className="security-scan-field"
+            name="depth"
+            value={depth}
+            onChange={(value) => setDepth(value as SelectableScanDepth)}
+            isDisabled={busy}
+          >
+            <div className="security-scan-field-label">
+              <Label>Depth</Label>
+            </div>
+            <div className="security-scan-choices">
+              {(["quick", "full"] as const).map((value) => (
+                <Radio
+                  key={value}
+                  value={value}
+                  className="security-scan-choice"
+                  aria-labelledby={`${id}-${value}-label`}
+                  aria-describedby={`${id}-${value}-description ${id}-${value}-calls`}
+                >
+                  <span className="security-scan-choice-head">
+                    <span id={`${id}-${value}-label`} className="security-scan-choice-name">
+                      {SCAN_DEPTHS[value].label}
+                    </span>
+                    <span className="security-scan-choice-indicator" aria-hidden="true" />
+                  </span>
+                  <span id={`${id}-${value}-description`}>{DEPTH_COPY[value][mode]}</span>
+                  <span id={`${id}-${value}-calls`} className="security-scan-choice-meta">
+                    {depthCalls[value]}
+                  </span>
+                </Radio>
+              ))}
+            </div>
+          </RadioGroup>
+          {depth === "full" && (
+            <div className="security-scan-limit">
+              <RadioGroup
+                className="security-scan-limit-heading"
+                orientation="horizontal"
+                value={kind}
+                onChange={(value) => setLimitKind(value as ScanBudget["kind"])}
+                isDisabled={busy}
+              >
+                <Label>Spending limit</Label>
+                <div className="security-scan-segmented">
+                  <Radio value="tokens" className="security-scan-segment">
+                    Tokens
+                  </Radio>
+                  <Radio value="usd" className="security-scan-segment" isDisabled={!usdPricing}>
+                    USD
+                  </Radio>
+                </div>
+              </RadioGroup>
+              <label htmlFor={`${id}-limit`} className="sr-only">
+                {kind === "tokens" ? "Token limit" : "USD limit"}
+              </label>
+              <div className="security-scan-limit-input">
+                <Input
+                  id={`${id}-limit`}
+                  type="number"
+                  inputMode={kind === "tokens" ? "numeric" : "decimal"}
+                  min={kind === "tokens" ? SCAN_BUDGET_LIMITS.minTokens : SCAN_BUDGET_LIMITS.minUsd}
+                  max={kind === "tokens" ? SCAN_BUDGET_LIMITS.maxTokens : SCAN_BUDGET_LIMITS.maxUsd}
+                  step={kind === "tokens" ? 1000 : 0.01}
+                  value={kind === "tokens" ? tokenLimit : usdLimit}
+                  onChange={(event) =>
+                    kind === "tokens"
+                      ? setTokenLimit(event.target.value)
+                      : setUsdLimit(event.target.value)
+                  }
+                  aria-invalid={Boolean(limitError)}
+                  aria-describedby={`${id}-limit-help`}
+                  disabled={busy}
+                />
+                <span className="security-scan-limit-unit" aria-hidden="true">
+                  {kind === "tokens" ? "tokens" : "USD"}
+                </span>
+              </div>
+              <p id={`${id}-limit-help`} className={limitError ? "error-message" : "muted"}>
+                {limitError ||
+                  `Each ${unit} charges at most ${
+                    kind === "tokens"
+                      ? `${mostTokens.toLocaleString()} tokens`
+                      : `USD ${mostUsd?.toFixed(2)} at saved prices`
+                  }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? unit : units}. Most ${units} charge less. A ${unit} starts only when its maximum fits what remains.`}
+              </p>
+              {!usdPricing && (
+                <p className="muted">
+                  USD limits need saved Claude prices for every model in this scan.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
         <div className="security-scan-includes">
           <Icon name="checklist" />
           <div>
@@ -764,7 +802,7 @@ export function NewScanForm({
           </div>
         </div>
         {error && (
-          <p className="error-message" role="alert">
+          <p className="error-message security-scan-error" role="alert">
             {error}
           </p>
         )}

@@ -486,15 +486,6 @@ main:focus-visible {
 .fix-prompt-panel {
   @apply border-t border-line pt-6;
 }
-.security-review-context {
-  @apply mt-4 border border-line rounded-ui p-4 min-w-0;
-}
-.security-review-context > summary {
-  @apply cursor-pointer font-medium;
-}
-.security-review-context > p {
-  @apply mt-3;
-}
 .fix-prompt-controls {
   @apply flex flex-wrap items-end gap-3 mt-4;
 }
