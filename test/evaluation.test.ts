@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type AiOutcome,
   aiOutcome,
+  caseChanges,
   dismissedByMistake,
   type EvaluationCase,
   evaluateAi,
@@ -75,7 +76,7 @@ function discovery(cite: { path: string; line: number; endLine: number } | null)
 describe("evaluation corpus", () => {
   it("pairs a vulnerable case with a safe near-miss for every weakness", async () => {
     const cases = await loadCorpus(fixturePath("evaluation"));
-    expect(cases).toHaveLength(150);
+    expect(cases).toHaveLength(154);
     // Every vulnerable case carries the severity the discovery rubric gives it.
     for (const item of cases)
       expect(item.severity === undefined, item.id).toBe(item.kind === "safe");
@@ -95,12 +96,12 @@ describe("evaluation corpus", () => {
       expect(outcome.unlabeled, item.id).toEqual([]);
     }
     expect(metrics(outcomes)).toEqual({
-      truePositives: 69,
+      truePositives: 70,
       falsePositives: 0,
-      falseNegatives: 7,
-      trueNegatives: 74,
+      falseNegatives: 8,
+      trueNegatives: 76,
       precision: 1,
-      recall: 69 / 76,
+      recall: 70 / 78,
     });
     // Every rule has at least one vulnerable case in the corpus.
     expect(ruleMetrics(outcomes)).toHaveLength(38);
@@ -110,7 +111,7 @@ describe("evaluation corpus", () => {
       safe: 0,
       precision: 1,
     });
-    // 150 projects scanned one after another.
+    // 154 projects scanned one after another.
   }, 30000);
 
   it("matches each library case's label in a library scan, and finds nothing in a default one", async () => {
@@ -167,6 +168,34 @@ describe("evaluation corpus", () => {
     }
     // Six projects of about 70 KiB, scanned and packed twice each.
   }, 30000);
+});
+
+describe("change review cases", () => {
+  it("reviews each change case with the lines that differ from its base", async () => {
+    const cases = (await loadCorpus(fixturePath("evaluation"))).filter((item) => item.changes);
+    expect(cases.map((item) => item.id)).toEqual([
+      "py-diff-new-caller-fixed",
+      "py-diff-new-caller-shell",
+      "ts-diff-guard-moved",
+      "ts-diff-guard-removed",
+    ]);
+    const scope = async (id: string) =>
+      (await caseChanges(required(cases.find((item) => item.id === id))))?.files;
+    expect(await scope("py-diff-new-caller-shell")).toEqual([
+      {
+        path: "app.py",
+        added: false,
+        ranges: [
+          { line: 1, endLine: 1 },
+          { line: 11, endLine: 16 },
+        ],
+      },
+    ]);
+    // A removed guard marks the line where it stood.
+    expect(await scope("ts-diff-guard-removed")).toEqual([
+      { path: "routes/admin.ts", added: false, ranges: [{ line: 11, endLine: 11 }] },
+    ]);
+  });
 });
 
 describe("weakness matching", () => {

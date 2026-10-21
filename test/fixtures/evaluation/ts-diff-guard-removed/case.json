@@ -1,0 +1,18 @@
+{
+  "kind": "vulnerable",
+  "summary": "A change removes requireAdmin from the route that deletes users, so any signed-in caller can delete one.",
+  "cwe": "CWE-862",
+  "severity": "high",
+  "location": {
+    "path": "routes/admin.ts",
+    "line": 11,
+    "endLine": 14
+  },
+  "static": [],
+  "changes": {
+    "base": {
+      "routes/admin.ts": "import { Router } from \"express\";\nimport { requireAdmin } from \"../auth.ts\";\nimport { db } from \"../db.ts\";\n\nexport const adminRouter = Router();\n\nadminRouter.get(\"/users\", requireAdmin, async (_request, response) => {\n  response.json(await db.user.findMany());\n});\n\nadminRouter.delete(\"/users/:id\", requireAdmin, async (request, response) => {\n  await db.user.delete({ where: { id: request.params.id } });\n  response.status(204).end();\n});\n"
+    }
+  },
+  "note": "Change review case: the removed control is the finding; no new code reaches the sink."
+}
