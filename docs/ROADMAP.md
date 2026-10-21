@@ -4,7 +4,7 @@ Current capabilities, qualifications and pending work are in [STATUS.md](STATUS.
 The completed milestones M0 to M5 are recorded in [history/m0-m5.md](history/m0-m5.md).
 The normative M6 contracts are in [design/redteam-contracts.md](design/redteam-contracts.md).
 This page keeps the goal, principles, stack, the remaining M6 checkpoints, M7,
-M8, M9, risks and the work beyond the MVP.
+M8, M9, M10, M11, risks and the work beyond the MVP.
 
 ## Goal
 
@@ -35,10 +35,13 @@ Python, JavaScript and TypeScript also get static facts, which order the files
 along traced paths and excerpt them by function; other files are read as plain
 text. [M9](#m9-review-for-any-language-in-progress) adds read-only exploration
 by the model next. Static parsing stays with the three languages.
+[M10](#m10-review-discipline-and-scope-planned) adopts review ideas from Strix
+that need no execution.
 
 Validation is a second model review of the source. Validation by execution,
-reproducing a finding in a sandbox, is the long-term direction and would build
-on the red-team containers. Red-team work (M6 and M7) is postponed. The
+reproducing a finding in a sandbox, is planned as
+[M11](#m11-validation-by-execution-planned) and builds on the red-team
+containers. Red-team work (M6 and M7) is postponed. The
 existing managed profiles stay available from the CLI, and the retained
 direction and contracts below describe that engine rather than the workspace.
 
@@ -349,6 +352,33 @@ and five delivery checkpoints, is in
 stays with Python, JavaScript and TypeScript; a new grammar is added only for
 static rules in another language.
 
+### M10 Review discipline and scope (planned)
+
+M10 adopts ideas from the white-box review of
+[Strix](https://github.com/usestrix/strix) that need no execution. Scans stay
+read-only. The design, the selection criteria and the ideas left out are in
+[design/strix-adoption.md](design/strix-adoption.md). Each checkpoint is
+reviewed and measured before the next.
+
+| Checkpoint | Deliverable | Acceptance |
+| --- | --- | --- |
+| M10a Decision discipline | A severity rubric and a checklist before high or critical. A dismissal names its basis and cites the control or source, which the host checks; without a valid citation it becomes Needs review | Evaluation cases carry a severity label. Over three runs, severity agreement is recorded before and after, precision and recall do not drop, and vulnerable cases dismissed by mistake do not rise |
+| M10b Path closure | The review closes every traced path in a batch: a finding, safe with a cited control, or open with what is missing. Outputs list unclosed paths | The share of closed paths is recorded. Recall on the cross-file pairs and precision do not drop |
+| M10c Guides and project threat model | Framework review guides selected from the static inventory. One threat model per project, shared by all batches, saved and editable | Precision and recall per framework with and without its guide. Tokens per batch fall and detection does not drop |
+| M10d Change review | A scan scope for the changes since a commit or branch, with scope rules for introduced, newly reached and weakened paths and removed controls. After the npm release, an opt-in model review of pull requests in the GitHub Action | Diff cases in the corpus. Git reads run no project filters or diff drivers. An Action integration test with the synthetic provider |
+| M10e Long scans | A Full coverage scan continues after its limit with a new one. Scan details show live activity | Integration tests for continuation and a browser check for the timeline |
+
+### M11 Validation by execution (planned)
+
+A proof test confirms a source-supported finding. After an explicit start, the
+model on the host writes one test and runs it inside a networkless container
+built from the red-team runtimes. The test fails when the weakness exists. The
+outcome is proven, not reproduced or could not run; not reproduced is not
+evidence of safety. Retest runs the same test after a fix. Plenger does not
+write to the project. M11 starts after M10a and a reviewed design of its own.
+The open decisions are in
+[design/strix-adoption.md](design/strix-adoption.md#m11-validation-by-execution).
+
 ## Risks
 
 - **TypeScript grammar.** `tree-sitter-typescript` has had no release since
@@ -403,9 +433,6 @@ claim of parity:
   import cases, compare the same attacks and policies across fixes, prompts,
   models or builds in the dashboard and CI, preserving case and strategy
   versions and scope; track target, attacker and judge usage in one budget.
-- **Validation by execution:** reproduce a candidate finding in a networkless
-  container built from the red-team runtimes and attach the observed output as
-  evidence.
 - **Expanded dashboard:** team collaboration and cross-project views.
 - **Additional dynamic adapters:** explicitly configured local MCP stdio
   processes, more framework observation adapters and broader probe coverage,

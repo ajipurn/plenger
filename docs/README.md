@@ -28,11 +28,12 @@ repeating milestone status.
 | [design/redteam-engine.md](design/redteam-engine.md) | Engine internals: budget controller, project preparation, qualification broker |
 | [design/llmfy-runtime.md](design/llmfy-runtime.md) | The llmfy container image, isolation checks and the synthetic qualification suite |
 | [design/review-exploration.md](design/review-exploration.md) | Read-only exploration for the AI review (M9b): tools, limits, citations, failure handling; design only |
+| [design/strix-adoption.md](design/strix-adoption.md) | Ideas adopted from Strix for M10 and M11, the selection criteria and what is left out; design only |
 | [design/generated-attacks.md](design/generated-attacks.md) | Attacker-generated, frozen attack corpora; checkpoint 1 (host templates) is implemented |
 | [design/dashboard-ui.md](design/dashboard-ui.md) | Visual design rules for the dashboard |
 | [design/distribution.md](design/distribution.md) | How the npm package is built and checked |
 | [qualifications/](qualifications/) | Dated qualification records |
-| [ROADMAP.md](ROADMAP.md) | Goals, principles, remaining M6 checkpoints, M7, M8, M9, risks |
+| [ROADMAP.md](ROADMAP.md) | Goals, principles, remaining M6 checkpoints, M7, M8, M9, M10, M11, risks |
 | [history/m0-m5.md](history/m0-m5.md) | The completed milestones as recorded at completion |
 | [../CHANGELOG.md](../CHANGELOG.md) | Changes per milestone |
 | [../SECURITY.md](../SECURITY.md) | Execution policy and how to report an issue |
