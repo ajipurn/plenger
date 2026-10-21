@@ -56,6 +56,14 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   reviews in the scan and in later scans start from and extend it, and each scan
   records the version it used. The project page shows it and lets you write
   your own, which reviews keep.
+- M10d change reviews. New Scan's Changes scope reviews the files changed since
+  a branch, tag or commit, uncommitted work included, with the change rules for
+  introduced, newly reached and weakened paths and removed controls. The base
+  comes from Git objects and is compared with the files on disk in-process, so no
+  project filter or diff driver runs. The GitHub Action gains an opt-in AI review
+  with provider, model, key, token limit and base inputs; on a pull request it
+  reviews the changes since the base. Its kept findings are a second SARIF run,
+  and source-supported ones count toward the gate.
 - Five more static rules:
   - PLG808: a tar archive extracted with no `filter` and no member selection,
     whoever passed it;

@@ -6,7 +6,15 @@ import { createReport, type FailOn, failsGate, withoutSuppressed } from "../../s
 import { PolicyError, readBaseline, readSuppressions } from "../../src/report/policy.ts";
 import { SEVERITIES } from "../../src/rules/model.ts";
 import { scan } from "../../src/scan.ts";
+import { ChangeScopeError } from "../../src/security/changes.ts";
 import { json } from "../../src/shared/json.ts";
+import {
+  aiFailsGate,
+  aiReviewInputs,
+  aiSarifRun,
+  aiSummary,
+  runAiReview,
+} from "./github-action-review.ts";
 
 /** Scan once, then emit SARIF and a job summary even when the finding gate fails. */
 export async function runGitHubAction(
@@ -56,6 +64,11 @@ export async function runGitHubAction(
     io.stderr("plenger: fail-on must be critical, high, medium, low or none\n");
     return 2;
   }
+  const ai = aiReviewInputs(env);
+  if (typeof ai === "string") {
+    io.stderr(`plenger: ${ai}\n`);
+    return 2;
+  }
   try {
     if (!(await outputStaysInWorkspace(output, workspace))) {
       io.stderr("plenger: SARIF output resolves outside GITHUB_WORKSPACE through a symlink\n");
@@ -67,27 +80,49 @@ export async function runGitHubAction(
     const suppressions = env.PLENGER_SUPPRESSIONS
       ? await readSuppressions(resolve(workspace, env.PLENGER_SUPPRESSIONS))
       : undefined;
-    const result = await scan(resolve(workspace, env.PLENGER_PATH || "."), {
+    const scanned = resolve(workspace, env.PLENGER_PATH || ".");
+    const result = await scan(scanned, {
       gitignore: env.PLENGER_GITIGNORE !== "false",
+      // The AI review also reads text files without a parser, as the dashboard does.
+      ...(ai ? { texts: true } : {}),
     });
     const report = createReport(result, {
       ...(baseline ? { baseline } : {}),
       ...(suppressions ? { suppressions } : {}),
     });
-    const code = failsGate(report, threshold as FailOn) ? 3 : 0;
+    let prefix = "";
     try {
-      sourcePrefix(report, sourceRoot);
+      prefix = sourcePrefix(report, sourceRoot);
     } catch (error) {
       if (!(error instanceof SourceRootError)) throw error;
       io.stderr("plenger: path must be inside source-root\n");
       if (env.GITHUB_OUTPUT) await appendFile(env.GITHUB_OUTPUT, "exit-code=2\n", "utf8");
       return 2;
     }
+    let reviewed: Awaited<ReturnType<typeof runAiReview>> | null = null;
+    if (ai)
+      try {
+        reviewed = await runAiReview(ai, result, scanned);
+      } catch (error) {
+        if (!(error instanceof ChangeScopeError)) throw error;
+        io.stderr(
+          `plenger: ${error.message} Check ai-changes-since, and fetch the base commit (fetch-depth: 0).\n`,
+        );
+        if (env.GITHUB_OUTPUT) await appendFile(env.GITHUB_OUTPUT, "exit-code=2\n", "utf8");
+        return 2;
+      }
+    const review = reviewed?.review ?? null;
+    const gate =
+      failsGate(report, threshold as FailOn) || (review !== null && aiFailsGate(review, threshold));
+    const aiFailed = review !== null && review.status !== "completed";
+    const code = gate ? 3 : aiFailed ? 1 : 0;
     // GitHub does not honour SARIF suppressions, so suppressed findings would show
     // as open alerts; they stay in the job summary with their reasons.
     const uploaded =
       env.PLENGER_INCLUDE_SUPPRESSED === "true" ? report : withoutSuppressed(report);
-    await writeOutput(output, json(toSarif(uploaded, { sourceRoot })));
+    const sarif = toSarif(uploaded, { sourceRoot });
+    if (review) (sarif.runs as unknown[]).push(aiSarifRun(review, prefix));
+    await writeOutput(output, json(sarif));
     if (env.GITHUB_STEP_SUMMARY) {
       const sourceBaseUrl =
         env.GITHUB_REPOSITORY && env.GITHUB_SHA
@@ -103,12 +138,26 @@ export async function runGitHubAction(
           ? summary
           : `# Plenger static analysis\n\n${report.review.active} active ${report.review.active === 1 ? "finding" : "findings"} · ${report.review.suppressed} suppressed · ${report.review.unchanged} in baseline\n\nThe full summary exceeds GitHub's size limit. Review the complete SARIF report.\n`;
       await appendFile(env.GITHUB_STEP_SUMMARY, boundedSummary, "utf8");
+      if (reviewed)
+        await appendFile(
+          env.GITHUB_STEP_SUMMARY,
+          aiSummary(review, reviewed.changes).slice(0, 200_000),
+          "utf8",
+        );
     }
     if (env.GITHUB_OUTPUT)
       await appendFile(env.GITHUB_OUTPUT, `sarif-file=${outputName}\nexit-code=${code}\n`, "utf8");
     io.stdout(
       `plenger: ${report.review.active} active ${report.review.active === 1 ? "finding" : "findings"}; SARIF written to ${outputName}\n`,
     );
+    if (reviewed)
+      io.stdout(
+        review
+          ? `plenger: AI review ${review.status}; ${review.findings.filter((finding) => finding.validation !== "dismissed").length} kept findings\n`
+          : "plenger: AI review skipped; no changed file to review\n",
+      );
+    if (aiFailed)
+      io.stderr(`plenger: AI review ${review?.status}: ${review?.reason ?? "no reason"}\n`);
     if (code === 3) io.stderr(`plenger: new unsuppressed findings meet fail-on ${threshold}\n`);
     return code;
   } catch (error) {

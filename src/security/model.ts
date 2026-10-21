@@ -152,6 +152,8 @@ export interface SecurityScanSummary {
   coverage?: ScanCoverage;
   /** The project threat model the scan started from; absent when there was none. */
   threatModel?: { version: number; origin: ProjectThreatModel["origin"] };
+  /** For a change review: the base, the commit it named, and how many files changed or went. */
+  changes?: { base: string; commit: string; files: number; removed: number };
   error: string | null;
 }
 export interface SecurityScan extends SecurityScanSummary {
@@ -176,4 +178,6 @@ export interface StartSecurityScan {
   mode?: ReviewMode;
   /** Required for Full coverage; optional for Quick. */
   budget?: ScanBudget;
+  /** Review only the changes since this branch, tag or commit. */
+  changesSince?: string;
 }

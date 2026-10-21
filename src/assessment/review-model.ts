@@ -29,6 +29,9 @@ export const SECURITY_REVIEW_LIMITS = {
   closureEvidence: 2,
   /** Framework guides one request may carry; the request overhead below holds them. */
   guideBytes: 4 * 1024,
+  /** Changed files and line ranges per file a change review lists in its first message. */
+  changeFiles: 60,
+  changeRanges: 20,
   snippetLines: 13,
   text: 1200,
   outputTokens: 8192,

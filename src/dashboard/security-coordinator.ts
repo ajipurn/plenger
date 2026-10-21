@@ -14,8 +14,9 @@ import { sumCosts } from "../redteam/model-pricing.ts";
 import { validateProviderSettings } from "../redteam/provider-config.ts";
 import { RULES } from "../rules/index.ts";
 import { scan } from "../scan.ts";
+import { ChangeScopeError, changesSince, isRefName } from "../security/changes.ts";
 import { scanFindings, vanishedStaticFindings } from "../security/findings.ts";
-import { sourceRevision } from "../security/git.ts";
+import { readGit, sourceRevision } from "../security/git.ts";
 import {
   SCAN_DEPTHS,
   type ScanBudget,
@@ -65,6 +66,27 @@ export class SecurityCoordinator {
       if (this.#closed) throw new HttpError(503, "The service is shutting down.");
       const repository = this.#store.security.repository(input.repositoryId);
       if (!repository) throw new HttpError(404, "Project not found. Add a local folder first.");
+      if (input.changesSince !== undefined) {
+        // Fail before the job: the scope must name a commit of this project's repository.
+        // The name is checked first, so Git never reads it as an option.
+        const named = isRefName(input.changesSince);
+        const commit = named
+          ? await readGit(repository.path, [
+              "rev-parse",
+              "--verify",
+              "--quiet",
+              `${input.changesSince}^{commit}`,
+            ]).then(
+              (value) => value.toString("utf8").trim(),
+              () => "",
+            )
+          : "";
+        if (!/^[a-f0-9]{40,64}$/.test(commit))
+          throw new HttpError(
+            400,
+            "Changes since needs a branch, tag or commit of this project's Git repository.",
+          );
+      }
       const resolved = this.#store.resolveProvider(input.providerId);
       const model = input.model ?? resolved.saved.model;
       try {
@@ -187,7 +209,18 @@ export class SecurityCoordinator {
             this.#store.saveScan(result);
             job.sourceScanId = result.id;
             this.#store.security.saveScan(job);
-            const paths = reviewPaths(result.scan);
+            // A change review reads the changed files; the static scan stays whole.
+            const scope = input.changesSince
+              ? await changesSince(repository.path, input.changesSince, reviewPaths(result.scan))
+              : undefined;
+            if (scope)
+              job.changes = {
+                base: scope.base,
+                commit: scope.commit,
+                files: scope.files.length,
+                removed: scope.removed.length,
+              };
+            const paths = scope ? scope.files.map((file) => file.path) : reviewPaths(result.scan);
             const coverage: ScanCoverage = {
               eligibleFiles: paths.length,
               sentFiles: 0,
@@ -195,7 +228,8 @@ export class SecurityCoordinator {
               charged: { tokens: 0, usd: 0 },
             };
             job.coverage = coverage;
-            if (!paths.length) {
+            // A change review with no changed file to read completes without a review.
+            if (!paths.length && !scope) {
               job.status = "failed";
               job.error =
                 "No readable source, template or configuration files were found in this folder.";
@@ -257,6 +291,7 @@ export class SecurityCoordinator {
                   : {}),
                 environment: repository.environment,
                 ...(model ? { projectModel: model } : {}),
+                ...(scope ? { changes: scope } : {}),
                 onPhase: (phase) => {
                   job.phase = phase;
                   this.#store.security.saveScan(job);
@@ -351,11 +386,13 @@ export class SecurityCoordinator {
               job,
               vanishedStaticFindings(previous, job.findings, result.scan),
             );
-          } catch {
+          } catch (error) {
             job.status = controller.signal.aborted ? "cancelled" : "failed";
             job.error = controller.signal.aborted
               ? "Scan cancelled."
-              : "Unable to finish this scan. Check the folder and provider settings, then start a new scan.";
+              : error instanceof ChangeScopeError
+                ? error.message
+                : "Unable to finish this scan. Check the folder and provider settings, then start a new scan.";
           } finally {
             job.phase = "finished";
             job.finishedAt = new Date().toISOString();

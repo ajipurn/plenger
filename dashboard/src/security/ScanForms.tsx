@@ -43,6 +43,13 @@ const DEPTH_COPY: Record<SelectableScanDepth, Record<ReviewMode, string>> = {
     explore: "Explores again until a review reads nothing new or your limit is reached.",
   },
 };
+const SCOPE_COPY = {
+  project: { label: "Whole project", description: "Reviews the project's source." },
+  changes: {
+    label: "Changes",
+    description: "Reviews the files changed since a branch, tag or commit, and what they reach.",
+  },
+} as const;
 const MODE_COPY: Record<ReviewMode, { label: string; description: string; calls: string }> = {
   batch: {
     label: "Batch",
@@ -289,6 +296,14 @@ export function NewScanForm({
   const contextWindow = catalog.models.find((item) => item.id === model)?.maxInputTokens;
   const budget = reviewBudget([contextWindow]);
   const [notes, setNotes] = useState(project?.environment.notes ?? "");
+  const [scope, setScope] = useState<keyof typeof SCOPE_COPY>("project");
+  // On the default branch, the last commit is the natural base for uncommitted work.
+  const [base, setBase] = useState(() =>
+    !project?.revision.branch || ["main", "master"].includes(project.revision.branch)
+      ? "HEAD"
+      : "main",
+  );
+  const changesOnly = scope === "changes";
   const projectId = project?.id;
   useEffect(() => {
     setSource(null);
@@ -382,6 +397,7 @@ export function NewScanForm({
             }
           : {}),
         ...(validator ? { validatorProviderId: validator.id } : {}),
+        ...(changesOnly ? { changesSince: base.trim() } : {}),
       });
       onStarted(scan);
       onClose();
@@ -433,7 +449,8 @@ export function NewScanForm({
               !provider ||
               !model.trim() ||
               catalog.loading ||
-              Boolean(limitError)
+              Boolean(limitError) ||
+              (changesOnly && !base.trim())
             }
           >
             {busy ? "Starting scan…" : "Start Scan"}
@@ -656,6 +673,61 @@ export function NewScanForm({
           <div className="security-scan-section-heading">
             <h3 id={`${id}-review-heading`}>Review</h3>
           </div>
+          <RadioGroup
+            className="security-scan-field"
+            name="scope"
+            value={scope}
+            onChange={(value) => setScope(value as keyof typeof SCOPE_COPY)}
+            isDisabled={busy}
+          >
+            <div className="security-scan-field-label">
+              <Label>Scope</Label>
+            </div>
+            <div className="security-scan-choices">
+              {(["project", "changes"] as const).map((value) => (
+                <Radio
+                  key={value}
+                  value={value}
+                  className="security-scan-choice"
+                  isDisabled={value === "changes" && !project?.revision.commit}
+                  aria-labelledby={`${id}-scope-${value}-label`}
+                  aria-describedby={`${id}-scope-${value}-description`}
+                >
+                  <span className="security-scan-choice-head">
+                    <span id={`${id}-scope-${value}-label`} className="security-scan-choice-name">
+                      {SCOPE_COPY[value].label}
+                    </span>
+                    <span className="security-scan-choice-indicator" aria-hidden="true" />
+                  </span>
+                  <span id={`${id}-scope-${value}-description`}>
+                    {SCOPE_COPY[value].description}
+                  </span>
+                </Radio>
+              ))}
+            </div>
+            {!project?.revision.commit && (
+              <Text slot="description" elementType="p" className="muted">
+                Change reviews need a Git repository with at least one commit.
+              </Text>
+            )}
+          </RadioGroup>
+          {changesOnly && (
+            <div className="security-form-block">
+              <label htmlFor={`${id}-base`}>Changes since</label>
+              <Input
+                id={`${id}-base`}
+                value={base}
+                onChange={(event) => setBase(event.target.value)}
+                placeholder="main"
+                maxLength={200}
+                disabled={busy}
+              />
+              <p className="muted">
+                A branch, tag or commit. Files on disk are compared with it, including uncommitted
+                changes. The static checks still cover the whole project.
+              </p>
+            </div>
+          )}
           <RadioGroup
             className="security-scan-field"
             name="mode"

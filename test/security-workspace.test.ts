@@ -196,6 +196,66 @@ async function finished(id: string, timeout = 1000): Promise<SecurityScan> {
   return result;
 }
 
+describe("change reviews", () => {
+  it.skipIf(process.platform === "win32")(
+    "reviews only the files changed since a commit and rejects names Git would misread",
+    async () => {
+      const git = (...args: string[]) =>
+        execute("git", [
+          "-c",
+          "core.hooksPath=/dev/null",
+          "-c",
+          "commit.gpgsign=false",
+          "-c",
+          "user.name=Plenger test",
+          "-c",
+          "user.email=test@example.invalid",
+          "-C",
+          project,
+          ...args,
+        ]);
+      await git("init", "--initial-branch=main");
+      await git("add", ".");
+      await git("commit", "-m", "test: base");
+      const repo = await repository();
+
+      const unchanged = await finished((await start(repo.id, { changesSince: "HEAD" })).id);
+      expect(unchanged.status).toBe("completed");
+      expect(unchanged.changes).toMatchObject({ base: "HEAD", files: 0, removed: 0 });
+      expect(unchanged.reviews).toEqual([]);
+      expect(bodies).toHaveLength(0);
+
+      await appendFile(join(project, "store.ts"), "export const audit = true;\n");
+      const scan = await finished((await start(repo.id, { changesSince: "main" })).id);
+      expect(scan.status, scan.error ?? "").toBe("completed");
+      expect(scan.changes).toMatchObject({ base: "main", files: 1, removed: 0 });
+      const messages = (bodies[0]?.messages ?? []) as { content: { text: string }[] }[];
+      const first = JSON.parse(messages[0]?.content[0]?.text ?? "{}");
+      expect(first.files.map((file: { path: string }) => file.path)).toEqual(["store.ts"]);
+      expect(first.changes).toEqual({
+        base: "main",
+        commit: scan.changes?.commit,
+        files: [{ path: "store.ts", added: false, changedLines: "5" }],
+        removed: [],
+      });
+
+      for (const changesSince of ["--output=x", "main..HEAD", "missing-branch"])
+        expect(
+          (
+            await dashboard.request(API.securityScans, {
+              repositoryId: repo.id,
+              providerId: provider.id,
+              depth: "quick",
+              changesSince,
+            })
+          ).status,
+          changesSince,
+        ).toBe(400);
+    },
+    30_000,
+  );
+});
+
 describe("project threat model", () => {
   /** The discovery messages the model server received, in order. */
   const discoveries = () =>

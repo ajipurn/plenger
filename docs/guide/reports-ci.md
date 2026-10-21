@@ -94,6 +94,14 @@ Inputs are:
 | gitignore | true | Respect target ignore files |
 | source-root | . | Repository root used for SARIF paths |
 | include-suppressed | false | Include suppressed findings in SARIF |
+| ai-review | false | Also run one AI source review; see below |
+| ai-provider | anthropic | anthropic, openai, gemini or ollama |
+| ai-model | empty | Model id, required with ai-review |
+| ai-api-key | empty | Provider key from a repository secret |
+| ai-base-url | empty | Optional API base URL |
+| ai-token-limit | empty | Token limit, required with ai-review |
+| ai-mode | batch | batch or explore |
+| ai-changes-since | pull request base | Review only the changes since this commit |
 
 The Action scans once and writes SARIF, a Markdown job summary and the
 sarif-file and exit-code outputs before a finding gate failure.
@@ -103,9 +111,38 @@ by default. The summary retains the review counts.
 | Exit | Meaning |
 | --- | --- |
 | 0 | Scan completed and gate passed or was disabled |
-| 1 | Scan or file I/O error |
+| 1 | Scan, file I/O or AI review error |
 | 2 | Invalid input or policy |
 | 3 | New unsuppressed findings met the severity threshold |
+
+### AI review in CI
+
+With `ai-review: true` the Action also runs one Quick AI review, as the dashboard
+does, after the static scan. It sends redacted source to `ai-provider` within
+`ai-token-limit`; pass the key from a secret and never from the workflow file.
+On a pull request it reviews the changes since the pull request's base commit
+with the change rules of the dashboard; set `ai-changes-since` to choose another
+base. The checkout must contain that commit, for example with `fetch-depth: 0`.
+The base and the files on disk are compared in the Action's process, so the
+project's Git filters and diff drivers never run.
+
+Kept findings are a second SARIF run, `plenger-ai-review`, with rule ids such as
+`AI-CWE-89`, and a section of the job summary. Source-supported findings at or
+above `fail-on` fail the gate like static findings. A review that fails or is
+refused exits 1 after the reports are written. AI findings are source analysis,
+not runtime validation.
+
+```yaml
+- uses: actions/checkout@<pinned sha>
+  with:
+    fetch-depth: 0
+- uses: <owner>/plenger@<pinned sha>
+  with:
+    ai-review: true
+    ai-model: claude-haiku-5-5
+    ai-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+    ai-token-limit: 1000000
+```
 
 Use the action from a checkout of this repository, pinned to a reviewed revision.
 The repository's own CI tests the local action with contents: read permission.

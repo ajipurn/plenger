@@ -25,12 +25,36 @@ inputs:
   include-suppressed:
     description: Keep suppressed findings in the SARIF file. GitHub does not honour SARIF suppressions and would show them as open alerts
     default: 'false'
+  ai-review:
+    description: Also run one bounded AI source review and add its findings to the SARIF file. Sends redacted source to ai-provider
+    default: 'false'
+  ai-provider:
+    description: Model provider for the AI review, anthropic, openai, gemini or ollama
+    default: anthropic
+  ai-model:
+    description: Model id for the AI review
+    default: ''
+  ai-api-key:
+    description: API key for ai-provider; pass it from a repository secret
+    default: ''
+  ai-base-url:
+    description: Optional API base URL for ai-provider
+    default: ''
+  ai-token-limit:
+    description: Token limit for the AI review, required when ai-review is true
+    default: ''
+  ai-mode:
+    description: AI review mode, batch or explore
+    default: batch
+  ai-changes-since:
+    description: Review only the changes since this commit, branch or tag; defaults to the pull request base. Needs the base in the checkout, for example fetch-depth 0
+    default: ''
 outputs:
   sarif-file:
     description: Workspace-relative SARIF output path, also produced when the finding gate fails
     value: ${{ steps.scan.outputs.sarif-file }}
   exit-code:
-    description: Scanner exit code (0 success, 1 scan or I/O error, 2 invalid input, 3 finding gate failure)
+    description: Scanner exit code (0 success, 1 scan, I/O or AI review error, 2 invalid input, 3 finding gate failure)
     value: ${{ steps.scan.outputs.exit-code }}
 runs:
   using: composite
@@ -58,6 +82,14 @@ runs:
         PLENGER_GITIGNORE: ${{ inputs.gitignore }}
         PLENGER_SOURCE_ROOT: ${{ inputs.source-root }}
         PLENGER_INCLUDE_SUPPRESSED: ${{ inputs.include-suppressed }}
+        PLENGER_AI_REVIEW: ${{ inputs.ai-review }}
+        PLENGER_AI_PROVIDER: ${{ inputs.ai-provider }}
+        PLENGER_AI_MODEL: ${{ inputs.ai-model }}
+        PLENGER_AI_API_KEY: ${{ inputs.ai-api-key }}
+        PLENGER_AI_BASE_URL: ${{ inputs.ai-base-url }}
+        PLENGER_AI_TOKEN_LIMIT: ${{ inputs.ai-token-limit }}
+        PLENGER_AI_MODE: ${{ inputs.ai-mode }}
+        PLENGER_AI_CHANGES_SINCE: ${{ inputs.ai-changes-since || github.event.pull_request.base.sha }}
       run: node "$GITHUB_ACTION_PATH/scripts/github-action.ts"
 branding:
   icon: shield

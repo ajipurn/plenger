@@ -106,7 +106,9 @@ The dashboard scans folders; the CLI also accepts a single file.
    **Load models** if the provider's saved catalog needs refreshing. Optionally
    choose another saved connection under **Second review** to check candidates
    with a different model.
-4. Optionally edit **Review context**. It is saved for subsequent scans.
+4. Optionally edit **Review context**. It is saved for subsequent scans. Choose
+   the **Changes** scope to review only the files changed since a branch, tag or
+   commit; see [ai-security-review.md](ai-security-review.md#change-reviews).
 5. Press **Start Scan**. This sends redacted source and context to the provider
    and consumes API usage.
 
