@@ -1,7 +1,7 @@
 # Read-only review exploration (design)
 
-Status: partly implemented as the dashboard's Explore mode. This is checkpoint
-M9b of [M9](../ROADMAP.md#m9-review-for-any-language-in-progress). What works
+Status: implemented as the dashboard's Explore mode. This is checkpoint
+M9b of [M9](../ROADMAP.md#m9-review-for-any-language-done). What works
 and what is qualified is in [../STATUS.md](../STATUS.md); the review as built is
 described in [../guide/ai-security-review.md](../guide/ai-security-review.md#explore-mode).
 

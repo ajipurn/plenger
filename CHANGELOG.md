@@ -30,6 +30,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- `pnpm evaluate --concurrency <n>` reviews several cases at a time in one
+  process, and a review the provider rejects with HTTP 429 is rerun after a
+  pause; the report counts the reruns.
 - Five more static rules:
   - PLG808: a tar archive extracted with no `filter` and no member selection,
     whoever passed it;

@@ -33,7 +33,7 @@ an injection succeeds; that needs dynamic tests.
 The AI review is the general engine. It reads text files in any language.
 Python, JavaScript and TypeScript also get static facts, which order the files
 along traced paths and excerpt them by function; other files are read as plain
-text. [M9](#m9-review-for-any-language-in-progress) adds read-only exploration
+text. [M9](#m9-review-for-any-language-done) adds read-only exploration
 by the model next. Static parsing stays with the three languages.
 [M10](#m10-review-discipline-and-scope-planned) adopts review ideas from Strix
 that need no execution.
@@ -323,7 +323,7 @@ differ on purpose: the static gate ignores baseline findings, the dynamic gate
 fails on an observed violation even when a baseline contains it. State that
 dynamic testing is for targets the user owns or has permission to test.
 
-### M9 Review for any language (in progress)
+### M9 Review for any language (done)
 
 The AI review used to read only files the parser supports. A Go, Java or PHP
 repository got no AI review, and templates, configuration and SQL files were
@@ -336,10 +336,11 @@ later Full coverage batches continue. CI definitions are the only hidden paths
 reviewed.
 See [guide/ai-security-review.md](guide/ai-security-review.md).
 
-**In progress:** M9b. The tool loop and the second review with tools work as
+**Delivered:** M9b. The tool loop and the second review with tools work as
 the dashboard's Explore mode, the default for Claude, in Quick and Full
-coverage, with Unvalidated candidates in both modes and `pnpm evaluate --mode`. See [STATUS.md](STATUS.md) for what is
-measured and what remains.
+coverage, with Unvalidated candidates in both modes and `pnpm evaluate --mode`.
+The acceptance holds on the 150-case corpus. See [STATUS.md](STATUS.md) for the
+records and what is not yet qualified.
 
 | Checkpoint | Deliverable | Acceptance |
 | --- | --- | --- |
