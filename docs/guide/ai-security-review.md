@@ -144,19 +144,18 @@ best names its weakness, or none. The host normalises the id to `CWE-<n>`, and
 the finding page links it to the CWE entry. The host validates all cited paths
 and line ranges and supplies code excerpts from captured source.
 
-Severity follows a rubric of what an attacker who meets the preconditions gains,
-not the weakness class:
+Severity follows who can reach the path and what they gain, not the weakness
+class. The evaluation labels use the same rules
+([corpus README](../../test/fixtures/evaluation/README.md)):
 
-| Severity | Rubric |
-| --- | --- |
-| Critical | An unauthenticated or ordinary caller reaches code execution, every user's or tenant's data, or credentials that grant either |
-| High | The same effects behind a precondition an ordinary user meets, or a direct but bounded effect: another tenant's data, a privileged action, a file or internal host outside its bounds |
-| Medium | An uncommon precondition, such as an administrator, a non-default setting or another user's action, or a partial effect |
-| Low | Little direct impact, or information that only helps another attack |
+| Reach | Critical | High | Medium | Low |
+| --- | --- | --- | --- | --- |
+| An HTTP or MCP caller; a route without authentication in the source counts | Code execution, SQL over all data, every user's or tenant's data | The same after sign-in, or another tenant's data, a privileged action, a file or host outside its bounds | That effect limited: one folder up, one file type, a sibling folder | |
+| Input the model chooses, or content from a remote service or download | | Code execution, deserialization, SQL, writes or deletes outside a base | Reads, requests and other actions | The same, limited |
+| Other | | Credentials in source or in the browser | Plain transport, unpinned servers or packages, a prompt with a secret or untrusted text | A missing loop or turn limit |
 
-Before high or critical, discovery checks who can reach the path, what it needs
-and what the attacker gains. An unclear answer lowers the severity. It is not a
-reason to leave out a candidate whose path the code supports.
+When the reach or the effect is unclear, discovery chooses the lower level and
+names the precondition that limits it.
 
 Discovery is told to leave out generic best practices. Hardening items are not
 findings: rate limits, timeouts, request size, token or cost limits, logging and
