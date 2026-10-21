@@ -135,8 +135,17 @@ coverage needs, from file sizes alone. Scan details show the files covered, why
 batches stopped and what the limit was charged. Exact source and omission
 counts are saved in Outputs.
 
+A Full coverage scan that stopped at its limit shows **Continue this scan** in
+its details. Enter a new limit, in the unit of the first one, for what the scan
+spends from now on. Later batches skip the files earlier batches sent whole and
+continue excerpted files, from the saved static scan. The scan keeps its first
+limit and lists each continuation with its limit.
+
 The job continues in the local service when you navigate away or close the
-page. Scans and scan details show its current phase. **Cancel scan** explicitly
+page. Scans and scan details show its current phase, and while it runs an
+**Activity** list shows its latest steps: each model request, each file an
+exploring review reads or search it runs, each finished batch and the tokens
+charged so far. **Cancel scan** explicitly
 requests cancellation. Provider failures and refusals stop further requests. Response validation
 errors name the failed stage and field when available. Completed static
 findings remain visible if the AI review fails.

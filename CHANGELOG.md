@@ -64,6 +64,11 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   with provider, model, key, token limit and base inputs; on a pull request it
   reviews the changes since the base. Its kept findings are a second SARIF run,
   and source-supported ones count toward the gate.
+- M10e long scans. A Full coverage scan that stopped at its limit can continue
+  under a new limit for what it spends from then on, from its saved static scan;
+  later batches skip files sent whole, and the scan records each continuation.
+  While a scan runs, its details show an activity list of model requests, the
+  files and searches of exploring reviews, finished batches and tokens charged.
 - Five more static rules:
   - PLG808: a tar archive extracted with no `filter` and no member selection,
     whoever passed it;

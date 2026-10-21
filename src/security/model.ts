@@ -152,14 +152,31 @@ export interface SecurityScanSummary {
   coverage?: ScanCoverage;
   /** The project threat model the scan started from; absent when there was none. */
   threatModel?: { version: number; origin: ProjectThreatModel["origin"] };
+  /** Later limits a Full coverage scan continued under, after it stopped at its limit. */
+  continuations?: { at: string; budget: ScanBudget }[];
   /** For a change review: the base, the commit it named, and how many files changed or went. */
   changes?: { base: string; commit: string; files: number; removed: number };
   error: string | null;
 }
+/** One step of a running scan, for its live timeline. */
+export interface ScanActivity {
+  at: string;
+  /** 0-based batch, or exploring review, of the scan. */
+  batch: number;
+  kind: "request" | "tool" | "batch";
+  /** Host-written text: a tool and its path or query, or a batch's result. */
+  detail: string;
+  /** Accounted tokens of the scan so far. */
+  tokens: number;
+}
+/** Activity entries a scan keeps; older ones drop off. */
+export const SCAN_ACTIVITY_LIMIT = 60;
 export interface SecurityScan extends SecurityScanSummary {
   environment: LocalRepository["environment"];
   findings: SecurityFinding[];
   reviews: SecurityReview[];
+  /** The latest steps, newest last; absent on older scans. */
+  activity?: ScanActivity[];
 }
 export interface SecurityWorkspace {
   repositories: LocalRepository[];

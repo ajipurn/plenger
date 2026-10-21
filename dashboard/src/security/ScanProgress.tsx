@@ -77,6 +77,26 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
           </li>
         ))}
       </ol>
+      {scan.activity?.length ? (
+        <div className="security-scan-activity">
+          <h3>Activity</h3>
+          <ol aria-label="Recent scan activity">
+            {scan.activity
+              .slice(-12)
+              .reverse()
+              .map((entry) => (
+                <li key={`${entry.at}-${entry.detail}`} data-kind={entry.kind}>
+                  <time dateTime={entry.at}>{new Date(entry.at).toLocaleTimeString()}</time>
+                  <span>
+                    {scan.mode === "explore" ? "Review" : "Batch"} {entry.batch + 1} ·{" "}
+                    {entry.detail}
+                  </span>
+                  <span className="muted">{entry.tokens.toLocaleString()} tokens</span>
+                </li>
+              ))}
+          </ol>
+        </div>
+      ) : null}
       <div className="security-scan-progress-footer">
         <p className="security-scan-progress-note">
           <Icon name="info" /> You can leave this page. The scan continues in the local service.

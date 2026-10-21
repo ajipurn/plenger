@@ -355,6 +355,47 @@ describe("exploring AI review", () => {
     }
   });
 
+  it("reports each request and read tool call as activity, redacted", async () => {
+    const snapshot = await project();
+    let ids: string[] = [];
+    const model = claude((body, index) => {
+      if (index === 0) return [use("search", { query: `token ${SECRET}` })];
+      if (index === 1) return [use("submit_discovery", reviewDiscovery() as never)];
+      if (index === 2) {
+        ids = candidateIds(body);
+        return [use("read_file", { path: "app.ts" })];
+      }
+      return [use("submit_decisions", reviewDecision(ids) as never)];
+    });
+    const events: { kind: string; detail: string; tokens: number }[] = [];
+    const review = await reviewProject(
+      snapshot,
+      {
+        scanId: "scan",
+        provider,
+        access,
+        mode: "explore",
+        onActivity: (event) => events.push(event),
+      },
+      model.dispatch,
+    );
+    expect(review.status).toBe("completed");
+    expect(
+      events.map((event) => [event.kind, event.detail.split(" ").slice(0, 3).join(" ")]),
+    ).toEqual([
+      ["request", "Discovery request to"],
+      ["tool", "Discovery: search token"],
+      ["request", "Discovery request to"],
+      ["request", "Second review request"],
+      ["tool", "Second review: read_file"],
+      ["request", "Second review request"],
+    ]);
+    expect(JSON.stringify(events)).not.toContain(SECRET);
+    expect(events.map((event) => event.tokens)).toEqual(
+      [...events.map((event) => event.tokens)].sort((a, b) => a - b),
+    );
+  });
+
   it("explores, validates with tools and records both sessions", async () => {
     const snapshot = await project();
     let ids: string[] = [];

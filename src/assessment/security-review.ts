@@ -335,6 +335,8 @@ export async function reviewProject(
     /** Batch when omitted. */
     mode?: ReviewMode;
     onPhase?: (phase: "reading" | "discovering" | "validating") => void;
+    /** Each model request and read tool call, with the tokens this review has charged. */
+    onActivity?: (event: { kind: "request" | "tool"; detail: string; tokens: number }) => void;
   },
   dispatch: typeof fetch = fetch,
 ): Promise<SecurityReview> {
@@ -549,6 +551,11 @@ export async function reviewProject(
           throw error;
         }
       });
+      options.onActivity?.({
+        kind: "request",
+        detail: `${phase === "validation" ? "Second review" : "Discovery"} request to ${(phase === "validation" ? (validator?.access ?? options.access) : options.access).model}`,
+        tokens: charged(),
+      });
       if (reply.refusal) {
         review.status = "refused";
         review.reason = redact(reply.refusal, secrets).slice(0, LIMITS.text);
@@ -587,6 +594,17 @@ export async function reviewProject(
     /** A request cap that keeps a turn inside a small model window. */
     const windowBytes = (tokens: number | null | undefined) =>
       tokens ? { requestBytes: Math.max(16 * 1024, tokens - LIMITS.outputTokens - 4096) } : {};
+    /** A read tool call as the timeline shows it: the tool and its path or query, redacted. */
+    const activityTool = (name: string, args: Record<string, unknown>) => {
+      const target = [args.path, args.query, args.prefix].find(
+        (value): value is string => typeof value === "string",
+      );
+      options.onActivity?.({
+        kind: "tool",
+        detail: `${phase === "validation" ? "Second review" : "Discovery"}: ${name}${target ? ` ${redact(target, secrets).slice(0, 200)}` : ""}`,
+        tokens: charged(),
+      });
+    };
     const exploration: ExploreSessionRecord[] = [];
     // What the exploring sessions read, which is the review's coverage.
     const coverage = new ReadLog();
@@ -701,6 +719,7 @@ export async function reviewProject(
         tokens: allowance("discovery"),
         records: exploration,
         strict: options.access.provider === "anthropic",
+        onTool: (name, args) => activityTool(name, args),
         ...windowBytes(options.inputTokens),
         ...(options.signal ? { signal: options.signal } : {}),
       });
@@ -772,6 +791,7 @@ export async function reviewProject(
               tokens: allowance("validation"),
               records: exploration,
               strict: (validator?.access ?? options.access).provider === "anthropic",
+              onTool: (name, args) => activityTool(name, args),
               ...windowBytes(validator ? validator.inputTokens : options.inputTokens),
               ...(options.signal ? { signal: options.signal } : {}),
             });

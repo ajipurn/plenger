@@ -19,6 +19,7 @@ import {
   type ProviderTestResult,
   type ReaImportRequest,
   type RepositorySource,
+  type ScanBudget,
   type SecurityFinding,
   type SecurityScan,
   type SecurityWorkspace,
@@ -38,6 +39,7 @@ export interface DashboardApi {
   startSecurityScan(input: StartSecurityScan): Promise<SecurityScan>;
   securityScan(id: string): Promise<SecurityScan>;
   cancelSecurityScan(id: string): Promise<CancelResult>;
+  continueSecurityScan(id: string, budget: ScanBudget): Promise<SecurityScan>;
   setFindingStatus(id: string, status: FindingStatus): Promise<SecurityFinding>;
   initialState: DashboardState;
   chooseFolder(path: string, signal?: AbortSignal): Promise<ChooseFolderResult>;
@@ -99,6 +101,10 @@ export async function connect(): Promise<DashboardApi> {
       request<SecurityScan>(API.securityScan.replace(":id", encodeURIComponent(id))),
     cancelSecurityScan: (id) =>
       request<CancelResult>(API.cancelSecurityScan.replace(":id", encodeURIComponent(id)), {}),
+    continueSecurityScan: (id, budget) =>
+      request<SecurityScan>(API.continueSecurityScan.replace(":id", encodeURIComponent(id)), {
+        budget,
+      }),
     setFindingStatus: (id, status) =>
       request<SecurityFinding>(API.findingStatus.replace(":id", encodeURIComponent(id)), {
         status,

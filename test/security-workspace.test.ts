@@ -692,6 +692,50 @@ describe("local project security workspace", () => {
     expect(scan.coverage?.charged.tokens).toBeGreaterThan(0);
   });
 
+  it("continues a Full coverage scan that stopped at its limit, and records its activity", async () => {
+    for (let i = 0; i < 50; i++)
+      await writeFile(join(project, `module-${i}.ts`), `export const value${i} = ${i};\n`);
+    const repo = await repository();
+    const most = batchTokenBound(reviewBudget([])).total;
+    const budget = { kind: "tokens", tokens: most } as const;
+    const first = await finished((await start(repo.id, { depth: "full", budget })).id);
+    expect(first.coverage?.stop).toBe("budget");
+    expect(first.reviews).toHaveLength(1);
+    // The timeline holds the requests and the finished batch.
+    expect(first.activity?.map((entry) => entry.kind)).toEqual(["request", "request", "batch"]);
+    expect(first.activity?.at(-1)?.detail).toMatch(/^Batch 1 finished: 24 files, \d+ findings?$/);
+
+    const path = pathFor(API.continueSecurityScan, first.id);
+    expect((await dashboard.request(path, {})).status).toBe(400);
+    expect(
+      (await dashboard.request(path, { budget: { kind: "tokens", tokens: most - 1 } })).status,
+    ).toBe(400);
+    const response = await dashboard.request(path, { budget });
+    expect(response.status, await response.clone().text()).toBe(202);
+    const second = await finished(first.id);
+    expect(second.status).toBe("completed");
+    expect(second.reviews).toHaveLength(2);
+    // The new limit counts what the scan spends from now on; the first limit is kept.
+    expect(second.budget).toEqual(budget);
+    expect(second.continuations).toEqual([{ at: expect.any(String), budget }]);
+    expect(second.coverage).toMatchObject({ stop: "budget", sentFiles: 48 });
+    expect(second.coverage?.charged.tokens).toBe(
+      (first.coverage?.charged.tokens ?? 0) + (second.reviews[1]?.request.charged?.tokens ?? 0),
+    );
+    // Files sent whole are not sent again.
+    const before = new Set(second.reviews[0]?.scope.files.map((file) => file.path));
+    expect(second.reviews[1]?.scope.files.some((file) => before.has(file.path))).toBe(false);
+    expect(
+      second.activity?.filter((entry) => entry.kind === "batch").map((entry) => entry.batch),
+    ).toEqual([0, 1]);
+    expect(second.durationMs).toBeGreaterThanOrEqual(first.durationMs);
+    // Only a Full coverage scan stopped at its limit can continue.
+    const quick = await finished((await start(repo.id)).id);
+    expect(
+      (await dashboard.request(pathFor(API.continueSecurityScan, quick.id), { budget })).status,
+    ).toBe(400);
+  });
+
   it("limits Full coverage in USD only with saved prices for every model", async () => {
     for (let i = 0; i < 50; i++)
       await writeFile(join(project, `module-${i}.ts`), `export const value${i} = ${i};\n`);

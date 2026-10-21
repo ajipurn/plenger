@@ -18,7 +18,9 @@ import { ChangeScopeError, changesSince, isRefName } from "../security/changes.t
 import { scanFindings, vanishedStaticFindings } from "../security/findings.ts";
 import { readGit, sourceRevision } from "../security/git.ts";
 import {
+  SCAN_ACTIVITY_LIMIT,
   SCAN_DEPTHS,
+  type ScanActivity,
   type ScanBudget,
   type ScanCoverage,
   type SecurityScan,
@@ -61,8 +63,43 @@ export class SecurityCoordinator {
     this.#closed = true;
   }
 
-  async start(input: StartSecurityScan): Promise<SecurityScan> {
+  /**
+   * Continue a Full coverage scan that stopped at its limit, under a new limit for what it
+   * spends from now on. It keeps the saved static scan and earlier reviews; later batches
+   * skip files sent whole and continue excerpts, as within one run.
+   */
+  async continueScan(id: string, budget: ScanBudget): Promise<SecurityScan> {
+    const previous = this.#store.security.scan(id);
+    if (!previous) throw new HttpError(404, "Scan not found.");
+    if (
+      previous.status !== "completed" ||
+      previous.depth !== "full" ||
+      previous.coverage?.stop !== "budget" ||
+      !previous.provider
+    )
+      throw new HttpError(400, "Only a Full coverage scan that stopped at its limit can continue.");
+    return this.start(
+      {
+        repositoryId: previous.repositoryId,
+        providerId: previous.provider.id,
+        model: previous.provider.model,
+        ...(previous.validator ? { validatorProviderId: previous.validator.id } : {}),
+        depth: "full",
+        mode: previous.mode ?? "batch",
+        budget,
+        ...(previous.changes ? { changesSince: previous.changes.base } : {}),
+      },
+      previous,
+    );
+  }
+
+  async start(input: StartSecurityScan, continued?: SecurityScan): Promise<SecurityScan> {
     return this.#supervisor.exclusive(async () => {
+      if (
+        continued &&
+        this.#store.security.workspace().scans.some((item) => item.status === "running")
+      )
+        throw new HttpError(409, "Wait for the running scan to finish.");
       if (this.#closed) throw new HttpError(503, "The service is shutting down.");
       const repository = this.#store.security.repository(input.repositoryId);
       if (!repository) throw new HttpError(404, "Project not found. Add a local folder first.");
@@ -158,57 +195,88 @@ export class SecurityCoordinator {
       if (this.#closed) throw new HttpError(503, "The service is shutting down.");
       repository.revision = revision;
       this.#store.security.saveRepository(repository);
-      const job: SecurityScan = {
-        id: randomUUID(),
-        repositoryId: repository.id,
-        sourceScanId: null,
-        startedAt: new Date().toISOString(),
-        finishedAt: null,
-        durationMs: 0,
-        status: "running",
-        phase: "reading",
-        initiatedBy: "Local user",
-        scope: "local",
-        depth: input.depth,
-        mode,
-        ...(input.budget ? { budget: structuredClone(input.budget) } : {}),
-        provider: { id: resolved.saved.id, name: resolved.saved.name, model },
-        ...(validator ? { validator: validator.provider } : {}),
-        revision,
-        environment: structuredClone(repository.environment),
-        ...(repository.threatModel
-          ? {
-              threatModel: {
-                version: repository.threatModel.version,
-                origin: repository.threatModel.origin,
-              },
-            }
-          : {}),
-        findingCount: 0,
-        modelCalls: 0,
-        tokens: null,
-        cost: null,
-        error: null,
-        findings: [],
-        reviews: [],
-      };
+      const before = continued?.durationMs ?? 0;
+      const job: SecurityScan = continued
+        ? Object.assign(continued, {
+            status: "running" as const,
+            phase: "reading" as const,
+            finishedAt: null,
+            error: null,
+            continuations: [
+              ...(continued.continuations ?? []),
+              { at: new Date().toISOString(), budget: structuredClone(input.budget as ScanBudget) },
+            ],
+          })
+        : {
+            id: randomUUID(),
+            repositoryId: repository.id,
+            sourceScanId: null,
+            startedAt: new Date().toISOString(),
+            finishedAt: null,
+            durationMs: 0,
+            status: "running",
+            phase: "reading",
+            initiatedBy: "Local user",
+            scope: "local",
+            depth: input.depth,
+            mode,
+            ...(input.budget ? { budget: structuredClone(input.budget) } : {}),
+            provider: { id: resolved.saved.id, name: resolved.saved.name, model },
+            ...(validator ? { validator: validator.provider } : {}),
+            revision,
+            environment: structuredClone(repository.environment),
+            ...(repository.threatModel
+              ? {
+                  threatModel: {
+                    version: repository.threatModel.version,
+                    origin: repository.threatModel.origin,
+                  },
+                }
+              : {}),
+            findingCount: 0,
+            modelCalls: 0,
+            tokens: null,
+            cost: null,
+            error: null,
+            findings: [],
+            reviews: [],
+          };
       this.#store.security.saveScan(job);
+      // The live timeline: recent requests, tool calls and batch results, saved at most
+      // once a second while a review runs.
+      let savedAt = 0;
+      const activity = (entry: Omit<ScanActivity, "at">) => {
+        job.activity = [...(job.activity ?? []), { at: new Date().toISOString(), ...entry }].slice(
+          -SCAN_ACTIVITY_LIMIT,
+        );
+        if (entry.kind === "batch" || performance.now() - savedAt > 1000) {
+          savedAt = performance.now();
+          this.#store.security.saveScan(job);
+        }
+      };
       const controller = new AbortController();
       // Defer execution so the initial response and tracked operation are established first.
       const task = Promise.resolve()
         .then(async () => {
           const started = performance.now();
           try {
-            const result = {
+            // A continued scan keeps its static scan, so earlier reviews still describe it.
+            const kept = continued?.sourceScanId
+              ? this.#store.scans.readScan(continued.sourceScanId)
+              : null;
+            if (continued && !kept) throw new Error("missing-static-scan");
+            const result = kept ?? {
               id: randomUUID(),
               createdAt: new Date().toISOString(),
               scan: await scan(repository.path, { texts: true }),
               rules: RULES,
             };
             controller.signal.throwIfAborted();
-            this.#store.saveScan(result);
-            job.sourceScanId = result.id;
-            this.#store.security.saveScan(job);
+            if (!kept) {
+              this.#store.saveScan(result);
+              job.sourceScanId = result.id;
+              this.#store.security.saveScan(job);
+            }
             // A change review reads the changed files; the static scan stays whole.
             const scope = input.changesSince
               ? await changesSince(repository.path, input.changesSince, reviewPaths(result.scan))
@@ -221,12 +289,16 @@ export class SecurityCoordinator {
                 removed: scope.removed.length,
               };
             const paths = scope ? scope.files.map((file) => file.path) : reviewPaths(result.scan);
-            const coverage: ScanCoverage = {
-              eligibleFiles: paths.length,
-              sentFiles: 0,
-              stop: null,
-              charged: { tokens: 0, usd: 0 },
-            };
+            const coverage: ScanCoverage = continued?.coverage
+              ? { ...continued.coverage, stop: null }
+              : {
+                  eligibleFiles: paths.length,
+                  sentFiles: 0,
+                  stop: null,
+                  charged: { tokens: 0, usd: 0 },
+                };
+            // A new limit counts what the scan charges from now on.
+            const offset = structuredClone(coverage.charged);
             job.coverage = coverage;
             // A change review with no changed file to read completes without a review.
             if (!paths.length && !scope) {
@@ -246,9 +318,11 @@ export class SecurityCoordinator {
                 }
               : null;
             // Earlier batches' files: whole ones are skipped, excerpts continue.
-            const submitted: ReviewSourceFile[] = [];
+            const submitted: ReviewSourceFile[] = job.reviews
+              .filter((item) => item.status === "completed")
+              .flatMap((item) => item.scope.files);
             let stop: ScanCoverage["stop"] = null;
-            for (let batch = 0; ; batch++) {
+            for (let batch = job.reviews.length; ; batch++) {
               controller.signal.throwIfAborted();
               const whole = new Set(
                 submitted.filter((file) => !file.ranges).map((file) => file.path),
@@ -261,7 +335,13 @@ export class SecurityCoordinator {
                 stop = input.depth === "quick" ? "quick" : "limit";
                 break;
               }
-              const limit = remainingLimit(input.budget, coverage.charged);
+              const limit = remainingLimit(input.budget, {
+                tokens: coverage.charged.tokens - offset.tokens,
+                usd:
+                  coverage.charged.usd === null || offset.usd === null
+                    ? null
+                    : coverage.charged.usd - offset.usd,
+              });
               if (limit && !fitsLimit(limit, most)) {
                 stop = "budget";
                 break;
@@ -292,6 +372,13 @@ export class SecurityCoordinator {
                 environment: repository.environment,
                 ...(model ? { projectModel: model } : {}),
                 ...(scope ? { changes: scope } : {}),
+                onActivity: (event) =>
+                  activity({
+                    batch,
+                    kind: event.kind,
+                    detail: event.detail,
+                    tokens: coverage.charged.tokens + event.tokens,
+                  }),
                 onPhase: (phase) => {
                   job.phase = phase;
                   this.#store.security.saveScan(job);
@@ -336,6 +423,13 @@ export class SecurityCoordinator {
               }
               if (model?.origin !== "user")
                 model = { origin: "review", ...extendThreatModel(model, review) };
+              const reported = review.findings.filter((item) => item.validation !== "dismissed");
+              activity({
+                batch,
+                kind: "batch",
+                detail: `${mode === "explore" ? "Exploring review" : "Batch"} ${batch + 1} finished: ${review.scope.files.length} ${review.scope.files.length === 1 ? "file" : "files"}, ${reported.length} ${reported.length === 1 ? "finding" : "findings"}`,
+                tokens: coverage.charged.tokens,
+              });
               const readBefore = readLines(submitted);
               submitted.push(...review.scope.files);
               coverage.sentFiles = new Set(submitted.map((file) => file.path)).size;
@@ -396,7 +490,7 @@ export class SecurityCoordinator {
           } finally {
             job.phase = "finished";
             job.finishedAt = new Date().toISOString();
-            job.durationMs = Math.round(performance.now() - started);
+            job.durationMs = before + Math.round(performance.now() - started);
             this.#store.security.saveScan(job);
           }
         })

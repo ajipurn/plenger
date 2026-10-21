@@ -19,6 +19,7 @@ import { downloadJson } from "../shared/download.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
+import { ContinueScan } from "./ContinueScan.tsx";
 import { costLabel, ScanBilling } from "./ScanBilling.tsx";
 import { ScanProgress } from "./ScanProgress.tsx";
 import {
@@ -192,6 +193,15 @@ export function ScanDetailPage({
             </Link>
           </nav>
           {running && <ScanProgress scan={scan} cancelling={cancelling} />}
+          {scan.status === "completed" &&
+            scan.depth === "full" &&
+            scan.coverage?.stop === "budget" && (
+              <ContinueScan
+                scan={scan}
+                disabled={data.scans.some((item) => item.status === "running")}
+                onContinued={onRefresh}
+              />
+            )}
           {scan.error && (
             <div role="alert" className="security-review-error">
               <Icon name="alert" />

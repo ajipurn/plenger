@@ -1406,3 +1406,37 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-output-failure {
   @apply text-critical;
 }
+.security-scan-activity {
+  @apply mt-5 border-t border-line pt-4 text-[12px];
+}
+.security-scan-activity h3 {
+  @apply font-medium mb-2;
+}
+.security-scan-activity ol {
+  @apply grid gap-1.5;
+}
+.security-scan-activity li {
+  @apply grid gap-x-3 items-baseline;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.security-scan-activity li > span:first-of-type {
+  @apply wrap-anywhere;
+}
+.security-scan-activity time {
+  @apply text-muted tabular-nums;
+}
+.security-scan-activity li[data-kind="batch"] {
+  @apply font-medium;
+}
+.security-continue-scan {
+  @apply border border-line rounded-panel bg-surface p-5 mb-5 text-[13px];
+}
+.security-continue-scan h2 {
+  @apply font-semibold mb-2;
+}
+.security-continue-scan-form {
+  @apply flex flex-wrap items-end gap-3 mt-3;
+}
+.security-continue-scan-form label {
+  @apply w-full font-medium;
+}

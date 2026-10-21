@@ -229,6 +229,18 @@ export function securityWorkspaceRoutes({
     },
     {
       method: "POST",
+      path: API.continueSecurityScan,
+      handler: async ({ request, params }) => {
+        const body = await jsonRequest(request);
+        expectKeys(body, ["budget"], "Set a limit to continue the scan.");
+        if (body.budget === undefined)
+          throw new HttpError(400, "Set a limit to continue the scan.");
+        const scan = await security.continueScan(params.id ?? "", scanBudget(body.budget));
+        return { status: 202, body: scan };
+      },
+    },
+    {
+      method: "POST",
       path: API.cancelSecurityScan,
       handler: async ({ request, params }) => {
         expectKeys(await jsonRequest(request), [], "This request does not accept options.");

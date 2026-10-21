@@ -432,6 +432,8 @@ export async function exploreSession<T>(options: {
   requestBytes?: number;
   /** Strict submit tools, for a provider that enforces tool schemas. */
   strict?: boolean;
+  /** Each read tool call, as it runs, for a live timeline. */
+  onTool?: (name: string, args: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }): Promise<{ value: T | null; record: ExploreSessionRecord; error?: string }> {
   const limits: SessionLimits = {
@@ -560,6 +562,7 @@ export async function exploreSession<T>(options: {
         } else if (near !== null) {
           result = { error: `Only ${submit.function.name} is available now.` };
         } else {
+          options.onTool?.(call.name, call.arguments);
           result = await options.tools.run(call.name, call.arguments);
         }
         const content = JSON.stringify(result);
