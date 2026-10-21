@@ -127,9 +127,11 @@ its return values use, and from the request globals it reads (`flask.request`):
 `label("daily", name)` that returns `f"report-{kind}.txt"` does not carry `name`.
 Plenger cannot always tell what a function returns. It then takes the result to
 depend on every argument. This happens for a class, a generator, a function with
-ten or more returns, or a JS function that unpacks its parameters. Such a function
-gets the entries of an object literal passed to it, by key
-(`processAsFile({ uri: link })`).
+ten or more returns, or an argument a JS pattern unpacks. A name such a pattern
+binds gets the entry for its key when an object literal is passed
+(`processAsFile({ uri: link })`), and the whole argument otherwise
+(`readDoc(req.query)` for `function readDoc({ name })`). Plain parameters next to
+a pattern bind by position.
 
 A check before an effect takes the input it limits out of the model's reach, when
 it leaves the function or the block on failure (`if name not in REPORTS: raise`) or
@@ -143,7 +145,8 @@ holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
   value checked for `..` and for `/` or for being absolute; or a resolved path
   (`realpath`, `resolve`) checked to lie in a fixed base with `is_relative_to` or a
   prefix that ends with a separator (`BASE + os.sep`), since `/srv/notes_old`
-  starts with `/srv/notes`; or a path measured against a base
+  starts with `/srv/notes`; or a resolved path whose `relative_to(BASE)` runs in a
+  `try` whose handlers all leave; or a path measured against a base
   (`path.relative(BASE, p)`, `os.path.relpath(p, BASE)`) that is not absolute and
   does not start with `..`, or with `../` once it is also not `..` itself
 - for any of these: a call to a project function that returns true only when one of
@@ -152,7 +155,12 @@ holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
   return of something other than `False`, `None` or `null`
 
 A test whose block ends in a call that never returns (`abort(400)` in Flask,
-`sys.exit()`) protects the code after it, as one that ends in `raise` does.
+`sys.exit()`) protects the code after it, as one that ends in `raise` does. The call
+must resolve to Flask's, Quart's or werkzeug's `abort`, `sys.exit`, `os._exit` or the
+builtin `exit`: a project function named `abort` returns.
+
+A check holds only until a name it checks is assigned again, for a check helper's
+arguments too. A path helper's checks count only for the returns they guard.
 
 A file name built so that it holds no path separator and is never `.` or `..` stays
 in the directory it is joined to, and carries nothing to a file effect. Such names
@@ -162,18 +170,28 @@ come from:
 - python-slugify;
 - a name-only sanitizer (`basename`, `path.parse(p).name`, `PurePath(p).stem`, the
   `slugify` package, a URL's `hostname`, or a `replace` or `re.sub` that removes `/`
-  and `\`, including chained Python `str.replace` calls) when fixed text other than
+  and `\` everywhere, with no `count`, including chained Python `str.replace` calls)
+  when fixed text other than
   dots sits in the same component
   (`` `${name}.wav` ``, `` `${host}-${slug}` ``), or when its input holds a fixed
-  letter;
+  letter. Generated ids (`uuid`'s `v4()`, `crypto.randomUUID()`, `nanoid()`,
+  Python's `uuid.uuid4()`) count as such text, also read from an object literal the
+  code never changes (`data.id` of `{ id: v4() }`);
 - a project function that builds its result in one of these ways.
 
 A path built from fixed text and such names (`` `/srv/${slug}.txt` ``) keeps each
 name in its own component, so it stays under its fixed part. A name that may be `..`
-still cannot be read or written as a file when it ends the path, so it is allowed
-there for reads and writes, not for deletes, copies or moves. An absolute path (`path.resolve`, `os.path.realpath`, or a project function
-returning one) among a program's arguments carries nothing either: it cannot be read
-as an option.
+still cannot be opened as a file when it ends the path, so it is allowed there for
+calls that read or write a file's contents (`open`, `read_text`, `readFile`,
+`writeFile`). It is not allowed for calls that list, link, move, delete or change a
+path (`os.listdir`, `chmod`, `rename`), which act on the folder `..` names.
+
+An absolute path (`path.resolve`, `os.path.realpath`, or a project function
+returning one) among a program's arguments cannot be read as an option. It is read
+as a file path instead: it carries input only where it could leave its folder, as
+`rm -f` on `os.path.realpath(os.path.join(CACHE, name))` does with a raw name. In a
+library scan, such a path that the caller passes whole is the caller's file and is
+not reported.
 
 Values built from a checked name are checked too. A path returned by a project
 function counts as checked when every value the function returns is a resolved path

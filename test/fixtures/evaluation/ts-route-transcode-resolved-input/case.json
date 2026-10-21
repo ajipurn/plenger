@@ -1,6 +1,6 @@
 {
   "kind": "safe",
-  "summary": "A transcode route passes ffmpeg an input path that a helper resolves to an absolute path, which cannot start with `-`.",
+  "summary": "A transcode route checks the name against a pattern of letters, digits, `_` and `-`, and passes ffmpeg the path a helper resolves inside the media folder. The absolute path cannot start with `-` and stays in the folder.",
   "cwe": "CWE-88",
   "location": {
     "path": "media.ts",

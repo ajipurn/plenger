@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same helper checks the unpacked name against a pattern of letters, digits, `_` and `-` before it reads the document.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "docs.ts",
+    "line": 6,
+    "endLine": 9
+  },
+  "static": []
+}

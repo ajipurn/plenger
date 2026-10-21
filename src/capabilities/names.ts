@@ -41,6 +41,9 @@ const URL_HOST = /^(?:(?:node:)?url#)?URL\(\)\.hostname$/;
 const CASE_OR_TRIM = /\.(?:toLowerCase|toUpperCase|trim|lower|upper|casefold|strip)$/;
 /** Calls that only change a value's type: `str(x)`, `String(x)`. */
 const TO_TEXT = /^(?:str|String)$/;
+/** Generated ids, which hold only letters, digits, `-` and `_`: UUIDs and nanoid's default ids. */
+const GENERATED_ID =
+  /^(?:uuid(?:#default\.|#)v[1-7]|(?:node:)?crypto(?:#default\.|#)randomUUID|crypto\.randomUUID|nanoid#nanoid|uuid\.uuid[1345])$/;
 /** Calls whose result is always an absolute path. */
 const ABSOLUTE =
   /^(?:(?:node:)?path(?:#default\.|#)resolve|os\.path\.(?:abspath|realpath)|(?:node:)?fs(?:#default\.|#)realpathSync)$/;
@@ -106,6 +109,17 @@ export class PathValues {
         const ref = value.ref?.name ?? "";
         if (PARSED_PART.test(ref)) return "plain";
         if (file.language !== "python" && URL_HOST.test(ref)) return "plain";
+        // `data.id` of `data = { id: v4() }`, an object the code never changes in place.
+        const key = /^[\w$]+\.([\w$]+)$/.exec(value.text)?.[1];
+        const holder = value.base === undefined ? undefined : file.facts.assignments[value.base];
+        const object =
+          key === undefined || holder === undefined || holder.member !== undefined || holder.mutated
+            ? undefined
+            : deref(holder.value, file.facts);
+        if (object?.kind === "object") {
+          const entry = object.entries.find((item) => item.key === key);
+          return entry === undefined ? "unknown" : next(entry.value);
+        }
         const target = deref(value, file.facts);
         return target === value ? "unknown" : next(target);
       }
@@ -161,8 +175,18 @@ export class PathValues {
     if (BASENAME.test(name) && call.arguments.length === 1)
       return first !== undefined && endsWithLetters(facts, call, first) ? "named" : "plain";
     if (TO_TEXT.test(name) && call.arguments.length === 1) return level(first);
+    if (GENERATED_ID.test(name)) return "named";
     if (python && name === "re.sub") {
-      const [pattern, replacement, input] = call.arguments.map((arg) => arg.value);
+      // `re.sub(pattern, repl, string, count=0, flags=0)`: a count replaces only that many.
+      const positional = call.arguments.filter((arg) => arg.keyword === null);
+      const [pattern, replacement, input, count] = ["pattern", "repl", "string", "count"].map(
+        (keyword, index) =>
+          (call.arguments.find((arg) => arg.keyword === keyword) ?? positional[index])?.value,
+      );
+      if (call.arguments.some((arg) => arg.spread)) return "unknown";
+      const counted = count === undefined ? undefined : deref(count, facts);
+      if (counted !== undefined && !(counted.kind === "literal" && counted.text === "0"))
+        return "unknown";
       return keepsLetters(
         lettered(input),
         replaces(literalString(pattern, facts), replacement, facts),
@@ -340,7 +364,7 @@ export class PathValues {
   }
 }
 
-/** What `call` passes for each parameter of `definition`, read by `read`; nothing for unpacked parameters. */
+/** What `call` passes for each parameter of `definition`, read by `read`; nothing for names a pattern unpacks. */
 function bindArguments<T>(
   call: CallFact,
   definition: DefinitionFact,
@@ -348,7 +372,14 @@ function bindArguments<T>(
   read: (value: Value) => T,
 ): Map<string, T> {
   const bound = new Map<string, T>();
-  if (definition.destructured) return bound;
+  if (definition.unpacks !== undefined) {
+    for (const [index, arg] of call.arguments.entries()) {
+      if (arg.spread) break;
+      const param = definition.unpacks[index];
+      if (typeof param === "string") bound.set(param, read(arg.value));
+    }
+    return bound;
+  }
   const params =
     python && definition.kind === "method" && /^(?:self|cls)$/.test(definition.params[0] ?? "")
       ? definition.params.slice(1)

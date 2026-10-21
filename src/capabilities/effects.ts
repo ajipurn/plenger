@@ -277,6 +277,7 @@ export class EffectTracer {
         target,
         limitedFor("process"),
         "arguments",
+        limitedFor("file_write"),
       );
       for (const effect of this.effects(target.path, target.definition, depth + 1)) {
         const bindings = FILE_KINDS.has(effect.kind) ? fileBindings : otherBindings;
@@ -285,7 +286,7 @@ export class EffectTracer {
           via: [location, ...effect.via],
           inputs:
             effect.kind === "process" && effect.command !== "shell"
-              ? argumentInputs(effect, argumentBindings, otherBindings)
+              ? argumentInputs(effect, argumentBindings, otherBindings, fileBindings)
               : rebind(effect.inputs, bindings, "inputs"),
         };
         if (effect.systemInputs !== undefined)
@@ -376,17 +377,25 @@ export class EffectTracer {
     target: { path: string; definition: string },
     limited?: ReadonlySet<string>,
     mode: "file" | "arguments" | "other" = "other",
+    pathLimited?: ReadonlySet<string>,
   ): Map<string, Bound> {
     const bindings = new Map<string, Bound>();
-    const flow = this.flowFor(file, mode === "file" ? "file" : "other");
     for (const [name, value] of this.boundValues(file, call, target)) {
-      const inputs = inputsOf(value, file.facts, call.scope, limited, flow);
-      // A confined path, or an absolute path among a program's arguments, carries nothing.
-      const checked =
-        (mode === "file" && this.confinedPath(file, value)) ||
-        (mode === "arguments" && this.#paths.absolute(file, value));
+      // An absolute path among a program's arguments cannot be an option, so it is read as
+      // a file path is, with the checks for files (`pathLimited`): a confined path carries nothing.
+      const path = mode === "file" || (mode === "arguments" && this.#paths.absolute(file, value));
+      const inputs = path
+        ? inputsOf(
+            value,
+            file.facts,
+            call.scope,
+            mode === "file" ? limited : pathLimited,
+            this.flowFor(file, "file"),
+          )
+        : inputsOf(value, file.facts, call.scope, limited, this.flowFor(file));
+      const kept = path && this.confinedPath(file, value) ? inputs.flatMap(withoutOrigin) : inputs;
       bindings.set(name, {
-        inputs: checked ? inputs.flatMap(withoutOrigin) : inputs,
+        inputs: mode === "arguments" && path ? kept.map(asPath) : kept,
         host: hostInputs(value, file.facts, call.scope, limited, this.flowFor(file)),
         given: this.#library ? this.givenInputs(file, value, call.scope) : [],
       });
@@ -395,9 +404,9 @@ export class EffectTracer {
   }
 
   /**
-   * The value `call` gives each parameter it binds: by position or keyword, or, for a
-   * JS function that unpacks its parameters (`({ uri, options }) => ...`), the entries of
-   * an object literal passed to it, by key.
+   * The value `call` gives each parameter it binds: by position or keyword. A name a JS
+   * pattern unpacks (`(req, { uri, options }) => ...`) gets the entry for its key when
+   * an object literal is passed, and the whole argument otherwise, as over-approximation.
    */
   boundValues(
     file: ProjectFile,
@@ -407,23 +416,40 @@ export class EffectTracer {
     const callee = this.#project.files.get(target.path);
     const definition =
       callee === undefined ? undefined : definitionOf(callee.facts, target.definition);
-    if (definition?.destructured !== true)
+    const layout = definition?.unpacks;
+    if (layout === undefined)
       return this.argumentParams(call, target).flatMap((name, index) => {
         const arg = call.arguments[index];
         return name === undefined || arg === undefined
           ? []
           : [[name, arg.value] as [string, Value]];
       });
-    const params = new Set(definition.params);
-    return call.arguments.flatMap((arg) => {
+    const bound: [string, Value][] = [];
+    for (const [index, arg] of call.arguments.entries()) {
+      // Past a spread, positions are unknown.
+      if (arg.spread) break;
+      const param = layout[index];
+      if (param === undefined) continue;
+      if (typeof param === "string") {
+        bound.push([param, arg.value]);
+        continue;
+      }
       const object = deref(arg.value, file.facts);
-      if (arg.spread || object.kind !== "object") return [];
-      return object.entries.flatMap((entry) =>
-        entry.key !== null && params.has(entry.key)
-          ? [[entry.key, entry.value] as [string, Value]]
-          : [],
-      );
-    });
+      for (const { name, key } of param) {
+        const entry =
+          key === null || object.kind !== "object"
+            ? undefined
+            : object.entries.find((item) => item.key === key);
+        // A key the literal does not name may still come from a spread in it.
+        const whole =
+          object.kind !== "object" ||
+          key === null ||
+          object.entries.some((item) => item.key === null);
+        if (entry !== undefined) bound.push([name, entry.value]);
+        else if (whole) bound.push([name, arg.value]);
+      }
+    }
+    return bound;
   }
 
   /**
@@ -635,9 +661,10 @@ export class EffectTracer {
     }
     const fileFlow = this.flowFor(file, FILE_KINDS.has(kind) ? "file" : "other");
     // A name that may be `..` still cannot be read or written as a file when it ends the
-    // path: `..` there is a directory. Deletes, copies and moves get no such allowance.
+    // path: `..` there is a directory. Only calls that open a file's contents get this
+    // allowance; listing, linking, moving or changing a directory acts on `..` itself.
     const last =
-      (kind === "file_read" || kind === "file_write") && !MOVES.test(call.ref?.name ?? call.callee)
+      sink.contents === true
         ? values.flatMap((value) => {
             const component = lastComponent(value, facts, file.language === "python");
             return component !== undefined && this.#paths.nameLevel(file, component) === "plain"
@@ -652,6 +679,8 @@ export class EffectTracer {
             call: (inner) => fileFlow.call(inner),
             fixed: (value) => last.includes(value) || fileFlow.fixed?.(value) === true,
           };
+    /** Absolute paths among a program's arguments, which library checks read as paths. */
+    const paths: Value[] = [];
     const partsOf = (items: Value[]) =>
       uniqueParts(
         items.flatMap((value) => {
@@ -681,15 +710,24 @@ export class EffectTracer {
         const [value] = values;
         const target = value === undefined ? undefined : deref(value, facts);
         const listed = target?.kind === "list" ? target.items : undefined;
-        // An absolute path among the arguments cannot be read as an option.
+        // An absolute path among the arguments cannot be read as an option, so it is read as
+        // a file path is: it carries input only where it can leave its directory.
+        const pathFlow = this.flowFor(file, "file");
         const argumentParts = (items: Value[]) =>
-          partsOf(
+          uniqueParts(
             items
               .flatMap((item) => {
                 const resolved = deref(item, facts);
                 return resolved.kind === "list" ? resolved.items : [item];
               })
-              .filter((item) => !this.#paths.absolute(file, item)),
+              .flatMap((item) => {
+                if (!this.#paths.absolute(file, item)) return partsOf([item]);
+                paths.push(item);
+                const parts = inputsOf(item, facts, call.scope, limitedFor("file_read"), pathFlow);
+                return (this.confinedPath(file, item) ? parts.flatMap(withoutOrigin) : parts).map(
+                  asPath,
+                );
+              }),
           );
         const program = listed !== undefined ? partsOf(listed.slice(0, 1)) : capability.inputs;
         capability.command = program.length > 0 ? "program" : "arguments";
@@ -716,7 +754,7 @@ export class EffectTracer {
     }
     if (this.#library) {
       const given = uniqueParts(
-        values.flatMap((value) => this.givenInputs(file, value, call.scope)),
+        [...values, ...paths].flatMap((value) => this.givenInputs(file, value, call.scope)),
       );
       if (given.length > 0) capability.given = given;
     }
@@ -751,14 +789,14 @@ export class EffectTracer {
     // A function that reaches itself again is not taken to confine anything.
     this.#confined.set(key, false);
     const file = this.#project.files.get(path);
-    const returns = file === undefined ? [] : (definitionOf(file.facts, definition)?.returns ?? []);
+    const fact = file === undefined ? undefined : definitionOf(file.facts, definition);
+    const returns = fact?.returns ?? [];
     if (file === undefined || returns.length === 0) return false;
-    const guards = (file.facts.guards ?? []).filter(
-      (guard) =>
-        guard.scope === definition && (guard.subject.kind === "name" || guard.test === "call"),
-    );
-    const safe = this.safeNames(file, "file_read", guards, true);
-    const result = returns.every((value) => {
+    const result = returns.every((value, index) => {
+      // Only the guards around this return check what it returns.
+      const span = fact?.returnSpans?.[index];
+      const guards = span === undefined ? [] : guardsAt(file.facts, definition, span);
+      const safe = this.safeNames(file, "file_read", guards, true);
       const provenance = provenanceOf(
         value,
         file.facts,
@@ -785,8 +823,16 @@ export class EffectTracer {
     const callee = this.#project.files.get(target.path);
     const definition =
       callee === undefined ? undefined : definitionOf(callee.facts, target.definition);
-    if (definition === undefined || definition.destructured)
-      return call.arguments.map(() => undefined);
+    if (definition === undefined) return call.arguments.map(() => undefined);
+    // A pattern binds several names, none of them the argument; a spread hides positions.
+    const layout = definition.unpacks;
+    if (layout !== undefined) {
+      const spread = call.arguments.findIndex((arg) => arg.spread);
+      return call.arguments.map((_arg, index) => {
+        const param = layout[index];
+        return (spread === -1 || index < spread) && typeof param === "string" ? param : undefined;
+      });
+    }
     const params = calleeParams(definition, callee?.language === "python");
     const named = new Set(params);
     let position = 0;
@@ -1029,12 +1075,17 @@ function dynamicCall(file: ProjectFile, call: CallFact): boolean {
  * the checked value not assigned again in between.
  */
 function limitsAt(facts: FileFacts, call: CallFact): GuardFact[] {
+  return guardsAt(facts, call.scope, call.span);
+}
+
+/** The guards of the function `scope` that hold at `span` (see `limitsAt`). */
+function guardsAt(facts: FileFacts, scope: string | null, span: Span): GuardFact[] {
   return (facts.guards ?? []).filter(
     (guard) =>
-      guard.scope === call.scope &&
+      guard.scope === scope &&
       (guard.subject.kind === "name" || guard.test === "call") &&
-      within(call.span, guard.region) &&
-      !reassigned(facts, guard, call),
+      within(span, guard.region) &&
+      !reassigned(facts, guard, span),
   );
 }
 
@@ -1191,10 +1242,6 @@ const ROW_LOOKUP =
 /** Library joins that refuse a result outside their base: werkzeug's and Flask's `safe_join`. */
 const SAFE_JOIN = /^(?:werkzeug\.(?:security|utils)|flask(?:\.helpers)?)\.safe_join$/;
 
-/** File calls that copy, move or link: a directory as their target takes the file in. */
-const MOVES =
-  /(?:copy|copy2|copyfile|copytree|copyFile|copyFileSync|cp|cpSync|move|rename|renameSync|replace|symlink|symlink_to|link|ensureDir)$/;
-
 /** Calls that make a path absolute or normal without changing its last component. */
 const WRAPS_PATH =
   /(?:^|[.#])(?:abspath|realpath|normpath|normalize|resolve|fspath)$|^(?:str|String)$/;
@@ -1259,6 +1306,11 @@ function lastComponent(
 
 /** Calls that only change a path's type: `Path(p)`, `str(p)`, `os.fspath(p)`, `String(p)`. */
 const PATH_WRAPPER = /^(?:(?:pathlib\.)?(?:Pure|Posix|Windows)?Path|str|os\.fspath|String)$/;
+
+/** Marks a part as in an absolute path among a program's arguments (see `DynamicPart.path`). */
+function asPath(part: DynamicPart): DynamicPart {
+  return { ...part, path: true };
+}
 
 /**
  * An input part whose value a check confines: a part computed from a call keeps the
@@ -1381,18 +1433,31 @@ function within(span: Span, region: Span): boolean {
   );
 }
 
-function reassigned(facts: FileFacts, guard: GuardFact, call: CallFact): boolean {
-  const subject = guard.subject.kind === "name" ? guard.subject.text : "";
-  const root = /^[\w$]+/.exec(subject)?.[0];
+/**
+ * Whether a value the guard checks is assigned again between the guard and `span`: its
+ * subject, or for a check helper (`isWithin(BASE, p)`) each name passed to it.
+ */
+function reassigned(facts: FileFacts, guard: GuardFact, span: Span): boolean {
+  const { subject } = guard;
+  const subjects =
+    subject.kind === "call"
+      ? (facts.calls[subject.call]?.arguments ?? []).flatMap((arg) =>
+          arg.value.kind === "name" ? [arg.value.text] : [],
+        )
+      : subject.kind === "name"
+        ? [subject.text]
+        : [];
   const from = position(guard.region.line, guard.region.column);
-  const to = position(call.span.line, call.span.column);
+  const to = position(span.line, span.column);
   return facts.assignments.some((assignment) => {
     const at = position(assignment.span.line, assignment.span.column);
     return (
       assignment.scope === guard.scope &&
-      (assignment.target === root || assignment.target === subject) &&
       at >= from &&
-      at < to
+      at < to &&
+      subjects.some(
+        (name) => assignment.target === name || assignment.target === /^[\w$]+/.exec(name)?.[0],
+      )
     );
   });
 }
@@ -1509,23 +1574,28 @@ function withGuards(effect: Capability, guards: Guard[]): Capability {
 
 /**
  * A program's inputs as the caller gives them: the parts that name the program bound as
- * usual, the arguments bound with absolute paths taken out (they cannot be options).
+ * usual, the parts of an absolute path the callee builds bound as a file path is, and
+ * the other arguments bound with the caller's absolute paths read as file paths.
  */
 function argumentInputs(
   effect: Capability,
   argumentBindings: Map<string, Bound>,
   otherBindings: Map<string, Bound>,
+  fileBindings: Map<string, Bound>,
 ): DynamicPart[] {
   const key = (part: DynamicPart) => `${part.source}:${part.text}:${part.from?.join(",") ?? ""}`;
   const program = new Set((effect.program ?? []).map(key));
+  const named = effect.inputs.filter((part) => program.has(key(part)));
+  const rest = effect.inputs.filter((part) => !program.has(key(part)));
   return uniqueParts([
+    ...rebind(named, otherBindings, "inputs"),
     ...rebind(
-      effect.inputs.filter((part) => program.has(key(part))),
-      otherBindings,
+      rest.filter((part) => part.path === true),
+      fileBindings,
       "inputs",
-    ),
+    ).map(asPath),
     ...rebind(
-      effect.inputs.filter((part) => !program.has(key(part))),
+      rest.filter((part) => part.path !== true),
       argumentBindings,
       "inputs",
     ),

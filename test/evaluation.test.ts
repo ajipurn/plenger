@@ -71,7 +71,7 @@ function discovery(cite: { path: string; line: number; endLine: number } | null)
 describe("evaluation corpus", () => {
   it("pairs a vulnerable case with a safe near-miss for every weakness", async () => {
     const cases = await loadCorpus(fixturePath("evaluation"));
-    expect(cases).toHaveLength(126);
+    expect(cases).toHaveLength(134);
     for (const cwe of new Set(cases.map((item) => item.cwe))) {
       const kinds = cases.filter((item) => item.cwe === cwe).map((item) => item.kind);
       expect(kinds, cwe).toContain("vulnerable");
@@ -88,12 +88,12 @@ describe("evaluation corpus", () => {
       expect(outcome.unlabeled, item.id).toEqual([]);
     }
     expect(metrics(outcomes)).toEqual({
-      truePositives: 57,
+      truePositives: 61,
       falsePositives: 0,
       falseNegatives: 7,
-      trueNegatives: 62,
+      trueNegatives: 66,
       precision: 1,
-      recall: 57 / 64,
+      recall: 61 / 68,
     });
     // Every rule has at least one vulnerable case in the corpus.
     expect(ruleMetrics(outcomes)).toHaveLength(33);
@@ -103,7 +103,8 @@ describe("evaluation corpus", () => {
       safe: 0,
       precision: 1,
     });
-  });
+    // 134 projects scanned one after another.
+  }, 30000);
 
   it("matches each library case's label in a library scan, and finds nothing in a default one", async () => {
     const cases = await loadCorpus(fixturePath("evaluation-library"));

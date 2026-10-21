@@ -28,6 +28,8 @@ export interface DynamicPart {
   calls?: string[];
   /** Where each of `calls` is, as `line:column` in the file the part was found in. */
   callSites?: string[];
+  /** Among a program's arguments: in an absolute path, read as a file path, which cannot be an option. */
+  path?: true;
 }
 
 /**

@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same route names the folder with `secure_filename`, which is never `.` or `..`, so only folders inside the uploads are listed.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 10,
+    "endLine": 13
+  },
+  "static": []
+}

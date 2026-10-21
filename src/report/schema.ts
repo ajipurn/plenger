@@ -71,7 +71,7 @@ const definitions: Record<string, Schema> = {
   traceGaps: object({ depthLimited: natural, dynamic: natural, locations }),
   dynamicPart: object(
     { text, source: choices("param", "name", "call", "other") },
-    { ref: text, from: texts, calls: texts, callSites: texts },
+    { ref: text, from: texts, calls: texts, callSites: texts, path: yes },
   ),
   capability: object(
     {
@@ -353,7 +353,10 @@ const definitions: Record<string, Schema> = {
           },
           {
             returns: values,
-            destructured: yes,
+            returnSpans: array(ref("span")),
+            unpacks: array({
+              anyOf: [text, array(object({ name: text, key: nullable(text) }))],
+            }),
             injected: texts,
             scalars: texts,
             checks: array(

@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same route passes the name through `secure_filename` first, so the resolved path stays in the cache folder and cannot start with `-`.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 12,
+    "endLine": 16
+  },
+  "static": []
+}

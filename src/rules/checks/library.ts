@@ -56,9 +56,13 @@ export function libraryChecks(cx: RuleContext): Draft[] {
         capability.kind === "network" || capability.kind === "browser"
           ? (capability.host ?? [])
           : capability.inputs;
-      const inputs = decisive.filter(fromParams);
-      if (inputs.length === 0) continue;
       const given = new Set(paramsOf(capability.given ?? []));
+      // An absolute path among a program's arguments that the caller passes is a file the
+      // caller chooses, as a path is for PLG902.
+      const inputs = decisive
+        .filter(fromParams)
+        .filter((part) => part.path !== true || !paramsOf([part]).every((name) => given.has(name)));
+      if (inputs.length === 0) continue;
       const traced = paramsOf(inputs);
       const reach: Reach = {
         inputs,

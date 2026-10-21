@@ -521,11 +521,16 @@ function unsafeBase(name) {
 function unsafeArg(flag) {
   spawnSync("ffmpeg", ["-i", flag]);
 }
-module.exports = { download, folder, convert, unsafeBase, unsafeArg };
+function checkedArg(name) {
+  if (!/^[\\w-]+$/.test(name)) throw new Error("bad name");
+  spawnSync("ffmpeg", ["-i", path.resolve(BASE, name)]);
+}
+module.exports = { download, folder, convert, unsafeBase, unsafeArg, checkedArg };
 `,
       "server.js": `const express = require("express");
-const { download, folder, convert, unsafeBase, unsafeArg } = require("./files.js");
+const { download, folder, convert, unsafeBase, unsafeArg, checkedArg } = require("./files.js");
 const app = express();
+app.post("/checked", (req, res) => { checkedArg(req.body.name); res.end(); });
 app.post("/download", (req, res) => { download(req.body.url); res.end(); });
 app.post("/folder", (req, res) => { folder(req.body.author); res.end(); });
 app.post("/convert", (req, res) => { convert(req.body.filename); res.end(); });
@@ -569,13 +574,16 @@ def raw():
 `,
     });
     const findings = (await scan(root)).findings;
-    // Only a name that may be \`..\` before another component, and a raw argument, remain.
+    // A name that may be \`..\` before another component, a raw argument and an absolute
+    // path that leaves its folder (\`convert\`'s input) remain. A checked name resolved
+    // inside the folder cannot be an option and stays there.
     expect(
       findings
         .map((finding) => `${finding.rule} ${finding.location.path} ${finding.subject.name}`)
         .sort(),
     ).toEqual([
       "PLG801 files.js POST /arg",
+      "PLG801 files.js POST /convert",
       "PLG802 app.py POST /raw",
       "PLG802 files.js POST /base",
     ]);
@@ -865,6 +873,383 @@ def climb(name: str):
     expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
       "PLG802 GET /climb",
       "PLG802 GET /prefix",
+    ]);
+  });
+
+  it("read a path helper's checks only at the returns they guard", async () => {
+    const root = await project({
+      "app.py": `import os
+from flask import Flask, request
+
+app = Flask(__name__)
+BASE = os.path.realpath("reports")
+DEFAULTS = {"summary": "summary.txt"}
+
+
+def fallback_path(name):
+    if name in DEFAULTS:
+        return os.path.join(BASE, DEFAULTS[name])
+    return os.path.join(BASE, name)
+
+
+def known_path(name):
+    if name not in DEFAULTS:
+        raise ValueError(name)
+    return os.path.join(BASE, name)
+
+
+@app.get("/fallback")
+def fallback():
+    return open(fallback_path(request.args["name"])).read()
+
+
+@app.get("/known")
+def known():
+    return open(known_path(request.args["name"])).read()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // The check in \`fallback_path\` guards only the first return.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`)).toEqual([
+      "PLG802 GET /fallback",
+    ]);
+  });
+
+  it("drop a check helper's confinement once a checked name is assigned again", async () => {
+    const root = await project({
+      "server.js": `const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const app = express();
+const BASE = path.resolve("files");
+function isWithin(base, target) {
+  const rel = path.relative(base, path.resolve(target));
+  return !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+app.get("/reassigned", (req, res) => {
+  let target = path.resolve(BASE, req.query.name);
+  if (!isWithin(BASE, target)) return res.status(400).end();
+  target = req.query.other;
+  res.send(fs.readFileSync(target));
+});
+app.get("/checked", (req, res) => {
+  const target = path.resolve(BASE, req.query.name);
+  if (!isWithin(BASE, target)) return res.status(400).end();
+  res.send(fs.readFileSync(target));
+});
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`)).toEqual([
+      "PLG802 GET /reassigned",
+    ]);
+  });
+
+  it("count an if body that ends in a call as leaving only when the call never returns", async () => {
+    const root = await project({
+      "app.py": `import os
+import sys
+from flask import Flask, abort, request
+
+app = Flask(__name__)
+BASE = os.path.realpath("reports")
+ALLOWED = {"summary", "totals"}
+
+
+def reject(code):
+    print("rejected", code)
+
+
+@app.get("/logged")
+def logged():
+    name = request.args["name"]
+    if name not in ALLOWED:
+        reject(400)
+    return open(os.path.join(BASE, name)).read()
+
+
+@app.get("/aborted")
+def aborted():
+    name = request.args["name"]
+    if name not in ALLOWED:
+        abort(400)
+    return open(os.path.join(BASE, name)).read()
+
+
+@app.get("/exited")
+def exited():
+    name = request.args["name"]
+    if name not in ALLOWED:
+        sys.exit(1)
+    return open(os.path.join(BASE, name)).read()
+`,
+      "local.py": `import os
+from flask import Flask, request
+
+app = Flask(__name__)
+BASE = os.path.realpath("reports")
+ALLOWED = {"summary", "totals"}
+
+
+def abort(code):
+    print("rejected", code)
+
+
+@app.get("/own-abort")
+def own_abort():
+    name = request.args["name"]
+    if name not in ALLOWED:
+        abort(400)
+    return open(os.path.join(BASE, name)).read()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // A project function named \`abort\` returns; Flask's raises.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 GET /logged",
+      "PLG802 GET /own-abort",
+    ]);
+  });
+
+  it("bind unpacked parameters to a whole object passed in, and plain ones by position", async () => {
+    const root = await project({
+      "server.js": `const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const app = express();
+const BASE = path.resolve("docs");
+function readNamed({ name }) {
+  return fs.readFileSync(path.join(BASE, name));
+}
+function readWith(name, { encoding }) {
+  return fs.readFileSync(path.join(BASE, name), encoding);
+}
+app.get("/query", (req, res) => res.send(readNamed(req.query)));
+app.get("/position", (req, res) => res.send(readWith(req.query.name, { encoding: "utf8" })));
+app.get("/fixed", (req, res) => res.send(readNamed({ name: "readme.md", from: req.query.from })));
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 GET /position",
+      "PLG802 GET /query",
+    ]);
+  });
+
+  it("allow a last component that may be `..` only where a file's contents are opened", async () => {
+    const root = await project({
+      "app.py": `import os
+from pathlib import Path
+from flask import Flask, jsonify, request
+
+app = Flask(__name__)
+BASE = os.path.realpath("uploads")
+
+
+@app.get("/list")
+def list_folder():
+    name = os.path.basename(request.args["dir"])
+    return jsonify(os.listdir(os.path.join(BASE, name)))
+
+
+@app.post("/share")
+def share():
+    name = os.path.basename(request.form["dir"])
+    Path(os.path.join(BASE, name)).chmod(0o777)
+    return "ok"
+
+
+@app.get("/read")
+def read():
+    name = os.path.basename(request.args["name"])
+    return open(os.path.join(BASE, name)).read()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // \`..\` lists or changes the parent folder; opening it as a file fails.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 GET /list",
+      "PLG802 POST /share",
+    ]);
+  });
+
+  it("read an absolute path among a program's arguments as a file path", async () => {
+    const root = await project({
+      "app.py": `import os
+import subprocess
+from flask import Flask, request
+from werkzeug.utils import secure_filename
+
+app = Flask(__name__)
+UPLOADS = os.path.realpath("uploads")
+
+
+@app.post("/remove")
+def remove():
+    subprocess.run(["rm", "-rf", os.path.realpath(request.form["path"])])
+    return "ok"
+
+
+@app.post("/convert")
+def convert():
+    name = secure_filename(request.form["name"])
+    subprocess.run(["ffmpeg", "-i", name], cwd=UPLOADS)
+    return "ok"
+
+
+@app.post("/clean")
+def clean():
+    subprocess.run(["rm", "-f", os.path.abspath(os.path.join(UPLOADS, secure_filename(request.form["name"])))])
+    return "ok"
+
+
+def evict(name):
+    subprocess.run(["rm", "-f", os.path.realpath(os.path.join(UPLOADS, name))])
+
+
+@app.post("/evict")
+def evict_raw():
+    evict(request.form["name"])
+    return "ok"
+
+
+@app.post("/evict-safe")
+def evict_safe():
+    evict(secure_filename(request.form["name"]))
+    return "ok"
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // \`secure_filename\` keeps a leading \`-\`: only an absolute path cannot be an option.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG801 POST /convert",
+      "PLG801 POST /evict",
+      "PLG801 POST /remove",
+    ]);
+  });
+
+  it("read re.sub with a count as replacing only that many separators", async () => {
+    const root = await project({
+      "app.py": `import os
+import re
+from flask import Flask, request
+
+app = Flask(__name__)
+NOTES = os.path.realpath("notes")
+
+
+@app.get("/once")
+def once():
+    name = re.sub(r"[/\\\\]", "", request.args["name"], count=1)
+    return open(os.path.join(NOTES, name + ".txt")).read()
+
+
+@app.get("/all")
+def every():
+    name = re.sub(r"[/\\\\]", "", request.args["name"], flags=re.IGNORECASE)
+    return open(os.path.join(NOTES, name + ".txt")).read()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`)).toEqual([
+      "PLG802 GET /once",
+    ]);
+  });
+
+  it("trace the path os.chmod and os.makedirs act on, not their mode", async () => {
+    const root = await project({
+      "app.py": `import os
+from flask import Flask, request
+
+app = Flask(__name__)
+BASE = os.path.realpath("shared")
+
+
+@app.post("/open")
+def open_up():
+    os.chmod(os.path.join(BASE, request.form["dir"]), 0o777)
+    return "ok"
+
+
+@app.post("/create")
+def create():
+    os.makedirs(os.path.join(BASE, request.form["dir"]), 0o755, exist_ok=True)
+    return "ok"
+
+
+@app.post("/fixed")
+def fixed():
+    os.chmod(os.path.join(BASE, "public"), int(request.form["mode"], 8))
+    return "ok"
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 POST /create",
+      "PLG802 POST /open",
+    ]);
+  });
+
+  it("read generated ids as file name parts, and relative_to checked by exception", async () => {
+    const root = await project({
+      "server.js": `const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const { v4 } = require("uuid");
+const app = express();
+const BASE = path.resolve("drafts");
+app.post("/save", (req, res) => {
+  const name = \`\${String(req.body.title).replace(/[\\/\\\\]/g, "-")}-\${v4()}.json\`;
+  fs.writeFileSync(path.join(BASE, name), "{}");
+  res.end();
+});
+app.post("/raw", (req, res) => {
+  fs.writeFileSync(path.join(BASE, \`\${req.body.title}-\${v4()}.json\`), "{}");
+  res.end();
+});
+app.post("/record", (req, res) => {
+  const record = { id: v4(), title: req.body.title };
+  fs.writeFileSync(path.join(BASE, \`raw-\${record.id}.json\`), JSON.stringify(record));
+  res.end();
+});
+app.post("/titled", (req, res) => {
+  const record = { id: v4(), title: req.body.title };
+  fs.writeFileSync(path.join(BASE, \`\${record.title}.json\`), JSON.stringify(record));
+  res.end();
+});
+`,
+      "app.py": `from pathlib import Path
+from flask import Flask, abort, request
+
+app = Flask(__name__)
+DOCS = Path("docs").resolve()
+
+
+@app.get("/doc")
+def doc():
+    full = (DOCS / request.args["name"]).resolve()
+    try:
+        full.relative_to(DOCS)
+    except ValueError:
+        abort(404)
+    return full.read_text()
+
+
+@app.get("/logged")
+def logged():
+    full = (DOCS / request.args["name"]).resolve()
+    try:
+        full.relative_to(DOCS)
+    except ValueError:
+        app.logger.warning("outside %s", full)
+    return full.read_text()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 GET /logged",
+      "PLG802 POST /raw",
+      "PLG802 POST /titled",
     ]);
   });
 

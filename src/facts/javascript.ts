@@ -502,7 +502,7 @@ class JavaScriptExtractor implements LanguageHooks {
       doc: null,
       span: spanOf(node),
     };
-    if (parameters !== null && destructures(parameters)) fact.destructured = true;
+    if (parameters !== null && destructures(parameters)) fact.unpacks = unpacks(parameters);
     this.#definitions.push(fact);
     this.cx.addDefinition(
       fact,
@@ -1129,6 +1129,48 @@ function destructures(parameters: Node): boolean {
       parameter.childForFieldName("pattern") ?? parameter.childForFieldName("left") ?? parameter;
     return patterns.has(inner.type);
   });
+}
+
+/**
+ * What each parameter binds, by position (see `DefinitionFact.unpacks`). A TS `this`
+ * parameter takes no argument and is left out.
+ */
+function unpacks(parameters: Node): NonNullable<DefinitionFact["unpacks"]> {
+  const list = parameters.type === "formal_parameters" ? parameters.namedChildren : [parameters];
+  const result: NonNullable<DefinitionFact["unpacks"]> = [];
+  for (const parameter of list) {
+    if (parameter === null) continue;
+    let inner = parameter.childForFieldName("pattern") ?? parameter;
+    if (inner.type === "assignment_pattern") inner = inner.childForFieldName("left") ?? inner;
+    if (inner.type === "this") continue;
+    if (inner.type !== "object_pattern" && inner.type !== "array_pattern") {
+      result.push(patternNames(inner)[0] ?? "");
+      continue;
+    }
+    if (inner.type === "array_pattern") {
+      result.push(patternNames(inner).map((name) => ({ name, key: null })));
+      continue;
+    }
+    result.push(
+      inner.namedChildren.flatMap((entry): { name: string; key: string | null }[] => {
+        if (entry === null) return [];
+        if (entry.type === "shorthand_property_identifier_pattern")
+          return [{ name: entry.text, key: entry.text }];
+        const left =
+          entry.type === "object_assignment_pattern" ? entry.childForFieldName("left") : null;
+        if (left?.type === "shorthand_property_identifier_pattern")
+          return [{ name: left.text, key: left.text }];
+        // `{ uri: target }` and `{ uri: target = "" }` read `uri`; a nested pattern, all of it.
+        const key = entry.type === "pair_pattern" ? nameText(entry.childForFieldName("key")) : null;
+        const value = entry.type === "pair_pattern" ? entry.childForFieldName("value") : null;
+        const bound =
+          value?.type === "assignment_pattern" ? value.childForFieldName("left") : value;
+        if (key !== null && bound?.type === "identifier") return [{ name: bound.text, key }];
+        return patternNames(entry).map((name) => ({ name, key: null }));
+      }),
+    );
+  }
+  return result;
 }
 
 function defaultValues(parameter: Node): Node[] {

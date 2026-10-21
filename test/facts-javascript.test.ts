@@ -397,6 +397,7 @@ describe("JavaScript facts: guards and fixed collections", () => {
         "  return p;",
         "}",
         "const pick = ({ name }) => name;",
+        "function load(req, { uri: target, mode = 'r', ...rest }, [first]) {}",
         "",
       ].join("\n"),
     );
@@ -408,8 +409,17 @@ describe("JavaScript facts: guards and fixed collections", () => {
       ["relative", "name"],
     ]);
     expect(facts.guards?.map((guard) => guard.test)).toEqual(["call"]);
-    expect(definition(facts, "pick").destructured).toBe(true);
-    expect(definition(facts, "use").destructured).toBeUndefined();
+    expect(definition(facts, "pick").unpacks).toEqual([[{ name: "name", key: "name" }]]);
+    expect(definition(facts, "load").unpacks).toEqual([
+      "req",
+      [
+        { name: "target", key: "uri" },
+        { name: "mode", key: "mode" },
+        { name: "rest", key: null },
+      ],
+      [{ name: "first", key: null }],
+    ]);
+    expect(definition(facts, "use").unpacks).toBeUndefined();
   });
 
   it("records a suffix check", async () => {

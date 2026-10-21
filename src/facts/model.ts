@@ -139,8 +139,16 @@ export interface DefinitionFact {
   doc: string | null;
   /** Values the function returns directly (not from nested functions), at most 10. */
   returns?: Value[];
-  /** JS/TS: a parameter unpacks its argument, so `params` do not line up with arguments. */
-  destructured?: true;
+  /** Where each of `returns` is, in the same order. */
+  returnSpans?: Span[];
+  /**
+   * JS/TS, when a parameter unpacks its argument (`(req, { params }) => ...`): each
+   * parameter by position, as the name it binds or, for a pattern, the names it binds
+   * with the key each is read from (`({ uri: target })` reads `uri` into `target`; null
+   * for an item of an array, a rest or a nested pattern). `params` lists every name, so
+   * it does not line up with arguments.
+   */
+  unpacks?: (string | { name: string; key: string | null }[])[];
   /** Python: parameters a framework fills in from a dependency (`Depends(...)`), not from the caller. */
   injected?: string[];
   /** Python: parameters annotated with a number, boolean, UUID or date type (`id: int`). */

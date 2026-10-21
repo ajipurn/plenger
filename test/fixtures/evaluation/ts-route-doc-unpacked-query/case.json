@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A route passes the whole query to a helper that unpacks `name` from it and reads `${name}.md` under the docs folder, so a name such as `../../private/notes` reads a Markdown file outside it.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "docs.ts",
+    "line": 6,
+    "endLine": 8
+  },
+  "static": ["PLG802"]
+}

@@ -1,6 +1,6 @@
 {
   "kind": "vulnerable",
-  "summary": "The same route passes the request's value to ffmpeg as is, so a value such as `-filter_complex` is read as an option.",
+  "summary": "The same route passes the checked name to ffmpeg as is. The pattern admits a leading `-`, so a name such as `-filter_complex` is read as an option.",
   "cwe": "CWE-88",
   "location": {
     "path": "media.ts",

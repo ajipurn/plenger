@@ -1,0 +1,11 @@
+{
+  "kind": "safe",
+  "summary": "The same helper maps aliases to fixed reports and refuses any other name that is not a fixed report before it builds the path.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 11,
+    "endLine": 22
+  },
+  "static": []
+}

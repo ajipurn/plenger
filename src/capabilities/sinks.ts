@@ -19,6 +19,12 @@ export interface Sink {
   /** Python `open()`-style mode argument: a mode with w, a, x or + writes; otherwise it reads. */
   mode?: string;
   /**
+   * For files: the call opens what the file at the path holds, which fails for a path
+   * that ends in `..`, a directory. Listing, linking, moving or changing a path acts on
+   * `..` itself.
+   */
+  contents?: true;
+  /**
    * For `process`: the command runs through a shell (`true`), or does when the option
    * at this argument path is true (`shell=True`, `{ shell: true }`). Otherwise the
    * input names the program and `args` holds its arguments.
@@ -162,10 +168,18 @@ export const PYTHON_SINKS: Sink[] = [
     calls: ["open", "io.open", "aiofiles.open", "codecs.open"],
     input: "file|#0",
     mode: "mode|#1",
+    contents: true,
   },
   {
     kind: "file_write",
-    calls: [`${PATH}**.{write_text,write_bytes,touch,mkdir,rename,replace,symlink_to,chmod}`],
+    calls: [`${PATH}**.{write_text,write_bytes}`],
+    except: [PATH_TEXT],
+    chainInput: true,
+    contents: true,
+  },
+  {
+    kind: "file_write",
+    calls: [`${PATH}**.{touch,mkdir,rename,replace,symlink_to,chmod}`],
     except: [PATH_TEXT],
     chainInput: true,
   },
@@ -173,9 +187,15 @@ export const PYTHON_SINKS: Sink[] = [
     kind: "file_write",
     calls: [
       each("shutil", "copy,copy2,copyfile,copytree,move"),
-      each("os", "rename,replace,makedirs,mkdir,chmod,chown,symlink,link"),
+      each("os", "rename,replace,symlink,link"),
     ],
     input: "dst|#1|#0",
+  },
+  {
+    // The second argument of these is a mode or an owner, not a path.
+    kind: "file_write",
+    calls: [each("os", "makedirs,mkdir,chmod,chown")],
+    input: "path|name|#0",
   },
   {
     kind: "file_delete",
@@ -190,7 +210,14 @@ export const PYTHON_SINKS: Sink[] = [
   },
   {
     kind: "file_read",
-    calls: [`${PATH}**.{read_text,read_bytes,open,iterdir,glob,rglob}`],
+    calls: [`${PATH}**.{read_text,read_bytes,open}`],
+    except: [PATH_TEXT],
+    chainInput: true,
+    contents: true,
+  },
+  {
+    kind: "file_read",
+    calls: [`${PATH}**.{iterdir,glob,rglob}`],
     except: [PATH_TEXT],
     chainInput: true,
   },
@@ -360,9 +387,18 @@ export const JAVASCRIPT_SINKS: Sink[] = [
   {
     kind: "file_write",
     calls: [
-      `${FS}#{writeFile,writeFileSync,appendFile,appendFileSync,mkdir,mkdirSync,rename,renameSync,copyFile,copyFileSync,cp,cpSync,createWriteStream,symlink,chmod,outputFile,outputJson,writeJson,copy,move,ensureDir}`,
-      `${FS}#{promises,default}.{writeFile,appendFile,mkdir,rename,copyFile,cp,symlink,chmod}`,
+      `${FS}#{writeFile,writeFileSync,appendFile,appendFileSync,createWriteStream,outputFile,outputJson,writeJson}`,
+      `${FS}#{promises,default}.{writeFile,appendFile}`,
       "Bun.write",
+    ],
+    input: "#0",
+    contents: true,
+  },
+  {
+    kind: "file_write",
+    calls: [
+      `${FS}#{mkdir,mkdirSync,rename,renameSync,copyFile,copyFileSync,cp,cpSync,symlink,chmod,copy,move,ensureDir}`,
+      `${FS}#{promises,default}.{mkdir,rename,copyFile,cp,symlink,chmod}`,
     ],
     input: "#0",
   },
@@ -378,10 +414,16 @@ export const JAVASCRIPT_SINKS: Sink[] = [
   {
     kind: "file_read",
     calls: [
-      `${FS}#{readFile,readFileSync,readdir,readdirSync,createReadStream,opendir,readJson}`,
-      `${FS}#{promises,default}.{readFile,readdir,opendir}`,
+      `${FS}#{readFile,readFileSync,createReadStream,readJson}`,
+      `${FS}#{promises,default}.readFile`,
       "Bun.file",
     ],
+    input: "#0",
+    contents: true,
+  },
+  {
+    kind: "file_read",
+    calls: [`${FS}#{readdir,readdirSync,opendir}`, `${FS}#{promises,default}.{readdir,opendir}`],
     input: "#0",
   },
   {

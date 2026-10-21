@@ -150,40 +150,61 @@ function limits(node: Node, truth: boolean): Limit[] {
 
 const REGEX_TESTS = new Set(["match", "fullmatch", "search"]);
 
-/** Calls that never return: `abort(400)` in Flask, `sys.exit()`. */
-const EXIT_CALLS =
-  /^(?:(?:flask|werkzeug\.exceptions)\.)?abort$|^(?:sys\.|os\._)?exit$|^os\._exit$/;
+/** Functions that never return: Flask's and werkzeug's `abort`, `sys.exit`, `os._exit`. */
+const NEVER_RETURNS = /^(?:(?:flask|quart|werkzeug(?:\.exceptions)?)\.abort|sys\.exit|os\._exit)$/;
 
-/** Whether a statement leaves its block: `return`, `raise`, `continue`, `break`, or a call that never returns. */
-function leaves(statement: Node): boolean {
-  if (EXITS.has(statement.type)) return true;
-  const expression = statement.type === "expression_statement" ? statement.namedChildren[0] : null;
-  const callee =
-    expression?.type === "call" ? expression.childForFieldName("function")?.text : undefined;
-  return callee !== undefined && EXIT_CALLS.test(callee);
+/**
+ * How a block's last statement leaves it: no calls for `return`, `raise`, `continue`
+ * and `break`, the call for one that may never return (`abort(400)`, decided once names
+ * resolve, see `neverReturns`), and null when it does not leave.
+ */
+function exits(block: Node | null | undefined): Node[] | null {
+  const last = block?.namedChildren.filter((child) => child?.type !== "comment").at(-1);
+  if (last == null) return null;
+  if (EXITS.has(last.type)) return [];
+  const expression = last.type === "expression_statement" ? last.namedChildren[0] : null;
+  return expression?.type === "call" ? [expression] : null;
 }
 
-/** Whether a block's last statement leaves it. */
-function exits(block: Node | null | undefined): boolean {
-  const last = block?.namedChildren.filter((child) => child?.type !== "comment").at(-1);
-  return last != null && leaves(last);
+/** `path.relative_to(BASE)` as a statement: the path lies inside BASE if it returns. */
+function relativeToCheck(statement: Node): Limit[] {
+  const call = statement.type === "expression_statement" ? statement.namedChildren[0] : null;
+  const callee = call?.type === "call" ? call.childForFieldName("function") : null;
+  const object = callee?.type === "attribute" ? callee.childForFieldName("object") : null;
+  const args = call?.childForFieldName("arguments")?.namedChildren ?? [];
+  const [base] = args;
+  return callee?.childForFieldName("attribute")?.text === "relative_to" &&
+    object != null &&
+    args.length === 1 &&
+    base != null &&
+    base.type !== "keyword_argument"
+    ? [{ subject: object, allowed: base, test: "inside" }]
+    : [];
 }
 
 /**
- * The block whose rest an exiting `if` protects: the one it is in, or, when that is the
- * body of a `try` whose handlers all exit too, the block around the `try`.
+ * The blocks whose rest an exiting `if` protects: the one it is in, and, when that is
+ * the body of a `try` whose handlers all exit too, the block around the `try`, which it
+ * protects only if the calls those handlers leave by never return.
  */
-function protectedBlock(node: Node): Node | null {
+function protectedBlocks(node: Node): { block: Node | null; until: Node[] }[] {
   let block = node.parent;
+  const until: Node[] = [];
+  const blocks: { block: Node | null; until: Node[] }[] = [];
   for (let owner = block?.parent; owner?.type === "try_statement"; owner = block?.parent) {
     if (owner.childForFieldName("body")?.id !== block?.id) break;
     const handlers = owner.namedChildren.filter(
       (child) => child?.type === "except_clause" || child?.type === "except_group_clause",
     );
-    if (!handlers.every((handler) => exits(handler?.namedChildren.at(-1)))) break;
+    const leaving = handlers.map((handler) => exits(handler?.namedChildren.at(-1)));
+    if (leaving.some((calls) => calls === null)) break;
+    const calls = leaving.flatMap((item) => item ?? []);
+    if (calls.length > 0) blocks.push({ block, until: [...until] });
+    until.push(...calls);
     block = owner.parent;
   }
-  return block;
+  blocks.push({ block, until });
+  return blocks;
 }
 
 /** `x` for `str(x)`, the node itself otherwise. */
@@ -281,16 +302,33 @@ class PythonExtractor implements LanguageHooks {
         const condition = node.childForFieldName("condition");
         const body = node.childForFieldName("consequence");
         if (condition === null) break;
-        const last = body?.namedChildren.filter((child) => child?.type !== "comment").at(-1);
-        const exits = last != null && leaves(last);
-        this.cx.addGuards(
-          node,
-          scope,
-          body,
-          limits(condition, true),
-          exits ? limits(condition, false) : null,
-          protectedBlock(node),
+        const leaving = exits(body);
+        for (const [index, { block, until }] of protectedBlocks(node).entries())
+          this.cx.addGuards(
+            node,
+            scope,
+            body,
+            index === 0 ? limits(condition, true) : [],
+            leaving === null ? null : limits(condition, false),
+            block,
+            [...(leaving ?? []), ...until],
+          );
+        break;
+      }
+      case "try_statement": {
+        // `full.relative_to(BASE)` raises for a path outside BASE: when every handler
+        // leaves, the code after the `try` runs only for a path inside it.
+        const checks = (node.childForFieldName("body")?.namedChildren ?? []).flatMap((statement) =>
+          statement === null ? [] : relativeToCheck(statement),
         );
+        const handlers = node.namedChildren.filter(
+          (child) => child?.type === "except_clause" || child?.type === "except_group_clause",
+        );
+        const leaving = handlers.map((handler) => exits(handler?.namedChildren.at(-1)));
+        if (checks.length === 0 || handlers.length === 0 || leaving.some((calls) => calls === null))
+          break;
+        const until = leaving.flatMap((calls) => calls ?? []);
+        this.cx.addGuards(node, scope, null, [], checks, node.parent, until);
         break;
       }
     }
@@ -834,6 +872,16 @@ class PythonExtractor implements LanguageHooks {
     const lookup = callee === null || fact.ref !== null ? undefined : this.lookup(callee, scope);
     if (lookup !== undefined) fact.lookup = lookup;
     return fact;
+  }
+
+  neverReturns(node: Node, scope: Scope): boolean {
+    const callee = node.childForFieldName("function");
+    const ref = callee === null ? null : this.resolve(callee, scope, 0);
+    if (ref === null || ref.kind === "local") return false;
+    // The builtins `exit()` and `quit()` raise `SystemExit` unless a binding hides them.
+    return (
+      NEVER_RETURNS.test(ref.name) || (ref.kind === "global" && /^(?:exit|quit)$/.test(ref.name))
+    );
   }
 
   /** The callee as a value when it is read from a dict: `HANDLERS[name]`, `fn = TOOLS.get(name)`. */

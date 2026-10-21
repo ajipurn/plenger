@@ -1,0 +1,11 @@
+{
+  "kind": "vulnerable",
+  "summary": "A download route builds the path with a helper that maps aliases to fixed reports but passes any other name through, so `../config.py` is read outside the reports folder.",
+  "cwe": "CWE-22",
+  "location": {
+    "path": "app.py",
+    "line": 10,
+    "endLine": 19
+  },
+  "static": ["PLG802"]
+}

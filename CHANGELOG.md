@@ -227,6 +227,34 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- Eight static false negatives found in a review of the unreleased rules:
+  - a path helper's check counted for every return, though it guarded only some
+    (`if name in ALIASES: return ...`, then `return os.path.join(BASE, name)`);
+  - a check helper's arguments stayed checked after they were assigned again;
+  - any call named `abort` or `exit` ended a guarded block. Now only Flask's,
+    Quart's or werkzeug's `abort`, `sys.exit`, `os._exit` and the builtin `exit` do;
+  - a JS function with an unpacked parameter bound nothing for an object that is
+    not a literal (`readDoc(req.query)`), nor its plain parameters;
+  - a last component that may be `..` was allowed for directory listings and
+    `chmod`, which act on the folder `..` names. It is now allowed only where a
+    file's contents are opened;
+  - an absolute path among a program's arguments carried nothing. It is now read as
+    a file path, so `rm -f` on a resolved path that can leave its folder is PLG801.
+    In a library scan, such a path the caller passes whole is not reported;
+  - `re.sub` with a `count` was read as removing every separator;
+  - `os.chmod`, `os.chown`, `os.mkdir` and `os.makedirs` traced their mode, not
+    their path.
+
+  Three readings keep the first fix from reporting confined paths that the wrong
+  reading used to pass. A generated id (`uuid`'s `v4()`, `crypto.randomUUID()`,
+  `nanoid()`, `uuid.uuid4()`) is a file name part. A member of an object literal the
+  code never changes reads as its entry (`data.id` of `{ id: v4() }`). And
+  `path.relative_to(BASE)` in a `try` whose handlers leave confines the path after
+  it. The evaluation corpus has
+  four more pairs. The safe transcode case now checks its name, since its resolved
+  path could leave the media folder. Code facts gain `returnSpans`, and input parts
+  gain `path` for an absolute path among a program's arguments.
+
 - Four static gaps that also affected default scans:
   - `torch.load(..., weights_only=True)` is no longer a deserializer that can run
     code, as PLG107 and PLG807 recommend it;
@@ -334,10 +362,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   reads. A call to a check helper that returns true only for a confined path
   (`isWithin(BASE, p)`, using `path.relative` or `os.path.relpath`) counts as
   checking that argument. Code facts record a function's `checks`, `call`,
-  `descends` and `differs` guard tests, and JS functions that unpack their
-  parameters (`destructured`). A JS function that unpacks its parameters now
-  binds the entries of an object literal passed to it; it used to bind
-  nothing. The evaluation corpus gains four cases, two pairs.
+  `descends` and `differs` guard tests, and what each parameter of a JS function
+  binds when one unpacks its argument (`unpacks`). A JS function that unpacks
+  its parameters now binds the entries of an object literal passed to it; it
+  used to bind nothing. The evaluation corpus gains four cases, two pairs.
 
 - The second review traces each candidate's path and dismisses it when the
   supplied code holds a control that defeats the described attack, names checks

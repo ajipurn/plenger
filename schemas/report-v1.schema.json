@@ -308,6 +308,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "path": {
+          "const": true
         }
       },
       "required": ["text", "source"]
@@ -1856,8 +1859,44 @@
                   "$ref": "#/definitions/value"
                 }
               },
-              "destructured": {
-                "const": true
+              "returnSpans": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/span"
+                }
+              },
+              "unpacks": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": ["name", "key"]
+                      }
+                    }
+                  ]
+                }
               },
               "injected": {
                 "type": "array",

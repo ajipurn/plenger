@@ -111,6 +111,8 @@ export interface Limit {
 interface GuardDraft extends Limit {
   scope: Scope;
   region: Span;
+  /** Calls the guarded body leaves by; the guard holds only if none of them returns. */
+  until?: Node[];
 }
 
 /** What each language provides to turn syntax into facts. */
@@ -119,6 +121,8 @@ export interface LanguageHooks {
   value(node: Node, scope: Scope, depth: number): Value;
   call(node: Node, scope: Scope): CallFact;
   decorator(node: Node, scope: Scope): Decorator;
+  /** Whether a call never returns (`sys.exit()`, Flask's `abort()`), once names are resolved. */
+  neverReturns?(node: Node, scope: Scope): boolean;
 }
 
 /**
@@ -217,7 +221,8 @@ export class Context {
   /**
    * Records the limits an `if` statement sets: `whileTrue` hold in its body, and
    * `afterExit` in the rest of `block` (the enclosing block by default) when the body
-   * always leaves it.
+   * always leaves it. `until` are calls the body leaves by, which count only when
+   * `LanguageHooks.neverReturns` says they never return (`abort(400)`).
    */
   addGuards(
     node: Node,
@@ -226,6 +231,7 @@ export class Context {
     whileTrue: Limit[],
     afterExit: Limit[] | null,
     block: Node | null = node.parent,
+    until: Node[] = [],
   ): void {
     if (body !== null)
       for (const limit of whileTrue) this.#guards.push({ ...limit, scope, region: spanOf(body) });
@@ -236,21 +242,20 @@ export class Context {
       endLine: block.endPosition.row + 1,
       endColumn: block.endPosition.column + 1,
     };
-    for (const limit of afterExit) this.#guards.push({ ...limit, scope, region });
+    for (const limit of afterExit)
+      this.#guards.push({ ...limit, scope, region, ...(until.length > 0 ? { until } : {}) });
   }
 
   /**
    * Per function, the limits that hold at every return of a value that is not a falsy
    * literal: what the return tests, and the guards whose region holds the return.
    */
-  #returnChecks(): Map<string, (Limit & { scope: Scope })[]> {
+  #returnChecks(guards: GuardDraft[]): Map<string, (Limit & { scope: Scope })[]> {
     const byFunction = new Map<string, (Limit & { scope: Scope })[][]>();
     for (const { node, scope, limits, falsy } of this.#returns) {
       if (falsy) continue;
       const at = { line: node.startPosition.row + 1, column: node.startPosition.column + 1 };
-      const around = this.#guards.filter(
-        (guard) => guard.scope === scope && contains(guard.region, at),
-      );
+      const around = guards.filter((guard) => guard.scope === scope && contains(guard.region, at));
       const holding = [...limits.map((limit) => ({ ...limit, scope })), ...around];
       const id = scope.definition as string;
       byFunction.set(id, [...(byFunction.get(id) ?? []), holding]);
@@ -387,9 +392,15 @@ export class Context {
       const definition = byId.get(scope.definition as string);
       if (definition === undefined) continue;
       definition.returns ??= [];
-      if (definition.returns.length < 10) definition.returns.push(hooks.value(node, scope, 0));
+      if (definition.returns.length >= 10) continue;
+      definition.returns.push(hooks.value(node, scope, 0));
+      definition.returnSpans = [...(definition.returnSpans ?? []), spanOf(node)];
     }
-    for (const [id, limits] of this.#returnChecks()) {
+    // A body that ends in a call leaves its block only if that call never returns.
+    const kept = this.#guards.filter((guard) =>
+      (guard.until ?? []).every((call) => hooks.neverReturns?.(call, guard.scope) === true),
+    );
+    for (const [id, limits] of this.#returnChecks(kept)) {
       const definition = byId.get(id);
       if (definition === undefined || limits.length === 0) continue;
       definition.checks = limits.map(({ subject, allowed, test, scope }) => {
@@ -402,7 +413,7 @@ export class Context {
       });
     }
     const facts: FileFacts = { imports: this.imports, definitions, assignments, calls };
-    const guards = this.#guards.map(({ subject, allowed, test, scope, region }): GuardFact => {
+    const guards = kept.map(({ subject, allowed, test, scope, region }): GuardFact => {
       const fact: GuardFact = {
         scope: scope.definition,
         subject: hooks.value(subject, scope, 0),
