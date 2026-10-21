@@ -736,6 +736,45 @@ describe("local project security workspace", () => {
     ).toBe(400);
   });
 
+  it("continues a Full coverage scan whose later batch failed on a provider error", async () => {
+    for (let i = 0; i < 50; i++)
+      await writeFile(join(project, `module-${i}.ts`), `export const value${i} = ${i};\n`);
+    const repo = await repository();
+    // The provider rate-limits from the second batch on.
+    hold = async () => {
+      if (bodies.length > 2) mode = "error";
+    };
+    const failed = await finished((await start(repo.id, FULL)).id);
+    expect(failed.status).toBe("failed");
+    expect(failed.reviews.map((review) => review.status)).toEqual(["completed", "failed"]);
+    hold = undefined;
+    mode = "normal";
+    const response = await dashboard.request(pathFor(API.continueSecurityScan, failed.id), {
+      budget: FULL.budget,
+    });
+    expect(response.status, await response.clone().text()).toBe(202);
+    const continued = await finished(failed.id);
+    expect(continued.status).toBe("completed");
+    expect(continued.error).toBeNull();
+    expect(continued.coverage?.stop).toBe("complete");
+    // The failed batch stays in the record; its files were not sent and are sent now.
+    expect(continued.reviews.map((review) => review.status)).toEqual([
+      "completed",
+      "failed",
+      "completed",
+      "completed",
+    ]);
+    expect(continued.coverage?.sentFiles).toBe(52);
+    // A completed scan that covered everything cannot continue.
+    expect(
+      (
+        await dashboard.request(pathFor(API.continueSecurityScan, failed.id), {
+          budget: FULL.budget,
+        })
+      ).status,
+    ).toBe(400);
+  });
+
   it("limits Full coverage in USD only with saved prices for every model", async () => {
     for (let i = 0; i < 50; i++)
       await writeFile(join(project, `module-${i}.ts`), `export const value${i} = ${i};\n`);

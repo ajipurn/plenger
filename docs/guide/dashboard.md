@@ -135,8 +135,9 @@ coverage needs, from file sizes alone. Scan details show the files covered, why
 batches stopped and what the limit was charged. Exact source and omission
 counts are saved in Outputs.
 
-A Full coverage scan that stopped at its limit shows **Continue this scan** in
-its details. Enter a new limit, in the unit of the first one, for what the scan
+A Full coverage scan that stopped at its limit, or whose later batch failed
+after earlier ones completed, for instance on a provider rate limit, shows
+**Continue this scan** in its details. Enter a new limit, in the unit of the first one, for what the scan
 spends from now on. Later batches skip the files earlier batches sent whole and
 continue excerpted files, from the saved static scan. The scan keeps its first
 limit and lists each continuation with its limit.

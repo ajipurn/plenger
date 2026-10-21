@@ -50,6 +50,7 @@ export type {
   StartSecurityScan,
 } from "../security/model.ts";
 export {
+  canContinue,
   FINDING_STATUSES,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,

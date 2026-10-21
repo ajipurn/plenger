@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import {
+  canContinue,
   EXPLORE_STOPS,
   type ExploreSessionRecord,
   type ImportedReaEvidence,
@@ -196,19 +197,17 @@ export function ScanDetailPage({
             </Link>
           </nav>
           {running && <ScanProgress scan={scan} cancelling={cancelling} />}
-          {scan.status === "completed" &&
-            scan.depth === "full" &&
-            scan.coverage?.stop === "budget" && (
-              <ContinueScan
-                scan={scan}
-                disabled={data.scans.some((item) => item.status === "running")}
-                onContinued={async (next) => {
-                  setScan(next);
-                  setPolling((value) => value + 1);
-                  await onRefresh();
-                }}
-              />
-            )}
+          {canContinue(scan) && (
+            <ContinueScan
+              scan={scan}
+              disabled={data.scans.some((item) => item.status === "running")}
+              onContinued={async (next) => {
+                setScan(next);
+                setPolling((value) => value + 1);
+                await onRefresh();
+              }}
+            />
+          )}
           {scan.error && (
             <div role="alert" className="security-review-error">
               <Icon name="alert" />

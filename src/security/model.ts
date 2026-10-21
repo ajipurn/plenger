@@ -169,6 +169,19 @@ export interface ScanActivity {
   /** Accounted tokens of the scan so far. */
   tokens: number;
 }
+/**
+ * Whether a Full coverage scan can continue: it stopped at its limit, or a later batch
+ * failed, on a provider error for instance, after earlier batches completed.
+ */
+export function canContinue(scan: SecurityScan): boolean {
+  if (scan.depth !== "full" || !scan.provider) return false;
+  if (scan.status === "completed") return scan.coverage?.stop === "budget";
+  return (
+    scan.status === "failed" &&
+    scan.reviews.some((review) => review.status === "completed") &&
+    scan.reviews.at(-1)?.status === "failed"
+  );
+}
 /** Activity entries a scan keeps; older ones drop off. */
 export const SCAN_ACTIVITY_LIMIT = 60;
 export interface SecurityScan extends SecurityScanSummary {

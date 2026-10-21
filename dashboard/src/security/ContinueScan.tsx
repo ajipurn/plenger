@@ -62,9 +62,11 @@ export function ContinueScan({
     <section className="security-continue-scan" aria-labelledby={`${id}-heading`}>
       <h2 id={`${id}-heading`}>Continue this scan</h2>
       <p className="muted">
-        The scan stopped at its limit{covered ? ` with ${covered}` : ""}. Continuing runs more
-        batches under a new limit for what it spends from now on; files already sent whole are
-        skipped.
+        {scan.status === "failed"
+          ? `A later batch failed${covered ? ` with ${covered}` : ""}; the batches before it stand.`
+          : `The scan stopped at its limit${covered ? ` with ${covered}` : ""}.`}{" "}
+        Continuing runs more batches under a new limit for what it spends from now on; files already
+        sent whole are skipped.
         {scan.continuations?.length
           ? ` It has continued ${scan.continuations.length} ${scan.continuations.length === 1 ? "time" : "times"}.`
           : ""}

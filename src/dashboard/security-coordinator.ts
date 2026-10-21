@@ -18,6 +18,7 @@ import { ChangeScopeError, changesSince, isRefName } from "../security/changes.t
 import { scanFindings, vanishedStaticFindings } from "../security/findings.ts";
 import { readGit, sourceRevision } from "../security/git.ts";
 import {
+  canContinue,
   SCAN_ACTIVITY_LIMIT,
   SCAN_DEPTHS,
   type ScanActivity,
@@ -71,13 +72,11 @@ export class SecurityCoordinator {
   async continueScan(id: string, budget: ScanBudget): Promise<SecurityScan> {
     const previous = this.#store.security.scan(id);
     if (!previous) throw new HttpError(404, "Scan not found.");
-    if (
-      previous.status !== "completed" ||
-      previous.depth !== "full" ||
-      previous.coverage?.stop !== "budget" ||
-      !previous.provider
-    )
-      throw new HttpError(400, "Only a Full coverage scan that stopped at its limit can continue.");
+    if (!canContinue(previous) || !previous.provider)
+      throw new HttpError(
+        400,
+        "Only a Full coverage scan that stopped at its limit, or whose later batch failed, can continue.",
+      );
     return this.start(
       {
         repositoryId: previous.repositoryId,
