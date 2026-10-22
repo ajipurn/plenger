@@ -32,7 +32,8 @@ threat model is measured on a real project in its
   cases of its first run.
 - Shipped: `6717960`, Batch digest `80c73b91df93`, Explore `1ceabf89fee2`. It
   changes one sentence of the second review after `91200c4` and has not run
-  live; see Observations.
+  on Claude; see Observations. One Batch run on ChatGPT is
+  [recorded](review-chatgpt-batch-2026-10-22.md).
 
 ## Answer
 
@@ -59,7 +60,7 @@ once in its one run.
 The M10a follow-up rule stopped the mistaken dismissals of an unpinned
 server, but its credential part made Batch dismiss a redacted key it had
 always found. That part was taken out again in the shipped version, which has
-not run live.
+not run on Claude.
 
 ## Results
 
@@ -162,12 +163,12 @@ Django, aiohttp, Fastify, Koa, Hono and NestJS have no case.
   dismissal when the value is not a real credential. The case was found in all
   six Batch runs before the rule and missed in three of five after it,
   counting the run without guides. `6717960` takes credentials out of the rule
-  again; that wording has not run live.
+  again; that wording has not run on Claude.
 
 ## Limits
 
 Three runs per version on one synthetic corpus and one model. The version
 without guides has one Batch run and part of one Explore run, so its figures
 carry no run range, and its change-case results are one review each. The
-shipped version has no live run. The
+shipped version has no Claude run. The
 framework subsets are small, with two cases for five guides and none for six.
