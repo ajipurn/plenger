@@ -41,6 +41,7 @@ import { MODULE_SCOPE, type ProjectIndex } from "../project/index.ts";
 import type { Project, ProjectFile } from "../project/project.ts";
 import { compareStrings } from "../shared/compare.ts";
 import { inSpan, locationKey, positionOrder } from "../shared/location.ts";
+import { byFamily, familyOf, type Language } from "../source/languages.ts";
 import { compiledSinks, sinksFor } from "./catalog.ts";
 import { PathValues, staysInDirectory } from "./names.ts";
 import type { Sink } from "./sinks.ts";
@@ -497,7 +498,7 @@ export class EffectTracer {
         return computed();
       }
       case "string": {
-        const opening = file.language === "python" ? /^\{[^{}]*\}/ : /^\$\{/;
+        const opening = byFamily(file.language, { python: /^\{[^{}]*\}/, javascript: /^\$\{/ });
         return opening.test(value.value) ? given(value.template?.[0]) : [];
       }
       case "concat":
@@ -676,7 +677,7 @@ export class EffectTracer {
     const last =
       sink.contents === true
         ? values.flatMap((value) => {
-            const component = lastComponent(value, facts, file.language === "python");
+            const component = lastComponent(value, facts, file.language);
             return component !== undefined && this.#paths.nameLevel(file, component) === "plain"
               ? [component]
               : [];
@@ -829,9 +830,9 @@ export class EffectTracer {
     const callee = this.#project.files.get(target.path);
     const definition =
       callee === undefined ? undefined : definitionOf(callee.facts, target.definition);
-    return definition === undefined
+    return callee === undefined || definition === undefined
       ? call.arguments.map(() => undefined)
-      : argumentParameters(call, definition, callee?.language === "python");
+      : argumentParameters(call, definition, callee.language);
   }
 
   /** What tracing knows of values in a file for effects of `mode` (see `FlowMode`). */
@@ -1259,7 +1260,7 @@ const GIVEN_METHOD =
 function lastComponent(
   value: Value,
   facts: FileFacts,
-  python: boolean,
+  language: Language,
   depth = 0,
 ): Value | undefined {
   const target = deref(value, facts);
@@ -1274,14 +1275,16 @@ function lastComponent(
       depth < 4 &&
       WRAPS_PATH.test(call.ref?.name ?? call.callee)
     )
-      return lastComponent(single.value, facts, python, depth + 1);
+      return lastComponent(single.value, facts, language, depth + 1);
     if (call === undefined || args.length < 2 || args.some((arg) => arg.spread)) return undefined;
     return JOINS.test(call.ref?.name ?? call.callee) ? args.at(-1)?.value : undefined;
   }
+  // `BASE / name` joins a pathlib path.
+  const python = familyOf(language) === "python";
   if (target.kind === "other" && python && / \/ /.test(target.text) && target.parts !== undefined)
     return target.parts.length === 2 ? target.parts[1] : undefined;
   if (target.kind === "string" && target.template !== undefined && target.template.length > 0) {
-    const ending = python ? /\/\{[^{}]*\}$/ : /\/\$\{[^{}]*\}$/;
+    const ending = byFamily(language, { python: /\/\{[^{}]*\}$/, javascript: /\/\$\{[^{}]*\}$/ });
     return ending.test(target.value) ? target.template.at(-1) : undefined;
   }
   return undefined;

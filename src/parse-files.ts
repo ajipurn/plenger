@@ -7,7 +7,7 @@
 import { availableParallelism } from "node:os";
 import { Worker } from "node:worker_threads";
 import { extractFacts, type FileFacts } from "./facts/index.ts";
-import { type Grammar, LANGUAGE_OF, type Language } from "./source/languages.ts";
+import { byFamily, type Grammar, LANGUAGE_OF, type Language } from "./source/languages.ts";
 import { SourceParser } from "./source/parser.ts";
 import { countLines, looksMinified, type ReadSkipReason, readSource } from "./source/read.ts";
 
@@ -45,7 +45,9 @@ export async function parseOne(
   const source = await readSource(task.absolutePath, maxFileBytes);
   if (typeof source !== "string")
     return { kind: "skipped", path: task.path, reason: source.reason };
-  if (task.grammar !== "python" && looksMinified(source))
+  // Bundlers minify JavaScript; Python has no such output.
+  const bundled = byFamily(LANGUAGE_OF[task.grammar], { python: false, javascript: true });
+  if (bundled && looksMinified(source))
     return { kind: "skipped", path: task.path, reason: "minified" };
   const tree = await parser.parse(task.grammar, source);
   try {

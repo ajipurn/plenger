@@ -3,6 +3,7 @@
 import type { CallFact, Decorator, DefinitionFact, Span } from "../../facts/model.ts";
 import { select } from "../../facts/query.ts";
 import type { FunctionRef } from "../../project/index.ts";
+import { byFamily } from "../../source/languages.ts";
 import type { RouteRule } from "../detectors.ts";
 import type { EntryPoint } from "../model.ts";
 import type { FileDetector } from "./file-detector.ts";
@@ -117,7 +118,7 @@ function addRoute(
 /** Next.js App Router `route.ts` handlers and Pages Router API routes. */
 export function routeFiles(d: FileDetector): void {
   const { scope } = d;
-  if (scope.language === "python") return;
+  if (!byFamily(scope.language, { python: false, javascript: true })) return;
   const app = APP_ROUTE_FILE.exec(scope.path);
   const pages = PAGES_API_FILE.exec(scope.path);
   if (app === null && pages === null) return;

@@ -360,8 +360,11 @@ export class Context {
   #importName(module: string, path: string): string {
     if (path === "") return module;
     if (path.startsWith("(")) return module + path;
-    if (this.language === "javascript") return `${module}#${path}`;
-    return module.endsWith(".") ? module + path : `${module}.${path}`;
+    const separator: Record<LanguageFamily, string> = {
+      python: module.endsWith(".") ? "" : ".",
+      javascript: "#",
+    };
+    return `${module}${separator[this.language]}${path}`;
   }
 
   get hooks(): LanguageHooks {

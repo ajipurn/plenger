@@ -1,4 +1,4 @@
-import { familyOf, type Language, type LanguageFamily } from "../source/languages.ts";
+import { byFamily, familyOf, type Language, type LanguageFamily } from "../source/languages.ts";
 
 interface FrameworkInfo {
   id: string;
@@ -120,7 +120,7 @@ const UNSUPPORTED_AI_MODULES: Record<LanguageFamily, string[]> = {
  */
 function moduleMatches(module: string, prefix: string, language: Language): boolean {
   if (prefix.endsWith("*")) return module.startsWith(prefix.slice(0, -1));
-  const separator = language === "python" ? "." : "/";
+  const separator = byFamily(language, { python: ".", javascript: "/" });
   return module === prefix || module.startsWith(prefix + separator);
 }
 

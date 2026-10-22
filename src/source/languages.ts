@@ -7,8 +7,23 @@ export type Language = "python" | "javascript" | "typescript";
 /** The detector and fact-extractor family a language belongs to: TypeScript is JavaScript here. */
 export type LanguageFamily = "python" | "javascript";
 
+const FAMILY_OF: Record<Language, LanguageFamily> = {
+  python: "python",
+  javascript: "javascript",
+  typescript: "javascript",
+};
+
 export function familyOf(language: Language): LanguageFamily {
-  return language === "python" ? "python" : "javascript";
+  return FAMILY_OF[language];
+}
+
+/**
+ * The value for a language's family. `values` names every family, so a new family is a
+ * compile error at each call until that place decides what the family means there. Every
+ * value is computed before the call; pass functions when only the chosen one may run.
+ */
+export function byFamily<T>(language: Language, values: Record<LanguageFamily, T>): T {
+  return values[familyOf(language)];
 }
 
 export const LANGUAGE_OF: Record<Grammar, Language> = {

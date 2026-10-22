@@ -14,6 +14,11 @@ export interface Compiled {
   invoke: RegExp | null;
 }
 
+const RULES_OF: Record<LanguageFamily, DetectorRule[]> = {
+  python: PYTHON_RULES,
+  javascript: JAVASCRIPT_RULES,
+};
+
 const compiledRules = new Map<LanguageFamily, Compiled[]>();
 
 /** The rules for a language, compiled once per process. */
@@ -21,7 +26,7 @@ export function rulesFor(language: Language): Compiled[] {
   const family = familyOf(language);
   let compiled = compiledRules.get(family);
   if (compiled === undefined) {
-    compiled = (family === "python" ? PYTHON_RULES : JAVASCRIPT_RULES).map((rule) => ({
+    compiled = RULES_OF[family].map((rule) => ({
       rule,
       calls: "calls" in rule && rule.calls !== undefined ? compilePatterns(rule.calls) : null,
       decorators:

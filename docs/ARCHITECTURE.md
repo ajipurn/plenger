@@ -305,6 +305,7 @@ Container-gated suites skip unless `PLENGER_TEST_LLMFY_IMAGE` or
 | Add a risk rule | `src/rules/catalog.ts`, a check in `src/rules/checks/`, cases under `test/fixtures/risks/`, `pnpm generate` |
 | Add a tool capability or sink | `src/capabilities/sinks.ts` |
 | Add a runtime advisory | a row in `src/platform/advisories.ts`, cases in `test/runtimes.test.ts` and `test/fixtures/runtimes/`, `pnpm bench -- --write` |
+| Add a language family | `LanguageFamily` in `src/source/languages.ts`; `pnpm typecheck` then lists every `byFamily` call and `Record<LanguageFamily, …>` table that must decide what the family means there |
 | Add a report format | `src/report/format.ts` |
 | Add a CLI command or option | `src/cli/`, usage text in `src/cli/index.ts`, a case in `test/cli.test.ts` |
 | Add a dashboard endpoint | `src/dashboard/contract.ts`, a handler in `src/dashboard/routes/`, `dashboard/src/api/client.ts`, a test in `test/dashboard-*.test.ts` |

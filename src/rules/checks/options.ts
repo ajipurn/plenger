@@ -1,6 +1,7 @@
 import type { FileFacts, Value } from "../../facts/model.ts";
 import { deref, literalString, select } from "../../facts/query.ts";
 import type { Location } from "../../inventory/model.ts";
+import { byFamily } from "../../source/languages.ts";
 import type { RuleContext } from "../context.ts";
 import type { Draft, Severity } from "../model.ts";
 import { clientLabel, code } from "../text.ts";
@@ -57,7 +58,8 @@ export function optionChecks(cx: RuleContext): Draft[] {
   const drafts: Draft[] = [];
   for (const [path, file] of cx.project.files) {
     const facts = file.facts;
-    const on = (name: string) => (file.language === "python" ? `${name}=True` : `${name}: true`);
+    const on = (name: string) =>
+      byFamily(file.language, { python: `${name}=True`, javascript: `${name}: true` });
     for (const call of facts.calls) {
       const location: Location = { path, ...call.span };
       const callee = call.ref?.name ?? call.callee;

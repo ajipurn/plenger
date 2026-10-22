@@ -45,6 +45,11 @@ pnpm evaluate                        # static detection on test/fixtures/evaluat
   come from `pnpm generate`; the golden files under `test/fixtures/*/expected-*.json`
   come from `pnpm bench -- --write`. Tests fail on drift. Review a golden diff line
   by line before accepting it.
+- **Branch on language family exhaustively.** Choose per-family behavior with
+  `byFamily(language, { python, javascript })` or a `Record<LanguageFamily, …>`
+  table, never `language === "python" ? … : …`, so a new family is a compile error
+  where it is undecided. A check that only one family has may test that family
+  directly.
 - **Constants live in one place.** Red-team limits, provider ids, run states and
   runtime pins are in `src/redteam/constants.ts`; the JSON schemas derive from
   them. Dashboard API paths, request/response types and UI limits are in

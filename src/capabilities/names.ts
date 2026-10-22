@@ -17,6 +17,7 @@ import {
 import type { ProjectIndex } from "../project/index.ts";
 import type { Project, ProjectFile } from "../project/project.ts";
 import { inSpan, positionOrder } from "../shared/location.ts";
+import { byFamily, type Language } from "../source/languages.ts";
 
 /**
  * How a value works as one path component, from worst to best. `plain`: it holds no path
@@ -110,7 +111,7 @@ export class PathValues {
       case "string": {
         if (value.template === undefined || value.template.length === 0)
           return fixedLevel(value.value);
-        const fixed = fixedLevel(withoutPlaceholders(value.value, file.language === "python"));
+        const fixed = fixedLevel(withoutPlaceholders(value.value, file.language));
         return combine([fixed, ...value.template.map(next)]);
       }
       case "concat":
@@ -119,7 +120,8 @@ export class PathValues {
         if (value.param) return params.get(value.text) ?? "unknown";
         const ref = value.ref?.name ?? "";
         if (PARSED_PART.test(ref)) return "plain";
-        if (file.language !== "python" && URL_HOST.test(ref)) return "plain";
+        if (byFamily(file.language, { python: false, javascript: URL_HOST.test(ref) }))
+          return "plain";
         // `data.id` of `data = { id: v4() }`, an object the code never changes in place.
         const key = /^[\w$]+\.([\w$]+)$/.exec(value.text)?.[1];
         const holder = value.base === undefined ? undefined : file.facts.assignments[value.base];
@@ -151,7 +153,10 @@ export class PathValues {
   ): NameLevel {
     const facts = file.facts;
     const name = call.ref?.name ?? call.callee;
-    const python = file.language === "python";
+    // Text helpers are read by library: python-slugify, `re.sub` and `str.replace` in
+    // Python, the `slugify` package and `String.replace` in JavaScript.
+    const python = byFamily(file.language, { python: true, javascript: false });
+    const javascript = byFamily(file.language, { python: false, javascript: true });
     const level = (item: Value | undefined) =>
       item === undefined ? "unknown" : this.nameLevel(file, item, params, depth + 1);
     const [first, second] = call.arguments.map((arg) => arg.value);
@@ -168,7 +173,7 @@ export class PathValues {
     }
     // The `slugify` package removes every character outside `\w`, spaces and `$*_+~.()'"!-:@`,
     // then puts its replacement (`-`, or the second argument) between words.
-    if (!python && /^slugify(?:#default)?$/.test(name)) {
+    if (javascript && /^slugify(?:#default)?$/.test(name)) {
       const options = second === undefined ? [] : [{ keyword: null, value: second }];
       const remove = select(options, facts, "#0.remove");
       const replacement =
@@ -203,7 +208,7 @@ export class PathValues {
         replaces(literalString(pattern, facts), replacement, facts),
       );
     }
-    if (!python && /\.(?:replace|replaceAll)$/.test(call.callee)) {
+    if (javascript && /\.(?:replace|replaceAll)$/.test(call.callee)) {
       const literal = first === undefined ? undefined : deref(first, facts);
       const match = literal?.kind === "literal" ? /^\/(.*)\/([a-z]*)$/s.exec(literal.text) : null;
       const global = match?.[2]?.includes("g") === true;
@@ -223,7 +228,9 @@ export class PathValues {
       return level(receiverOf(facts, call));
     const callee = this.#callee(file, call);
     if (callee === null) return "unknown";
-    const bound = bindArguments(call, callee.definition, callee.python, (item) => level(item));
+    const bound = bindArguments(call, callee.definition, callee.file.language, (item) =>
+      level(item),
+    );
     return lowest(
       callee.returns.map((item) => this.nameLevel(callee.file, item, bound, depth + 1)),
     );
@@ -235,7 +242,7 @@ export class PathValues {
    * directory, so the values cannot move the path out of its fixed part.
    */
   componentsStay(file: ProjectFile, value: Value): boolean {
-    const pieces = pathPieces(value, file.language === "python");
+    const pieces = pathPieces(value, file.language);
     if (
       pieces === null ||
       !pieces.some((piece) => typeof piece === "string" && /[/\\]/.test(piece))
@@ -280,7 +287,7 @@ export class PathValues {
           /[A-Za-z0-9]/.test(
             value.template === undefined
               ? value.value
-              : withoutPlaceholders(value.value, file.language === "python"),
+              : withoutPlaceholders(value.value, file.language),
           ) || (value.template ?? []).some(next)
         );
       case "concat":
@@ -353,7 +360,9 @@ export class PathValues {
     }
     const callee = this.#callee(file, call);
     if (callee === null) return false;
-    const bound = bindArguments(call, callee.definition, callee.python, (item) => next(item));
+    const bound = bindArguments(call, callee.definition, callee.file.language, (item) =>
+      next(item),
+    );
     return callee.returns.every((item) => this.absolute(callee.file, item, bound, depth + 1));
   }
 
@@ -361,7 +370,7 @@ export class PathValues {
   #callee(
     file: ProjectFile,
     call: CallFact,
-  ): { file: ProjectFile; definition: DefinitionFact; python: boolean; returns: Value[] } | null {
+  ): { file: ProjectFile; definition: DefinitionFact; returns: Value[] } | null {
     const target = this.#index.calledFunction(file, call);
     const callee = target === null ? undefined : this.#project.files.get(target.path);
     const definition =
@@ -371,7 +380,7 @@ export class PathValues {
     const returns = definition?.returns ?? [];
     if (callee === undefined || definition === undefined) return null;
     if (definition.kind === "class" || returns.length === 0 || returns.length >= 10) return null;
-    return { file: callee, definition, python: callee.language === "python", returns };
+    return { file: callee, definition, returns };
   }
 }
 
@@ -379,11 +388,11 @@ export class PathValues {
 function bindArguments<T>(
   call: CallFact,
   definition: DefinitionFact,
-  python: boolean,
+  language: Language,
   read: (value: Value) => T,
 ): Map<string, T> {
   const bound = new Map<string, T>();
-  for (const [index, name] of argumentParameters(call, definition, python).entries()) {
+  for (const [index, name] of argumentParameters(call, definition, language).entries()) {
     const arg = call.arguments[index];
     if (name !== undefined && arg !== undefined) bound.set(name, read(arg.value));
   }
@@ -421,13 +430,13 @@ function receiverOf(facts: FileFacts, call: CallFact): Value | undefined {
  * The fixed text and values a string is built from, in order: a template's text split
  * around its interpolations, or a concatenation's parts. Null for anything else.
  */
-function pathPieces(value: Value, python: boolean): (string | Value)[] | null {
+function pathPieces(value: Value, language: Language): (string | Value)[] | null {
   if (value.kind === "concat") {
     const pieces: (string | Value)[] = [];
     for (const part of value.parts) {
       if (part.kind === "string" && part.template === undefined) pieces.push(part.value);
       else if (part.kind === "string") {
-        const inner = pathPieces(part, python);
+        const inner = pathPieces(part, language);
         if (inner === null) return null;
         pieces.push(...inner);
       } else pieces.push(part);
@@ -435,7 +444,10 @@ function pathPieces(value: Value, python: boolean): (string | Value)[] | null {
     return pieces;
   }
   if (value.kind !== "string" || value.template === undefined) return null;
-  const placeholder = python ? /\{[^{}]*\}/g : /\$\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
+  const placeholder = byFamily(language, {
+    python: /\{[^{}]*\}/g,
+    javascript: /\$\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g,
+  });
   const texts = value.value.split(placeholder);
   if (texts.length !== value.template.length + 1) return null;
   const pieces: (string | Value)[] = [];
@@ -471,10 +483,12 @@ function fixedLevel(text: string): NameLevel {
 }
 
 /** Fixed text of a string with its interpolations taken out (`${x}` in JS, `{x}` in f-strings). */
-function withoutPlaceholders(text: string, python: boolean): string {
-  return python
-    ? text.replace(/\{\{|\}\}/g, "").replace(/\{[^{}]*\}/g, "")
-    : text.replace(/\$\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, "");
+function withoutPlaceholders(text: string, language: Language): string {
+  const strip = byFamily(language, {
+    python: () => text.replace(/\{\{|\}\}/g, "").replace(/\{[^{}]*\}/g, ""),
+    javascript: () => text.replace(/\$\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, ""),
+  });
+  return strip();
 }
 
 /**

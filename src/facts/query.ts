@@ -5,6 +5,7 @@
  */
 
 import { looksLikeSecret } from "../shared/secrets.ts";
+import { byFamily, type Language } from "../source/languages.ts";
 import type { Argument, CallFact, DefinitionFact, FileFacts, Value } from "./model.ts";
 
 const DEREF_DEPTH = 6;
@@ -363,11 +364,15 @@ export function definitionOf(facts: FileFacts, id: string | null): DefinitionFac
 export function argumentParameters(
   call: CallFact,
   definition: DefinitionFact,
-  python: boolean,
+  language: Language,
 ): (string | undefined)[] {
   const layout = definition.unpacks;
+  // Python methods list the receiver they are called on as their first parameter.
+  const receiverFirst = byFamily(language, { python: true, javascript: false });
   const params =
-    python && definition.kind === "method" && /^(?:self|cls)$/.test(definition.params[0] ?? "")
+    receiverFirst &&
+    definition.kind === "method" &&
+    /^(?:self|cls)$/.test(definition.params[0] ?? "")
       ? definition.params.slice(1)
       : definition.params;
   const named = new Set(params);

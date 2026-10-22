@@ -7,6 +7,7 @@ import type { DefinitionFact } from "../facts/model.ts";
 import { definitionOf } from "../facts/query.ts";
 import type { Capability, Location, TraceGaps } from "../inventory/model.ts";
 import type { Project, ProjectFile } from "../project/project.ts";
+import { byFamily, type Language } from "../source/languages.ts";
 
 export interface PublicFunction {
   /** Definition id, e.g. `FileStore.get`. */
@@ -41,10 +42,12 @@ export function publicFunctions(
   const found: { file: ProjectFile; definition: DefinitionFact }[] = [];
   for (const file of project.files.values()) {
     if (NOT_API.test(file.path)) continue;
-    const python = file.language === "python";
-    if (python && PRIVATE_MODULE.test(file.path)) continue;
+    // Python marks private modules by name; JavaScript and TypeScript callers reach only exports.
+    const privateModules = byFamily(file.language, { python: true, javascript: false });
+    const exportsOnly = byFamily(file.language, { python: false, javascript: true });
+    if (privateModules && PRIVATE_MODULE.test(file.path)) continue;
     for (const definition of file.facts.definitions) {
-      if (definition.kind === "class" || !publicName(definition.name, python)) continue;
+      if (definition.kind === "class" || !publicName(definition.name, file.language)) continue;
       let outermost = definition;
       let reachable = true;
       for (
@@ -53,10 +56,10 @@ export function publicFunctions(
         parent = definitionOf(file.facts, parent.parent)
       ) {
         // A function defined inside a function is not reachable by name.
-        if (parent.kind !== "class" || !publicName(parent.name, python)) reachable = false;
+        if (parent.kind !== "class" || !publicName(parent.name, file.language)) reachable = false;
         outermost = parent;
       }
-      if (!reachable || (!python && !outermost.exported)) continue;
+      if (!reachable || (exportsOnly && !outermost.exported)) continue;
       if (callerParams(definition).length === 0) continue;
       found.push({ file, definition });
     }
@@ -74,8 +77,10 @@ export function callerParams(definition: DefinitionFact): string[] {
   return definition.params.filter((param) => !RECEIVER.test(param));
 }
 
-function publicName(name: string | null, python: boolean): boolean {
+function publicName(name: string | null, language: Language): boolean {
   if (name === null) return false;
-  if (python) return !name.startsWith("_") || /^__\w+__$/.test(name);
-  return !/^[_#]/.test(name);
+  return byFamily(language, {
+    python: !name.startsWith("_") || /^__\w+__$/.test(name),
+    javascript: !/^[_#]/.test(name),
+  });
 }

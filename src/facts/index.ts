@@ -1,11 +1,16 @@
-import type { Tree } from "web-tree-sitter";
-import type { Grammar } from "../source/languages.ts";
+import type { Node, Tree } from "web-tree-sitter";
+import { byFamily, type Grammar, LANGUAGE_OF, type LanguageFamily } from "../source/languages.ts";
 import { extractJavaScript } from "./javascript.ts";
 import type { FileFacts } from "./model.ts";
 import { extractPython } from "./python.ts";
 
 export type * from "./model.ts";
 
+const EXTRACTORS: Record<LanguageFamily, (root: Node) => FileFacts> = {
+  python: extractPython,
+  javascript: extractJavaScript,
+};
+
 export function extractFacts(tree: Tree, grammar: Grammar): FileFacts {
-  return grammar === "python" ? extractPython(tree.rootNode) : extractJavaScript(tree.rootNode);
+  return byFamily(LANGUAGE_OF[grammar], EXTRACTORS)(tree.rootNode);
 }

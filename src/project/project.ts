@@ -1,6 +1,6 @@
 import { posix } from "node:path";
 import type { FileFacts, Ref, Value } from "../facts/model.ts";
-import type { Language } from "../source/languages.ts";
+import { byFamily, type Language } from "../source/languages.ts";
 import { localPythonModules } from "./modules.ts";
 
 export interface ProjectFile {
@@ -78,9 +78,11 @@ export class Project {
   resolveModule(from: string, module: string): string | undefined {
     const file = this.files.get(from);
     if (file === undefined) return undefined;
-    return file.language === "python"
-      ? this.#resolvePython(from, module)
-      : this.#resolveJavaScript(from, module);
+    const resolve = byFamily(file.language, {
+      python: () => this.#resolvePython(from, module),
+      javascript: () => this.#resolveJavaScript(from, module),
+    });
+    return resolve();
   }
 
   #resolvePython(from: string, module: string): string | undefined {
@@ -295,7 +297,10 @@ function collectExports(file: ProjectFile, exports: Map<string, Export>): void {
 
 function importRef(language: Language, module: string, path: string): Ref {
   if (path === "") return { kind: "import", module, path, name: module };
-  const separator = language === "python" ? (module.endsWith(".") ? "" : ".") : "#";
+  const separator = byFamily(language, {
+    python: module.endsWith(".") ? "" : ".",
+    javascript: "#",
+  });
   return { kind: "import", module, path, name: `${module}${separator}${path}` };
 }
 
