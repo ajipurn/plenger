@@ -1249,7 +1249,8 @@
                 "model",
                 "prompt",
                 "code",
-                "function"
+                "function",
+                "runtime"
               ]
             },
             "name": {

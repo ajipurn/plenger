@@ -1,0 +1,5 @@
+# Tests run on an old image; CI definitions do not serve requests.
+image: php:7.4
+test:
+  script:
+    - php -v

@@ -34,7 +34,8 @@ pnpm evaluate                        # static detection on test/fixtures/evaluat
   explicit start, in networkless containers.
 - **Keep the layers one-directional.** `shared` and `source` depend on nothing in
   `src/`. `facts` → `project` → `inventory` → `capabilities` → `rules` → `report`
-  depend downwards only. `redteam` depends on the scan pipeline, `storage` and
+  depend downwards only; `platform` depends on `source` and `shared`, and `rules`
+  reads it. `redteam` depends on the scan pipeline, `storage` and
   `shared`; `dashboard` and `cli` are adapters on top of everything and nothing
   imports them back. The browser bundle (`dashboard/src`) imports only
   `src/dashboard/contract.ts` and modules that have no `node:` imports

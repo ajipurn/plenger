@@ -24,10 +24,13 @@ describe.each(CORPORA)("findings on the %s corpus", (corpus) => {
 
 describe("rule catalog", () => {
   it("has a positive fixture for every rule", async () => {
-    const findings: string[] = JSON.parse(
-      await readFile(fixturePath("risks/expected-findings.json"), "utf8"),
-    );
-    const covered = new Set(findings.map((finding) => finding.split(" ")[0]));
+    const covered = new Set<string | undefined>();
+    for (const corpus of CORPORA) {
+      const findings: string[] = JSON.parse(
+        await readFile(fixturePath(`${corpus}/expected-findings.json`), "utf8"),
+      );
+      for (const finding of findings) covered.add(finding.split(" ")[0]);
+    }
     // Library rules fire only in library scans; their vulnerable corpus cases cover them.
     for (const item of await loadCorpus(fixturePath("evaluation-library")))
       if (item.kind === "vulnerable") for (const rule of item.static) covered.add(rule);
@@ -40,9 +43,9 @@ describe("rule catalog", () => {
     for (const rule of RULES) {
       expect(rule.id).toMatch(/^PLG\d{3}$/);
       expect(rule.name).toMatch(/^[a-z]+(?:-[a-z]+)*$/);
-      // Web route (PLG8xx) and library (PLG9xx) rules cover application and package code,
-      // not an OWASP LLM or agentic risk.
-      if (!/^PLG[89]/.test(rule.id)) expect(rule.owasp.length, rule.id).toBeGreaterThan(0);
+      // Runtime (PLG0xx), web route (PLG8xx) and library (PLG9xx) rules cover the platform,
+      // application and package code, not an OWASP LLM or agentic risk.
+      if (!/^PLG[089]/.test(rule.id)) expect(rule.owasp.length, rule.id).toBeGreaterThan(0);
       for (const id of rule.owasp)
         expect(id).toMatch(/^(?:LLM(?:0[1-9]|10):2025|ASI(?:0[1-9]|10))$/);
       expect(rule.remediation.length).toBeGreaterThan(20);

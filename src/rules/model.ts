@@ -45,7 +45,9 @@ type SubjectKind =
   | "prompt"
   | "code"
   /** A public function or method, in a library scan. */
-  | "function";
+  | "function"
+  /** A runtime the project deploys on: an image, packages, a platform version or a setting. */
+  | "runtime";
 
 export interface Finding {
   /** Rule id. */

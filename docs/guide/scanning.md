@@ -209,7 +209,8 @@ Each finding has:
 
 The rule catalog lists the checks; [RULES.md](../RULES.md) describes each one
 with its remediation. Most are about agents, tools, prompts and MCP. PLG901 to PLG907
-report only in [library scans](#library-scans). PLG801 to PLG807
+report only in [library scans](#library-scans). PLG001 to PLG003 cover
+[runtime advisories](#runtime-advisories). PLG801 to PLG807
 cover web routes with no model in between. They report request input that reaches,
 in the handler or in project functions it calls in other files:
 
@@ -256,6 +257,35 @@ of an HTTP client (`requests`, `httpx`, `aiohttp`, `urllib`, `fetch`, `axios`,
 listing, and of a project function that returns one of these. Confidence is medium:
 whether the remote end is trusted is outside the scan. Received data among a fixed
 program's arguments is not reported.
+
+## Runtime advisories
+
+PLG001 to PLG003 report a known critical vulnerability in the runtime a project
+deploys on, not in its code. The first advisory is PHP2Shell (CVE-2026-109618,
+CVE-2026-109619), fixed in PHP 8.5.12, 8.4.27, 8.3.36 and 8.2.35. The scan reads
+these files in every language, with or without the AI review's text files:
+
+- Dockerfiles and Containerfiles: `FROM` images with `ARG` defaults filled in,
+  and PHP packages installed with `apt-get`, `apk`, `dnf`, `yum` or `zypper`;
+- Compose files and Kubernetes manifests: `image:`;
+- `composer.json`: `config.platform.php`;
+- `*.ini`, `.user.ini`, `*.conf`, `.htaccess` and PHP code: where
+  `session.upload_progress.enabled` is turned off.
+
+PLG001 reports an image pinned below the fix of its branch (`php:8.3.35-apache`)
+or on an end-of-life branch (`php:8.1-fpm`, `php:7.4`). PLG002 reports a version
+the build decides: a floating tag (`php:8.3-apache`), an application image such
+as `wordpress:6.6-apache`, a build argument without a default, or distribution
+packages, which get fixes as backports. PLG003 reports the setting turned off by
+`ini_set()` or in `.user.ini`, where it does not take effect. A stage that only
+other stages copy from does not ship and is not reported. An image that runs the
+PHP CLI is rated one step lower. A `composer.json` platform is reported only for
+an end-of-life branch and only when no image or package declares PHP. CI
+definitions are not read.
+
+The repository shows the declared runtime, not the one a server runs. Check
+deployed hosts with a live scanner as well. The design and its limits are in
+[design/runtime-advisories.md](../design/runtime-advisories.md).
 
 ## Library scans
 

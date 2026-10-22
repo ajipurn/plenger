@@ -56,6 +56,9 @@ Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-app
 | [PLG905](#plg905-library-code-injection) | critical | Public function evaluates its parameters as code |
 | [PLG906](#plg906-library-template-injection) | critical | Public function compiles its parameters as a template |
 | [PLG907](#plg907-library-unsafe-deserialization) | high | Public function deserializes its parameters with a loader that can run code |
+| [PLG001](#plg001-runtime-known-vulnerable) | critical | Deployed runtime is a release with a known critical vulnerability |
+| [PLG002](#plg002-runtime-unpinned-version) | medium | Runtime release is decided when the image is built |
+| [PLG003](#plg003-runtime-setting-too-late) | medium | Runtime mitigation is set where it does not take effect |
 
 ## PLG101 tool-command-injection
 
@@ -506,3 +509,33 @@ In a library scan, a public function or method loads parameter data, or a file a
 **Fix:** Use a data-only format (JSON, `yaml.safe_load`, `safetensors`) for data and files that callers pass.
 
 **Maps to:** [CWE-502](https://cwe.mitre.org/data/definitions/502.html)
+
+## PLG001 runtime-known-vulnerable
+
+**Deployed runtime is a release with a known critical vulnerability.** Severity up to critical.
+
+A container image, Compose file or Kubernetes manifest pins a runtime release below the fix of a known critical vulnerability in the runtime itself, or names a branch that is end of life and gets no fix. PHP2Shell (CVE-2026-109618, CVE-2026-109619) lets an unauthenticated request run code on PHP releases below 8.5.12, 8.4.27, 8.3.36 and 8.2.35 in their branches, and on every branch older than 8.2. A `composer.json` that resolves dependencies for an end-of-life branch is reported at lower confidence when nothing else declares the runtime.
+
+**Fix:** Pin a release that contains the fix, for example `php:8.3.36-apache` or later, then rebuild and redeploy every image. Move off end-of-life branches. Until then set `session.upload_progress.enabled=0` in php.ini, the FPM pool or the server configuration and restart every worker; that closes the known paths, not every variant.
+
+**Maps to:** [CWE-1395](https://cwe.mitre.org/data/definitions/1395.html), [CWE-1104](https://cwe.mitre.org/data/definitions/1104.html)
+
+## PLG002 runtime-unpinned-version
+
+**Runtime release is decided when the image is built.** Severity up to medium.
+
+A container image uses a floating tag (`php:8.3-apache`, `php:8`, `latest`), an application image whose tag hides the runtime version, a version from a build argument or variable without a default, or runtime packages from a distribution. It holds the fix for a known runtime vulnerability such as PHP2Shell only if it was built after the fix shipped; an image built earlier and still deployed is vulnerable.
+
+**Fix:** Pin the runtime release, for example `php:8.3.36-apache`, so the image shows which fixes it holds, and rebuild with `--pull`. For distribution packages, check the distribution's security tracker for the fix and rebuild.
+
+**Maps to:** [CWE-1395](https://cwe.mitre.org/data/definitions/1395.html)
+
+## PLG003 runtime-setting-too-late
+
+**Runtime mitigation is set where it does not take effect.** Severity up to medium.
+
+PHP code turns `session.upload_progress.enabled` off with `ini_set()`, or a `.user.ini` file does. The setting can only be changed in php.ini, an FPM pool or the server configuration, so `ini_set()` cannot change it, and the PHP2Shell guidance warns that `.user.ini` applies too late. The mitigation it is meant to apply is not in effect.
+
+**Fix:** Set `session.upload_progress.enabled=0` in php.ini, a `conf.d` file, the FPM pool (`php_admin_value[session.upload_progress.enabled] = 0`) or the Apache configuration, restart every worker, and install the fixed release.
+
+**Maps to:** [CWE-693](https://cwe.mitre.org/data/definitions/693.html)

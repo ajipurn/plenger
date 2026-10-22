@@ -1,0 +1,9 @@
+services:
+  legacy:
+    image: "php:${LEGACY_TAG:-8.1-fpm}"
+  blog:
+    image: wordpress:6.6-apache
+  api:
+    image: php:8.4.27-fpm-alpine
+  db:
+    image: mariadb:11.4

@@ -1,0 +1,9 @@
+[
+  "PLG001 Dockerfile:12 critical/high exposed Image `php:8.3.35-apache` ships PHP 8.3.35, which PHP2Shell affects",
+  "PLG001 compose.yaml:3 critical/high exposed Image `php:8.1-fpm` ships PHP 8.1, an end-of-life branch without a PHP2Shell fix",
+  "PLG002 compose.yaml:5 medium/medium exposed Image `wordpress:6.6-apache` bundles a PHP release its tag does not show",
+  "PLG002 deploy/web.yaml:10 medium/medium exposed Image `registry.example.com/library/php:8.4-fpm-alpine` takes its PHP release when it is built",
+  "PLG003 public/.user.ini:1 low/high `.user.ini` turns off `session.upload_progress.enabled` where it does not take effect",
+  "PLG003 public/index.php:3 low/high `ini_set()` turns off `session.upload_progress.enabled` where it does not take effect",
+  "PLG002 docker/worker.Dockerfile:5 low/medium `apt-get` installs PHP (`php8.2-cli`) at the distribution's patch level"
+]

@@ -25,6 +25,7 @@ src/
   rules/                 risk rules, the engine that evaluates them, scoring
   capabilities/          what tools, agents and entry points can do
   inventory/             agent inventory detectors over linked facts
+  platform/              runtimes a project declares: images, packages, PHP settings
   project/               cross-file linking of facts and the per-file index
   facts/                 language-specific fact extraction and generic fact queries
   source/                file discovery, language classification, parsing, reading
@@ -37,7 +38,8 @@ test/                    vitest suites, `support/` helpers, fixture corpora and 
 
 Dependencies point downwards only. `shared` and `source` import nothing else from
 `src/`. The pipeline layers (`facts` → `project` → `inventory` → `capabilities` →
-`rules` → `report`) each depend on the layers below them. `redteam` uses the
+`rules` → `report`) each depend on the layers below them. `platform` depends
+only on `source` and `shared`; `rules` reads it. `redteam` uses the
 pipeline through `scan.ts` and `facts`/`inventory` types, plus `shared`. `security` normalizes static and AI findings without changing the static
 pipeline. `storage` depends on persisted domain record types. `dashboard` and `cli` sit on top and nothing
 imports them back; `src/bin.ts` and `src/dashboard/bin.ts` are the only entry
@@ -75,11 +77,18 @@ code:
    outputs it produces (`output.ts`), using the sink catalog in
    `sinks.ts`/`catalog.ts`. A library scan (`library: true`) also traces the
    package's public functions and methods, listed by `library.ts`, like handlers.
-7. `rules/engine.ts` evaluates the checks in `rules/checks/` with a `RuleContext`
-   (`checks/library.ts` only has public functions to check in a library scan),
-   then `rules/scoring.ts` scores, fingerprints and de-duplicates the findings.
+7. `platform/` reads the files that declare the runtime the project deploys on,
+   which the walker lists in any language: Dockerfile images, stages and
+   distribution packages (`dockerfile.ts`), Compose and Kubernetes images
+   (`manifests.ts`), `composer.json` and PHP settings (`settings.ts`). The
+   advisory table (`advisories.ts`) holds each runtime advisory's CVEs and
+   fixed releases.
+8. `rules/engine.ts` evaluates the checks in `rules/checks/` with a `RuleContext`
+   (`checks/library.ts` only has public functions to check in a library scan,
+   `checks/runtimes.ts` reads the platform declarations instead), then
+   `rules/scoring.ts` scores, fingerprints and de-duplicates the findings.
    `rules/snippets.ts` attaches source lines.
-8. `report/model.ts` applies baselines and suppressions and decides the CI gate;
+9. `report/model.ts` applies baselines and suppressions and decides the CI gate;
    `report/format.ts` renders SARIF and Markdown; `report/schema.ts` is the source
    of the JSON schemas.
 
@@ -295,6 +304,7 @@ Container-gated suites skip unless `PLENGER_TEST_LLMFY_IMAGE` or
 | Support a new framework or library | `src/inventory/detectors/{python,javascript}.ts`, a fixture under `test/fixtures/frameworks/`, `pnpm bench -- --write` |
 | Add a risk rule | `src/rules/catalog.ts`, a check in `src/rules/checks/`, cases under `test/fixtures/risks/`, `pnpm generate` |
 | Add a tool capability or sink | `src/capabilities/sinks.ts` |
+| Add a runtime advisory | a row in `src/platform/advisories.ts`, cases in `test/runtimes.test.ts` and `test/fixtures/runtimes/`, `pnpm bench -- --write` |
 | Add a report format | `src/report/format.ts` |
 | Add a CLI command or option | `src/cli/`, usage text in `src/cli/index.ts`, a case in `test/cli.test.ts` |
 | Add a dashboard endpoint | `src/dashboard/contract.ts`, a handler in `src/dashboard/routes/`, `dashboard/src/api/client.ts`, a test in `test/dashboard-*.test.ts` |

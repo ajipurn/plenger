@@ -259,6 +259,7 @@ const definitions: Record<string, Schema> = {
             "prompt",
             "code",
             "function",
+            "runtime",
           ),
           name: text,
         },

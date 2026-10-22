@@ -1,0 +1,13 @@
+{
+  "frameworks": [],
+  "unrecognised": [],
+  "models": [],
+  "llmCalls": [],
+  "agents": [],
+  "tools": [],
+  "mcpServers": [],
+  "mcpClients": [],
+  "prompts": [],
+  "dataStores": [],
+  "entryPoints": []
+}

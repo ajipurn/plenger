@@ -9,6 +9,8 @@ import {
   classifyPath,
   type Grammar,
   type IgnoredSourceReason,
+  type PlatformKind,
+  platformKindOf,
   type TextKind,
   textKindOf,
 } from "./languages.ts";
@@ -88,6 +90,14 @@ export interface TextFile {
   bytes: number;
 }
 
+/** A file that may declare the project's runtime; `platform/` reads it. */
+export interface PlatformFile {
+  path: string;
+  absolutePath: string;
+  kind: PlatformKind;
+  bytes: number;
+}
+
 /** A compiled or packaged file: listed, never read or run by the walker. */
 export interface BinaryFile {
   path: string;
@@ -108,6 +118,8 @@ interface CollectResult {
   files: SourceFile[];
   /** Text files without a parser, sorted by path; empty unless `options.texts`. */
   texts: TextFile[];
+  /** Files that may declare the project's runtime, sorted by path; listed with or without `texts`. */
+  platform: PlatformFile[];
   /** Compiled or packaged files outside excluded directories, sorted by path. */
   binaries: BinaryFile[];
   skipped: SkippedFile[];
@@ -138,12 +150,15 @@ export async function collectSourceFiles(
     root: absoluteRoot,
     files: [],
     texts: [],
+    platform: [],
     binaries: [],
     skipped: [],
     excludedDirs: [],
     truncated: false,
   };
   const pending: { dir: string; rules: GitignoreRules[] }[] = [{ dir: "", rules: [] }];
+  // Platform files that are not also listed as text files, for the file limit.
+  let platformOnly = 0;
 
   walk: while (pending.length > 0) {
     const { dir, rules: inherited } = pending.pop() as (typeof pending)[number];
@@ -209,8 +224,9 @@ export async function collectSourceFiles(
             }
             continue;
           }
-          if (kind === null) continue;
-          if (result.files.length + result.texts.length >= maxFiles) {
+          const platform = platformKindOf(entry.name);
+          if (kind === null && platform === null) continue;
+          if (result.files.length + result.texts.length + platformOnly >= maxFiles) {
             result.truncated = true;
             break walk;
           }
@@ -222,8 +238,14 @@ export async function collectSourceFiles(
             result.skipped.push({ path, reason: "unreadable" });
             continue;
           }
-          if (bytes > maxFileBytes) result.skipped.push({ path, reason: "too_large" });
-          else result.texts.push({ path, absolutePath, kind, bytes });
+          if (bytes > maxFileBytes) {
+            result.skipped.push({ path, reason: "too_large" });
+            continue;
+          }
+          if (kind !== null) result.texts.push({ path, absolutePath, kind, bytes });
+          else platformOnly++;
+          if (platform !== null)
+            result.platform.push({ path, absolutePath, kind: platform, bytes });
         }
       }
     }
@@ -231,6 +253,7 @@ export async function collectSourceFiles(
 
   result.files.sort((a, b) => compareStrings(a.path, b.path));
   result.texts.sort((a, b) => compareStrings(a.path, b.path));
+  result.platform.sort((a, b) => compareStrings(a.path, b.path));
   result.binaries.sort((a, b) => compareStrings(a.path, b.path));
   result.skipped.sort((a, b) => compareStrings(a.path, b.path));
   result.excludedDirs.sort((a, b) => compareStrings(a.path, b.path));
@@ -277,6 +300,7 @@ function collectSingleFile(
     root: dirname(absolutePath),
     files: [],
     texts: [],
+    platform: [],
     binaries: [],
     skipped: [],
     excludedDirs: [],

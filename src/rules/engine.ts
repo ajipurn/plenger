@@ -1,6 +1,7 @@
 import { functionId, type PublicFunction } from "../capabilities/library.ts";
 import type { Receiver } from "../capabilities/received.ts";
 import type { Inventory, Location, TraceGaps } from "../inventory/model.ts";
+import type { Platform } from "../platform/model.ts";
 import type { Project } from "../project/project.ts";
 import { compareStrings } from "../shared/compare.ts";
 import { locationKey } from "../shared/location.ts";
@@ -14,6 +15,7 @@ import { outputChecks } from "./checks/output.ts";
 import { promptChecks } from "./checks/prompts.ts";
 import { receivedChecks } from "./checks/received.ts";
 import { routeChecks } from "./checks/routes.ts";
+import { runtimeChecks } from "./checks/runtimes.ts";
 import { secretChecks } from "./checks/secrets.ts";
 import { toolChecks } from "./checks/tools.ts";
 import { RuleContext } from "./context.ts";
@@ -38,13 +40,15 @@ const SOURCE_RULE = /^PLG[18]\d\d$/;
 /**
  * Runs every risk rule over the inventory and returns the findings, most urgent first.
  * `functions`, from a library scan, adds the library rules; `received` are the calls that
- * receive data over the network.
+ * receive data over the network; `platform` is what the project declares about the
+ * runtimes it deploys on.
  */
 export function evaluateRules(
   project: Project,
   inventory: Inventory,
   functions: PublicFunction[] = [],
   received: Receiver[] = [],
+  platform: Platform = { declarations: [], settings: [] },
 ): Finding[] {
   const cx = new RuleContext(project, inventory, functions, received);
   const drafts = [
@@ -59,6 +63,7 @@ export function evaluateRules(
     ...archiveChecks(cx),
     ...receivedChecks(cx),
     ...libraryChecks(cx),
+    ...runtimeChecks(platform),
   ];
   const functionTraces = new Map(functions.map((item) => [functionId(item), item.trace]));
   for (const draft of drafts) {

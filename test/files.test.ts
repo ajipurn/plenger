@@ -175,7 +175,9 @@ describe("collectSourceFiles with texts", () => {
   it("lists no text files unless asked", async () => {
     const result = await collectSourceFiles(root, { maxFileBytes: 1024 });
     expect(result.texts).toEqual([]);
-    expect(result.skipped).toEqual([]);
+    // YAML can be a Kubernetes manifest that names a runtime image, so it is still listed.
+    expect(result.platform.map((file) => file.path)).toEqual([".github/workflows/ci.yml"]);
+    expect(result.skipped).toEqual([{ path: "big.yaml", reason: "too_large" }]);
   });
 
   it("counts text files toward the file limit", async () => {

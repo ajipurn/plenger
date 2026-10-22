@@ -1,4 +1,9 @@
+import { fixedReleases, oldestFixedBranch, PHP2SHELL } from "../platform/advisories.ts";
 import type { Rule } from "./model.ts";
+import { listed } from "./text.ts";
+
+const PHP2SHELL_RELEASES = listed(fixedReleases(PHP2SHELL).reverse());
+const PHP2SHELL_EXAMPLE = `php:8.3.${PHP2SHELL.fixed["8.3"]}-apache`;
 
 /**
  * The risk rules. OWASP ids refer to the Top 10 for LLM Applications 2025 (`LLMxx:2025`)
@@ -563,6 +568,41 @@ export const RULES: Rule[] = [
     cwe: [502],
     remediation:
       "Use a data-only format (JSON, `yaml.safe_load`, `safetensors`) for data and files that callers pass.",
+  },
+
+  // Runtimes: the interpreter a project deploys on, read from its images, packages and configuration.
+  {
+    id: "PLG001",
+    name: "runtime-known-vulnerable",
+    title: "Deployed runtime is a release with a known critical vulnerability",
+    description: `A container image, Compose file or Kubernetes manifest pins a runtime release below the fix of a known critical vulnerability in the runtime itself, or names a branch that is end of life and gets no fix. ${PHP2SHELL.name} (${PHP2SHELL.cves.join(", ")}) lets an unauthenticated request run code on PHP releases below ${PHP2SHELL_RELEASES} in their branches, and on every branch older than ${oldestFixedBranch(PHP2SHELL)}. A \`composer.json\` that resolves dependencies for an end-of-life branch is reported at lower confidence when nothing else declares the runtime.`,
+    severity: "critical",
+    owasp: [],
+    cwe: [1395, 1104],
+    remediation: `Pin a release that contains the fix, for example \`${PHP2SHELL_EXAMPLE}\` or later, then rebuild and redeploy every image. Move off end-of-life branches. Until then set \`session.upload_progress.enabled=0\` in php.ini, the FPM pool or the server configuration and restart every worker; that closes the known paths, not every variant.`,
+  },
+  {
+    id: "PLG002",
+    name: "runtime-unpinned-version",
+    title: "Runtime release is decided when the image is built",
+    description:
+      "A container image uses a floating tag (`php:8.3-apache`, `php:8`, `latest`), an application image whose tag hides the runtime version, a version from a build argument or variable without a default, or runtime packages from a distribution. It holds the fix for a known runtime vulnerability such as PHP2Shell only if it was built after the fix shipped; an image built earlier and still deployed is vulnerable.",
+    severity: "medium",
+    owasp: [],
+    cwe: [1395],
+    remediation: `Pin the runtime release, for example \`${PHP2SHELL_EXAMPLE}\`, so the image shows which fixes it holds, and rebuild with \`--pull\`. For distribution packages, check the distribution's security tracker for the fix and rebuild.`,
+  },
+  {
+    id: "PLG003",
+    name: "runtime-setting-too-late",
+    title: "Runtime mitigation is set where it does not take effect",
+    description:
+      "PHP code turns `session.upload_progress.enabled` off with `ini_set()`, or a `.user.ini` file does. The setting can only be changed in php.ini, an FPM pool or the server configuration, so `ini_set()` cannot change it, and the PHP2Shell guidance warns that `.user.ini` applies too late. The mitigation it is meant to apply is not in effect.",
+    severity: "medium",
+    owasp: [],
+    cwe: [693],
+    remediation:
+      "Set `session.upload_progress.enabled=0` in php.ini, a `conf.d` file, the FPM pool (`php_admin_value[session.upload_progress.enabled] = 0`) or the Apache configuration, restart every worker, and install the fixed release.",
   },
 ];
 

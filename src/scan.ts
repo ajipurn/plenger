@@ -7,6 +7,7 @@ import type { FileFacts } from "./facts/index.ts";
 import { literalCredentials } from "./facts/query.ts";
 import { buildInventory, type Inventory } from "./inventory/index.ts";
 import { parseFiles } from "./parse-files.ts";
+import { readPlatform } from "./platform/index.ts";
 import { Project, type ProjectFile } from "./project/project.ts";
 import { evaluateRules, type Finding } from "./rules/index.ts";
 import { attachSnippets } from "./rules/snippets.ts";
@@ -116,7 +117,8 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
   const { functions, received } = analyzeCapabilities(project, inventory, {
     library: options.library === true,
   });
-  const findings = evaluateRules(project, inventory, functions, received);
+  const platform = await readPlatform(collected.platform, maxFileBytes);
+  const findings = evaluateRules(project, inventory, functions, received, platform);
   await attachSnippets(collected.root, findings);
 
   skipped.sort((a, b) => compareStrings(a.path, b.path));

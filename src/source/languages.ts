@@ -90,6 +90,33 @@ export function textKindOf(path: string): TextKind | null {
   return (dot > 0 && TEXT_KIND_BY_EXTENSION.get(name.slice(dot))) || null;
 }
 
+/**
+ * A file that declares the runtime a project deploys on: a container build, a Compose
+ * file, another YAML file that may be a Kubernetes manifest, `composer.json`, PHP
+ * configuration or PHP code that changes it.
+ */
+export type PlatformKind = "dockerfile" | "compose" | "yaml" | "composer" | "php-config" | "php";
+
+const PLATFORM_KIND_BY_EXTENSION: Record<string, PlatformKind> = {
+  ".yml": "yaml",
+  ".yaml": "yaml",
+  ".ini": "php-config",
+  ".conf": "php-config",
+  ".htaccess": "php-config",
+  ".php": "php",
+  ".phtml": "php",
+};
+
+/** Which runtime declarations a file may hold, or null when it holds none plenger reads. */
+export function platformKindOf(path: string): PlatformKind | null {
+  const name = path.slice(path.lastIndexOf("/") + 1).toLowerCase();
+  if (/^(?:dockerfile|containerfile)(?:\..+)?$|\.dockerfile$/.test(name)) return "dockerfile";
+  if (/^(?:docker-)?compose(?:\.[\w.-]+)?\.ya?ml$/.test(name)) return "compose";
+  if (name === "composer.json") return "composer";
+  const dot = name.lastIndexOf(".");
+  return (dot >= 0 && PLATFORM_KIND_BY_EXTENSION[name.slice(dot)]) || null;
+}
+
 /** A compiled or packaged file the scan lists but cannot read. */
 export type BinaryKind =
   | "native library"
