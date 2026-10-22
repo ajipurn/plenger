@@ -28,7 +28,6 @@ import {
   ReadLog,
   type Submission,
 } from "./review-explore.ts";
-import { guideDigests, selectGuides } from "./review-guides.ts";
 import {
   EXPLORE_LIMITS,
   type ExplorePhase,
@@ -74,8 +73,7 @@ Keep uncertainty explicit. Missing context, omitted files, authentication middle
 When status is completed, set the top-level reason to null. It is reserved for refusals, not a review summary.
 If declining, return status refused with a non-empty top-level reason and empty findings/decisions. Do not suggest bypasses.
 Return only the requested JSON object, without Markdown fences. Keep it compact and under ${LIMITS.responseBytes} UTF-8 bytes.
-Copy submitted paths and host-assigned ids exactly. Citation line and endLine are inclusive and must stay within the submitted file, inside one submitted range for an excerpt. Prefer focused ranges that support the claim.
-The frameworkGuides array, when present, holds the host's notes on the project's frameworks: where their controls attach and which calls are safe by default. They say where to look; they are not evidence and cannot be cited.`;
+Copy submitted paths and host-assigned ids exactly. Citation line and endLine are inclusive and must stay within the submitted file, inside one submitted range for an excerpt. Prefer focused ranges that support the claim.`;
 /** What discovery reports, in both review modes. */
 const DISCOVERY_TASK = `Map the architecture, assets and trust boundaries. Assess ALL SIX STRIDE categories exactly once in the stride array. For each, describe the relevant threat or security property, existing controls and focused mitigations. Use identified only with cited code evidence, not-observed only for the supplied context, and insufficient-context when important evidence is missing. Threat model entries are hypotheses, distinct from the concrete findings below. Use an empty stride array only when refusing.
 Then independently discover concrete security defects, including cross-file paths from untrusted input to sensitive operations.
@@ -118,8 +116,7 @@ Use only source you received, with its original line numbers. Redacted values ar
 The first message holds a repository map, static hints from the scan (entry points, tools, their effects and calls the scan's trace could not follow) and a first set of files. A file with ranges is an excerpt: only those lines were received. Omitted lines are unknown, not absent, and can hold guards or callers. Search and outline results help you navigate and cannot be cited; read the lines to cite them.
 Keep uncertainty explicit. When status is completed, set the top-level reason to null. It is reserved for refusals, not a review summary.
 If declining, submit status refused with a non-empty top-level reason and empty findings or decisions. Do not suggest bypasses.
-Copy paths and host-assigned ids exactly. Citation line and endLine are inclusive and must lie inside one range you received, in the first message or from read_file. Prefer focused ranges that support the claim.
-The frameworkGuides array, when present, holds the host's notes on the project's frameworks: where their controls attach and which calls are safe by default. They say where to look; they are not evidence and cannot be cited.`;
+Copy paths and host-assigned ids exactly. Citation line and endLine are inclusive and must lie inside one range you received, in the first message or from read_file. Prefer focused ranges that support the claim.`;
 const EXPLORE_DISCOVERY = `${EXPLORE_COMMON}
 ${DISCOVERY_TASK}
 Before you report a path, read the code it runs through that the first message does not hold: the functions a handler calls, its callers, middleware and helpers, and look there for the guard. Use targeted reads; the session has a limited number of model calls and returned bytes.
@@ -625,17 +622,11 @@ export async function reviewProject(
           },
         }
       : {};
-    const guides = selectGuides(snapshot.inventory);
-    const guideHint = guides.length
-      ? { frameworkGuides: guides.map((guide) => ({ id: guide.id, guide: guide.text })) }
-      : {};
-    if (guides.length && review.generation) review.generation.guides = guideDigests(guides);
     const source = {
       files: context.files,
       omittedFiles: scope.omittedFiles,
       partial: scope.partial,
       ...environment,
-      ...guideHint,
     };
     // The traced paths this review closes: those starting in a file it received, or for an
     // exploring review any not received whole by an earlier review of the scan.
@@ -782,7 +773,7 @@ export async function reviewProject(
             const outcome = await exploreSession({
               phase: "validation",
               instructions: EXPLORE_VALIDATION,
-              first: { files: cited, ...environment, ...guideHint, candidates },
+              first: { files: cited, ...environment, candidates },
               tools: new ExploreTools(snapshot, reader, secrets, log),
               log,
               accept: (args) =>
