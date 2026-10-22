@@ -19,8 +19,8 @@ The static engine remains offline.
 
 The host rereads files from the static scan's allowlist. It reapplies current
 exclusions and `.gitignore` rules. The allowlist holds the parsed Python,
-JavaScript and TypeScript files and, for dashboard scans, text files without a
-parser: code in other languages (Go, Java, PHP, Ruby, C#, Rust and more),
+JavaScript, TypeScript and PHP files and, for dashboard scans, text files without a
+parser: code in other languages (Go, Java, Ruby, C#, Rust and more),
 shell scripts, SQL, templates (HTML, Jinja, ERB, Handlebars, Twig and others),
 configuration (YAML, TOML, JSON, XML, INI), Terraform and Dockerfiles. These are
 read as plain text: they get no static facts, so nothing orders or excerpts
@@ -278,7 +278,7 @@ with four read-only tools over the scan's allowlist:
 | `list_files` | Allowlisted paths under a prefix, with kind, lines and bytes, 300 per page |
 | `read_file` | Redacted, line-numbered lines, at most 300 lines and 16 KiB per call |
 | `search` | Lines that contain a literal string, on redacted text, at most 40 matches |
-| `outline` | Definitions and imports of a parsed Python, JavaScript or TypeScript file |
+| `outline` | Definitions and imports of a parsed Python, JavaScript, TypeScript or PHP file |
 
 Discovery ends by calling `submit_discovery`, the second review by calling
 `submit_decisions`. Their parameters are the batch response schemas. On Claude

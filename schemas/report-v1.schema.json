@@ -34,7 +34,7 @@
           },
           "language": {
             "type": "string",
-            "enum": ["python", "javascript", "typescript"]
+            "enum": ["python", "javascript", "typescript", "php"]
           },
           "bytes": {
             "type": "integer",

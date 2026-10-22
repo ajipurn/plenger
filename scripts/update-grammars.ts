@@ -23,6 +23,8 @@ const GRAMMARS = {
     file: "tree-sitter-typescript.wasm",
   },
   tsx: { package: "tree-sitter-typescript", version: "0.23.2", file: "tree-sitter-tsx.wasm" },
+  // PHP with the HTML around `<?php` blocks; `tree-sitter-php_only.wasm` is the other grammar.
+  php: { package: "tree-sitter-php", version: "0.24.2", file: "tree-sitter-php.wasm" },
 };
 
 const grammarDir = fileURLToPath(new URL("../grammars/", import.meta.url));

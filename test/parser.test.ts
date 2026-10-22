@@ -39,6 +39,7 @@ describe("SourceParser", () => {
     ["javascript", "const t = tool({ execute: async () => 1 });\n", "program"],
     ["typescript", "const s: Server = new Server({ name: 'x' });\n", "program"],
     ["tsx", "export const A = (p: { x: string }) => <div>{p.x}</div>;\n", "program"],
+    ["php", "<p><?php echo htmlspecialchars($name); ?></p>\n", "program"],
   ])("parses valid %s", async (grammar, source, rootType) => {
     const tree = await parser.parse(grammar, source);
     try {
@@ -52,6 +53,7 @@ describe("SourceParser", () => {
   it.each<[Grammar, string]>([
     ["python", "def broken(:\n"],
     ["typescript", "const = ;\n"],
+    ["php", "<?php function broken( {\n"],
   ])("flags syntax errors in %s", async (grammar, source) => {
     const tree = await parser.parse(grammar, source);
     try {

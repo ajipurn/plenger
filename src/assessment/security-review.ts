@@ -380,8 +380,8 @@ export async function reviewProject(
       "Read-only source analysis. No runtime validation was performed.",
       `Source is reread at review time and can differ from the saved static scan. ${
         snapshot.textFiles
-          ? "Files without a parser (other languages, templates and configuration) are read as plain text, without the static facts that order and excerpt Python, JavaScript and TypeScript files."
-          : "Only Python, JavaScript and TypeScript source is included."
+          ? "Files without a parser (other languages, templates and configuration) are read as plain text, without the static facts that order and excerpt Python, JavaScript, TypeScript and PHP files."
+          : "Only Python, JavaScript, TypeScript and PHP source is included."
       }`,
     ],
   };

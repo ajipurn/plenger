@@ -49,6 +49,8 @@ const RECEIVES = {
     "got{#default,}",
     "got{#default.,#}{get,post}",
   ]),
+  // No PHP clients yet: an empty pattern matches no call name.
+  php: compilePatterns([]),
 };
 
 /** Effects that misbehave when a remote party chooses their input. */

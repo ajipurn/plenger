@@ -1,7 +1,9 @@
 # Scanning
 
 The static engine reads Python, JavaScript and TypeScript source and reports
-the agent inventory, tool capabilities and risk findings. It never runs,
+the agent inventory, tool capabilities and risk findings. PHP files are parsed
+into code facts too (see [Code facts](#code-facts)); no detectors, sinks or
+rules use them yet. It never runs,
 imports or installs the project and needs no network access. The dashboard
 uses this engine before its AI source review. See [reports-ci.md](reports-ci.md)
 for the direct-engine GitHub Action, baselines and suppressions.
@@ -269,8 +271,8 @@ these files in every language, with or without the AI review's text files:
   and PHP packages installed with `apt-get`, `apk`, `dnf`, `yum` or `zypper`;
 - Compose files and Kubernetes manifests: `image:`;
 - `composer.json`: `config.platform.php`;
-- `*.ini`, `.user.ini`, `*.conf`, `.htaccess` and PHP code: where
-  `session.upload_progress.enabled` is turned off.
+- `*.ini`, `.user.ini`, `*.conf`, `.htaccess` and the `ini_set()` calls in
+  parsed PHP code: where `session.upload_progress.enabled` is turned off.
 
 PLG001 reports an image pinned below the fix of its branch (`php:8.3.35-apache`)
 or on an end-of-life branch (`php:8.1-fpm`, `php:7.4`). PLG002 reports a version
@@ -360,3 +362,12 @@ destructuring into canonical names such as `openai.OpenAI().chat.completions.cre
 (Python) or `openai#default().chat.completions.create` (JS/TS). The fact model
 is [src/facts/model.ts](../../src/facts/model.ts). Facts use the static report
 contract and are retained by the engine and offline evaluation tools.
+
+PHP facts name classes and functions by their fully qualified names, through `use`
+declarations and the file's namespace: `GuzzleHttp\Client().get`,
+`App\Models\User.find`. A function name nothing defines or imports is the global
+function (`shell_exec`). Variables keep their `$`, and a function sees only its
+parameters, its `use` variables and its own assignments. Superglobals are globals
+keyed by the string they are read with (`$_GET.page`). `include` and `require`,
+and backticks (as `shell_exec`), are recorded as calls, PHP 8 attributes as
+decorators, and interpolations show as `{$expr}` in a string's text.

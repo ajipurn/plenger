@@ -17,6 +17,8 @@ export interface Compiled {
 const RULES_OF: Record<LanguageFamily, DetectorRule[]> = {
   python: PYTHON_RULES,
   javascript: JAVASCRIPT_RULES,
+  // No PHP detectors yet.
+  php: [],
 };
 
 const compiledRules = new Map<LanguageFamily, Compiled[]>();

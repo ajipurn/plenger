@@ -118,7 +118,7 @@ function addRoute(
 /** Next.js App Router `route.ts` handlers and Pages Router API routes. */
 export function routeFiles(d: FileDetector): void {
   const { scope } = d;
-  if (!byFamily(scope.language, { python: false, javascript: true })) return;
+  if (!byFamily(scope.language, { python: false, javascript: true, php: false })) return;
   const app = APP_ROUTE_FILE.exec(scope.path);
   const pages = PAGES_API_FILE.exec(scope.path);
   if (app === null && pages === null) return;

@@ -196,7 +196,12 @@ export class Context {
   /** Records that the code changes what `node` (an identifier) holds in place: `node[k] = v`. */
   markMutated(node: Node | null, scope: Scope): void {
     if (node?.type !== "identifier") return;
-    const assignment = this.assignmentOf(this.lookup(node.text, scope, node.startIndex));
+    this.markMutatedName(node.text, scope, node.startIndex);
+  }
+
+  /** `markMutated` for a variable named as its binding is (`$items` in PHP). */
+  markMutatedName(name: string, scope: Scope, offset: number): void {
+    const assignment = this.assignmentOf(this.lookup(name, scope, offset));
     if (assignment !== undefined) this.#mutated.add(assignment);
   }
 
@@ -363,6 +368,8 @@ export class Context {
     const separator: Record<LanguageFamily, string> = {
       python: module.endsWith(".") ? "" : ".",
       javascript: "#",
+      // A fully qualified PHP name, then members: `GuzzleHttp\Client().request`.
+      php: ".",
     };
     return `${module}${separator[this.language]}${path}`;
   }
@@ -502,6 +509,8 @@ const COMPOSITE = new Set([
   "unary_expression",
   "subscript_expression",
   "sequence_expression",
+  // PHP
+  "unary_op_expression",
 ]);
 const MAX_PARTS = 4;
 

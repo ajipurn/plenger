@@ -1,6 +1,6 @@
 import { compilePatterns } from "../facts/pattern.ts";
 import type { CapabilityKind } from "../inventory/model.ts";
-import { familyOf, type Language } from "../source/languages.ts";
+import { familyOf, type Language, type LanguageFamily } from "../source/languages.ts";
 import { APPROVAL_CALLS, GUARDS, JAVASCRIPT_SINKS, PYTHON_SINKS, type Sink } from "./sinks.ts";
 
 /** A sink with its call patterns compiled. */
@@ -9,12 +9,10 @@ export interface CompiledSink {
   pattern: RegExp;
 }
 
-interface CompiledCatalog {
-  python: CompiledSink[];
-  javascript: CompiledSink[];
+type CompiledCatalog = Record<LanguageFamily, CompiledSink[]> & {
   guards: { kinds: CapabilityKind[]; pattern: RegExp }[];
   approvals: RegExp;
-}
+};
 
 let compiled: CompiledCatalog | undefined;
 
@@ -27,6 +25,8 @@ export function compiledSinks(): CompiledCatalog {
   compiled ??= {
     python: PYTHON_SINKS.map(compileSink),
     javascript: JAVASCRIPT_SINKS.map(compileSink),
+    // PHP facts are extracted, but no PHP sinks are catalogued yet.
+    php: [],
     guards: GUARDS.map((guard) => ({ kinds: guard.kinds, pattern: compilePatterns(guard.calls) })),
     approvals: compilePatterns(APPROVAL_CALLS),
   };

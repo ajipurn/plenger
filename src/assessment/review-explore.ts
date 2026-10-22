@@ -124,7 +124,7 @@ export function exploreTools(phase: ExplorePhase, strict = false): unknown[] {
     ),
     tool(
       "outline",
-      "List the definitions and imports of a parsed Python, JavaScript or TypeScript file, with line ranges. Outlines cannot be cited.",
+      "List the definitions and imports of a parsed Python, JavaScript, TypeScript or PHP file, with line ranges. Outlines cannot be cited.",
       { path: { type: "string" } },
       ["path"],
     ),

@@ -368,7 +368,7 @@ export function argumentParameters(
 ): (string | undefined)[] {
   const layout = definition.unpacks;
   // Python methods list the receiver they are called on as their first parameter.
-  const receiverFirst = byFamily(language, { python: true, javascript: false });
+  const receiverFirst = byFamily(language, { python: true, javascript: false, php: false });
   const params =
     receiverFirst &&
     definition.kind === "method" &&

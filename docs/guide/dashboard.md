@@ -64,7 +64,8 @@ The `/redteam` route displays **Coming soon** and exposes no testing controls.
 
 The workspace accepts local folders. It does not need a GitHub connection.
 Projects can be in any language. Static agent-specific rules cover Python,
-JavaScript and TypeScript; the source-based model analysis also reads other
+JavaScript and TypeScript; PHP is parsed for the model analysis but has no
+static rules yet. The source-based model analysis also reads other
 languages, templates and configuration as plain text. The two have different
 coverage.
 See [ai-security-review.md](ai-security-review.md).

@@ -184,7 +184,7 @@ export function ProjectForm({
             </Button>
           </div>
           <p className="muted">
-            Choose a folder containing Python, JavaScript or TypeScript source files. Git is
+            Choose a folder containing Python, JavaScript, TypeScript or PHP source files. Git is
             optional.
           </p>
         </div>

@@ -39,7 +39,7 @@ size limit). It reads them only; nothing runs.
 | Other YAML with top-level `apiVersion:` and `kind:` | `image:` of Kubernetes manifests |
 | `composer.json` | `config.platform.php` |
 | `*.ini`, `.user.ini`, `*.conf`, `.htaccess` | `session.upload_progress.enabled` in php.ini syntax, FPM pools, Apache and nginx directives |
-| `*.php`, `*.phtml` | `ini_set()` and `ini_alter()` of that setting |
+| PHP code, through its parsed facts | `ini_set()` and `ini_alter()` of that setting, by position or by name |
 
 An image is a PHP image when its name is `php`, `php-fpm`, `php-apache` or
 `php-nginx` (official and common third-party images), when its tag names a
@@ -82,7 +82,9 @@ stays, since the patch is still needed.
 - `src/platform/advisories.ts` holds the advisory table: CVEs, publication
   date, the fixed release per branch and the mitigating setting. A later
   runtime advisory is a new row and, for another runtime, a new image list.
-- `src/rules/checks/runtimes.ts` turns declarations into findings.
+- `src/rules/checks/runtimes.ts` turns declarations into findings. It reads
+  `ini_set()` calls from the PHP facts of the static scan, so a call in a
+  comment is not one.
 
 ## Not covered
 

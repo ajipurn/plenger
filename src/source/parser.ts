@@ -8,6 +8,7 @@ export const GRAMMAR_FILE: Record<Grammar, string> = {
   javascript: "tree-sitter-javascript.wasm",
   typescript: "tree-sitter-typescript.wasm",
   tsx: "tree-sitter-tsx.wasm",
+  php: "tree-sitter-php.wasm",
 };
 
 let runtime: Promise<void> | undefined;

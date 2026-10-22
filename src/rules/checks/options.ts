@@ -59,7 +59,11 @@ export function optionChecks(cx: RuleContext): Draft[] {
   for (const [path, file] of cx.project.files) {
     const facts = file.facts;
     const on = (name: string) =>
-      byFamily(file.language, { python: `${name}=True`, javascript: `${name}: true` });
+      byFamily(file.language, {
+        python: `${name}=True`,
+        javascript: `${name}: true`,
+        php: `'${name}' => true`,
+      });
     for (const call of facts.calls) {
       const location: Location = { path, ...call.span };
       const callee = call.ref?.name ?? call.callee;

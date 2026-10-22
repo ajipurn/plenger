@@ -15,6 +15,7 @@ describe("classifyPath", () => {
     ["route.mts", "typescript"],
     ["Chat.tsx", "tsx"],
     ["UPPER.PY", "python"],
+    ["app/Http/Controllers/UserController.php", "php"],
   ])("maps %s to the %s grammar", (path, grammar) => {
     expect(classifyPath(path)).toEqual({ kind: "source", grammar });
   });
@@ -36,7 +37,7 @@ describe("classifyPath", () => {
 describe("textKindOf", () => {
   it.each([
     ["cmd/server/main.go", "code"],
-    ["app/Http/Controllers/UserController.php", "code"],
+    ["app/views/home.phtml", "code"],
     ["templates/invoice.html", "code"],
     ["db/migrate/001_users.sql", "code"],
     ["Makefile", "code"],

@@ -81,6 +81,8 @@ export class Project {
     const resolve = byFamily(file.language, {
       python: () => this.#resolvePython(from, module),
       javascript: () => this.#resolveJavaScript(from, module),
+      // PHP names classes, not files; resolving them needs the project's autoloading.
+      php: () => undefined,
     });
     return resolve();
   }
@@ -300,6 +302,7 @@ function importRef(language: Language, module: string, path: string): Ref {
   const separator = byFamily(language, {
     python: module.endsWith(".") ? "" : ".",
     javascript: "#",
+    php: ".",
   });
   return { kind: "import", module, path, name: `${module}${separator}${path}` };
 }

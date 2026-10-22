@@ -45,8 +45,12 @@ export async function parseOne(
   const source = await readSource(task.absolutePath, maxFileBytes);
   if (typeof source !== "string")
     return { kind: "skipped", path: task.path, reason: source.reason };
-  // Bundlers minify JavaScript; Python has no such output.
-  const bundled = byFamily(LANGUAGE_OF[task.grammar], { python: false, javascript: true });
+  // Bundlers minify JavaScript; Python and PHP have no such output.
+  const bundled = byFamily(LANGUAGE_OF[task.grammar], {
+    python: false,
+    javascript: true,
+    php: false,
+  });
   if (bundled && looksMinified(source))
     return { kind: "skipped", path: task.path, reason: "minified" };
   const tree = await parser.parse(task.grammar, source);

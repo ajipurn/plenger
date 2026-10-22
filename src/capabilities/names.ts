@@ -120,7 +120,7 @@ export class PathValues {
         if (value.param) return params.get(value.text) ?? "unknown";
         const ref = value.ref?.name ?? "";
         if (PARSED_PART.test(ref)) return "plain";
-        if (byFamily(file.language, { python: false, javascript: URL_HOST.test(ref) }))
+        if (byFamily(file.language, { python: false, javascript: URL_HOST.test(ref), php: false }))
           return "plain";
         // `data.id` of `data = { id: v4() }`, an object the code never changes in place.
         const key = /^[\w$]+\.([\w$]+)$/.exec(value.text)?.[1];
@@ -155,8 +155,8 @@ export class PathValues {
     const name = call.ref?.name ?? call.callee;
     // Text helpers are read by library: python-slugify, `re.sub` and `str.replace` in
     // Python, the `slugify` package and `String.replace` in JavaScript.
-    const python = byFamily(file.language, { python: true, javascript: false });
-    const javascript = byFamily(file.language, { python: false, javascript: true });
+    const python = byFamily(file.language, { python: true, javascript: false, php: false });
+    const javascript = byFamily(file.language, { python: false, javascript: true, php: false });
     const level = (item: Value | undefined) =>
       item === undefined ? "unknown" : this.nameLevel(file, item, params, depth + 1);
     const [first, second] = call.arguments.map((arg) => arg.value);
@@ -447,6 +447,7 @@ function pathPieces(value: Value, language: Language): (string | Value)[] | null
   const placeholder = byFamily(language, {
     python: /\{[^{}]*\}/g,
     javascript: /\$\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g,
+    php: /\{\$[^{}]*\}/g,
   });
   const texts = value.value.split(placeholder);
   if (texts.length !== value.template.length + 1) return null;
@@ -487,6 +488,7 @@ function withoutPlaceholders(text: string, language: Language): string {
   const strip = byFamily(language, {
     python: () => text.replace(/\{\{|\}\}/g, "").replace(/\{[^{}]*\}/g, ""),
     javascript: () => text.replace(/\$\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, ""),
+    php: () => text.replace(/\{\$[^{}]*\}/g, ""),
   });
   return strip();
 }

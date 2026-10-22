@@ -498,7 +498,11 @@ export class EffectTracer {
         return computed();
       }
       case "string": {
-        const opening = byFamily(file.language, { python: /^\{[^{}]*\}/, javascript: /^\$\{/ });
+        const opening = byFamily(file.language, {
+          python: /^\{[^{}]*\}/,
+          javascript: /^\$\{/,
+          php: /^\{\$[^{}]*\}/,
+        });
         return opening.test(value.value) ? given(value.template?.[0]) : [];
       }
       case "concat":
@@ -1284,7 +1288,11 @@ function lastComponent(
   if (target.kind === "other" && python && / \/ /.test(target.text) && target.parts !== undefined)
     return target.parts.length === 2 ? target.parts[1] : undefined;
   if (target.kind === "string" && target.template !== undefined && target.template.length > 0) {
-    const ending = byFamily(language, { python: /\/\{[^{}]*\}$/, javascript: /\/\$\{[^{}]*\}$/ });
+    const ending = byFamily(language, {
+      python: /\/\{[^{}]*\}$/,
+      javascript: /\/\$\{[^{}]*\}$/,
+      php: /\/\{\$[^{}]*\}$/,
+    });
     return ending.test(target.value) ? target.template.at(-1) : undefined;
   }
   return undefined;

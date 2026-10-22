@@ -1,7 +1,9 @@
+import type { Value } from "../../facts/model.ts";
 import {
   type Exposure,
   exposure,
   fixedReleases,
+  MITIGATION_SETTINGS,
   oldestFixedBranch,
   RUNTIME_ADVISORIES,
   type RuntimeAdvisory,
@@ -15,6 +17,9 @@ import type {
   RuntimeSetting,
   ServerApi,
 } from "../../platform/model.ts";
+import { iniBoolean } from "../../platform/settings.ts";
+import type { Project } from "../../project/project.ts";
+import { familyOf } from "../../source/languages.ts";
 import { type Draft, SEVERITIES, type Severity } from "../model.ts";
 import { code, listed } from "../text.ts";
 
@@ -23,12 +28,14 @@ const NOTE_PLACES = 3;
 
 /**
  * PLG001–PLG003: runtimes the project deploys on that a runtime advisory affects, and
- * mitigations set where they do not take effect.
+ * mitigations set where they do not take effect. Settings come from the platform files
+ * and from the `ini_set()` calls in the project's PHP code.
  */
-export function runtimeChecks(platform: Platform): Draft[] {
+export function runtimeChecks(platform: Platform, project: Project): Draft[] {
   const drafts: Draft[] = [];
+  const settings = [...platform.settings, ...phpSettings(project)];
   for (const advisory of RUNTIME_ADVISORIES) {
-    const mitigations = platform.settings.filter(
+    const mitigations = settings.filter(
       (setting) =>
         setting.runtime === advisory.runtime &&
         setting.name === advisory.mitigation.setting &&
@@ -214,6 +221,42 @@ function places(settings: RuntimeSetting[]): string {
     .map((item) => `${item.location.path}:${item.location.line}`);
   const more = settings.length - shown.length;
   return listed(more > 0 ? [...shown, `${more} more`] : shown);
+}
+
+/**
+ * `ini_set()` and its alias `ini_alter()` of a mitigation setting, by position or by
+ * name (`ini_set(option: ..., value: ...)`), in the facts of PHP files.
+ */
+function phpSettings(project: Project): RuntimeSetting[] {
+  const settings: RuntimeSetting[] = [];
+  for (const [path, file] of project.files) {
+    if (familyOf(file.language) !== "php") continue;
+    for (const call of file.facts.calls) {
+      if (call.ref?.kind !== "global" || !/^ini_(?:set|alter)$/i.test(call.ref.name)) continue;
+      const positional = call.arguments.filter((arg) => arg.keyword === null);
+      const [option, value] = ["$option", "$value"].map(
+        (keyword, index) =>
+          (call.arguments.find((arg) => arg.keyword === keyword) ?? positional[index])?.value,
+      );
+      const name = option?.kind === "string" && option.template === undefined ? option.value : "";
+      if (!MITIGATION_SETTINGS.has(name.toLowerCase())) continue;
+      settings.push({
+        runtime: "php",
+        name: name.toLowerCase(),
+        enabled: literalBoolean(value),
+        scope: "ini_set",
+        location: { path, ...call.span },
+      });
+    }
+  }
+  return settings;
+}
+
+/** A literal argument read as php.ini reads it (`'0'`, `"off"`, `false`); null for anything computed. */
+function literalBoolean(value: Value | undefined): boolean | null {
+  if (value?.kind === "literal") return iniBoolean(value.text);
+  if (value?.kind === "string" && value.template === undefined) return iniBoolean(value.value);
+  return null;
 }
 
 /** The CLI serves no requests unless it runs a server itself: one severity lower. */

@@ -130,7 +130,7 @@ interface CollectResult {
 }
 
 /**
- * Lists the Python, JavaScript and TypeScript files under `root`, and with `texts` the
+ * Lists the Python, JavaScript, TypeScript and PHP files under `root`, and with `texts` the
  * text files without a parser, without following symlinks or reading file contents.
  * Results are sorted by path. When `root` is a
  * file, the result holds just that file, relative to its directory.
@@ -308,7 +308,7 @@ function collectSingleFile(
   };
   const classification = classifyPath(path);
   if (classification.kind === "other")
-    throw new Error(`not a Python, JavaScript or TypeScript file: ${path}`);
+    throw new Error(`not a Python, JavaScript, TypeScript or PHP file: ${path}`);
   if (classification.kind === "ignored")
     result.skipped.push({ path, reason: classification.reason });
   else if (bytes > maxFileBytes) result.skipped.push({ path, reason: "too_large" });

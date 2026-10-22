@@ -22,5 +22,11 @@
     "version": "0.23.2",
     "file": "tree-sitter-tsx.wasm",
     "sha256": "79e5da75ea62855a0cd67177685f0164eac87d5f630b3cbe1e0a099751ad30f8"
+  },
+  "php": {
+    "package": "tree-sitter-php",
+    "version": "0.24.2",
+    "file": "tree-sitter-php.wasm",
+    "sha256": "d4df6a6ff08c87c3ec4f9cbb785fe09998a0cb570e03f57d7b19b3acfb146aa7"
   }
 }

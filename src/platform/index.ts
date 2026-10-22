@@ -5,7 +5,7 @@ import { readDockerfile } from "./dockerfile.ts";
 import { mentionsPhpImage } from "./images.ts";
 import { readManifest } from "./manifests.ts";
 import type { Platform } from "./model.ts";
-import { codeSettings, composerPlatform, configSettings } from "./settings.ts";
+import { composerPlatform, configSettings } from "./settings.ts";
 
 /**
  * Reads what the listed files declare about the runtimes the project deploys on. Reads
@@ -35,9 +35,6 @@ export async function readPlatform(files: PlatformFile[], maxFileBytes: number):
       }
       case "php-config":
         if (mentionsSetting(text)) platform.settings.push(...configSettings(file.path, text));
-        break;
-      case "php":
-        if (mentionsSetting(text)) platform.settings.push(...codeSettings(file.path, text));
         break;
     }
   }

@@ -42,9 +42,10 @@ export function publicFunctions(
   const found: { file: ProjectFile; definition: DefinitionFact }[] = [];
   for (const file of project.files.values()) {
     if (NOT_API.test(file.path)) continue;
-    // Python marks private modules by name; JavaScript and TypeScript callers reach only exports.
-    const privateModules = byFamily(file.language, { python: true, javascript: false });
-    const exportsOnly = byFamily(file.language, { python: false, javascript: true });
+    // Python marks private modules by name; JavaScript and TypeScript callers reach only
+    // exports, and PHP callers only top-level functions and classes.
+    const privateModules = byFamily(file.language, { python: true, javascript: false, php: false });
+    const exportsOnly = byFamily(file.language, { python: false, javascript: true, php: true });
     if (privateModules && PRIVATE_MODULE.test(file.path)) continue;
     for (const definition of file.facts.definitions) {
       if (definition.kind === "class" || !publicName(definition.name, file.language)) continue;
@@ -82,5 +83,7 @@ function publicName(name: string | null, language: Language): boolean {
   return byFamily(language, {
     python: !name.startsWith("_") || /^__\w+__$/.test(name),
     javascript: !/^[_#]/.test(name),
+    // PHP marks visibility with keywords, not names.
+    php: true,
   });
 }

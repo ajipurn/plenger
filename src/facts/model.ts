@@ -21,6 +21,8 @@ export interface Span {
  * - JS/TS import: module, then `#` and the path, e.g. `openai#default().chat.completions.create`,
  *   `ai#generateText`; a path that starts with a call joins without `#`: `@anthropic-ai/sdk()`
  * - local: the definition id and path, e.g. `Agent().run`
+ * - PHP: the fully qualified class or function name, then members: `GuzzleHttp\Client().get`,
+ *   `App\Models\User.find`; superglobals are globals keyed by string (`$_GET.page`)
  * - global: e.g. `fetch`, `eval`, `process.env.OPENAI_API_KEY`
  */
 export type Ref = (
@@ -78,7 +80,7 @@ export type Value =
   | { kind: "other"; text: string; parts?: Value[]; subscript?: true };
 
 export interface Argument {
-  /** Python keyword argument name; null for positional arguments. */
+  /** Python keyword argument or PHP named argument (with its `$`); null for positional arguments. */
   keyword: string | null;
   /** `*args`, `**kwargs` or `...spread`. */
   spread?: true;
@@ -86,7 +88,10 @@ export interface Argument {
 }
 
 export interface ImportFact {
-  /** Module as written: `openai`, `langchain_core.tools`, `.tools`, `@ai-sdk/openai`, `./tools.js`. */
+  /**
+   * Module as written: `openai`, `langchain_core.tools`, `.tools`, `@ai-sdk/openai`,
+   * `./tools.js`; for PHP the fully qualified name a `use` binds, or the path `require` reads.
+   */
   module: string;
   /** Imported member, `default` for JS default imports; null when the module itself is bound. */
   imported: string | null;
@@ -129,7 +134,10 @@ export interface DefinitionFact {
   kind: "function" | "method" | "class";
   parent: string | null;
   async: boolean;
-  /** JS/TS: exported from the module. Python: defined at module level without a leading underscore. */
+  /**
+   * JS/TS: exported from the module. Python: defined at module level without a leading
+   * underscore. PHP: a function or class declared outside any other.
+   */
   exported: boolean;
   params: string[];
   decorators: Decorator[];
@@ -151,7 +159,10 @@ export interface DefinitionFact {
   unpacks?: (string | { name: string; key: string | null }[])[];
   /** Python: parameters a framework fills in from a dependency (`Depends(...)`), not from the caller. */
   injected?: string[];
-  /** Python: parameters annotated with a number, boolean, UUID or date type (`id: int`). */
+  /**
+   * Python: parameters annotated with a number, boolean, UUID or date type (`id: int`).
+   * PHP: parameters typed as a number or boolean (`int $id`).
+   */
   scalars?: string[];
   /**
    * Limits that hold whenever the function returns a value that is not a falsy literal:

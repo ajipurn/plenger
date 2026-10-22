@@ -222,10 +222,15 @@ ini_set("session.upload_progress.enabled", 0);
 ini_set('session.upload_progress.enabled', $value);
 ini_set('session.upload_progress.enabled', '1');
 `,
+      "public/admin.php": `<?php
+/* ini_set('session.upload_progress.enabled', '0'); */
+INI_ALTER(value: 'off', option: 'session.upload_progress.enabled');
+`,
       "public/.user.ini": "session.upload_progress.enabled = Off\n",
     };
     expect(await found(files)).toEqual([
       "PLG003 medium/high public/.user.ini:1",
+      "PLG003 medium/high public/admin.php:3",
       "PLG003 medium/high public/index.php:2",
     ]);
     const mitigated = await found({
@@ -234,6 +239,7 @@ ini_set('session.upload_progress.enabled', '1');
     });
     expect(mitigated).toEqual([
       "PLG003 low/high public/.user.ini:1",
+      "PLG003 low/high public/admin.php:3",
       "PLG003 low/high public/index.php:2",
     ]);
   });
@@ -302,13 +308,12 @@ describe("platform files", () => {
     ["public/.user.ini", "php-config"],
     ["public/.htaccess", "php-config"],
     ["php-fpm.d/www.conf", "php-config"],
-    ["src/index.php", "php"],
-    ["views/home.phtml", "php"],
   ])("reads %s as %s", (path, kind) => {
     expect(platformKindOf(path)).toBe(kind);
   });
 
-  it.each(["package.json", "README.md", "app.py", "php.ini-production", "Makefile"])(
+  // PHP code is parsed, and its `ini_set()` calls are read from its facts.
+  it.each(["package.json", "README.md", "app.py", "php.ini-production", "src/index.php"])(
     "leaves %s alone",
     (path) => {
       expect(platformKindOf(path)).toBeNull();

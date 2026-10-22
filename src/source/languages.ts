@@ -1,16 +1,17 @@
 /** A tree-sitter grammar plenger can load. TSX needs its own grammar. */
-export type Grammar = "python" | "javascript" | "typescript" | "tsx";
+export type Grammar = "python" | "javascript" | "typescript" | "tsx" | "php";
 
 /** The language a file is reported under. */
-export type Language = "python" | "javascript" | "typescript";
+export type Language = "python" | "javascript" | "typescript" | "php";
 
 /** The detector and fact-extractor family a language belongs to: TypeScript is JavaScript here. */
-export type LanguageFamily = "python" | "javascript";
+export type LanguageFamily = "python" | "javascript" | "php";
 
 const FAMILY_OF: Record<Language, LanguageFamily> = {
   python: "python",
   javascript: "javascript",
   typescript: "javascript",
+  php: "php",
 };
 
 export function familyOf(language: Language): LanguageFamily {
@@ -31,6 +32,7 @@ export const LANGUAGE_OF: Record<Grammar, Language> = {
   javascript: "javascript",
   typescript: "typescript",
   tsx: "typescript",
+  php: "php",
 };
 
 const GRAMMAR_BY_EXTENSION: Record<string, Grammar> = {
@@ -43,6 +45,7 @@ const GRAMMAR_BY_EXTENSION: Record<string, Grammar> = {
   ".mts": "typescript",
   ".cts": "typescript",
   ".tsx": "tsx",
+  ".php": "php",
 };
 
 /**
@@ -54,7 +57,7 @@ export type TextKind = "code" | "config";
 const TEXT_EXTENSIONS: Record<TextKind, string> = {
   code: [
     // Other languages.
-    ".go .java .kt .kts .scala .groovy .gradle .rb .php .cs .fs .vb .rs .swift .m .mm .c .h",
+    ".go .java .kt .kts .scala .groovy .gradle .rb .phtml .cs .fs .vb .rs .swift .m .mm .c .h",
     ".cc .cpp .cxx .hpp .ex .exs .erl .clj .cljs .dart .lua .pl .pm .r .jl .hs .ml .zig .sol",
     ".vue .svelte .astro .coffee",
     // Shell and queries.
@@ -107,10 +110,10 @@ export function textKindOf(path: string): TextKind | null {
 
 /**
  * A file that declares the runtime a project deploys on: a container build, a Compose
- * file, another YAML file that may be a Kubernetes manifest, `composer.json`, PHP
- * configuration or PHP code that changes it.
+ * file, another YAML file that may be a Kubernetes manifest, `composer.json` or PHP
+ * configuration. PHP code is parsed; its `ini_set()` calls are read from its facts.
  */
-export type PlatformKind = "dockerfile" | "compose" | "yaml" | "composer" | "php-config" | "php";
+export type PlatformKind = "dockerfile" | "compose" | "yaml" | "composer" | "php-config";
 
 const PLATFORM_KIND_BY_EXTENSION: Record<string, PlatformKind> = {
   ".yml": "yaml",
@@ -118,8 +121,6 @@ const PLATFORM_KIND_BY_EXTENSION: Record<string, PlatformKind> = {
   ".ini": "php-config",
   ".conf": "php-config",
   ".htaccess": "php-config",
-  ".php": "php",
-  ".phtml": "php",
 };
 
 /** Which runtime declarations a file may hold, or null when it holds none plenger reads. */

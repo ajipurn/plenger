@@ -10,11 +10,6 @@ const NAMES = [...MITIGATION_SETTINGS].map(escaped).join("|");
  * (`php_flag name off`) or nginx (`PHP_VALUE "name=0"`) syntax, and `-d name=0`.
  */
 const DIRECTIVE = new RegExp(`(${NAMES})(?:\\]\\s*=|\\s*=|\\s+)\\s*["']?([^\\s"';\\]#]*)`, "gi");
-/** `ini_set('name', value)` and its alias `ini_alter`. */
-const INI_SET = new RegExp(
-  `\\bini_(?:set|alter)\\s*\\(\\s*(['"])(${NAMES})\\1\\s*,\\s*([^)]*?)\\s*\\)`,
-  "gi",
-);
 /** A line that is only a comment in ini, FPM, Apache and nginx files. */
 const CONFIG_COMMENT = /^\s*[;#]/;
 
@@ -46,26 +41,6 @@ export function directives(
       location: span(at, match.index, whole.length),
     });
   }
-  return settings;
-}
-
-/** `ini_set()` and `ini_alter()` calls in PHP code, outside line comments. */
-export function codeSettings(path: string, text: string): RuntimeSetting[] {
-  const settings: RuntimeSetting[] = [];
-  text.split(/\r?\n/).forEach((line, index) => {
-    for (const match of line.matchAll(INI_SET)) {
-      const before = line.slice(0, match.index);
-      if (/\/\/|^\s*(?:#|\*|\/\*)/.test(before)) continue;
-      const [whole, , name = "", value = ""] = match;
-      settings.push({
-        runtime: "php",
-        name: name.toLowerCase(),
-        enabled: phpBoolean(value),
-        scope: "ini_set",
-        location: span({ path, line: index + 1 }, match.index, whole.length),
-      });
-    }
-  });
   return settings;
 }
 
@@ -115,13 +90,6 @@ export function iniBoolean(value: string): boolean | null {
   if (/^(?:0|off|false|no|none|)$/.test(word)) return false;
   if (/^(?:1|on|true|yes)$/.test(word)) return true;
   return null;
-}
-
-/** A literal PHP argument: `'0'`, `"off"`, `0`, `false`; null for anything computed. */
-function phpBoolean(value: string): boolean | null {
-  const literal = /^(?:'([^']*)'|"([^"$]*)"|(\w+))$/.exec(value.trim());
-  if (literal === null) return null;
-  return iniBoolean(literal[1] ?? literal[2] ?? literal[3] ?? "");
 }
 
 function span(at: { path: string; line: number }, index: number, length: number): PlatformLocation {

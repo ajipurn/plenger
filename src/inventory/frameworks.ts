@@ -6,6 +6,7 @@ interface FrameworkInfo {
   /** Import modules that mean the framework is used: exact, or a parent of the module. */
   python?: string[];
   javascript?: string[];
+  php?: string[];
 }
 
 /** Frameworks plenger has detectors for. */
@@ -111,6 +112,8 @@ const UNSUPPORTED_AI_MODULES: Record<LanguageFamily, string[]> = {
     "@huggingface/*",
     "@voltagent/*",
   ],
+  // PHP namespaces: openai-php/client, google-gemini-php, LLPhant, Prism, Neuron AI, Symfony AI.
+  php: ["OpenAI", "Gemini", "LLPhant", "Prism\\Prism", "NeuronAI", "Symfony\\AI"],
 };
 
 /**
@@ -120,7 +123,7 @@ const UNSUPPORTED_AI_MODULES: Record<LanguageFamily, string[]> = {
  */
 function moduleMatches(module: string, prefix: string, language: Language): boolean {
   if (prefix.endsWith("*")) return module.startsWith(prefix.slice(0, -1));
-  const separator = byFamily(language, { python: ".", javascript: "/" });
+  const separator = byFamily(language, { python: ".", javascript: "/", php: "\\" });
   return module === prefix || module.startsWith(prefix + separator);
 }
 

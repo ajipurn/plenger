@@ -63,7 +63,7 @@ export function evaluateRules(
     ...archiveChecks(cx),
     ...receivedChecks(cx),
     ...libraryChecks(cx),
-    ...runtimeChecks(platform),
+    ...runtimeChecks(platform, project),
   ];
   const functionTraces = new Map(functions.map((item) => [functionId(item), item.trace]));
   for (const draft of drafts) {

@@ -57,7 +57,7 @@ code:
    after `source/typescript-syntax.ts` blanks TypeScript 5 type syntax the
    TypeScript grammar does not know.
 3. `facts/` extracts imports, definitions, assignments, calls and the guards of
-   `if` statements per file (`python.ts`, `javascript.ts`) into the shapes in
+   `if` statements per file (`python.ts`, `javascript.ts`, `php.ts`) into the shapes in
    `facts/model.ts`. `facts/query.ts` holds the generic queries over facts
    (dereferencing values, selecting arguments, provenance, fixed collections and
    lookups, literal credentials).
@@ -85,7 +85,8 @@ code:
    fixed releases.
 8. `rules/engine.ts` evaluates the checks in `rules/checks/` with a `RuleContext`
    (`checks/library.ts` only has public functions to check in a library scan,
-   `checks/runtimes.ts` reads the platform declarations instead), then
+   `checks/runtimes.ts` reads the platform declarations and the `ini_set()`
+   calls of PHP facts instead), then
    `rules/scoring.ts` scores, fingerprints and de-duplicates the findings.
    `rules/snippets.ts` attaches source lines.
 9. `report/model.ts` applies baselines and suppressions and decides the CI gate;

@@ -413,7 +413,7 @@ export const REPORT_SCHEMA = document(
         object(
           {
             path: text,
-            language: choices("python", "javascript", "typescript"),
+            language: choices("python", "javascript", "typescript", "php"),
             bytes: natural,
             lines: natural,
             syntaxErrors: boolean,
