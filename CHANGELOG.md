@@ -14,6 +14,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   Published builds check for stable updates in the background with a daily cache.
   Updates verify the global npm installation and install the confirmed exact version.
   Private builds skip registry checks and self-update.
+- Batch review requests allow 12,288 output tokens, up from 8,192, so a
+  discovery reply fits 16 path closures. The source budget for a
+  200,000-token window drops from 106 to 103 KiB.
 - The former scan, facts, rules, assess, serve and redteam commands are removed.
   Dashboard analysis and shared engines remain. The GitHub Action calls the static
   engine directly. Installed-package checks use the default dashboard launcher.
@@ -38,7 +41,8 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   second-review dismissal names its basis (control, unreachable, contradicted or
   duplicate) and cites the lines that decide it. The host checks the citation
   against what the second review received; a dismissal that does not check out
-  becomes Needs review with a host note and a limitation. Scan Outputs list
+  becomes Needs review with a host note and a limitation. Unreachable does not
+  apply to a supply-chain candidate or a missing loop limit. Scan Outputs list
   dismissed candidates with their basis and cited lines.
 - Severity labels on the vulnerable evaluation cases. `pnpm evaluate` reports
   severity agreement, vulnerable cases dismissed by mistake and dismissals the
@@ -47,8 +51,8 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   entry points, tools, agents and model output to an effect, at most 16 per
   review, and closes each as a finding, safe with a cited control, or open. The
   host checks every closure; a path without one that checks out is Not closed.
-  Scan Outputs list the paths with their closures, and `pnpm evaluate` counts
-  them.
+  A closure's reason is one short sentence, cut at 300 characters. Scan
+  Outputs list the paths with their closures, and `pnpm evaluate` counts them.
 - M10c project threat model. A project keeps a threat model of its
   architecture, assets and trust boundaries: the first review derives it, later
   reviews in the scan and in later scans start from and extend it, and each scan

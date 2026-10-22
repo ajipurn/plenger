@@ -182,6 +182,8 @@ review of the scan received whole. Discovery closes each path:
 | Safe | A control, or code that keeps untrusted input from the effect | A citation of lines the review received |
 | Open | Discovery could not decide | A reason that names what is missing |
 
+Each reason is one short sentence of at most 300 characters; a longer one is cut.
+
 A path without a closure that checks out is **Not closed**, and the review adds a
 limitation with the count. The list of paths is the scan's observation; the
 closures are the model's account. Files without a parser have no traced paths.
@@ -232,7 +234,7 @@ A dismissal names its basis and cites the lines that decide it:
 | Basis | Meaning | Citation |
 | --- | --- | --- |
 | Control | A control that counts defeats the attack | The control, with role guard |
-| Unreachable | Untrusted input cannot reach the effect | The source that shows it |
+| Unreachable | Untrusted input cannot reach the effect. Not for a supply-chain candidate or a missing loop limit, whose risk is not the input | The source that shows it |
 | Contradicted | The source contradicts the claim | The contradicting lines |
 | Duplicate | Another candidate reports the same path | The other candidate's id |
 

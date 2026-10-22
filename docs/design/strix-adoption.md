@@ -1,8 +1,8 @@
 # Ideas adopted from Strix (design)
 
-Status: M10a is implemented; the other checkpoints are planned. The
-checkpoints are [M10](../ROADMAP.md#m10-review-discipline-and-scope-in-progress)
-and [M11](../ROADMAP.md#m11-validation-by-execution-planned). What works and
+Status: M10 is implemented and measured; M11 is planned. The checkpoints
+are [M10](../ROADMAP.md#m10-review-discipline-and-scope-done) and
+[M11](../ROADMAP.md#m11-validation-by-execution-planned). What works and
 what is qualified is in [../STATUS.md](../STATUS.md).
 
 ## Why
@@ -123,13 +123,21 @@ pairs, and no drop in precision.
 where authentication and middleware attach, which framework calls are safe by
 default and which mistakes are common. The host selects guides from the
 frameworks in the static inventory. Selection is deterministic and part of the
-prompt digest. Explore mode can add a read-only tool that loads a guide for a
-framework seen only in plain-text files. Guides count toward the request
-budget. Plenger writes its own guides. Strix's skills are testing playbooks
-and serve only as a reference for which frameworks matter.
+prompt digest. Explore mode could add a read-only tool that loads a guide for a
+framework seen only in plain-text files; that tool is not built. Guides count
+toward the request budget. Plenger writes its own guides. Strix's skills are
+testing playbooks and serve only as a reference for which frameworks matter.
 
 Measurement: precision and recall per framework with and without its guide.
 A guide that does not help is removed.
+
+Result: no guide helped. On the cases that got one, precision fell in both
+modes, mostly through reports of routes without authentication and tools
+without approval, the controls the guides pointed to. All guides were
+removed; the
+[record](../qualifications/detection-claude-haiku-2026-10-21-m10.md#framework-guides)
+has the subsets. A later attempt needs corpus cases for each framework and
+guides that do not invite reports of a missing control.
 
 **Project threat model.** Full coverage derives architecture, assets, trust
 boundaries and STRIDE again in every batch. Instead, the first batch derives a
@@ -161,8 +169,10 @@ project's configuration and attributes name. The design chooses between a
 commit-to-commit diff with `--no-ext-diff --no-textconv` and the overrides in
 `src/security/git.ts`, and an in-process diff of the base blob, read with
 `git cat-file`, against the file on disk. Neither reads working-tree status.
+Plenger uses the in-process diff.
 
-**In the GitHub Action.** After the npm release in M8. Model use stays opt-in:
+**In the GitHub Action.** The Action runs from the repository's source, so it
+does not wait for the npm release in M8. Model use stays opt-in:
 an input names a provider, the key comes from a CI secret, and a token or USD
 limit is required. The gate and SARIF inputs work as today. The workflow needs
 the base commit, for example through `fetch-depth: 0`.
@@ -236,9 +246,9 @@ Decisions that design must make:
 
 ## Order
 
-M10a, M10b, M10c, M10d in the dashboard, M10e, then the Action part of M10d
-after the npm release, then the M11 design and M11. Each checkpoint is
-reviewed and measured before the next. Results are recorded in
+M10a, M10b, M10c, M10d in the dashboard, M10e and the Action part of M10d,
+then the M11 design and M11. Each checkpoint is reviewed and measured before
+the next. Results are recorded in
 [../STATUS.md](../STATUS.md) and [../qualifications/](../qualifications/).
 
 ## Open questions
