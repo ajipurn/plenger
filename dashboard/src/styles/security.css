@@ -224,9 +224,18 @@
   background: var(--success-soft);
   color: var(--success);
 }
-.security-status.scan-failed {
+.security-status.scan-failed,
+.security-status.stride-identified {
   background: var(--critical-soft);
   color: var(--critical);
+}
+.security-status.stride-insufficient-context {
+  background: var(--medium-soft);
+  color: var(--medium);
+}
+.security-status.stride-not-observed {
+  background: var(--low-soft);
+  color: var(--low);
 }
 .security-status.scan-running,
 .security-status.finding-in-progress {

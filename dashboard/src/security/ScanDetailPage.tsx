@@ -280,7 +280,7 @@ export function ScanDetailPage({
                         <details key={entry.category}>
                           <summary>
                             <span>{entry.category}</span>
-                            <span className="security-status">
+                            <span className={`security-status stride-${entry.status}`}>
                               {entry.status === "identified"
                                 ? "Threat identified"
                                 : entry.status === "not-observed"
