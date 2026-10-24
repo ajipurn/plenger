@@ -364,7 +364,9 @@ export function ProvidersView({
           returnFocus.current?.isConnected ? returnFocus.current : addButton.current
         }
       />
-      <UNSAFE_PortalProvider getContainer={() => editorContent.current}>
+      {/* Inside the open editor so its focus scope keeps the dialog usable. A delete from
+          the table has no editor, and an overlay without a container renders nothing. */}
+      <UNSAFE_PortalProvider getContainer={() => editorContent.current ?? document.body}>
         <DeleteProviderDialog
           provider={pendingDelete}
           busy={busy}
