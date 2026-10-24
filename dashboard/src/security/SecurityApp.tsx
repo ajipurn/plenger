@@ -180,8 +180,7 @@ export function SecurityApp() {
                   to="/findings"
                   aria-label="Plenger security workspace"
                 >
-                  {/* <Mark /> */}
-                  <span>plenger</span>
+                  <span>Plenger</span>
                 </Link>
               </div>
               <div className="security-header-actions">
