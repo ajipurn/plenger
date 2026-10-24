@@ -290,9 +290,7 @@ export function createUpdates(options: UpdateOptions = {}): Updates {
           throw new UpdateError(
             "The installed version could not be verified. Check npm's installation before starting Plenger.",
           );
-        io.stdout(
-          `Updated to Plenger ${release.version}. Run plenger to start the dashboard.\n`,
-        );
+        io.stdout(`Updated to Plenger ${release.version}. Run plenger to start the dashboard.\n`);
         return 0;
       } catch (error) {
         // Do not expose npm's raw output, registry responses or credential-bearing config.

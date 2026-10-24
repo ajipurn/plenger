@@ -111,9 +111,7 @@ export function SecurityApp() {
       })
       .catch(() => {
         if (!stopped) {
-          setError(
-            "Unable to connect to the local service. Restart Plenger and reload this page.",
-          );
+          setError("Unable to connect to the local service. Restart Plenger and reload this page.");
           setLoading(false);
         }
       });

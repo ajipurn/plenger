@@ -17,9 +17,7 @@ const legacy = legacyHashTarget(window.location.hash.slice(1));
 if (window.location.pathname === "/" && legacy) {
   window.history.replaceState(null, "", legacy);
 }
-const nonce = document.querySelector<HTMLMetaElement>(
-  'meta[name="plenger-style-nonce"]',
-)?.content;
+const nonce = document.querySelector<HTMLMetaElement>('meta[name="plenger-style-nonce"]')?.content;
 OverlayScrollbars.nonce(nonce);
 // Vaul's Radix scroll lock injects a stylesheet through react-style-singleton.
 if (nonce) setNonce(nonce);

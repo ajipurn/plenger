@@ -118,8 +118,7 @@ export async function runGitHubAction(
     const code = gate ? 3 : aiFailed ? 1 : 0;
     // GitHub does not honour SARIF suppressions, so suppressed findings would show
     // as open alerts; they stay in the job summary with their reasons.
-    const uploaded =
-      env.PLENGER_INCLUDE_SUPPRESSED === "true" ? report : withoutSuppressed(report);
+    const uploaded = env.PLENGER_INCLUDE_SUPPRESSED === "true" ? report : withoutSuppressed(report);
     const sarif = toSarif(uploaded, { sourceRoot });
     if (review) (sarif.runs as unknown[]).push(aiSarifRun(review, prefix));
     await writeOutput(output, json(sarif));

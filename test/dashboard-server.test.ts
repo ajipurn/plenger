@@ -57,9 +57,7 @@ describe("local dashboard transport", () => {
     expect(session.token).toMatch(/^[a-f0-9]{64}$/);
     const missing = await fetch(`${dashboard.url}/api/folders`);
     expect(missing.status).toBe(403);
-    expect((await api("/api/folders", undefined, { "X-Plenger-Token": "wrong" })).status).toBe(
-      403,
-    );
+    expect((await api("/api/folders", undefined, { "X-Plenger-Token": "wrong" })).status).toBe(403);
     for (const endpoint of [
       "/api/session",
       "/api/folders",

@@ -235,12 +235,12 @@ describe("GitHub Action", () => {
       expect(await runGitHubAction({ GITHUB_WORKSPACE: root, PLENGER_PATH: "missing" }, io)).toBe(
         1,
       );
-      expect(
-        await runGitHubAction({ GITHUB_WORKSPACE: root, PLENGER_FAIL_ON: "urgent" }, io),
-      ).toBe(2);
-      expect(
-        await runGitHubAction({ GITHUB_WORKSPACE: root, PLENGER_GITIGNORE: "typo" }, io),
-      ).toBe(2);
+      expect(await runGitHubAction({ GITHUB_WORKSPACE: root, PLENGER_FAIL_ON: "urgent" }, io)).toBe(
+        2,
+      );
+      expect(await runGitHubAction({ GITHUB_WORKSPACE: root, PLENGER_GITIGNORE: "typo" }, io)).toBe(
+        2,
+      );
       expect(
         await runGitHubAction({ GITHUB_WORKSPACE: root, PLENGER_INCLUDE_SUPPRESSED: "yes" }, io),
       ).toBe(2);
