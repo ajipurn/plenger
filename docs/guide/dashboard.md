@@ -94,6 +94,16 @@ service. Cancelling it keeps the path. If the chooser is unavailable, enter the
 path directly. Relative paths resolve from the service's launch directory.
 The dashboard scans folders; the CLI also accepts a single file.
 
+## Delete a project
+
+Press the trash button beside a project in **Projects**, or **Delete project**
+on its detail page. Confirm in the dialog. Deleting removes the project and its
+scan history: scans, findings and their triage, reviews, imported evidence, the
+threat model and red-team results. It cannot be undone. The folder and its files
+stay unchanged, and other projects and providers are kept. Adding the folder
+again starts a new project. Finish or cancel a running scan before deleting a
+project.
+
 ## Start a scan
 
 1. Save a model connection under **Settings > Providers**.

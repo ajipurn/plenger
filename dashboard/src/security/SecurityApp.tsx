@@ -273,6 +273,7 @@ export function SecurityApp() {
                       scans={data.scans}
                       onAdd={openAdd}
                       onNewScan={openNewScan}
+                      onChanged={refresh}
                     />
                   }
                 />

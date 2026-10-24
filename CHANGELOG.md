@@ -33,6 +33,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- Delete a project from **Projects** or its detail page after confirming in a
+  dialog. Its scans, findings, reviews, imported evidence, threat model and
+  red-team results are deleted with it; the folder stays unchanged. Deletion
+  waits while a scan runs.
 - `pnpm evaluate --concurrency <n>` reviews several cases at a time in one
   process, and a review the provider rejects with HTTP 429 is rerun after a
   pause; the report counts the reruns.

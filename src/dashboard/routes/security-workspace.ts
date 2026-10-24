@@ -14,7 +14,7 @@ import {
 } from "../../security/model.ts";
 import { isRecord } from "../../shared/guards.ts";
 import { StoreValidationError } from "../../storage/store.ts";
-import { API, type RepositorySource, WORKSPACE_LIMITS } from "../contract.ts";
+import { API, type DeleteResult, type RepositorySource, WORKSPACE_LIMITS } from "../contract.ts";
 import { expectKeys, HttpError, jsonRequest, requireInt, requireString } from "../http.ts";
 import type { Route } from "../router.ts";
 import type { Services } from "../services.ts";
@@ -132,6 +132,20 @@ export function securityWorkspaceRoutes({
               scanId: null,
             };
           return { status: 200, body: store.security.saveRepository(repository) };
+        });
+      },
+    },
+    {
+      method: "POST",
+      path: API.deleteRepository,
+      handler: async ({ request, params }) => {
+        expectKeys(await jsonRequest(request), [], "This request does not accept options.");
+        // A running scan holds the supervisor, so a project is never deleted under it.
+        return supervisor.exclusive(async () => {
+          if (!store.security.deleteRepository(params.id ?? ""))
+            throw new HttpError(404, "Project not found.");
+          const result: DeleteResult = { deleted: true };
+          return { status: 200, body: result };
         });
       },
     },

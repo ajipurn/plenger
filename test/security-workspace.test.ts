@@ -450,6 +450,49 @@ describe("local project security workspace", () => {
     expect(bodies).toHaveLength(6);
   });
 
+  it("deletes one project with its scans, findings and reviews across restarts and keeps the other projects", async () => {
+    const source = await readFile(join(project, "server.ts"), "utf8");
+    const repo = await repository();
+    const first = await finished((await start(repo.id)).id);
+    const otherProject = await writeReviewProject(join(root, "other-project"));
+    const otherRepo = (await (
+      await dashboard.request(API.repositories, { path: otherProject, name: "Other project" })
+    ).json()) as LocalRepository;
+    const other = await finished((await start(otherRepo.id)).id);
+    expect((await workspace()).findings).toHaveLength(2);
+
+    expect(
+      (await dashboard.request(pathFor(API.deleteRepository, repo.id), { force: true })).status,
+    ).toBe(400);
+    const response = await dashboard.request(pathFor(API.deleteRepository, repo.id), {});
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ deleted: true });
+    expect(await workspace()).toMatchObject({
+      repositories: [{ id: otherRepo.id }],
+      scans: [{ id: other.id }],
+      findings: [{ repositoryId: otherRepo.id }],
+    });
+    expect((await dashboard.request(pathFor(API.securityScan, first.id))).status).toBe(404);
+    expect(
+      (await dashboard.request(`${API.securityReviews}?scanId=${first.sourceScanId}`)).status,
+    ).toBe(404);
+    expect(
+      await (await dashboard.request(`${API.securityReviews}?scanId=${other.sourceScanId}`)).json(),
+    ).toHaveLength(1);
+    expect((await dashboard.request(pathFor(API.deleteRepository, repo.id), {})).status).toBe(404);
+    expect(await (await dashboard.request(API.providers)).json()).toEqual([provider]);
+    expect(await readFile(join(project, "server.ts"), "utf8")).toBe(source);
+
+    await dashboard.close();
+    dashboard = await startTestDashboard({ root, workspace: project });
+    expect((await workspace()).repositories).toEqual([
+      expect.objectContaining({ id: otherRepo.id }),
+    ]);
+    const again = await repository();
+    expect(again.id).not.toBe(repo.id);
+    expect((await finished((await start(again.id)).id)).status).toBe("completed");
+  });
+
   it("completes a dashboard scan when STRIDE evidence spans more than 13 submitted source lines", async () => {
     await appendFile(join(project, "server.ts"), `\n${"// submitted context\n".repeat(40)}`);
     mode = "long-stride";
@@ -532,6 +575,11 @@ describe("local project security workspace", () => {
       ).status,
     ).toBe(403);
     const repo = await repository();
+    expect(
+      (await dashboard.request(pathFor(API.deleteRepository, repo.id), {}, { [TOKEN_HEADER]: "" }))
+        .status,
+    ).toBe(403);
+    expect((await workspace()).repositories).toEqual([repo]);
     for (const patch of [
       { repositoryId: "missing" },
       { providerId: "missing" },
@@ -602,6 +650,7 @@ describe("local project security workspace", () => {
       ).status,
     ).toBe(409);
     expect((await dashboard.request(API.clear, {})).status).toBe(409);
+    expect((await dashboard.request(pathFor(API.deleteRepository, repo.id), {})).status).toBe(409);
     expect((await dashboard.request(pathFor(API.cancelSecurityScan, job.id), {})).status).toBe(200);
     expect((await finished(job.id)).status).toBe("cancelled");
     release?.();

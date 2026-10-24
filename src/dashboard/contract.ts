@@ -76,6 +76,7 @@ export const API = {
   repositories: "/api/security/repositories",
   updateRepository: "/api/security/repositories/:id",
   repositorySource: "/api/security/repositories/:id/source",
+  deleteRepository: "/api/security/repositories/:id/delete",
   securityScans: "/api/security/scans",
   securityScan: "/api/security/scans/:id",
   cancelSecurityScan: "/api/security/scans/:id/cancel",

@@ -1,9 +1,10 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { LocalRepository, SecurityScanSummary } from "../../../src/dashboard/contract.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
+import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.tsx";
 import { date, Empty, ScanStatus } from "./ui.tsx";
 
 export function ProjectsPage({
@@ -11,14 +12,19 @@ export function ProjectsPage({
   scans,
   onAdd,
   onNewScan,
+  onChanged,
 }: {
   projects: LocalRepository[];
   scans: SecurityScanSummary[];
   onAdd: () => void;
   onNewScan: (id: string) => void;
+  onChanged: () => Promise<void>;
 }) {
   const id = useId();
   const [query, setQuery] = useState("");
+  const addButton = useRef<HTMLButtonElement>(null);
+  const deletion = useProjectDeletion(onChanged, addButton);
+  const running = scans.some((scan) => scan.status === "running");
   const filtered = projects.filter((item) =>
     `${item.name} ${item.path}`.toLowerCase().includes(query.toLowerCase()),
   );
@@ -49,7 +55,7 @@ export function ProjectsPage({
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <Button className="button button-secondary" onClick={onAdd}>
+        <Button ref={addButton} className="button button-secondary" onClick={onAdd}>
           <Icon name="plus" /> Add project
         </Button>
       </div>
@@ -109,6 +115,19 @@ export function ProjectsPage({
                         >
                           <Icon name="scan" /> New Scan
                         </Button>
+                        <Button
+                          className="icon-button"
+                          aria-label={`Delete ${project.name}`}
+                          title={
+                            running
+                              ? "Finish or cancel the running scan before deleting a project"
+                              : "Delete project"
+                          }
+                          disabled={running}
+                          onClick={(event) => deletion.open(project, event.currentTarget)}
+                        >
+                          <Icon name="trash" />
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -135,6 +154,10 @@ export function ProjectsPage({
           }
         />
       )}
+      <DeleteProjectDialog
+        deletion={deletion}
+        scans={scans.filter((scan) => scan.repositoryId === deletion.project?.id).length}
+      />
     </>
   );
 }

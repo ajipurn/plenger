@@ -59,6 +59,21 @@ export class SecurityRepository {
       },
     });
   }
+  /**
+   * Forget one project. Its scans, findings, reviews, imported evidence and red-team runs
+   * reference `projects(path) ON DELETE CASCADE`, so deleting the project row removes them
+   * too. The folder on disk is untouched. False when no project has `id`.
+   */
+  deleteRepository(id: string): boolean {
+    const repository = this.repository(id);
+    if (!repository) return false;
+    this.#storage.transaction(() => {
+      this.#storage.database.prepare("DELETE FROM projects WHERE path = ?").run(repository.path);
+    });
+    // Deleted rows must not linger in the write-ahead log.
+    this.#storage.database.exec("PRAGMA wal_checkpoint(TRUNCATE);");
+    return true;
+  }
   scan(id: string): SecurityScan | null {
     const row = this.#storage.database
       .prepare("SELECT payload FROM security_scans WHERE id = ?")

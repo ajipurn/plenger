@@ -1,10 +1,11 @@
 import { useId, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { type SecurityWorkspace, WORKSPACE_LIMITS } from "../../../src/dashboard/contract.ts";
 import { SEVERITIES } from "../../../src/rules/model.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
+import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.tsx";
 import { costLabel } from "./ScanBilling.tsx";
 import { ScansTable } from "./ScansTable.tsx";
 import { ThreatModelPanel } from "./ThreatModelPanel.tsx";
@@ -24,6 +25,12 @@ export function ProjectDetailPage({
   const [params] = useSearchParams();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
+  const navigate = useNavigate();
+  // Leave the page first so it never renders the deleted project as missing.
+  const deletion = useProjectDeletion(async () => {
+    navigate("/projects");
+    await onChanged();
+  });
   const project = data.repositories.find((item) => item.id === id);
   if (!project)
     return (
@@ -71,13 +78,25 @@ export function ProjectDetailPage({
           </div>
           <p className="muted security-project-detail-path">{project.path}</p>
         </div>
-        <Button
-          className="button button-primary"
-          disabled={active}
-          onClick={() => onNewScan(project.id)}
-        >
-          <Icon name="scan" /> New Scan
-        </Button>
+        <div className="security-scan-actions">
+          <Button
+            className="button button-secondary"
+            {...(active
+              ? { title: "Finish or cancel the running scan before deleting a project" }
+              : {})}
+            disabled={active}
+            onClick={(event) => deletion.open(project, event.currentTarget)}
+          >
+            <Icon name="trash" /> Delete project
+          </Button>
+          <Button
+            className="button button-primary"
+            disabled={active}
+            onClick={() => onNewScan(project.id)}
+          >
+            <Icon name="scan" /> New Scan
+          </Button>
+        </div>
       </header>
       <dl className="security-scan-summary" aria-label="Project summary">
         <div>
@@ -310,6 +329,7 @@ export function ProjectDetailPage({
           </section>
         </aside>
       </div>
+      <DeleteProjectDialog deletion={deletion} scans={scans.length} />
     </div>
   );
 }

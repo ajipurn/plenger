@@ -35,6 +35,7 @@ export interface DashboardApi {
   securityWorkspace(): Promise<SecurityWorkspace>;
   addRepository(input: AddRepositoryRequest): Promise<LocalRepository>;
   updateRepository(id: string, input: UpdateRepositoryRequest): Promise<LocalRepository>;
+  deleteRepository(id: string): Promise<DeleteResult>;
   repositorySource(id: string, signal?: AbortSignal): Promise<RepositorySource>;
   startSecurityScan(input: StartSecurityScan): Promise<SecurityScan>;
   securityScan(id: string): Promise<SecurityScan>;
@@ -90,6 +91,8 @@ export async function connect(): Promise<DashboardApi> {
     addRepository: (input) => request<LocalRepository>(API.repositories, input),
     updateRepository: (id, input) =>
       request<LocalRepository>(API.updateRepository.replace(":id", encodeURIComponent(id)), input),
+    deleteRepository: (id) =>
+      request<DeleteResult>(API.deleteRepository.replace(":id", encodeURIComponent(id)), {}),
     repositorySource: (id, signal) =>
       request<RepositorySource>(
         API.repositorySource.replace(":id", encodeURIComponent(id)),
