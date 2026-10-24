@@ -20,6 +20,15 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - The former scan, facts, rules, assess, serve and redteam commands are removed.
   Dashboard analysis and shared engines remain. The GitHub Action calls the static
   engine directly. Installed-package checks use the default dashboard launcher.
+- The ChatGPT provider editor no longer has an output token threshold. Saving or
+  signing in uses automatic output settings, so each operation's allowance is the
+  observed limit instead of 1,024 tokens per red-team call.
+
+### Fixed
+
+- Reopening a connected ChatGPT provider kept the model as free text. The models
+  listed at sign-in are now saved with the provider and offered again.
+- **Delete provider** in a provider row's actions menu opened no confirmation.
 
 ### Removed
 

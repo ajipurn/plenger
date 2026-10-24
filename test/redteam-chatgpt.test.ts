@@ -5,13 +5,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { API, type ChatgptLoginResult, TOKEN_HEADER } from "../src/dashboard/contract.ts";
 import { ModelBudget } from "../src/redteam/budget.ts";
 import { chatgptModels } from "../src/redteam/chatgpt-auth.ts";
-import { CHATGPT, MODEL_RESPONSE_CAP } from "../src/redteam/constants.ts";
+import { CHATGPT, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP } from "../src/redteam/constants.ts";
 import {
   createRunProvider,
   type ModelRequest,
   reachedOutputLimit,
 } from "../src/redteam/provider.ts";
-import { PROVIDER_URLS } from "../src/redteam/provider-config.ts";
+import { PROVIDER_URLS, type SavedProvider } from "../src/redteam/provider-config.ts";
 import { ProviderRepository } from "../src/storage/provider-repository.ts";
 import { required, startTestDashboard } from "./support/dashboard.ts";
 import { temporaryDir } from "./support/tmp.ts";
@@ -413,6 +413,44 @@ describe("ChatGPT subscription login", () => {
     expect(harness.authUrls[1]?.searchParams.get("client_id")).toBe("oaiapp_plenger_test");
   });
 
+  it("keeps the signed-in model list across edits until the account signs out", async () => {
+    const harness = await loginHarness();
+    expect((await harness.login()).code).toBe(0);
+    const models = [{ id: "test-model", name: "Test model" }];
+    const dashboard = await startTestDashboard({
+      root: join(harness.root, "dashboard"),
+      dataDir: harness.root,
+    });
+    let id = "";
+    try {
+      const [saved] = (await (await dashboard.request(API.providers)).json()) as SavedProvider[];
+      id = required(saved, "provider").id;
+      expect(saved).toMatchObject({ chatgptModels: models });
+      // Automatic output settings follow the model's defaults.
+      const edited = await dashboard.request(API.providers, {
+        id,
+        name: "My subscription",
+        provider: "chatgpt",
+        model: "test-model",
+        baseUrl: PROVIDER_URLS.chatgpt,
+        temperature: null,
+        maxOutputTokens: null,
+      });
+      expect(edited.status).toBe(200);
+      expect(await edited.json()).toMatchObject({ maxOutputTokens: null, chatgptModels: models });
+    } finally {
+      await dashboard.close();
+    }
+    const store = await ProviderRepository.open(harness.root);
+    try {
+      const { session, sealed } = store.providers.readChatgptSession(id);
+      store.providers.saveChatgptSession(id, { clientId: session.clientId }, sealed);
+      expect(store.providers.readProviders()[0]).not.toHaveProperty("chatgptModels");
+    } finally {
+      store.close();
+    }
+  });
+
   it("serializes token rotation across separately opened repositories", async () => {
     const harness = await loginHarness({ expiresIn: 30 });
     expect((await harness.login()).code).toBe(0);
@@ -569,6 +607,19 @@ describe("ChatGPT streaming provider", () => {
     expect(
       (await provider(async () => response).generate(request, allowance())).value.content,
     ).toBe("完成 😊");
+  });
+
+  it("reserves the operation's allowance when the output limit is automatic", () => {
+    const automatic = (outputTokenBudget?: number) =>
+      createRunProvider({
+        provider: "chatgpt",
+        model: "test-model",
+        maxOutputTokens: null,
+        accessToken: async () => "test-access",
+        ...(outputTokenBudget === undefined ? {} : { outputTokenBudget }),
+      }).reservation(request, "probe").maxOutputTokens;
+    expect(automatic()).toBe(MAX_OUTPUT_TOKENS);
+    expect(automatic(2048)).toBe(2048);
   });
 
   it("records observed thresholds and rejects a response that overruns its reservation", async () => {

@@ -89,6 +89,8 @@ export class ChatgptLogin {
           ? current.model
           : models[0]?.id;
         if (!model) throw new Error();
+        // Saved first so the provider below carries the list into later editor sessions.
+        this.#providers.saveChatgptModels(current.id, models);
         attempt.result.provider = this.#providers.saveProvider({
           id: current.id,
           name: current.name,

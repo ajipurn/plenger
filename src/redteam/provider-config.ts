@@ -38,6 +38,8 @@ export interface SavedProvider extends ProviderSettings {
   apiKeyPreview?: string;
   /** Display identity from a verified ChatGPT sign-in. Never a credential. */
   chatgptAccount?: string;
+  /** Models the ChatGPT account listed at its last sign-in, for the editor's model choice. */
+  chatgptModels?: { id: string; name: string }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -142,7 +144,10 @@ export function validateProviderSettings(settings: {
         !Number.isFinite(temperature) ||
         temperature < TEMPERATURE_RANGE.min ||
         temperature > TEMPERATURE_RANGE.max)) ||
-    (maxOutputTokens === null && !hasProviderModelCatalog(settings.provider)) ||
+    // Ollama and Gemini need an explicit limit; the others may follow the provider's defaults.
+    (maxOutputTokens === null &&
+      !hasProviderModelCatalog(settings.provider) &&
+      settings.provider !== "chatgpt") ||
     (maxOutputTokens != null &&
       (!Number.isSafeInteger(maxOutputTokens) ||
         (maxOutputTokens as number) < 1 ||

@@ -113,7 +113,9 @@ export function ProvidersView({
             : Number(form.temperature),
         maxOutputTokens: hasProviderModelCatalog(form.provider)
           ? (kept?.maxOutputTokens ?? null)
-          : form.output,
+          : form.provider === "chatgpt"
+            ? null
+            : form.output,
         isDefault: form.isDefault,
         ...(selected ? { id: selected.id } : {}),
         ...(form.apiKey ? { apiKey: form.apiKey } : {}),
@@ -158,7 +160,7 @@ export function ProvidersView({
           model: form.model || "pending-sign-in",
           baseUrl: PROVIDER_URLS.chatgpt,
           temperature: null,
-          maxOutputTokens: form.output,
+          maxOutputTokens: null,
           isDefault: form.isDefault,
           ...(selected ? { id: selected.id } : {}),
         });

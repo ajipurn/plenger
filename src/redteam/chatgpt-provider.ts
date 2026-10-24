@@ -16,8 +16,10 @@ import {
 export function createChatgptProvider(access: ProviderAccess, dispatch: typeof fetch): RunProvider {
   const accessToken = access.accessToken;
   if (!accessToken) throw new Error("Sign in with ChatGPT in Settings > Providers first.");
+  // Requests send no output limit. Automatic settings (null) reserve the operation's whole
+  // allowance, and the observed usage is checked against it after each response.
   const outputLimit = Math.min(
-    access.maxOutputTokens ?? 1024,
+    access.maxOutputTokens ?? (access.maxOutputTokens === null ? MAX_OUTPUT_TOKENS : 1024),
     access.outputTokenBudget ?? MAX_OUTPUT_TOKENS,
   );
   const history = new Map<string, unknown[]>();

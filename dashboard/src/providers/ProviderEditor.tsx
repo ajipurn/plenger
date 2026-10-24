@@ -112,6 +112,12 @@ export function ProviderEditor({
   const keySaved =
     selected?.hasApiKey && selected.provider === form.provider && selected.baseUrl === form.baseUrl;
   const hasCatalog = hasProviderModelCatalog(form.provider);
+  // A sign-in in this editor lists models; a saved connection keeps its last list.
+  const chatgptModels = login?.models.length
+    ? login.models
+    : connected
+      ? (selected?.chatgptModels ?? [])
+      : [];
   const generation = savedGeneration(selected, form.provider);
   const apiKeyField = form.provider !== "chatgpt" && (
     <label className="provider-field-full" htmlFor={`${id}-key`}>
@@ -375,14 +381,14 @@ export function ProviderEditor({
                 ) : (
                   <label htmlFor={`${id}-model`}>
                     {form.provider === "chatgpt" ? "Model" : "Model ID"}
-                    {form.provider === "chatgpt" && login?.models.length ? (
+                    {form.provider === "chatgpt" && chatgptModels.length ? (
                       <Select
                         label="Model"
                         id={`${id}-model`}
                         value={form.model}
                         disabled={busy || signingIn || !apiAvailable}
                         onValueChange={(model: string) => onChange({ model })}
-                        items={login.models.map((model) => ({
+                        items={chatgptModels.map((model) => ({
                           value: model.id,
                           label: model.name,
                         }))}
@@ -435,11 +441,9 @@ export function ProviderEditor({
                     <span className="muted">Leave blank to use the model's default.</span>
                   </label>
                 )}
-                {!hasCatalog && (
+                {!hasCatalog && form.provider !== "chatgpt" && (
                   <label htmlFor={`${id}-output`}>
-                    {form.provider === "chatgpt"
-                      ? "Output token threshold"
-                      : "Maximum output tokens"}
+                    Maximum output tokens
                     <Input
                       id={`${id}-output`}
                       type="number"
@@ -450,9 +454,8 @@ export function ProviderEditor({
                       required
                     />
                     <span className="muted">
-                      {form.provider === "chatgpt"
-                        ? "Stops further red-team calls after a response exceeds this threshold. The response can exceed it. Scans and fix prompts use their own allowance."
-                        : "Applied to each red-team model call. Scans and fix prompts use their own allowance."}
+                      Applied to each red-team model call. Scans and fix prompts use their own
+                      allowance.
                     </span>
                   </label>
                 )}
@@ -509,8 +512,8 @@ export function ProviderEditor({
                   {connected
                     ? `Connected as ${selected?.chatgptAccount}.`
                     : "Sign in with ChatGPT in a new tab to save this provider and choose an available model."}{" "}
-                  Requests use your ChatGPT plan. Token thresholds are checked after each response
-                  and are not hard spending caps.{" "}
+                  Requests use your ChatGPT plan and the model's default output settings. Token use
+                  is checked after each response and is not a hard spending cap.{" "}
                   <a href={CHATGPT.usageUrl} target="_blank" rel="noreferrer">
                     Manage ChatGPT usage
                   </a>

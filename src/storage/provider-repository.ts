@@ -30,6 +30,7 @@ type ProviderPayload = ProviderSettings & {
   createdAt: string;
   updatedAt: string;
   chatgptAccount?: string;
+  chatgptModels?: NonNullable<SavedProvider["chatgptModels"]>;
 };
 
 /** A saved connection together with the access the engine needs to call it. */
@@ -146,7 +147,10 @@ export class ProviderRepository {
       updatedAt: now,
       ...(modelPricing === undefined ? {} : { modelPricing }),
       ...(input.provider === "chatgpt" && sameDestination && credential && old?.chatgptAccount
-        ? { chatgptAccount: old.chatgptAccount }
+        ? {
+            chatgptAccount: old.chatgptAccount,
+            ...(old.chatgptModels ? { chatgptModels: old.chatgptModels } : {}),
+          }
         : {}),
     };
     this.#storage.transaction(() => {
@@ -255,12 +259,30 @@ export class ProviderRepository {
       .prepare(
         "UPDATE model_providers SET credential = ?, payload = json_patch(payload, ?) WHERE id = ? AND credential IS ? AND json_extract(payload, '$.provider') = 'chatgpt'",
       )
-      .run(sealed, JSON.stringify({ chatgptAccount: account ?? null }), id, expected).changes;
+      .run(
+        sealed,
+        // Signing out also drops the account's model list.
+        JSON.stringify({
+          chatgptAccount: account ?? null,
+          ...(account === undefined ? { chatgptModels: null } : {}),
+        }),
+        id,
+        expected,
+      ).changes;
     if (!changed)
       throw new StoreValidationError(
         "ChatGPT connection changed. Retry after the current sign-in or refresh finishes.",
       );
     return sealed;
+  }
+
+  /** The models a sign-in listed. They are display data and are replaced at each sign-in. */
+  saveChatgptModels(id: string, models: NonNullable<SavedProvider["chatgptModels"]>): void {
+    this.#storage.database
+      .prepare(
+        "UPDATE model_providers SET payload = json_patch(payload, ?) WHERE id = ? AND json_extract(payload, '$.provider') = 'chatgpt'",
+      )
+      .run(JSON.stringify({ chatgptModels: models }), id);
   }
 
   #credential(id: string): string | null {

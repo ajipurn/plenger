@@ -252,6 +252,12 @@ provider implementation. API keys are entered here, never in scan forms.
 Editing or deleting a provider does not rewrite earlier scan evidence.
 Changing a cloud provider's endpoint requires entering its key again.
 
+The ChatGPT connection signs in with your ChatGPT account in a new tab and lists the
+models that account offers. The list is saved with the connection, so reopening the
+editor shows the same choice. **Reconnect ChatGPT** replaces it with the latest list.
+ChatGPT has no temperature or output controls. Requests send no output limit, and
+token use is checked after each response against the operation's allowance.
+
 For Anthropic and OpenAI, enter an API key, press **Load models**, and choose
 a **Default model** from the provider's catalog. Editing a saved connection can use its
 existing key. Loading models makes authenticated catalog requests without generating
