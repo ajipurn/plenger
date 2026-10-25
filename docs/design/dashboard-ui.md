@@ -121,9 +121,10 @@ The form selects a saved local project, provider, model and scan depth. Start
 with the provider's default model. A scan's model choice does not change that
 default. Show the selected folder path. Keep optional review context in a disclosure.
 Use a simple vertical form without environment or scan-scope selectors.
-Quick and Full coverage describe actual review coverage. Full coverage asks
-for a token or USD limit and shows how many batches the limit guarantees and
-how many the project needs.
+Quick and Full coverage describe actual review coverage. Full coverage offers
+an optional token or USD limit behind a checkbox that is on by default, and
+shows how many batches the limit guarantees and how many the project needs.
+Without a limit it states the batch cap and one batch's maximum.
 Static checks, AI code review and STRIDE threat modeling remain included.
 
 All scans start manually. The service does not watch commits or start scheduled

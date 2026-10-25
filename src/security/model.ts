@@ -146,7 +146,7 @@ export interface SecurityScanSummary {
   tokens: number | null;
   /** Absent on older scans. Estimates use the prices captured when the scan started. */
   cost?: CostSummary | null;
-  /** The spending limit chosen at the start; absent on older scans and unlimited Quick scans. */
+  /** The spending limit chosen at the start; absent on older scans and scans without one. */
   budget?: ScanBudget;
   /** Absent on older scans. */
   coverage?: ScanCoverage;
@@ -204,6 +204,6 @@ export interface StartSecurityScan {
   depth: SelectableScanDepth;
   /** Batch when omitted. Explore runs one exploring review, so it needs Quick. */
   mode?: ReviewMode;
-  /** Required for Full coverage; optional for Quick. */
+  /** Omit for no limit: Full coverage then stops when covered or at its batch cap. */
   budget?: ScanBudget;
 }

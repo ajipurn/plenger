@@ -111,8 +111,8 @@ project.
 3. Choose a provider, model, a review mode and **Quick** or **Full
    coverage**. **Batch** sends source the scan packs; **Explore**, selected for
    Claude connections, lets the model read the project through read-only tools.
-   For
-   Full coverage, set a limit in tokens or in USD. The saved model is
+   For Full coverage, **Set a spending limit** is checked by default; enter a
+   limit in tokens or in USD, or clear it to run without one. The saved model is
    selected initially. Choosing another model applies to this scan only. Use
    **Load models** if the provider's saved catalog needs refreshing. Optionally
    choose another saved connection under **Second review** to check candidates
@@ -127,7 +127,7 @@ STRIDE threat modeling and a second source review of any candidates.
 model calls. In Explore mode it runs one exploring review of at most 18 model
 calls instead, and Full coverage runs exploring reviews; see
 [Explore mode](ai-security-review.md#explore-mode). **Full coverage** reviews batch after batch until no unsent source
-that fits a batch remains, the limit is reached, or 100 batches have run. Later
+that fits a batch remains, the limit, if set, is reached, or 100 batches have run. Later
 batches skip files already sent whole and continue excerpted files with their
 unsent parts.
 
@@ -146,7 +146,7 @@ counts are saved in Outputs.
 
 A Full coverage scan that stopped at its limit, or whose later batch failed
 after earlier ones completed, for instance on a provider rate limit, shows
-**Continue this scan** in its details. Enter a new limit, in the unit of the first one, for what the scan
+**Continue this scan** in its details. Enter a new limit, in the unit of the first one or in tokens when it had none, for what the scan
 spends from now on. Later batches skip the files earlier batches sent whole and
 continue excerpted files, from the saved static scan. The scan keeps its first
 limit and lists each continuation with its limit.

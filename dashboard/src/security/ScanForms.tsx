@@ -28,7 +28,7 @@ import { useProviderModels } from "../providers/useProviderModels.ts";
 import { errorMessage } from "../shared/async.ts";
 import { DetailDrawer } from "../shared/DetailDrawer.tsx";
 import { Icon } from "../shared/icons.tsx";
-import { Button, Input, Select, TextArea } from "../shared/ui.tsx";
+import { Button, Checkbox, Input, Select, TextArea } from "../shared/ui.tsx";
 
 /** The second review uses the discovery provider and model. */
 const SAME_VALIDATOR = "same";
@@ -42,6 +42,11 @@ const DEPTH_COPY: Record<SelectableScanDepth, Record<ReviewMode, string>> = {
     batch: "Reviews batch after batch until every file is covered or your limit is reached.",
     explore: "Explores again until a review reads nothing new or your limit is reached.",
   },
+};
+/** Full coverage without a spending limit; the batch cap still applies. */
+const UNLIMITED_COPY: Record<ReviewMode, string> = {
+  batch: "Reviews batch after batch until every file is covered.",
+  explore: "Explores again until a review reads nothing new.",
 };
 const MODE_COPY: Record<ReviewMode, { label: string; description: string; calls: string }> = {
   batch: {
@@ -255,6 +260,8 @@ export function NewScanForm({
     defaultMode(providers.find((item) => item.isDefault) ?? providers[0]),
   );
   const [depth, setDepth] = useState<SelectableScanDepth>("quick");
+  // Full coverage without a limit runs until it covers the project or reaches the batch cap.
+  const [limited, setLimited] = useState(true);
   const [limitKind, setLimitKind] = useState<ScanBudget["kind"]>("tokens");
   const [tokenLimit, setTokenLimit] = useState(String(SCAN_BUDGET_LIMITS.defaultTokens));
   const [usdLimit, setUsdLimit] = useState(SCAN_BUDGET_LIMITS.defaultUsd.toFixed(2));
@@ -321,7 +328,7 @@ export function NewScanForm({
   // Full coverage repeats batches, or exploring reviews; the limit counts either.
   const [unit, units] = mode === "explore" ? ["review", "reviews"] : ["batch", "batches"];
   const limitError = (() => {
-    if (depth !== "full") return "";
+    if (depth !== "full" || !limited) return "";
     const L = SCAN_BUDGET_LIMITS;
     if (kind === "tokens") {
       if (!Number.isSafeInteger(limitValue) || limitValue < L.minTokens || limitValue > L.maxTokens)
@@ -356,7 +363,9 @@ export function NewScanForm({
         ? needed === 1
           ? "One batch covers this project"
           : `About ${needed.toLocaleString()} batches for this project`
-        : "Stops at your limit",
+        : limited
+          ? "Stops at your limit"
+          : `Up to ${SCAN_BUDGET_LIMITS.fullBatches} ${units}`,
   };
   async function submit() {
     if (!api || !project || !provider || !model.trim()) return;
@@ -373,7 +382,7 @@ export function NewScanForm({
         model: model.trim(),
         depth,
         mode,
-        ...(depth === "full"
+        ...(depth === "full" && limited
           ? {
               budget:
                 kind === "tokens"
@@ -726,7 +735,9 @@ export function NewScanForm({
                     </span>
                     <span className="security-scan-choice-indicator" aria-hidden="true" />
                   </span>
-                  <span id={`${id}-${value}-description`}>{DEPTH_COPY[value][mode]}</span>
+                  <span id={`${id}-${value}-description`}>
+                    {value === "full" && !limited ? UNLIMITED_COPY[mode] : DEPTH_COPY[value][mode]}
+                  </span>
                   <span id={`${id}-${value}-calls`} className="security-scan-choice-meta">
                     {depthCalls[value]}
                   </span>
@@ -736,59 +747,76 @@ export function NewScanForm({
           </RadioGroup>
           {depth === "full" && (
             <div className="security-scan-limit">
-              <RadioGroup
-                className="security-scan-limit-heading"
-                orientation="horizontal"
-                value={kind}
-                onChange={(value) => setLimitKind(value as ScanBudget["kind"])}
-                isDisabled={busy}
-              >
-                <Label>Spending limit</Label>
-                <div className="security-scan-segmented">
-                  <Radio value="tokens" className="security-scan-segment">
-                    Tokens
-                  </Radio>
-                  <Radio value="usd" className="security-scan-segment" isDisabled={!usdPricing}>
-                    USD
-                  </Radio>
-                </div>
-              </RadioGroup>
-              <label htmlFor={`${id}-limit`} className="sr-only">
-                {kind === "tokens" ? "Token limit" : "USD limit"}
-              </label>
-              <div className="security-scan-limit-input">
-                <Input
-                  id={`${id}-limit`}
-                  type="number"
-                  inputMode={kind === "tokens" ? "numeric" : "decimal"}
-                  min={kind === "tokens" ? SCAN_BUDGET_LIMITS.minTokens : SCAN_BUDGET_LIMITS.minUsd}
-                  max={kind === "tokens" ? SCAN_BUDGET_LIMITS.maxTokens : SCAN_BUDGET_LIMITS.maxUsd}
-                  step={kind === "tokens" ? 1000 : 0.01}
-                  value={kind === "tokens" ? tokenLimit : usdLimit}
-                  onChange={(event) =>
-                    kind === "tokens"
-                      ? setTokenLimit(event.target.value)
-                      : setUsdLimit(event.target.value)
-                  }
-                  aria-invalid={Boolean(limitError)}
-                  aria-describedby={`${id}-limit-help`}
-                  disabled={busy}
-                />
-                <span className="security-scan-limit-unit" aria-hidden="true">
-                  {kind === "tokens" ? "tokens" : "USD"}
-                </span>
+              <div className="security-scan-limit-heading">
+                <Checkbox isSelected={limited} onChange={setLimited} isDisabled={busy}>
+                  Set a spending limit
+                </Checkbox>
+                {limited && (
+                  <RadioGroup
+                    className="security-scan-segmented"
+                    aria-label="Limit unit"
+                    orientation="horizontal"
+                    value={kind}
+                    onChange={(value) => setLimitKind(value as ScanBudget["kind"])}
+                    isDisabled={busy}
+                  >
+                    <Radio value="tokens" className="security-scan-segment">
+                      Tokens
+                    </Radio>
+                    <Radio value="usd" className="security-scan-segment" isDisabled={!usdPricing}>
+                      USD
+                    </Radio>
+                  </RadioGroup>
+                )}
               </div>
-              <p id={`${id}-limit-help`} className={limitError ? "error-message" : "muted"}>
-                {limitError ||
-                  `Each ${unit} charges at most ${
-                    kind === "tokens"
-                      ? `${mostTokens.toLocaleString()} tokens`
-                      : `USD ${mostUsd?.toFixed(2)} at saved prices`
-                  }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? unit : units}. Most ${units} charge less. A ${unit} starts only when its maximum fits what remains.`}
-              </p>
-              {!usdPricing && (
+              {limited ? (
+                <>
+                  <label htmlFor={`${id}-limit`} className="sr-only">
+                    {kind === "tokens" ? "Token limit" : "USD limit"}
+                  </label>
+                  <div className="security-scan-limit-input">
+                    <Input
+                      id={`${id}-limit`}
+                      type="number"
+                      inputMode={kind === "tokens" ? "numeric" : "decimal"}
+                      min={
+                        kind === "tokens" ? SCAN_BUDGET_LIMITS.minTokens : SCAN_BUDGET_LIMITS.minUsd
+                      }
+                      max={
+                        kind === "tokens" ? SCAN_BUDGET_LIMITS.maxTokens : SCAN_BUDGET_LIMITS.maxUsd
+                      }
+                      step={kind === "tokens" ? 1000 : 0.01}
+                      value={kind === "tokens" ? tokenLimit : usdLimit}
+                      onChange={(event) =>
+                        kind === "tokens"
+                          ? setTokenLimit(event.target.value)
+                          : setUsdLimit(event.target.value)
+                      }
+                      aria-invalid={Boolean(limitError)}
+                      aria-describedby={`${id}-limit-help`}
+                      disabled={busy}
+                    />
+                    <span className="security-scan-limit-unit" aria-hidden="true">
+                      {kind === "tokens" ? "tokens" : "USD"}
+                    </span>
+                  </div>
+                  <p id={`${id}-limit-help`} className={limitError ? "error-message" : "muted"}>
+                    {limitError ||
+                      `Each ${unit} charges at most ${
+                        kind === "tokens"
+                          ? `${mostTokens.toLocaleString()} tokens`
+                          : `USD ${mostUsd?.toFixed(2)} at saved prices`
+                      }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? unit : units}. Most ${units} charge less. A ${unit} starts only when its maximum fits what remains.`}
+                  </p>
+                  {!usdPricing && (
+                    <p className="muted">
+                      USD limits need saved Claude prices for every model in this scan.
+                    </p>
+                  )}
+                </>
+              ) : (
                 <p className="muted">
-                  USD limits need saved Claude prices for every model in this scan.
+                  {`No limit: the scan stops after ${SCAN_BUDGET_LIMITS.fullBatches} ${units} at most. Each ${unit} charges up to ${mostTokens.toLocaleString()} tokens.`}
                 </p>
               )}
             </div>

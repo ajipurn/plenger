@@ -392,8 +392,7 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   @apply flex items-center justify-between gap-3 h-5 min-w-0;
 }
 .security-scan-form .security-scan-field-label > label,
-.security-scan-form .security-scan-field-label > span,
-.security-scan-form .security-scan-limit-heading > span {
+.security-scan-form .security-scan-field-label > span {
   @apply text-[12px] font-medium text-muted;
 }
 .security-scan-hints {

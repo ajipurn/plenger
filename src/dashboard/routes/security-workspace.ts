@@ -179,9 +179,8 @@ export function securityWorkspaceRoutes({
           throw new HttpError(400, "Choose Quick or Full coverage.");
         if (body.mode !== undefined && body.mode !== "batch" && body.mode !== "explore")
           throw new HttpError(400, "Choose Explore or Batch review mode.");
+        // Without a limit, Full coverage stops when it covers the project or at its batch cap.
         const budget = body.budget === undefined ? undefined : scanBudget(body.budget);
-        if (body.depth === "full" && budget === undefined)
-          throw new HttpError(400, "Set a token or USD limit for a Full coverage scan.");
         if (body.model !== undefined) {
           try {
             // The coordinator checks the selected connection too. No access overrides are accepted.

@@ -526,7 +526,6 @@ describe("local project security workspace", () => {
       { scope: "shell" },
       { depth: "unlimited" },
       { depth: "deep" },
-      { depth: "full" },
       { depth: "full", budget: { kind: "tokens", tokens: 5 } },
       { depth: "full", budget: { kind: "tokens", tokens: 1.5e6 + 0.5 } },
       { depth: "full", budget: { kind: "usd", usd: 0.001 } },
@@ -639,6 +638,18 @@ describe("local project security workspace", () => {
     expect(paths).toHaveLength(52);
     expect(new Set(paths).size).toBe(52);
     expect(scan.modelCalls).toBeLessThanOrEqual(6);
+  });
+
+  it("runs Full coverage without a limit until every file is covered", async () => {
+    for (let i = 0; i < 50; i++)
+      await writeFile(join(project, `module-${i}.ts`), `export const value${i} = ${i};\n`);
+    const repo = await repository();
+    const scan = await finished((await start(repo.id, { depth: "full" })).id, 5000);
+    expect(scan.status).toBe("completed");
+    expect(scan.budget).toBeUndefined();
+    expect(scan.reviews).toHaveLength(3);
+    expect(scan.coverage).toMatchObject({ stop: "complete", eligibleFiles: 52, sentFiles: 52 });
+    expect(scan.coverage?.charged.tokens).toBeGreaterThan(0);
   });
 
   it("reviews a folder without Python, JavaScript or TypeScript as plain text", async () => {

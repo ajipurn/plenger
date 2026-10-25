@@ -711,5 +711,7 @@ function coverageNote(scan: SecurityScan): string {
         ? `${coverage.charged.tokens.toLocaleString()} of ${scan.budget.tokens.toLocaleString()} tokens charged`
         : `USD ${(coverage.charged.usd ?? 0).toFixed(2)} of ${scan.budget.usd.toFixed(2)} charged`,
     );
+  else if (coverage && scan.depth === "full")
+    parts.push(`${coverage.charged.tokens.toLocaleString()} tokens charged, no limit`);
   return parts.join(" · ");
 }

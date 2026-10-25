@@ -23,6 +23,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - The ChatGPT provider editor no longer has an output token threshold. Saving or
   signing in uses automatic output settings, so each operation's allowance is the
   observed limit instead of 1,024 tokens per red-team call.
+- Full coverage's spending limit is optional. **Set a spending limit** stays
+  checked by default; clear it to run until the project is covered or 100
+  batches have run. Scan details show the tokens such a scan charged.
 
 ### Fixed
 
