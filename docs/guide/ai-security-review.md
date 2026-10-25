@@ -190,23 +190,6 @@ closures are the model's account. Files without a parser have no traced paths.
 Outputs show each path with its closure, reason, cited lines and the candidate
 that reports it.
 
-### Change reviews
-
-New Scan's **Changes** scope reviews the files changed since a branch, tag or
-commit. The static scan still covers the whole project. The host compares each
-reviewable file on disk with its blob in the base commit: the base comes from
-Git objects through `rev-parse`, `ls-tree` and `cat-file`, and the comparison
-runs in plenger's process, so the project's filter and diff drivers never run.
-Uncommitted changes count. The review reads only the changed files, located at
-their changed lines, and discovery receives the base, the changed lines of up to
-60 files and the removed files. The second review still reads the imports and
-callers of cited files. Discovery reports what the change makes possible: a
-weakness it introduces, an existing weakness it newly reaches, a shared helper
-or guard it weakens, and a control it removes or narrows. Unrelated weaknesses
-of unchanged code go to the limitations. A scan with no changed file completes
-without a review. The GitHub Action uses the same scope for pull requests; see
-[reports-ci.md](reports-ci.md#ai-review-in-ci).
-
 ### Project threat model
 
 A project keeps a threat model: its architecture, assets and trust boundaries.

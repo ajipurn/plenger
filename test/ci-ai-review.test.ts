@@ -1,14 +1,11 @@
-import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runGitHubAction } from "../scripts/lib/github-action.ts";
 import { nativeReviewReply, reviewDecision, reviewDiscovery } from "./support/security-review.ts";
 import { temporaryDir } from "./support/tmp.ts";
 
-const execute = promisify(execFile);
 const key = "ci-review-secret-6Wd1";
 /** A Go handler: no static parser, so only the AI review reads it. */
 const handler = [
@@ -137,6 +134,7 @@ describe("GitHub Action AI review", () => {
     ]);
     const summary = await readFile(join(root, "summary.md"), "utf8");
     expect(summary).toContain("## Plenger AI review");
+    expect(summary).toContain("Whole checkout, one Quick review.");
     expect(summary).toContain(
       "| high | Search builds SQL from the query string | source-supported |",
     );
@@ -166,44 +164,4 @@ describe("GitHub Action AI review", () => {
     expect((await run({ GITHUB_WORKSPACE: root, PLENGER_FAIL_ON: "high" })).code).toBe(0);
     expect(requests).toHaveLength(0);
   });
-
-  it.skipIf(process.platform === "win32")(
-    "reviews the changes since the base commit, and names a base the checkout lacks",
-    async () => {
-      const root = await project();
-      const git = (...args: string[]) =>
-        execute("git", [
-          "-c",
-          "core.hooksPath=/dev/null",
-          "-c",
-          "commit.gpgsign=false",
-          "-c",
-          "user.name=Plenger test",
-          "-c",
-          "user.email=test@example.invalid",
-          "-C",
-          root,
-          ...args,
-        ]);
-      await git("init", "--initial-branch=main");
-      await git("add", "main.go");
-      await git("commit", "-m", "test: base");
-      await writeFile(join(root, "main.go"), `${handler}// search\n`);
-      const changed = await run(
-        env(root, { PLENGER_AI_CHANGES_SINCE: "main", PLENGER_FAIL_ON: "none" }),
-      );
-      expect(changed.code, changed.stderr).toBe(0);
-      expect(requests[0]?.changes).toMatchObject({
-        base: "main",
-        files: [{ path: "main.go", added: false, changedLines: "9" }],
-      });
-      expect(await readFile(join(root, "summary.md"), "utf8")).toContain("Changes since `main`");
-      requests.length = 0;
-      const missing = await run(env(root, { PLENGER_AI_CHANGES_SINCE: "feature-x" }));
-      expect(missing.code).toBe(2);
-      expect(missing.stderr).toContain("fetch-depth: 0");
-      expect(requests).toHaveLength(0);
-    },
-    30_000,
-  );
 });

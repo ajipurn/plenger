@@ -28,9 +28,6 @@ export const SECURITY_REVIEW_LIMITS = {
   /** Lines a safe closure cites, and the length of a closure's reason. */
   closureEvidence: 2,
   closureText: 300,
-  /** Changed files and line ranges per file a change review lists in its first message. */
-  changeFiles: 60,
-  changeRanges: 20,
   snippetLines: 13,
   text: 1200,
   /** Per request; discovery also returns up to 16 path closures. */

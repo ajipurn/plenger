@@ -46,9 +46,6 @@ inputs:
   ai-mode:
     description: AI review mode, batch or explore
     default: batch
-  ai-changes-since:
-    description: Review only the changes since this commit, branch or tag; defaults to the pull request base. Needs the base in the checkout, for example fetch-depth 0
-    default: ''
 outputs:
   sarif-file:
     description: Workspace-relative SARIF output path, also produced when the finding gate fails
@@ -89,7 +86,6 @@ runs:
         PLENGER_AI_BASE_URL: ${{ inputs.ai-base-url }}
         PLENGER_AI_TOKEN_LIMIT: ${{ inputs.ai-token-limit }}
         PLENGER_AI_MODE: ${{ inputs.ai-mode }}
-        PLENGER_AI_CHANGES_SINCE: ${{ inputs.ai-changes-since || github.event.pull_request.base.sha }}
       run: node "$GITHUB_ACTION_PATH/scripts/github-action.ts"
 branding:
   icon: shield

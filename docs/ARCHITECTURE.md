@@ -120,9 +120,8 @@ turn. Its limits live in `EXPLORE_LIMITS` in `review-model.ts`.
 `review-paths.ts` lists the paths the static scan traced from entry points,
 tools, agents and model output to effects, with ids stable for one scan, and
 picks the ones a review closes; `parseReviewDiscovery` keeps only closures that
-check out. A review can also take the project threat model and a change scope;
-both are plain options, so the assessment layer imports nothing from
-`security/`.
+check out. A review can also take the project threat model; it is a plain
+option, so the assessment layer imports nothing from `security/`.
 `storage/review-repository.ts` persists per-scan results. The explicit dashboard
 route `routes/security-review.ts` remains available. The repository workspace
 coordinates new jobs through `security-coordinator.ts` and exposes coverage,
@@ -148,19 +147,15 @@ status is separate from an AI validation verdict.
 monitoring. It captures an offline scan, runs one or up to three independent
 source-review batches, saves results and stops at failures or refusals.
 `OperationSupervisor` serializes jobs with other project operations and owns
-cancellation. The coordinator passes each review the project threat model and,
-for a change review, the change scope; it saves the extended model when a scan
-completes. `continueScan` reruns the batch loop on a scan that stopped at its
+cancellation. The coordinator passes each review the project threat model; it
+saves the extended model when a scan completes. `continueScan` reruns the batch loop on a scan that stopped at its
 limit, from its saved static scan and earlier reviews, under a new limit. Each
 request, read tool call and finished batch is recorded as job activity. Navigating away does not abort a job. Monitoring checks local
 HEAD every 30 seconds while the service runs. Provider failures pause it.
 
 `security/git.ts` reads revision metadata using fixed Git commands, disables
 hooks and fsmonitor, and removes inherited Git configuration variables.
-`readGit` is that invocation for every caller. `security/changes.ts` builds a
-change scope: the base comes from Git objects (`rev-parse`, `ls-tree`,
-`cat-file blob`), the current text from the files on disk, compared by a Myers
-line diff in this process, so no project filter or diff driver runs.
+`readGit` is that invocation for every caller.
 `security/threat-model.ts` extends a project threat model with one review's
 architecture, assets and trust boundaries. It is
 outside the static pipeline. The reported revision does not freeze source;

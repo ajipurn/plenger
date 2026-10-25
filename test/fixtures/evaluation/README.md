@@ -27,11 +27,6 @@ Labeled cases for `pnpm evaluate`. Each folder is one small project with a
   false positives. `test/evaluation.test.ts` fails when the scanner's behaviour
   drifts from them, so update the label after reviewing the change.
 - `note`: why the static result differs from the ground truth, when it does.
-- `changes`: a change review case. `base` holds the base text of each changed
-  file; `pnpm evaluate` reviews the case with the lines that differ from it as
-  the change scope, as a Changes scan does. The `*-diff-*` pairs use it: a new
-  caller that brings request text to an older shell helper, and a removed
-  route guard, each beside a change that stays safe.
 
 Cases come in pairs. Keep each one small and free of unrelated issues: a finding
 outside the labeled location counts as unlabeled. When a pair needs more than one

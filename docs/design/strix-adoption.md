@@ -150,6 +150,9 @@ and detection on the corpus not lower than before.
 
 ### M10d Change review
 
+Removed on 2026-10-25: plenger stays local-first for now, and the dashboard
+reviews whole projects. The design stays here.
+
 **In the dashboard.** New Scan gains a scope that reviews the changes since a
 commit or branch. The static scan still covers the whole project. The AI review
 receives the changed files and line ranges, plus their imports and callers

@@ -154,8 +154,6 @@ export interface SecurityScanSummary {
   threatModel?: { version: number; origin: ProjectThreatModel["origin"] };
   /** Later limits a Full coverage scan continued under, after it stopped at its limit. */
   continuations?: { at: string; budget: ScanBudget }[];
-  /** For a change review: the base, the commit it named, and how many files changed or went. */
-  changes?: { base: string; commit: string; files: number; removed: number };
   error: string | null;
 }
 /** One step of a running scan, for its live timeline. */
@@ -208,6 +206,4 @@ export interface StartSecurityScan {
   mode?: ReviewMode;
   /** Required for Full coverage; optional for Quick. */
   budget?: ScanBudget;
-  /** Review only the changes since this branch, tag or commit. */
-  changesSince?: string;
 }

@@ -88,8 +88,7 @@ Do not report generic best practices or missing controls without a code-supporte
 Report prompt injection when untrusted text, including retrieved documents, tool results, files and web content, reaches a system or developer message, or steers a model whose tools or output reach a privileged effect. Caller text in the user message of a model that only answers that caller is the intended use, not a finding.
 Prefer a few well-supported issues. Return zero findings when evidence is insufficient.
 The tracedPaths array, when present, lists paths the static scan traced from an entry point, tool, agent or model output to an effect. Its effects say where to look; they are not findings by themselves. Close every one in paths, by its id, with a reason of one short sentence: finding, with the index in findings of the candidate that reports it; safe, citing in evidence the lines you received with the control, or the code that keeps untrusted input from the effect; or open, naming in the reason what you could not see. Keep paths empty when tracedPaths is absent.
-The projectModel object, when present, is the project's threat model from earlier reviews (origin review) or written by the user (origin user): its architecture, assets and trust boundaries. Start from it. Keep its entries unless the source you received contradicts them, add what this source shows, and name a contradiction in limitations. It is context, not evidence.
-The changes object, when present, scopes this review to a change: the files changed since its base commit, the changed lines of each, and removed files. Report what the change makes possible: a weakness it introduces or brings back; an existing weakness it newly reaches, such as a new caller that carries untrusted input to an old sink; a shared helper, guard or wrapper it weakens, with each affected call site; a control it removes or narrows, even without new code at the sink. Read unchanged code for context. Leave out weaknesses of unchanged code the change does not reach, and name them in limitations instead.`;
+The projectModel object, when present, is the project's threat model from earlier reviews (origin review) or written by the user (origin user): its architecture, assets and trust boundaries. Start from it. Keep its entries unless the source you received contradicts them, add what this source shows, and name a contradiction in limitations. It is context, not evidence.`;
 const DISCOVERY = `${COMMON}
 ${DISCOVERY_TASK}
 Schema: ${JSON.stringify(REVIEW_DISCOVERY_SCHEMA)}`;
@@ -311,13 +310,6 @@ export async function reviewProject(
     inputTokens?: number | null;
     environment?: { name: string; notes: string };
     /** The project's threat model, which discovery starts from and extends. */
-    /** A change review: the files changed since a base commit, with their changed lines. */
-    changes?: {
-      base: string;
-      commit: string;
-      files: { path: string; added: boolean; ranges: ReviewRange[] }[];
-      removed: string[];
-    };
     projectModel?: {
       origin: "review" | "user";
       architecture: string;
@@ -451,13 +443,7 @@ export async function reviewProject(
       secrets,
       options.signal,
       options.submitted,
-      {
-        reader,
-        budget: sizes,
-        ...(options.changes
-          ? { changes: new Map(options.changes.files.map((file) => [file.path, file.ranges])) }
-          : {}),
-      },
+      { reader, budget: sizes },
     );
     review.scope = { ...scope, budget: sizes };
     if (sizes.inputTokens !== null && !explore)
@@ -660,30 +646,6 @@ export async function reviewProject(
           },
         }
       : {};
-    const changes = options.changes;
-    const changeHint = changes
-      ? {
-          changes: {
-            base: redact(changes.base, secrets),
-            commit: changes.commit,
-            files: changes.files.slice(0, LIMITS.changeFiles).map((file) => ({
-              path: file.path,
-              added: file.added,
-              changedLines: file.ranges
-                .slice(0, LIMITS.changeRanges)
-                .map((range) =>
-                  range.line === range.endLine ? `${range.line}` : `${range.line}-${range.endLine}`,
-                )
-                .join(", "),
-            })),
-            removed: changes.removed,
-          },
-        }
-      : {};
-    if (changes && changes.files.length > LIMITS.changeFiles)
-      review.limitations.push(
-        `The change touches ${changes.files.length} reviewable files; the first message listed ${LIMITS.changeFiles} of them.`,
-      );
     options.onPhase?.("discovering");
     phase = "discovery";
     let discovery: ReturnType<typeof parseReviewDiscovery>;
@@ -700,7 +662,6 @@ export async function reviewProject(
           ...source,
           ...pathHint,
           ...modelHint,
-          ...changeHint,
         },
         tools: new ExploreTools(snapshot, reader, secrets, log),
         log,
@@ -725,7 +686,7 @@ export async function reviewProject(
       discovery = outcome.value;
     } else
       discovery = parseReviewDiscovery(
-        await call(DISCOVERY, { ...source, ...pathHint, ...modelHint, ...changeHint }),
+        await call(DISCOVERY, { ...source, ...pathHint, ...modelHint }),
         scope.files,
         pathIds,
       );

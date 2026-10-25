@@ -165,7 +165,6 @@ export function securityWorkspaceRoutes({
             "model",
             "validatorProviderId",
             "mode",
-            "changesSince",
           ],
           "Choose a local project, provider and scan depth.",
         );
@@ -205,15 +204,6 @@ export function securityWorkspaceRoutes({
             ...(body.mode === undefined ? {} : { mode: body.mode as ReviewMode }),
             ...(budget ? { budget } : {}),
             ...(body.model === undefined ? {} : { model: body.model as string }),
-            ...(body.changesSince === undefined
-              ? {}
-              : {
-                  changesSince: requireString(
-                    body.changesSince,
-                    "Name the branch, tag or commit to review changes since.",
-                    { min: 1, max: 200 },
-                  ).trim(),
-                }),
             ...(body.validatorProviderId === undefined
               ? {}
               : {

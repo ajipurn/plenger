@@ -697,10 +697,6 @@ function coverageNote(scan: SecurityScan): string {
   const coverage = scan.coverage;
   const explore = scan.mode === "explore";
   const parts: string[] = [SCAN_DEPTHS[scan.depth].label, ...(explore ? ["Explore"] : [])];
-  if (scan.changes)
-    parts.push(
-      `changes since ${scan.changes.base} (${scan.changes.commit.slice(0, 7)}): ${scan.changes.files} ${scan.changes.files === 1 ? "file" : "files"} changed${scan.changes.removed ? `, ${scan.changes.removed} removed` : ""}`,
-    );
   if (coverage?.stop)
     parts.push(
       explore && coverage.stop === "complete"

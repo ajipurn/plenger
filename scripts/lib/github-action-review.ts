@@ -1,6 +1,6 @@
-// The GitHub Action's opt-in AI review: one bounded Quick review of the checkout, or of
-// the changes since a base commit, on a connection the workflow names. Its findings join
-// the SARIF report as a second run, and source-supported ones count toward the gate.
+// The GitHub Action's opt-in AI review: one bounded Quick review of the checkout, on a
+// connection the workflow names. Its findings join the SARIF report as a second run, and
+// source-supported ones count toward the gate.
 
 import { createHash } from "node:crypto";
 import {
@@ -8,20 +8,17 @@ import {
   SECURITY_REVIEW_LIMITS,
   type SecurityReview,
 } from "../../src/assessment/review-model.ts";
-import { reviewPaths } from "../../src/assessment/review-source.ts";
 import { reviewProject } from "../../src/assessment/security-review.ts";
 import type { ProviderAccess } from "../../src/redteam/provider.ts";
 import { validateProviderSettings } from "../../src/redteam/provider-config.ts";
 import { SEVERITIES, type Severity } from "../../src/rules/model.ts";
 import type { ScanResult } from "../../src/scan.ts";
-import { type ChangeScope, changesSince } from "../../src/security/changes.ts";
 import { SCAN_BUDGET_LIMITS } from "../../src/security/model.ts";
 
 export interface AiReviewInputs {
   access: ProviderAccess;
   tokens: number;
   mode: ReviewMode;
-  changesSince: string | null;
 }
 
 const PROVIDERS = ["anthropic", "openai", "gemini", "ollama"] as const;
@@ -65,29 +62,18 @@ export function aiReviewInputs(
     },
     tokens,
     mode,
-    changesSince: env.PLENGER_AI_CHANGES_SINCE?.trim() || null,
   };
 }
 
-/** One Quick review; none when a change review finds no changed file to read. */
-export async function runAiReview(
-  inputs: AiReviewInputs,
-  snapshot: ScanResult,
-  root: string,
-): Promise<{ review: SecurityReview | null; changes?: ChangeScope }> {
-  const changes = inputs.changesSince
-    ? await changesSince(root, inputs.changesSince, reviewPaths(snapshot))
-    : undefined;
-  if (changes && !changes.files.length) return { review: null, changes };
-  const review = await reviewProject(snapshot, {
+/** One Quick review of the whole checkout. */
+export function runAiReview(inputs: AiReviewInputs, snapshot: ScanResult): Promise<SecurityReview> {
+  return reviewProject(snapshot, {
     scanId: "github-action",
     provider: { id: "github-action", name: inputs.access.provider, model: inputs.access.model },
     access: inputs.access,
     limit: { kind: "tokens", tokens: inputs.tokens },
     mode: inputs.mode,
-    ...(changes ? { changes } : {}),
   });
-  return { review, ...(changes ? { changes } : {}) };
 }
 
 const LEVELS: Record<Severity, string> = {
@@ -186,11 +172,7 @@ export function aiFailsGate(review: SecurityReview, threshold: string): boolean 
 }
 
 /** The job summary section of the AI review. */
-export function aiSummary(review: SecurityReview | null, changes?: ChangeScope): string {
-  const scope = changes
-    ? `Changes since \`${changes.base}\` (${changes.commit.slice(0, 7)}): ${changes.files.length} ${changes.files.length === 1 ? "file" : "files"} changed${changes.removed.length ? `, ${changes.removed.length} removed` : ""}.`
-    : "Whole checkout, one Quick review.";
-  if (!review) return `\n## Plenger AI review\n\n${scope} No changed file to review.\n`;
+export function aiSummary(review: SecurityReview): string {
   const findings = kept(review);
   const rows = findings.map(
     (finding) =>
@@ -200,7 +182,7 @@ export function aiSummary(review: SecurityReview | null, changes?: ChangeScope):
     "",
     "## Plenger AI review",
     "",
-    `${scope} Review ${review.status} with ${review.provider.model}, ${review.request.calls} model ${review.request.calls === 1 ? "request" : "requests"}. Source analysis only; not runtime validated.`,
+    `Whole checkout, one Quick review. Review ${review.status} with ${review.provider.model}, ${review.request.calls} model ${review.request.calls === 1 ? "request" : "requests"}. Source analysis only; not runtime validated.`,
     ...(review.status !== "completed" && review.reason ? ["", cell(review.reason)] : []),
     "",
     ...(rows.length

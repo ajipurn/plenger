@@ -39,6 +39,14 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - The FastAPI project profile: its preparation stage, runtime recipe, disposable
   MySQL and Redis services and the planner profile. Its design stays in
   docs/design/fastapi-profile.md.
+- Change reviews (M10d), to keep plenger local-first: the **Scope** choice in
+  New Scan, `changesSince` in the scan API, the Action's `ai-changes-since`
+  input, the in-process diff and the four `*-diff-*` cases of the evaluation
+  corpus, which has 150 cases again. The Action's AI review reads the whole
+  checkout and no longer needs `fetch-depth: 0`. Discovery drops its change
+  instructions, so both prompt digests change. Scan details no longer show
+  the base of an earlier change review. Its design stays in
+  docs/design/strix-adoption.md.
 
 ### Added
 

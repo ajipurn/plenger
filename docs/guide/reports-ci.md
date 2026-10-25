@@ -101,7 +101,6 @@ Inputs are:
 | ai-base-url | empty | Optional API base URL |
 | ai-token-limit | empty | Token limit, required with ai-review |
 | ai-mode | batch | batch or explore |
-| ai-changes-since | pull request base | Review only the changes since this commit |
 
 The Action scans once and writes SARIF, a Markdown job summary and the
 sarif-file and exit-code outputs before a finding gate failure.
@@ -117,14 +116,10 @@ by default. The summary retains the review counts.
 
 ### AI review in CI
 
-With `ai-review: true` the Action also runs one Quick AI review, as the dashboard
-does, after the static scan. It sends redacted source to `ai-provider` within
-`ai-token-limit`; pass the key from a secret and never from the workflow file.
-On a pull request it reviews the changes since the pull request's base commit
-with the change rules of the dashboard; set `ai-changes-since` to choose another
-base. The checkout must contain that commit, for example with `fetch-depth: 0`.
-The base and the files on disk are compared in the Action's process, so the
-project's Git filters and diff drivers never run.
+With `ai-review: true` the Action also runs one Quick AI review of the whole
+checkout, as the dashboard does, after the static scan. It sends redacted source
+to `ai-provider` within `ai-token-limit`; pass the key from a secret and never
+from the workflow file.
 
 Kept findings are a second SARIF run, `plenger-ai-review`, with rule ids such as
 `AI-CWE-89`, and a section of the job summary. Source-supported findings at or
@@ -134,8 +129,6 @@ not runtime validation.
 
 ```yaml
 - uses: actions/checkout@<pinned sha>
-  with:
-    fetch-depth: 0
 - uses: <owner>/plenger@<pinned sha>
   with:
     ai-review: true

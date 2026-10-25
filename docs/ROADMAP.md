@@ -364,17 +364,17 @@ reviewed and measured before the next.
 **Delivered:** all five checkpoints. Discovery rates severity by reach, a
 dismissal names its basis and cites lines the host checks, and discovery closes
 the paths the static scan traced. A project keeps a threat model that every
-review starts from. New Scan and the GitHub Action review the changes since a
-commit. A Full coverage scan continues after its limit and shows live
-activity. The framework guides of M10c were measured and removed, because they
-lowered precision. See [STATUS.md](STATUS.md) for the records.
+review starts from. Change reviews in New Scan and the GitHub Action shipped
+and were removed on 2026-10-25, to keep the dashboard local-first. A Full
+coverage scan continues after its limit and shows live activity. The framework
+guides of M10c were measured and removed, because they lowered precision. See [STATUS.md](STATUS.md) for the records.
 
 | Checkpoint | Deliverable | Acceptance |
 | --- | --- | --- |
 | M10a Decision discipline | A severity rubric and a checklist before high or critical. A dismissal names its basis and cites the control or source, which the host checks; without a valid citation it becomes Needs review | Evaluation cases carry a severity label. Over three runs, severity agreement is recorded before and after, precision and recall do not drop, and vulnerable cases dismissed by mistake do not rise |
 | M10b Path closure | The review closes every traced path in a batch: a finding, safe with a cited control, or open with what is missing. Outputs list unclosed paths | The share of closed paths is recorded. Recall on the cross-file pairs and precision do not drop |
 | M10c Guides and project threat model | Framework review guides selected from the static inventory. One threat model per project, shared by all batches, saved and editable | Precision and recall per framework with and without its guide. Tokens per batch fall and detection does not drop |
-| M10d Change review | A scan scope for the changes since a commit or branch, with scope rules for introduced, newly reached and weakened paths and removed controls. An opt-in model review of pull requests in the GitHub Action | Diff cases in the corpus. Git reads run no project filters or diff drivers. An Action integration test with the synthetic provider |
+| M10d Change review (removed) | A scan scope for the changes since a commit or branch, with scope rules for introduced, newly reached and weakened paths and removed controls. An opt-in model review of pull requests in the GitHub Action | Diff cases in the corpus. Git reads run no project filters or diff drivers. An Action integration test with the synthetic provider |
 | M10e Long scans | A Full coverage scan continues after its limit with a new one. Scan details show live activity | Integration tests for continuation and a browser check for the timeline |
 
 ### M11 Validation by execution (planned)

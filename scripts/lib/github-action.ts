@@ -6,7 +6,6 @@ import { createReport, type FailOn, failsGate, withoutSuppressed } from "../../s
 import { PolicyError, readBaseline, readSuppressions } from "../../src/report/policy.ts";
 import { SEVERITIES } from "../../src/rules/model.ts";
 import { scan } from "../../src/scan.ts";
-import { ChangeScopeError } from "../../src/security/changes.ts";
 import { json } from "../../src/shared/json.ts";
 import {
   aiFailsGate,
@@ -99,19 +98,7 @@ export async function runGitHubAction(
       if (env.GITHUB_OUTPUT) await appendFile(env.GITHUB_OUTPUT, "exit-code=2\n", "utf8");
       return 2;
     }
-    let reviewed: Awaited<ReturnType<typeof runAiReview>> | null = null;
-    if (ai)
-      try {
-        reviewed = await runAiReview(ai, result, scanned);
-      } catch (error) {
-        if (!(error instanceof ChangeScopeError)) throw error;
-        io.stderr(
-          `plenger: ${error.message} Check ai-changes-since, and fetch the base commit (fetch-depth: 0).\n`,
-        );
-        if (env.GITHUB_OUTPUT) await appendFile(env.GITHUB_OUTPUT, "exit-code=2\n", "utf8");
-        return 2;
-      }
-    const review = reviewed?.review ?? null;
+    const review = ai ? await runAiReview(ai, result) : null;
     const gate =
       failsGate(report, threshold as FailOn) || (review !== null && aiFailsGate(review, threshold));
     const aiFailed = review !== null && review.status !== "completed";
@@ -137,23 +124,17 @@ export async function runGitHubAction(
           ? summary
           : `# Plenger static analysis\n\n${report.review.active} active ${report.review.active === 1 ? "finding" : "findings"} · ${report.review.suppressed} suppressed · ${report.review.unchanged} in baseline\n\nThe full summary exceeds GitHub's size limit. Review the complete SARIF report.\n`;
       await appendFile(env.GITHUB_STEP_SUMMARY, boundedSummary, "utf8");
-      if (reviewed)
-        await appendFile(
-          env.GITHUB_STEP_SUMMARY,
-          aiSummary(review, reviewed.changes).slice(0, 200_000),
-          "utf8",
-        );
+      if (review)
+        await appendFile(env.GITHUB_STEP_SUMMARY, aiSummary(review).slice(0, 200_000), "utf8");
     }
     if (env.GITHUB_OUTPUT)
       await appendFile(env.GITHUB_OUTPUT, `sarif-file=${outputName}\nexit-code=${code}\n`, "utf8");
     io.stdout(
       `plenger: ${report.review.active} active ${report.review.active === 1 ? "finding" : "findings"}; SARIF written to ${outputName}\n`,
     );
-    if (reviewed)
+    if (review)
       io.stdout(
-        review
-          ? `plenger: AI review ${review.status}; ${review.findings.filter((finding) => finding.validation !== "dismissed").length} kept findings\n`
-          : "plenger: AI review skipped; no changed file to review\n",
+        `plenger: AI review ${review.status}; ${review.findings.filter((finding) => finding.validation !== "dismissed").length} kept findings\n`,
       );
     if (aiFailed)
       io.stderr(`plenger: AI review ${review?.status}: ${review?.reason ?? "no reason"}\n`);

@@ -13,7 +13,6 @@ import type { ModelPricing } from "../../src/redteam/model-pricing.ts";
 import type { ProviderAccess } from "../../src/redteam/provider.ts";
 import { type Finding, SEVERITIES, type Severity } from "../../src/rules/model.ts";
 import { scan } from "../../src/scan.ts";
-import { changedLines } from "../../src/security/changes.ts";
 import { isRecord } from "../../src/shared/guards.ts";
 
 export interface Span {
@@ -37,8 +36,6 @@ export interface EvaluationCase {
   note?: string;
   /** Scanned as a package (library mode): its public functions' parameters are input. */
   library?: true;
-  /** A change review case: the base text of each changed file, reviewed with the change scope. */
-  changes?: { base: Record<string, string> };
 }
 
 export interface Metrics {
@@ -156,38 +153,9 @@ export async function loadCorpus(dir: string): Promise<EvaluationCase[]> {
       static: [...(label.static as string[])].sort(),
       ...(typeof label.note === "string" ? { note: label.note } : {}),
       ...(label.library === true ? { library: true as const } : {}),
-      ...changesOf(label.changes, entry.name),
     });
   }
   return cases;
-}
-
-function changesOf(value: unknown, id: string): Pick<EvaluationCase, "changes"> {
-  if (value === undefined) return {};
-  if (
-    !isRecord(value) ||
-    !isRecord(value.base) ||
-    !Object.values(value.base).every((text) => typeof text === "string")
-  )
-    throw new Error(`Invalid case label: ${id}`);
-  return { changes: { base: value.base as Record<string, string> } };
-}
-
-/** The change scope of a change review case: its files whose text differs from the base. */
-export async function caseChanges(item: EvaluationCase) {
-  if (!item.changes) return undefined;
-  const split = (text: string) => {
-    const lines = text.split("\n");
-    if (lines.at(-1) === "") lines.pop();
-    return lines;
-  };
-  const files = [];
-  for (const [path, base] of Object.entries(item.changes.base)) {
-    const current = await readFile(join(item.root, path), "utf8");
-    const ranges = changedLines(split(base), split(current));
-    if (ranges.length) files.push({ path, added: false, ranges });
-  }
-  return { base: "base", commit: "0".repeat(40), files, removed: [] as string[] };
 }
 
 export function overlaps(label: Span, span: Span): boolean {
@@ -388,17 +356,12 @@ export async function evaluateAi(
     options.pause ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const reruns = options.rateLimitReruns ?? 4;
   const snapshots = new Map<string, Awaited<ReturnType<typeof scan>>>();
-  const scopes = new Map<string, Awaited<ReturnType<typeof caseChanges>>>();
-  for (const item of cases) {
-    snapshots.set(item.id, await reviewSnapshot(item));
-    scopes.set(item.id, await caseChanges(item));
-  }
+  for (const item of cases) snapshots.set(item.id, await reviewSnapshot(item));
   const runs: AiOutcome[][] = [];
   for (let run = 0; run < options.runs; run++) {
     const outcomes: AiOutcome[] = new Array(cases.length);
     const review = (item: EvaluationCase) => {
       const { connection, validator } = options;
-      const changes = scopes.get(item.id);
       return reviewProject(
         snapshots.get(item.id) as Awaited<ReturnType<typeof scan>>,
         {
@@ -408,7 +371,6 @@ export async function evaluateAi(
           ...(connection.pricing ? { pricing: connection.pricing } : {}),
           inputTokens: connection.inputTokens ?? null,
           mode: options.mode ?? "batch",
-          ...(changes ? { changes } : {}),
           ...(validator
             ? {
                 validator: {

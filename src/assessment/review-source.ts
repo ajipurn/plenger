@@ -206,8 +206,6 @@ export async function captureReviewSource(
   options: {
     reader?: ReviewSourceReader;
     budget?: Pick<ReviewBudget, "contextBytes" | "fileBytes" | "files">;
-    /** A change review: only these files, with their changed lines located like a path. */
-    changes?: ReadonlyMap<string, readonly ReviewRange[]>;
   } = {},
 ): Promise<{
   context: ReviewContext;
@@ -228,17 +226,7 @@ export async function captureReviewSource(
   const scannedLines = new Map(snapshot.files.map((file) => [file.path, file.lines]));
   const covered = previousCoverage(submitted);
   const focus = reviewFocus(snapshot.inventory, snapshot.findings);
-  const changes = options.changes;
-  if (changes)
-    for (const [path, ranges] of changes) {
-      const located = focus.get(path);
-      const lines = new Set(located?.lines ?? []);
-      for (const range of ranges)
-        for (let line = range.line; line <= range.endLine && lines.size < 4000; line++)
-          lines.add(line);
-      focus.set(path, { traced: true, lines, definitions: located?.definitions ?? new Set() });
-    }
-  const order = reviewOrder(snapshot, focus).filter((path) => !changes || changes.has(path));
+  const order = reviewOrder(snapshot, focus);
 
   const reasons = new Map<string, string>();
   for (const path of order) {
