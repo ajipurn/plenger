@@ -97,9 +97,13 @@ percentage. Cancel acknowledges the pending request. Export snapshot identifies
 incomplete records; finished jobs use Export JSON. Scan again opens the local scan
 form after a job ends. Empty failed runs are incomplete, never clean results.
 
-A source and shield illustration follows the active scan phase. Keep its motion
-inside the progress card and provide Pause animation. Pausing affects only the
-illustration. Reduced motion keeps a static illustration with phase changes.
+The progress card lists the stages on a vertical timeline. The active stage
+holds its description and the latest activity, newest first. The heading shows
+the tokens charged so far. A source and shield illustration follows the active
+phase. It loops while the scan works, because a batch scan can wait minutes
+for one reply with no new step. It works like a spinner, so it has no pause
+control. Each step that arrives adds one ring from the shield. Motion stops
+while a scan cancels. Reduced motion keeps it static.
 Sort scan findings by severity, highest first, across static and AI origins.
 
 Show Reading source, Discovering findings and Validating findings while a job

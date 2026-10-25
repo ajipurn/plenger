@@ -1,7 +1,11 @@
 import { useId, useState } from "react";
-import { SCAN_DEPTHS, type SecurityScan } from "../../../src/dashboard/contract.ts";
+import {
+  SCAN_DEPTHS,
+  type ScanActivity,
+  type SecurityScan,
+} from "../../../src/dashboard/contract.ts";
 import { Icon } from "../shared/icons.tsx";
-import { Button } from "../shared/ui.tsx";
+import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { phaseLabel } from "./ui.tsx";
 
 const SCAN_STEPS = [
@@ -21,21 +25,34 @@ const SCAN_STEPS = [
     description: "Checking candidates against the source, callers, and existing safeguards.",
   },
 ] as const;
+/** Latest steps listed under the active stage; the saved timeline keeps more. */
+const RECENT_ACTIVITY = 6;
 
-/** State indication for a running scan, with motion confined to a decorative illustration. */
+/** A running scan's stages on a timeline, with its latest steps under the active stage. */
 export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancelling: boolean }) {
-  const [paused, setPaused] = useState(false);
-  const current = SCAN_STEPS.findIndex((step) => step.phase === scan.phase);
+  const current =
+    scan.phase === "finished"
+      ? SCAN_STEPS.length
+      : SCAN_STEPS.findIndex((step) => step.phase === scan.phase);
   const batch = Math.min(scan.reviews.length + 1, SCAN_DEPTHS[scan.depth].batches);
+  const activity = scan.activity ?? [];
+  const latest = activity.at(-1);
+  // Motion marks steps that arrive while the page is open, not the history it opened with.
+  const [openedAt] = useState(() => latest?.at ?? "");
+  const arrived = (entry: ScanActivity) => entry.at > openedAt;
   return (
     <section
       className="security-scan-progress"
       aria-label="Scan progress"
       data-phase={scan.phase}
-      data-animation-paused={paused || cancelling}
+      data-cancelling={cancelling}
     >
       <div className="security-scan-progress-heading">
-        <ScanIllustration />
+        <ScanIllustration
+          step={
+            !cancelling && latest && arrived(latest) ? `${latest.at}-${latest.detail}` : undefined
+          }
+        />
         <div className="security-scan-progress-copy" role="status">
           <p className="security-scan-progress-kicker">
             <span>{SCAN_DEPTHS[scan.depth].label} scan</span>
@@ -45,76 +62,84 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
             </span>
           </p>
           <h2>{cancelling ? "Cancelling scan" : phaseLabel[scan.phase]}</h2>
-          <p className="muted">
-            {cancelling
-              ? "Waiting for the current request to stop. Completed static results remain available."
-              : SCAN_STEPS[current]?.description}
+        </div>
+        {latest && (
+          <p className="security-scan-progress-tokens">
+            <MorphNumber value={latest.tokens.toLocaleString()} /> tokens
           </p>
-        </div>
-      </div>
-      <ol className="security-scan-steps" aria-label="Analysis stages">
-        {SCAN_STEPS.map((step, index) => (
-          <li
-            key={step.phase}
-            data-state={index < current ? "complete" : index === current ? "current" : "pending"}
-            aria-current={index === current ? "step" : undefined}
-          >
-            <span className="security-scan-step-number" aria-hidden="true">
-              {index < current ? <Icon name="check" /> : index + 1}
-            </span>
-            <span>
-              {step.title}
-              <small>
-                {index < current
-                  ? "Complete"
-                  : index === current
-                    ? cancelling
-                      ? "Stopping…"
-                      : "In progress"
-                    : "Pending"}
-              </small>
-            </span>
-          </li>
-        ))}
-      </ol>
-      {scan.activity?.length ? (
-        <div className="security-scan-activity">
-          <h3>Activity</h3>
-          <ol aria-label="Recent scan activity">
-            {scan.activity
-              .slice(-12)
-              .reverse()
-              .map((entry) => (
-                <li key={`${entry.at}-${entry.detail}`} data-kind={entry.kind}>
-                  <time dateTime={entry.at}>{new Date(entry.at).toLocaleTimeString()}</time>
-                  <span>
-                    {scan.mode === "explore" ? "Review" : "Batch"} {entry.batch + 1} ·{" "}
-                    {entry.detail}
-                  </span>
-                  <span className="muted">{entry.tokens.toLocaleString()} tokens</span>
-                </li>
-              ))}
-          </ol>
-        </div>
-      ) : null}
-      <div className="security-scan-progress-footer">
-        <p className="security-scan-progress-note">
-          <Icon name="info" /> You can leave this page. The scan continues in the local service.
-        </p>
-        {!cancelling && (
-          <Button
-            className="button button-quiet security-scan-animation-toggle"
-            onClick={() => setPaused((value) => !value)}
-          >
-            {paused ? "Resume animation" : "Pause animation"}
-          </Button>
         )}
       </div>
+      <ol className="security-scan-steps" aria-label="Analysis stages">
+        {SCAN_STEPS.map((step, index) => {
+          const state = index < current ? "complete" : index === current ? "current" : "pending";
+          return (
+            <li
+              key={step.phase}
+              data-state={state}
+              aria-current={state === "current" ? "step" : undefined}
+            >
+              <span className="security-scan-step-number" aria-hidden="true">
+                {state === "complete" ? <Icon name="check" /> : index + 1}
+              </span>
+              <div className="security-scan-step-body">
+                <p className="security-scan-step-title">
+                  {step.title}
+                  <small>
+                    {state === "complete"
+                      ? "Complete"
+                      : state === "pending"
+                        ? "Pending"
+                        : cancelling
+                          ? "Stopping…"
+                          : "In progress"}
+                  </small>
+                </p>
+                {state === "current" && (
+                  <p className="muted">
+                    {cancelling
+                      ? "Waiting for the current request to stop. Completed static results remain available."
+                      : step.description}
+                  </p>
+                )}
+                {index === Math.min(current, SCAN_STEPS.length - 1) && activity.length > 0 && (
+                  <ol className="security-scan-activity" aria-label="Recent scan activity">
+                    {activity
+                      .slice(-RECENT_ACTIVITY)
+                      .reverse()
+                      .map((entry) => (
+                        <li
+                          key={`${entry.at}-${entry.detail}`}
+                          data-kind={entry.kind}
+                          data-arrived={arrived(entry) || undefined}
+                        >
+                          <time dateTime={entry.at}>{new Date(entry.at).toLocaleTimeString()}</time>
+                          <span>
+                            <span className="muted">
+                              {scan.mode === "explore" ? "Review" : "Batch"} {entry.batch + 1} ·
+                            </span>{" "}
+                            {entry.detail}
+                          </span>
+                        </li>
+                      ))}
+                  </ol>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="security-scan-progress-note">
+        <Icon name="info" /> You can leave this page. The scan continues in the local service.
+      </p>
     </section>
   );
 }
 
-function ScanIllustration() {
+/**
+ * Source and shield art: the active phase loops while the scan works, and a ring leaves the
+ * shield once for each step that arrives while the page is open.
+ */
+function ScanIllustration({ step }: { step: string | undefined }) {
   const id = useId();
   return (
     <svg
@@ -123,6 +148,7 @@ function ScanIllustration() {
       fill="none"
       aria-hidden="true"
       focusable="false"
+      data-step={step ? "" : undefined}
     >
       <defs>
         <pattern id={`${id}-grid`} width="12" height="12" patternUnits="userSpaceOnUse">
@@ -189,6 +215,8 @@ function ScanIllustration() {
         </g>
       </g>
       <circle cx="162" cy="104" r="31" className="scan-art-halo" />
+      {/* A new key remounts the ring, which restarts its one-shot animation. */}
+      <circle key={step} cx="162" cy="104" r="31" className="scan-art-ping" />
       <circle cx="162" cy="104" r="25" className="scan-art-badge" />
       <path d="m162 86 14 5v12c0 10-14 18-14 18s-14-8-14-18V91l14-5Z" className="scan-art-shield" />
       <g className="scan-art-glyph scan-art-glyph-reading">

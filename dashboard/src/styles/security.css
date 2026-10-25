@@ -874,39 +874,65 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   container-type: inline-size;
 }
 .security-scan-progress-heading {
-  @apply flex items-center gap-6;
+  @apply grid items-center gap-x-5;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "art copy tokens";
 }
 .security-scan-illustration {
-  @apply shrink-0 text-ink;
-  width: 168px;
+  @apply text-ink;
+  grid-area: art;
+  width: 112px;
   height: auto;
 }
 .security-scan-progress-copy {
-  @apply min-w-0 py-2;
+  @apply min-w-0;
+  grid-area: copy;
 }
 .security-scan-progress-kicker {
-  @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted mb-2;
+  @apply flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted mb-1;
 }
 .security-scan-progress h2 {
   @apply text-[18px] leading-snug;
 }
-.security-scan-progress-heading .muted {
-  @apply text-[13px] leading-relaxed mt-2;
-  max-width: 45ch;
+.security-scan-progress-tokens {
+  @apply text-[12px] text-muted tabular-nums whitespace-nowrap;
+  grid-area: tokens;
 }
 .security-scan-steps {
-  @apply grid grid-cols-3 gap-4 list-none p-0 m-0 mt-4 pt-4 border-t border-line;
+  @apply list-none p-0 m-0 mt-4 pt-5 border-t border-line;
 }
-.security-scan-steps li {
-  @apply flex items-start gap-2.5 min-w-0 text-muted text-[12px];
+.security-scan-steps > li {
+  @apply relative grid gap-x-3 text-muted;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+}
+.security-scan-steps > li:not(:last-child) {
+  @apply pb-4;
+}
+/* The rail from one stage marker to the next. */
+.security-scan-steps > li:not(:last-child)::before {
+  @apply absolute w-px bg-line-strong;
+  content: "";
+  left: calc(0.75rem - 0.5px);
+  top: calc(1.5rem + 4px);
+  bottom: 4px;
 }
 .security-scan-step-number {
-  @apply inline-flex items-center justify-center shrink-0 size-6 rounded-full border border-line text-[11px] tabular-nums;
+  @apply inline-flex items-center justify-center size-6 rounded-full border border-line text-[11px] tabular-nums;
 }
-.security-scan-steps small {
-  @apply block text-[11px] text-muted mt-0.5;
+.security-scan-step-body {
+  @apply min-w-0;
 }
-.security-scan-steps [data-state="current"] {
+.security-scan-step-title {
+  @apply flex flex-wrap items-baseline gap-x-2 text-[13px] leading-6;
+}
+.security-scan-step-title small {
+  @apply text-[11px] text-muted font-normal;
+}
+.security-scan-step-body > .muted {
+  @apply text-[12px] leading-relaxed;
+  max-width: 60ch;
+}
+.security-scan-steps [data-state="current"] .security-scan-step-title {
   @apply text-ink font-medium;
 }
 .security-scan-steps [data-state="current"] .security-scan-step-number {
@@ -915,18 +941,27 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-scan-steps [data-state="complete"] .security-scan-step-number {
   @apply bg-hover text-ink;
 }
-.security-scan-progress-footer {
-  @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-3 mt-4 border-t border-line;
+.security-scan-activity {
+  @apply grid gap-1.5 list-none p-0 m-0 mt-3 text-[12px];
+}
+.security-scan-activity li {
+  @apply grid gap-x-3 items-baseline text-ink;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.security-scan-activity li > span {
+  @apply wrap-anywhere;
+}
+.security-scan-activity time {
+  @apply text-muted tabular-nums;
+}
+.security-scan-activity li[data-kind="batch"] {
+  @apply font-medium;
 }
 .security-scan-progress-note {
-  @apply flex items-start gap-2 text-[12px] text-muted leading-relaxed;
-  flex: 1 1 22rem;
+  @apply flex items-start gap-2 text-[12px] text-muted leading-relaxed mt-5;
 }
 .security-scan-progress-note > .icon {
   @apply shrink-0 mt-0.5;
-}
-.security-scan-progress .security-scan-animation-toggle {
-  @apply hidden shrink-0;
 }
 .scan-art-grid {
   opacity: 0.12;
@@ -994,22 +1029,27 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 }
 @container (max-width: 32rem) {
   .security-scan-progress-heading {
-    @apply flex-col gap-2 text-center;
+    @apply items-start gap-x-4;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "art copy"
+      "art tokens";
   }
   .security-scan-illustration {
-    width: 156px;
+    width: 76px;
   }
-  .security-scan-progress-kicker {
-    @apply justify-center;
-  }
-  .security-scan-steps {
-    @apply grid-cols-1 gap-4;
+  .security-scan-progress-tokens {
+    @apply mt-1;
   }
 }
+.scan-art-ping {
+  stroke: currentColor;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+/* The active phase loops while the scan works; a new step adds one ring on top. */
 @media (prefers-reduced-motion: no-preference) {
-  .security-scan-progress .security-scan-animation-toggle {
-    @apply inline-flex;
-  }
   .scan-art-beam {
     animation: scan-source-sweep 3.2s linear infinite;
   }
@@ -1030,9 +1070,15 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   .security-scan-progress[data-phase="validating"] .scan-art-halo {
     animation: scan-verify-pulse 3.2s linear infinite;
   }
-  .security-scan-progress[data-animation-paused="true"]
+  .security-scan-progress[data-cancelling="true"]
     :is(.scan-art-beam, .scan-art-packet, .scan-art-halo) {
     animation-play-state: paused;
+  }
+  .security-scan-illustration[data-step] .scan-art-ping {
+    animation: scan-step-ping 700ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .security-scan-activity li[data-arrived] {
+    animation: scan-activity-arrive 200ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
   }
 }
 @keyframes scan-source-sweep {
@@ -1073,10 +1119,25 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 @keyframes scan-verify-pulse {
   0%,
   100% {
-    opacity: 0.1;
+    opacity: 0.12;
   }
   50% {
     opacity: 0.4;
+  }
+}
+@keyframes scan-step-ping {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+@keyframes scan-activity-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
   }
 }
 .security-scan-result-empty {
@@ -1385,9 +1446,6 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   .security-scan-summary dt > .icon {
     @apply hidden;
   }
-  .security-scan-steps {
-    @apply grid-cols-1 gap-4;
-  }
   .security-primary-nav {
     @apply grid grid-cols-4 gap-0;
   }
@@ -1413,28 +1471,6 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 }
 .security-output-failure {
   @apply text-critical;
-}
-.security-scan-activity {
-  @apply mt-5 border-t border-line pt-4 text-[12px];
-}
-.security-scan-activity h3 {
-  @apply font-medium mb-2;
-}
-.security-scan-activity ol {
-  @apply grid gap-1.5;
-}
-.security-scan-activity li {
-  @apply grid gap-x-3 items-baseline;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-}
-.security-scan-activity li > span:first-of-type {
-  @apply wrap-anywhere;
-}
-.security-scan-activity time {
-  @apply text-muted tabular-nums;
-}
-.security-scan-activity li[data-kind="batch"] {
-  @apply font-medium;
 }
 .security-continue-scan {
   @apply border border-line rounded-panel bg-surface p-5 mb-5 text-[13px];
