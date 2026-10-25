@@ -38,6 +38,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   listed at sign-in are now saved with the provider and offered again, in the
   editor and in New Scan.
 - **Delete provider** in a provider row's actions menu opened no confirmation.
+- The Projects list showed the last scan's finding count, so a project whose
+  latest scan found nothing read 0 while its page listed open findings. The
+  column is now Open findings, counted across all scans as on the project page.
 
 ### Removed
 

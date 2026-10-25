@@ -76,8 +76,9 @@ to the project. An unscanned project still opens its detail page with an empty s
 
 ## Projects and scans
 
-Projects shows saved local folder names and paths, the last scan, finding counts
-and a per-row New Scan action. Search operates on project names and paths.
+Projects shows saved local folder names and paths, the last scan, open finding counts
+across all scans and a per-row New Scan action. Search operates on project names
+and paths.
 Add project saves a folder, optional display name and optional review context.
 Git is optional. Registration does not call a model.
 

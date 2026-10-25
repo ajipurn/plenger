@@ -271,6 +271,7 @@ export function SecurityApp() {
                     <ProjectsPage
                       projects={data.repositories}
                       scans={data.scans}
+                      findings={data.findings}
                       onAdd={openAdd}
                       onNewScan={openNewScan}
                       onChanged={refresh}

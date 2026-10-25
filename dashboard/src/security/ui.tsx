@@ -18,6 +18,10 @@ export const statusLabel: Record<FindingStatus, string> = {
   resolved: "Resolved",
   dismissed: "Dismissed",
 };
+/** Resolved and dismissed findings are closed; every other status is open. */
+export function isOpenStatus(status: FindingStatus): boolean {
+  return status !== "resolved" && status !== "dismissed";
+}
 /** What a second-review dismissal rests on. */
 export const dismissalLabel: Record<DismissalBasis, string> = {
   control: "Control",

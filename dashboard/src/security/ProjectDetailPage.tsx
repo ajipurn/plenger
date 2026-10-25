@@ -9,7 +9,15 @@ import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.t
 import { costLabel } from "./ScanBilling.tsx";
 import { ScansTable } from "./ScansTable.tsx";
 import { ThreatModelPanel } from "./ThreatModelPanel.tsx";
-import { date, Empty, FindingsTable, Pagination, ScanDuration, ScanStatus } from "./ui.tsx";
+import {
+  date,
+  Empty,
+  FindingsTable,
+  isOpenStatus,
+  Pagination,
+  ScanDuration,
+  ScanStatus,
+} from "./ui.tsx";
 
 export function ProjectDetailPage({
   data,
@@ -48,9 +56,7 @@ export function ProjectDetailPage({
   const scans = data.scans.filter((scan) => scan.repositoryId === project.id);
   const latest = scans[0];
   const findings = data.findings.filter((finding) => finding.repositoryId === project.id);
-  const open = findings.filter(
-    (finding) => finding.status !== "resolved" && finding.status !== "dismissed",
-  ).length;
+  const open = findings.filter((finding) => isOpenStatus(finding.status)).length;
   const matches = findings
     .filter((finding) =>
       `${finding.title} ${finding.rootCause}`.toLowerCase().includes(query.toLowerCase()),

@@ -1,21 +1,27 @@
 import { useId, useRef, useState } from "react";
 import { Link } from "react-router";
-import type { LocalRepository, SecurityScanSummary } from "../../../src/dashboard/contract.ts";
+import type {
+  LocalRepository,
+  SecurityFinding,
+  SecurityScanSummary,
+} from "../../../src/dashboard/contract.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.tsx";
-import { date, Empty, ScanStatus } from "./ui.tsx";
+import { date, Empty, isOpenStatus, ScanStatus } from "./ui.tsx";
 
 export function ProjectsPage({
   projects,
   scans,
+  findings,
   onAdd,
   onNewScan,
   onChanged,
 }: {
   projects: LocalRepository[];
   scans: SecurityScanSummary[];
+  findings: SecurityFinding[];
   onAdd: () => void;
   onNewScan: (id: string) => void;
   onChanged: () => Promise<void>;
@@ -25,6 +31,11 @@ export function ProjectsPage({
   const addButton = useRef<HTMLButtonElement>(null);
   const deletion = useProjectDeletion(onChanged, addButton);
   const running = scans.some((scan) => scan.status === "running");
+  // Open findings across every scan, as the project page counts them, not the last scan's.
+  const openFindings = new Map<string, number>();
+  for (const finding of findings)
+    if (isOpenStatus(finding.status))
+      openFindings.set(finding.repositoryId, (openFindings.get(finding.repositoryId) ?? 0) + 1);
   const filtered = projects.filter((item) =>
     `${item.name} ${item.path}`.toLowerCase().includes(query.toLowerCase()),
   );
@@ -67,7 +78,7 @@ export function ProjectsPage({
               <tr>
                 <th scope="col">Project</th>
                 <th scope="col">Last scan</th>
-                <th scope="col">Findings</th>
+                <th scope="col">Open findings</th>
                 <th scope="col">
                   <span className="sr-only">Actions</span>
                 </th>
@@ -106,7 +117,7 @@ export function ProjectsPage({
                         <span className="muted">Not scanned</span>
                       )}
                     </td>
-                    <td>{latest ? latest.findingCount : "—"}</td>
+                    <td>{latest ? (openFindings.get(project.id) ?? 0) : "—"}</td>
                     <td>
                       <div className="security-row-actions">
                         <Button
