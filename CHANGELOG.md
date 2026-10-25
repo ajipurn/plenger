@@ -35,7 +35,8 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 ### Fixed
 
 - Reopening a connected ChatGPT provider kept the model as free text. The models
-  listed at sign-in are now saved with the provider and offered again.
+  listed at sign-in are now saved with the provider and offered again, in the
+  editor and in New Scan.
 - **Delete provider** in a provider row's actions menu opened no confirmation.
 
 ### Removed

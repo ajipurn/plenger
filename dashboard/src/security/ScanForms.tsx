@@ -283,7 +283,11 @@ export function NewScanForm({
       void restoreCatalog(catalogProviderId);
     return clearCatalog;
   }, [open, catalogProviderId, catalogProvider, clearCatalog, restoreCatalog]);
-  const modelItems = catalog.models.map((item) => ({
+  // ChatGPT offers the models its last sign-in listed; without them the model is typed.
+  const listedModels: { id: string; name: string }[] =
+    provider?.provider === "chatgpt" ? (provider.chatgptModels ?? []) : catalog.models;
+  const choosesModel = hasProviderModelCatalog(provider?.provider) || listedModels.length > 0;
+  const modelItems = listedModels.map((item) => ({
     value: item.id,
     label: item.name,
   }));
@@ -587,7 +591,7 @@ export function NewScanForm({
                       </Button>
                     )}
                   </div>
-                  {hasProviderModelCatalog(provider.provider) ? (
+                  {choosesModel ? (
                     <Select
                       label="Model"
                       id={`${id}-model`}
@@ -702,7 +706,7 @@ export function NewScanForm({
                 {mode === "explore"
                   ? `Explore starts from up to ${Math.round(Math.min(budget.contextBytes, EXPLORE_LIMITS.firstBytes) / 1024)} KiB of source and reads the rest through tools.`
                   : budget.inputTokens === null
-                    ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch. Load models to size it to this model's context window.`
+                    ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch.${hasProviderModelCatalog(provider.provider) ? " Load models to size it to this model's context window." : ""}`
                     : `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch for this model's ${budget.inputTokens.toLocaleString()}-token window.`}
                 {validator && mode === "batch"
                   ? " A second-review model with a smaller or unknown window lowers it."
