@@ -30,34 +30,33 @@ import { DetailDrawer } from "../shared/DetailDrawer.tsx";
 import { Icon } from "../shared/icons.tsx";
 import { Button, Checkbox, Input, Select, TextArea } from "../shared/ui.tsx";
 
-/** The second review uses the discovery provider and model. */
-const SAME_VALIDATOR = "same";
 const EXPLORE_CALLS = EXPLORE_LIMITS.discovery.modelCalls + EXPLORE_LIMITS.validation.modelCalls;
 const DEPTH_COPY: Record<SelectableScanDepth, Record<ReviewMode, string>> = {
   quick: {
-    batch: "Reviews the most important files in one batch.",
-    explore: "Explores once, starting from the most important files.",
+    batch: "Runs one round on the most important files.",
+    explore: "Runs one round, starting from the most important files.",
   },
   full: {
-    batch: "Reviews batch after batch until every file is covered or your limit is reached.",
-    explore: "Explores again until a review reads nothing new or your limit is reached.",
+    batch: "Runs round after round until every file is covered or your limit is reached.",
+    explore: "Runs round after round until a round reads nothing new or your limit is reached.",
   },
 };
-/** Full coverage without a spending limit; the batch cap still applies. */
+/** Full coverage without a spending limit; the round cap still applies. */
 const UNLIMITED_COPY: Record<ReviewMode, string> = {
-  batch: "Reviews batch after batch until every file is covered.",
-  explore: "Explores again until a review reads nothing new.",
+  batch: "Runs round after round until every file is covered.",
+  explore: "Runs round after round until a round reads nothing new.",
 };
 const MODE_COPY: Record<ReviewMode, { label: string; description: string; calls: string }> = {
   batch: {
     label: "Batch",
-    description: "Sends the most relevant files in batches the scan packs.",
-    calls: `${SECURITY_REVIEW_LIMITS.calls} model calls per batch`,
+    description: "Each round sends the most relevant files, picked by the scan.",
+    calls: `${SECURITY_REVIEW_LIMITS.calls} model calls per round`,
   },
   explore: {
     label: "Explore",
-    description: "Reads the project through read-only tools and follows paths across files.",
-    calls: `Up to ${EXPLORE_CALLS} model calls per review`,
+    description:
+      "Each round reads the project through read-only tools and follows paths across files.",
+    calls: `Up to ${EXPLORE_CALLS} model calls per round`,
   },
 };
 /** Rendered source is larger than file bytes: line numbers and JSON escaping. */
@@ -226,6 +225,80 @@ export function ProjectForm({
   );
 }
 
+function ScanModelField({
+  id,
+  label,
+  provider,
+  model,
+  onChange,
+  catalog,
+  busy,
+}: {
+  id: string;
+  label: string;
+  provider: SavedProvider;
+  model: string;
+  onChange: (model: string) => void;
+  catalog: ReturnType<typeof useProviderModels>;
+  busy: boolean;
+}) {
+  // ChatGPT offers the models its last sign-in listed; without them the model is typed.
+  const listedModels =
+    provider.provider === "chatgpt" ? (provider.chatgptModels ?? []) : catalog.models;
+  const choosesModel = hasProviderModelCatalog(provider.provider) || listedModels.length > 0;
+  const items = listedModels.map((item) => ({
+    value: item.id,
+    label: item.name,
+  }));
+  if (!items.some((item) => item.value === provider.model))
+    items.unshift({
+      value: provider.model,
+      label: `${provider.model} (default)`,
+    });
+  return (
+    <div className="security-scan-field">
+      <div className="security-scan-field-label">
+        <label htmlFor={id}>{label}</label>
+        {hasProviderModelCatalog(provider.provider) && (
+          <Button
+            className="button button-quiet"
+            disabled={busy || catalog.loading}
+            onClick={() =>
+              void catalog.load({
+                id: provider.id,
+                provider: provider.provider as "anthropic" | "openai",
+                baseUrl: provider.baseUrl,
+                refresh: true,
+              })
+            }
+          >
+            {catalog.loading ? "Loading models…" : catalog.loaded ? "Reload models" : "Load models"}
+          </Button>
+        )}
+      </div>
+      {choosesModel ? (
+        <Select
+          label={label}
+          id={id}
+          value={model}
+          items={items}
+          onValueChange={onChange}
+          disabled={busy || catalog.loading}
+        />
+      ) : (
+        <Input
+          id={id}
+          value={model}
+          maxLength={128}
+          required
+          onChange={(event) => onChange(event.target.value)}
+          disabled={busy}
+        />
+      )}
+    </div>
+  );
+}
+
 export function NewScanForm({
   open,
   repositoryId,
@@ -260,20 +333,25 @@ export function NewScanForm({
     defaultMode(providers.find((item) => item.isDefault) ?? providers[0]),
   );
   const [depth, setDepth] = useState<SelectableScanDepth>("quick");
-  // Full coverage without a limit runs until it covers the project or reaches the batch cap.
+  // Full coverage without a limit runs until it covers the project or reaches the round cap.
   const [limited, setLimited] = useState(true);
   const [limitKind, setLimitKind] = useState<ScanBudget["kind"]>("tokens");
   const [tokenLimit, setTokenLimit] = useState(String(SCAN_BUDGET_LIMITS.defaultTokens));
   const [usdLimit, setUsdLimit] = useState(SCAN_BUDGET_LIMITS.defaultUsd.toFixed(2));
   const [source, setSource] = useState<RepositorySource | null>(null);
-  const [validatorId, setValidatorId] = useState(SAME_VALIDATOR);
+  const [differentValidator, setDifferentValidator] = useState(false);
+  const [validatorId, setValidatorId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const project = repositories.find((item) => item.id === selected) ?? repositories[0];
   const provider = providers.find((item) => item.id === providerId) ?? providers[0];
-  const validator = providers.find((item) => item.id === validatorId);
+  const validator = differentValidator
+    ? (providers.find((item) => item.id === validatorId) ?? provider)
+    : undefined;
   const [model, setModel] = useState(provider?.model ?? "");
+  const [validatorModel, setValidatorModel] = useState("");
   const catalog = useProviderModels(api);
+  const validatorCatalog = useProviderModels(api);
   const { clear: clearCatalog, restore: restoreCatalog } = catalog;
   const catalogProviderId = provider?.id;
   const catalogProvider = provider?.provider;
@@ -283,22 +361,27 @@ export function NewScanForm({
       void restoreCatalog(catalogProviderId);
     return clearCatalog;
   }, [open, catalogProviderId, catalogProvider, clearCatalog, restoreCatalog]);
-  // ChatGPT offers the models its last sign-in listed; without them the model is typed.
-  const listedModels: { id: string; name: string }[] =
-    provider?.provider === "chatgpt" ? (provider.chatgptModels ?? []) : catalog.models;
-  const choosesModel = hasProviderModelCatalog(provider?.provider) || listedModels.length > 0;
-  const modelItems = listedModels.map((item) => ({
-    value: item.id,
-    label: item.name,
-  }));
-  if (provider?.model && !modelItems.some((item) => item.value === provider.model))
-    modelItems.unshift({
-      value: provider.model,
-      label: `${provider.model} (default)`,
-    });
+  const { clear: clearValidatorCatalog, restore: restoreValidatorCatalog } = validatorCatalog;
+  const validatorProviderId = validator?.id;
+  const validatorProvider = validator?.provider;
+  useEffect(() => {
+    clearValidatorCatalog();
+    if (open && validatorProviderId && hasProviderModelCatalog(validatorProvider))
+      void restoreValidatorCatalog(validatorProviderId);
+    return clearValidatorCatalog;
+  }, [
+    open,
+    validatorProviderId,
+    validatorProvider,
+    clearValidatorCatalog,
+    restoreValidatorCatalog,
+  ]);
   const selectedPricing = provider?.modelPricing?.find((item) => item.model === model);
   const contextWindow = catalog.models.find((item) => item.id === model)?.maxInputTokens;
-  const budget = reviewBudget([contextWindow]);
+  const validatorContextWindow = validatorCatalog.models.find(
+    (item) => item.id === validatorModel,
+  )?.maxInputTokens;
+  const budget = reviewBudget([contextWindow, ...(validator ? [validatorContextWindow] : [])]);
   const [notes, setNotes] = useState(project?.environment.notes ?? "");
   const projectId = project?.id;
   useEffect(() => {
@@ -314,12 +397,15 @@ export function NewScanForm({
     return () => controller.abort();
   }, [open, api, projectId]);
   // A USD limit needs saved Claude prices for every model the scan uses.
-  const validatorPricing = validator?.modelPricing?.find((item) => item.model === validator.model);
+  const validatorPricing = validator?.modelPricing?.find((item) => item.model === validatorModel);
   const usdPricing =
     provider?.provider === "anthropic" &&
     selectedPricing &&
     (!validator || (validator.provider === "anthropic" && validatorPricing))
-      ? { discovery: selectedPricing, validation: validatorPricing ?? selectedPricing }
+      ? {
+          discovery: selectedPricing,
+          validation: validatorPricing ?? selectedPricing,
+        }
       : undefined;
   const kind = usdPricing ? limitKind : "tokens";
   const mostTokens = mode === "explore" ? exploreTokenBound().total : batchTokenBound(budget).total;
@@ -329,8 +415,6 @@ export function NewScanForm({
       : batchCostBound(budget, usdPricing.discovery, usdPricing.validation)
     : null;
   const limitValue = Number(kind === "tokens" ? tokenLimit : usdLimit);
-  // Full coverage repeats batches, or exploring reviews; the limit counts either.
-  const [unit, units] = mode === "explore" ? ["review", "reviews"] : ["batch", "batches"];
   const limitError = (() => {
     if (depth !== "full" || !limited) return "";
     const L = SCAN_BUDGET_LIMITS;
@@ -338,13 +422,13 @@ export function NewScanForm({
       if (!Number.isSafeInteger(limitValue) || limitValue < L.minTokens || limitValue > L.maxTokens)
         return `Enter whole tokens from ${L.minTokens.toLocaleString()} to ${L.maxTokens.toLocaleString()}.`;
       if (limitValue < mostTokens)
-        return `One ${unit} can charge up to ${mostTokens.toLocaleString()} tokens. Raise the limit.`;
+        return `One round can charge up to ${mostTokens.toLocaleString()} tokens. Raise the limit.`;
       return "";
     }
     if (!Number.isFinite(limitValue) || limitValue < L.minUsd || limitValue > L.maxUsd)
       return `Enter USD from ${L.minUsd} to ${L.maxUsd.toLocaleString()}.`;
     if (mostUsd !== null && limitValue < mostUsd)
-      return `One ${unit} can cost up to USD ${mostUsd.toFixed(2)}. Raise the limit.`;
+      return `One round can cost up to USD ${mostUsd.toFixed(2)}. Raise the limit.`;
     return "";
   })();
   const guaranteed =
@@ -361,18 +445,19 @@ export function NewScanForm({
       )
     : null;
   const depthCalls: Record<SelectableScanDepth, string> = {
-    quick: `Up to ${mode === "explore" ? EXPLORE_CALLS : SECURITY_REVIEW_LIMITS.calls} model calls`,
+    quick: `One round, up to ${mode === "explore" ? EXPLORE_CALLS : SECURITY_REVIEW_LIMITS.calls} model calls`,
     full:
       mode === "batch" && needed !== null
         ? needed === 1
-          ? "One batch covers this project"
-          : `About ${needed.toLocaleString()} batches for this project`
+          ? "One round covers this project"
+          : `About ${needed.toLocaleString()} rounds for this project`
         : limited
           ? "Stops at your limit"
-          : `Up to ${SCAN_BUDGET_LIMITS.fullBatches} ${units}`,
+          : `Up to ${SCAN_BUDGET_LIMITS.fullBatches} rounds`,
   };
   async function submit() {
     if (!api || !project || !provider || !model.trim()) return;
+    if (validator && !validatorModel.trim()) return;
     setBusy(true);
     setError("");
     try {
@@ -394,7 +479,12 @@ export function NewScanForm({
                   : { kind: "usd", usd: Math.round(limitValue * 100) / 100 },
             }
           : {}),
-        ...(validator ? { validatorProviderId: validator.id } : {}),
+        ...(validator
+          ? {
+              validatorProviderId: validator.id,
+              validatorModel: validatorModel.trim(),
+            }
+          : {}),
       });
       onStarted(scan);
       onClose();
@@ -446,6 +536,7 @@ export function NewScanForm({
               !provider ||
               !model.trim() ||
               catalog.loading ||
+              (validator && (!validatorModel.trim() || validatorCatalog.loading)) ||
               Boolean(limitError)
             }
           >
@@ -567,50 +658,15 @@ export function NewScanForm({
                     disabled={busy}
                   />
                 </div>
-                <div className="security-scan-field">
-                  <div className="security-scan-field-label">
-                    <label htmlFor={`${id}-model`}>Model</label>
-                    {hasProviderModelCatalog(provider.provider) && (
-                      <Button
-                        className="button button-quiet"
-                        disabled={busy || catalog.loading}
-                        onClick={() =>
-                          void catalog.load({
-                            id: provider.id,
-                            provider: provider.provider as "anthropic" | "openai",
-                            baseUrl: provider.baseUrl,
-                            refresh: true,
-                          })
-                        }
-                      >
-                        {catalog.loading
-                          ? "Loading models…"
-                          : catalog.loaded
-                            ? "Reload models"
-                            : "Load models"}
-                      </Button>
-                    )}
-                  </div>
-                  {choosesModel ? (
-                    <Select
-                      label="Model"
-                      id={`${id}-model`}
-                      value={model}
-                      items={modelItems}
-                      onValueChange={setModel}
-                      disabled={busy || catalog.loading}
-                    />
-                  ) : (
-                    <Input
-                      id={`${id}-model`}
-                      value={model}
-                      maxLength={128}
-                      required
-                      onChange={(event) => setModel(event.target.value)}
-                      disabled={busy}
-                    />
-                  )}
-                </div>
+                <ScanModelField
+                  id={`${id}-model`}
+                  label="Model"
+                  provider={provider}
+                  model={model}
+                  onChange={setModel}
+                  catalog={catalog}
+                  busy={busy}
+                />
               </div>
               <div className="security-scan-hints">
                 <p className="muted">
@@ -633,28 +689,66 @@ export function NewScanForm({
                 )}
               </div>
               <div className="security-scan-field">
-                <div className="security-scan-field-label">
-                  <label htmlFor={`${id}-validator`}>Second review</label>
-                </div>
-                <Select
-                  label="Second review"
-                  id={`${id}-validator`}
-                  value={validator ? validator.id : SAME_VALIDATOR}
-                  items={[
-                    { value: SAME_VALIDATOR, label: "Same provider and model" },
-                    ...providers.map((item) => ({
-                      value: item.id,
-                      label: `${item.name} · ${item.model}`,
-                    })),
-                  ]}
-                  onValueChange={setValidatorId}
-                  disabled={busy}
-                />
-                <p className="muted">
-                  Checks each candidate for counterevidence. A different model is less likely to
-                  repeat the first model's mistakes.
+                <Checkbox
+                  isSelected={differentValidator}
+                  onChange={(next) => {
+                    setDifferentValidator(next);
+                    if (next && !validatorId) {
+                      setValidatorId(provider.id);
+                      setValidatorModel(model);
+                    }
+                  }}
+                  isDisabled={busy}
+                  aria-describedby={`${id}-validator-help`}
+                >
+                  Use a different validation model
+                </Checkbox>
+                <p id={`${id}-validator-help`} className="muted">
+                  Validation checks each candidate for counterevidence. Uses the same provider and
+                  model unless you choose a different one.
                 </p>
               </div>
+              {validator && (
+                <>
+                  <div className="security-scan-fields">
+                    <div className="security-scan-field">
+                      <div className="security-scan-field-label">
+                        <label htmlFor={`${id}-validator-provider`}>Validation provider</label>
+                      </div>
+                      <Select
+                        label="Validation provider"
+                        id={`${id}-validator-provider`}
+                        value={validator.id}
+                        items={providers.map((item) => ({
+                          value: item.id,
+                          label: item.name,
+                        }))}
+                        onValueChange={(value) => {
+                          setValidatorId(value);
+                          setValidatorModel(
+                            providers.find((item) => item.id === value)?.model ?? "",
+                          );
+                        }}
+                        disabled={busy}
+                      />
+                    </div>
+                    <ScanModelField
+                      id={`${id}-validator-model`}
+                      label="Validation model"
+                      provider={validator}
+                      model={validatorModel}
+                      onChange={setValidatorModel}
+                      catalog={validatorCatalog}
+                      busy={busy}
+                    />
+                  </div>
+                  {validatorCatalog.error && (
+                    <p className="error-message" role="alert">
+                      {validatorCatalog.error}
+                    </p>
+                  )}
+                </>
+              )}
             </>
           ) : (
             <p className="muted">
@@ -706,10 +800,10 @@ export function NewScanForm({
                 {mode === "explore"
                   ? `Explore starts from up to ${Math.round(Math.min(budget.contextBytes, EXPLORE_LIMITS.firstBytes) / 1024)} KiB of source and reads the rest through tools.`
                   : budget.inputTokens === null
-                    ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch.${hasProviderModelCatalog(provider.provider) ? " Load models to size it to this model's context window." : ""}`
-                    : `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per batch for this model's ${budget.inputTokens.toLocaleString()}-token window.`}
+                    ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per round.${hasProviderModelCatalog(provider.provider) ? " Load models to size it to this model's context window." : ""}`
+                    : `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per round for this model's ${budget.inputTokens.toLocaleString()}-token window.`}
                 {validator && mode === "batch"
-                  ? " A second-review model with a smaller or unknown window lowers it."
+                  ? " A validation model with a smaller or unknown window lowers it."
                   : ""}
               </Text>
             )}
@@ -806,11 +900,11 @@ export function NewScanForm({
                   </div>
                   <p id={`${id}-limit-help`} className={limitError ? "error-message" : "muted"}>
                     {limitError ||
-                      `Each ${unit} charges at most ${
+                      `Each round charges at most ${
                         kind === "tokens"
                           ? `${mostTokens.toLocaleString()} tokens`
                           : `USD ${mostUsd?.toFixed(2)} at saved prices`
-                      }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? unit : units}. Most ${units} charge less. A ${unit} starts only when its maximum fits what remains.`}
+                      }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "round" : "rounds"}. Most rounds charge less. A round starts only when its maximum fits what remains.`}
                   </p>
                   {!usdPricing && (
                     <p className="muted">
@@ -820,19 +914,12 @@ export function NewScanForm({
                 </>
               ) : (
                 <p className="muted">
-                  {`No limit: the scan stops after ${SCAN_BUDGET_LIMITS.fullBatches} ${units} at most. Each ${unit} charges up to ${mostTokens.toLocaleString()} tokens.`}
+                  {`No limit: the scan stops after ${SCAN_BUDGET_LIMITS.fullBatches} rounds at most. Each round charges up to ${mostTokens.toLocaleString()} tokens.`}
                 </p>
               )}
             </div>
           )}
         </section>
-        <div className="security-scan-includes">
-          <Icon name="checklist" />
-          <div>
-            <p>Static checks, AI code review and STRIDE threat modeling</p>
-            <p className="muted">Source files are read without running the project.</p>
-          </div>
-        </div>
         {error && (
           <p className="error-message security-scan-error" role="alert">
             {error}

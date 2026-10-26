@@ -37,11 +37,14 @@ the default and SQLite preserves the selected appearance before page scripts
 load. Use bundled Geist Sans for interface text and Geist Mono for source,
 paths and identifiers. Counts use tabular numbers.
 
-Primary actions use a monochrome foreground and background inversion. Dark
-appearance uses charcoal surfaces and light primary buttons. Light appearance
-uses neutral surfaces and dark primary buttons. Navigation, selection, focus
-and links use neutral emphasis. Reserve severity colors for finding severity
-and chart ribbons. Green indicates completed jobs.
+Dark appearance starts with Spinel Stone Black (`#272A3B`), Lynx White
+(`#F7F7F7`) text and Crater Crawler (`#C8CED6`) secondary text. Light appearance
+uses Lynx White and Cold Morning (`#E6E5E4`) surfaces with navy text.
+Primary actions and selected controls use Beets (`#736A86`) with white labels.
+Links and navigation use lighter purple in dark mode and deeper purple in light
+mode. Dark focus rings use Crushed Almond (`#D4CAC5`). Derive surface layers
+and borders from this palette, with readable contrast in both appearances.
+Reserve severity colors for finding severity and chart ribbons. Green indicates completed jobs.
 Workflow status and security severity are separate concepts. Keep actual source
 paths, review limitations and unknown values explicit.
 
@@ -126,6 +129,8 @@ The form selects a saved local project, provider, model and scan depth. Start
 with the provider's default model. A scan's model choice does not change that
 default. Show the selected folder path. Keep optional review context in a disclosure.
 Use a simple vertical form without environment or scan-scope selectors.
+Validation uses the same provider and model by default. A checkbox reveals
+separate validation provider and model choices. These apply only to this scan.
 Quick and Full coverage describe actual review coverage. Full coverage offers
 an optional token or USD limit behind a checkbox that is on by default, and
 shows how many batches the limit guarantees and how many the project needs.

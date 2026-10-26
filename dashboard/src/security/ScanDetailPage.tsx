@@ -242,15 +242,13 @@ export function ScanDetailPage({
               {scan.reviews.length ? (
                 scan.reviews.map((review, index) => (
                   <section key={review.id} className="security-output-batch">
-                    <h2>
-                      {review.mode === "explore" ? "Exploring review" : "Source batch"} {index + 1}
-                    </h2>
+                    <h2>Round {index + 1}</h2>
                     <p className="muted">
                       {review.scope.files.length} of {review.scope.eligibleFiles} source files{" "}
                       {review.mode === "explore" ? "read" : "included"} ·{" "}
                       {review.scope.omittedFiles} {review.mode === "explore" ? "unread" : "omitted"}{" "}
                       · {review.status}
-                      {review.validator ? ` · second review by ${review.validator.model}` : ""}
+                      {review.validator ? ` · validation by ${review.validator.model}` : ""}
                     </p>
                     <p>{review.summary}</p>
                     {review.reason && <p className="security-output-failure">{review.reason}</p>}
@@ -312,7 +310,7 @@ export function ScanDetailPage({
                         Captured {date(review.scope.capturedAt)}. Source may include working tree
                         changes.
                         {review.scope.budget
-                          ? ` Batch budget ${Math.round(review.scope.budget.contextBytes / 1024)} KiB${review.scope.budget.inputTokens ? ` for a ${review.scope.budget.inputTokens.toLocaleString()}-token model window` : ""}.`
+                          ? ` Up to ${Math.round(review.scope.budget.contextBytes / 1024)} KiB of source per round${review.scope.budget.inputTokens ? ` for a ${review.scope.budget.inputTokens.toLocaleString()}-token model window` : ""}.`
                           : ""}
                       </p>
                       {review.generation && (
@@ -320,7 +318,7 @@ export function ScanDetailPage({
                           Prompt <code>{review.generation.promptDigest.slice(0, 12)}</code> ·{" "}
                           {samplingText("Discovery", review.generation.discovery)}
                           {review.generation.validation
-                            ? ` · ${samplingText("second review", review.generation.validation)}`
+                            ? ` · ${samplingText("validation", review.generation.validation)}`
                             : ""}
                         </p>
                       )}
@@ -336,7 +334,7 @@ export function ScanDetailPage({
                       </ul>
                       {review.scope.related?.length ? (
                         <>
-                          <h4>Second review context</h4>
+                          <h4>Validation context</h4>
                           <ul>
                             {review.scope.related.map((file) => (
                               <li key={file.path}>
@@ -362,14 +360,14 @@ export function ScanDetailPage({
               ) : (
                 <p className="muted">
                   {scan.status === "running"
-                    ? "Model outputs appear after each source batch finishes."
+                    ? "Model outputs appear after each round finishes."
                     : "This scan has no AI outputs. Start a new scan with a saved provider to generate STRIDE and source analysis."}
                 </p>
               )}
               {scan.reviews.length > 1 && (
                 <p className="muted">
-                  Source batches are reviewed independently. Paths crossing batch boundaries may
-                  need additional context.
+                  Each round is reviewed independently. Paths that cross rounds may need additional
+                  context.
                 </p>
               )}
               {scan.sourceScanId && (
@@ -468,7 +466,7 @@ export function ScanDetailPage({
                   )}
                   <small>
                     {running ? (
-                      "Reported usage updates when a source batch finishes."
+                      "Reported usage updates when a round finishes."
                     ) : (
                       <>
                         <MorphNumber value={scan.modelCalls} /> model calls
@@ -528,11 +526,11 @@ function samplingText(
 }
 
 const STOP_TEXT: Record<NonNullable<NonNullable<SecurityScan["coverage"]>["stop"]>, string> = {
-  complete: "all source that fits a batch was sent",
+  complete: "all source that fits a round was sent",
   budget: "stopped at the limit",
-  limit: `stopped at ${SCAN_BUDGET_LIMITS.fullBatches} batches`,
-  quick: "one batch",
-  explored: "the last exploring review read nothing new",
+  limit: `stopped at ${SCAN_BUDGET_LIMITS.fullBatches} rounds`,
+  quick: "one round",
+  explored: "the last round read nothing new",
 };
 
 /**
@@ -597,7 +595,7 @@ function TracedPaths({ paths, findings }: { paths: ReviewPath[]; findings: Revie
 }
 
 /**
- * Candidates the second review dismissed, which the findings table leaves out: what each
+ * Candidates validation dismissed, which the findings table leaves out: what each
  * dismissal rests on and the lines it cites. Earlier reviews saved no basis.
  */
 function DismissedCandidates({ findings }: { findings: ReviewFinding[] }) {
@@ -646,7 +644,7 @@ function ExplorationLog({ sessions }: { sessions: ExploreSessionRecord[] }) {
     <div className="security-exploration-log">
       {sessions.map((session) => (
         <div key={session.phase}>
-          <h4>{session.phase === "discovery" ? "Discovery session" : "Second review session"}</h4>
+          <h4>{session.phase === "discovery" ? "Discovery session" : "Validation session"}</h4>
           <p className="muted">
             Stopped {EXPLORE_STOPS[session.stop]} · {session.modelCalls}{" "}
             {session.modelCalls === 1 ? "model call" : "model calls"} ·{" "}
@@ -692,7 +690,7 @@ function ExplorationLog({ sessions }: { sessions: ExploreSessionRecord[] }) {
   );
 }
 
-/** Depth and mode, why batches stopped, and what the limit charged. */
+/** Depth and mode, why rounds stopped, and what the limit charged. */
 function coverageNote(scan: SecurityScan): string {
   const coverage = scan.coverage;
   const explore = scan.mode === "explore";

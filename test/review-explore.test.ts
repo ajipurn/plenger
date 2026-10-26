@@ -386,9 +386,9 @@ describe("exploring AI review", () => {
       ["request", "Discovery request to"],
       ["tool", "Discovery: search token"],
       ["request", "Discovery request to"],
-      ["request", "Second review request"],
-      ["tool", "Second review: read_file"],
-      ["request", "Second review request"],
+      ["request", "Validation request to"],
+      ["tool", "Validation: read_file app.ts"],
+      ["request", "Validation request to"],
     ]);
     expect(JSON.stringify(events)).not.toContain(SECRET);
     expect(events.map((event) => event.tokens)).toEqual(

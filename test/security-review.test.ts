@@ -458,10 +458,10 @@ describe("source-based AI security review", () => {
     });
     expect(kept.findings[0]?.dismissal).toBeUndefined();
     expect(kept.findings[0]?.validationReason).toMatch(
-      /^The second review dismissed this candidate without naming its basis, so it needs review\. Second review: server\.ts:3/,
+      /^Validation dismissed this candidate without naming its basis, so it needs review\. Validation: server\.ts:3/,
     );
     expect(kept.limitations).toContain(
-      "1 dismissal was kept as needs-review: the second review named no basis, cited no control or source line it received, or repeated a candidate that is not kept.",
+      "1 dismissal was kept as needs-review: validation named no basis, cited no control or source line it received, or repeated a candidate that is not kept.",
     );
     const invalid = stub((_body, index) =>
       index ? { status: "completed", reason: null, decisions: [] } : reviewDiscovery(),
@@ -634,7 +634,7 @@ describe("source-based AI security review", () => {
     for (const id of ["a", "b", "c", "e"])
       expect(decision(id), id).toMatchObject({ verdict: "needs-review", unchecked: true });
     expect(decision("a").reason).toBe(
-      "The second review dismissed this candidate without naming its basis, so it needs review. Second review: Decision a.",
+      "Validation dismissed this candidate without naming its basis, so it needs review. Validation: Decision a.",
     );
     expect(decision("b").reason).toContain("without citing a control or source line it received");
     expect(decision("c").reason).toContain("without citing a control or source line it received");

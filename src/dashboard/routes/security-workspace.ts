@@ -164,6 +164,7 @@ export function securityWorkspaceRoutes({
             "budget",
             "model",
             "validatorProviderId",
+            "validatorModel",
             "mode",
           ],
           "Choose a local project, provider and scan depth.",
@@ -181,12 +182,20 @@ export function securityWorkspaceRoutes({
           throw new HttpError(400, "Choose Explore or Batch review mode.");
         // Without a limit, Full coverage stops when it covers the project or at its batch cap.
         const budget = body.budget === undefined ? undefined : scanBudget(body.budget);
-        if (body.model !== undefined) {
+        if (body.validatorModel !== undefined && body.validatorProviderId === undefined)
+          throw new HttpError(400, "Choose a saved provider for validation.");
+        for (const field of ["model", "validatorModel"] as const) {
+          if (body[field] === undefined) continue;
           try {
             // The coordinator checks the selected connection too. No access overrides are accepted.
-            validateProviderSettings({ provider: "anthropic", model: body.model });
+            validateProviderSettings({ provider: "anthropic", model: body[field] });
           } catch {
-            throw new HttpError(400, "Choose a valid model ID.");
+            throw new HttpError(
+              400,
+              field === "model"
+                ? "Choose a valid model ID."
+                : "Choose a valid validation model ID.",
+            );
           }
         }
         try {
@@ -203,12 +212,15 @@ export function securityWorkspaceRoutes({
             ...(body.mode === undefined ? {} : { mode: body.mode as ReviewMode }),
             ...(budget ? { budget } : {}),
             ...(body.model === undefined ? {} : { model: body.model as string }),
+            ...(body.validatorModel === undefined
+              ? {}
+              : { validatorModel: body.validatorModel as string }),
             ...(body.validatorProviderId === undefined
               ? {}
               : {
                   validatorProviderId: requireString(
                     body.validatorProviderId,
-                    "Choose a saved provider for the second review.",
+                    "Choose a saved provider for validation.",
                     { min: 1, max: WORKSPACE_LIMITS.recordIdCharacters },
                   ),
                 }),

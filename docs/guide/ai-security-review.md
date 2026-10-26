@@ -10,8 +10,10 @@ model. This review is separate from the offline rule scanner. See
 1. Add a local folder under **Projects**.
 2. Save a model connection under **Settings > Providers**.
 3. Press **New Scan**, choose the project, provider, model, review mode and
-   depth. **Batch** sends source the scan packs. **Explore** lets the model read
-   the project through read-only tools; see [Explore mode](#explore-mode).
+   depth. The review runs in rounds: each round runs discovery, then validation
+   of its candidates. **Batch** sends each round the files the scan picks.
+   **Explore** lets the model read the project through read-only tools; see
+   [Explore mode](#explore-mode).
 4. Press **Start Scan**. The job first captures an offline scan, then sends
    redacted source and context to that provider and consumes model usage.
 
@@ -38,24 +40,24 @@ working tree.
 Selection follows the static scan. Files on traced paths come first: HTTP and
 MCP entry points that reach an effect, tools with effects, model output that
 reaches an effect, and static finding evidence. The files of one path stay
-adjacent, so a batch can hold the path from end to end. Other AI components
+adjacent, so one round can hold the path from end to end. Other AI components
 follow. The remaining files come in this order: code in any language before
 configuration, security-related file names first within each group, then
 relative path order. Tests, fixtures and examples, traced or not, come after
 everything else in the same order.
 
-By default each batch holds at most 24 files, 16 KiB of source per file and
-20 KiB of serialized source context. When the selected model's input window is
-known, the batch grows with it. Claude catalogs report the window; press **Load
-models** once to save it. The cost ceiling does not change: each batch stays
+In Batch mode each round sends by default at most 24 files, 16 KiB of source
+per file and 20 KiB of serialized source context. When the selected model's
+input window is known, the round's source grows with it. Claude catalogs report the window; press **Load
+models** once to save it. The cost ceiling does not change: each round stays
 within two requests and 400,000 accounted tokens. The larger, second request
-(instructions, candidates, batch and related files) is sized to fit half that
+(instructions, candidates, round source and related files) is sized to fit half that
 ceiling and the smallest window of the models in use, counting one token per
-request byte. Seventy percent goes to the batch, up to 112 KiB with 48 KiB per
+request byte. Seventy percent goes to the round's source, up to 112 KiB with 48 KiB per
 file and 48 files, and thirty percent to related files, up to 48 KiB. A
-second-review model whose window is unknown keeps the defaults. New Scan shows
-the batch budget for the selected model, and Outputs record the budget each
-batch used. Path files are added first as excerpts: the functions
+validation model whose window is unknown keeps the defaults. New Scan shows
+the source per round for the selected model, and Outputs record the budget each
+round used. Path files are added first as excerpts: the functions
 and methods on the path, their class headers and the module imports. Spare
 budget then replaces those excerpts with whole files and adds the remaining
 files. Budget left after that extends excerpts with their files' other
@@ -72,18 +74,18 @@ and files that change while reading are excluded. CI definitions are the one
 hidden exception: `.github/workflows/*.yml`, `.github/actions/**/action.yml`,
 `.gitlab-ci.yml` and `.circleci/config.yml` are reviewed, after redaction.
 
-**Quick** uses one batch. **Full coverage** keeps adding independent batches
-until no unsent source that fits a batch remains, the scan's token or USD limit
-cannot hold another batch's maximum, or 100 batches have run; see
-[dashboard.md](dashboard.md#start-a-scan). Later batches skip files an earlier
-batch sent whole. A file sent as an excerpt
-continues: a later batch sends its definitions that were not sent yet, with the
+**Quick** runs one round. **Full coverage** keeps adding independent rounds
+until no unsent source that fits a round remains, the scan's token or USD limit
+cannot hold another round's maximum, or 100 rounds have run; see
+[dashboard.md](dashboard.md#start-a-scan). Later rounds skip files an earlier
+round sent whole. A file sent as an excerpt
+continues: a later round sends its definitions that were not sent yet, with the
 module imports again for context, or the line windows after the last one sent.
 Module-level code outside definitions is sent only where the scan located
-something. A file that changed after a batch sent
-part of it does not continue. Each batch has its own discovery and
-validation context. Full coverage sends every file it can, but each batch is
-reviewed on its own: a path that crosses batches is not analysed as one path. Choose a smaller
+something. A file that changed after a round sent
+part of it does not continue. Each round has its own discovery and
+validation context. Full coverage sends every file it can, but each round is
+reviewed on its own: a path that crosses rounds is not analysed as one path. Choose a smaller
 source folder when related files do not fit. Included paths, omissions and
 limitations are visible in **Scan > Outputs**.
 
@@ -103,7 +105,7 @@ Unknown values are rejected. File paths and candidate IDs are not case-folded.
 Completed responses use a null top-level `reason`. Bounded string values in that
 field are accepted and normalized to null. Decision reasons remain required.
 A decision reason longer than 1,200 characters is cut at a word and marked as
-cut, instead of rejecting the second review.
+cut, instead of rejecting the validation.
 Refused responses require a non-empty top-level reason and no findings or decisions.
 Citations must stay within a submitted file and, for an excerpt, inside one
 submitted range. Longer valid ranges are retained;
@@ -117,7 +119,7 @@ available. No automatic repair or provider retry occurs. Raw provider replies
 are not persisted. Earlier failed records can only show their original generic
 message; a new scan uses the updated contract and diagnostics.
 
-## Analysis and second review
+## Analysis and validation
 
 The first model request reads line-numbered source, maps architecture, assets and
 trust boundaries, and assesses all six STRIDE categories:
@@ -193,23 +195,23 @@ that reports it.
 ### Project threat model
 
 A project keeps a threat model: its architecture, assets and trust boundaries.
-The first completed review of a project's first scan derives it. Every later
-review, in the same scan and in later scans, starts from it, keeps its entries
+The first completed round of a project's first scan derives it. Every later
+round, in the same scan and in later scans, starts from it, keeps its entries
 unless the source contradicts them, and adds what its own source shows. When a
 scan completes, the project saves the extended model as a new version. A model
 written on the project page is kept as written: reviews start from it and do
-not change it. **Let scans derive it** returns the choice to the reviews. Each
-scan records the version it started from. STRIDE stays per review, because it
-assesses the source that review read.
+not change it. **Let scans derive it** returns the choice to the scans. Each
+scan records the version it started from. STRIDE stays per round, because it
+assesses the source that round read.
 
-When candidates exist, a second request reviews them against the same source.
+When candidates exist, validation checks them against the same source.
 It checks callers, guards, sanitization, scope and counterevidence. Each receives
 one outcome:
 
-- **Source-supported**: the second review supports the path in the supplied code.
+- **Source-supported**: validation supports the path in the supplied code.
 - **Needs review**: an essential assumption or control needs more context.
 - **Dismissed**: the candidate is contradicted, duplicated or unsupported.
-- **Unvalidated**: the second review stopped before it decided. The candidate
+- **Unvalidated**: validation stopped before it decided. The candidate
   is kept with the reason, and never counts as source-supported.
 
 A dismissal names its basis and cites the lines that decide it:
@@ -221,39 +223,39 @@ A dismissal names its basis and cites the lines that decide it:
 | Contradicted | The source contradicts the claim | The contradicting lines |
 | Duplicate | Another candidate reports the same path | The other candidate's id |
 
-The host checks each citation against the source the second review received:
-the batch and its related files, or what an exploring session read. A
+The host checks each citation against the source validation received:
+the round's source and its related files, or what an Explore session read. A
 dismissal without a basis, with no citation that checks, or as a duplicate of a
 candidate that is not kept becomes **Needs review**. Its reason starts with the
 host's note, and the review adds a limitation with the count.
 
-Guards and callers often live outside the batch, so the second request also
+Guards and callers often live outside the round's source, so validation also
 reads related files that discovery did not see. These are project files a cited
 file imports, with the imported definitions, and project files that call a cited
 file, with the calling functions. They come from the scan's allowlist through the
-same reader, redaction and excerpt rules as the batch, within the related
-budget (12 KiB by default) and eight files, and never repeat lines the batch
+same reader, redaction and excerpt rules as the round's source, within the related
+budget (12 KiB by default) and eight files, and never repeat lines the round
 already holds. Outputs list them under
-**Second review context**, and the review adds a limitation naming their count.
-If they cannot be read, the second review continues without them.
+**Validation context**, and the review adds a limitation naming their count.
+If they cannot be read, validation continues without them.
 
-By default the second pass uses the same model with a separate review
-instruction. **Second review** in New Scan can pick another saved connection,
+By default validation uses the same model with a separate
+instruction. **Validation model** in New Scan can pick another saved connection,
 which runs with its saved model; a different model is less likely to repeat the
 first model's mistakes. Its usage and estimated cost are reported separately.
-The second pass is not an independent detection service or runtime validation.
-A refusal stops the review. Any other failure of the second pass, such as an
+Validation reads source only; it is not an independent detection service or runtime testing.
+A refusal stops the review. Any other failure of validation, such as an
 invalid reply, an incomplete decision set, a provider error or a limit, keeps
 its candidates as Unvalidated and adds a limitation with the reason; the review
 still completes. A failed discovery request fails the review. There are no
-model retries. No candidates means one request. The limit per batch is two
+model retries. No candidates means one request. The limit per round is two
 requests, 400,000 accounted tokens and 120 seconds. Full coverage stops further
-batches after a failed or refused review. Output is capped at the smaller of
+rounds after a failed or refused round. Output is capped at the smaller of
 the provider setting and 12,288 tokens per request.
 
 ## Explore mode
 
-In Explore mode the model chooses what to read. Each pass is one conversation
+In Explore mode the model chooses what to read. Discovery and validation each run as one conversation
 with four read-only tools over the scan's allowlist:
 
 | Tool | What it returns |
@@ -263,13 +265,13 @@ with four read-only tools over the scan's allowlist:
 | `search` | Lines that contain a literal string, on redacted text, at most 40 matches |
 | `outline` | Definitions and imports of a parsed Python, JavaScript, TypeScript or PHP file |
 
-Discovery ends by calling `submit_discovery`, the second review by calling
-`submit_decisions`. Their parameters are the batch response schemas. On Claude
+Discovery ends by calling `submit_discovery`, validation by calling
+`submit_decisions`. Their parameters are the Batch mode response schemas. On Claude
 the submit tools are strict, so the provider holds their arguments to the
-schema as it does for a batch answer; the host checks them in every case. The first
+schema as it does for a Batch mode answer; the host checks them in every case. The first
 discovery message holds a repository map (up to 24 KiB), hints from the static
 scan (entry points, tools, their effects and the calls the trace could not
-follow), the environment notes and a first set of files packed as a batch, up
+follow), the environment notes and a first set of files packed as in Batch mode, up
 to 48 KiB. The first validation message holds the candidates and their cited
 lines, a small file whole and a larger one as its cited ranges with 20 lines of
 context, up to 32 KiB. Static findings are not sent.
@@ -285,9 +287,9 @@ The host checks every call:
 - A citation must lie inside a range the session received, in its first
   message or from `read_file`. Search hits and outlines cannot be cited. A
   rejected submission gets its errors back once; a second rejection fails
-  discovery, or leaves the candidates Unvalidated in the second review.
+  discovery, or leaves the candidates Unvalidated in validation.
 
-| Limit | Discovery | Second review |
+| Limit | Discovery | Validation |
 | --- | --- | --- |
 | Model calls | 12 | 6 |
 | Tool calls run per turn (a reply may ask for up to 64) | 8 | 8 |
@@ -303,16 +305,16 @@ answer; a second cut fails discovery or leaves the candidates Unvalidated. Near 
 the host asks for the submission and refuses other tools for a closing turn,
 so a session that is about to run out can still answer. Every request is also
 checked against the scan's token or USD limit before it is sent. Every turn
-resends the conversation, so an exploring review uses more tokens than a batch.
+resends the conversation, so an Explore round uses more tokens than a Batch round.
 On Claude each turn asks the API to cache its prefix, so the next turn reads
 the earlier conversation at the cache-read price; usage reports cache reads
 and writes, and the cost estimate prices them.
 
-**Quick** runs one exploring review. **Full coverage** runs exploring reviews
+**Quick** runs one round. **Full coverage** runs rounds
 until every readable file was read, the scan's limit cannot hold another
-review's maximum, 100 reviews have run, or a review read nothing earlier ones
-had not. A later review's first set holds files no earlier review read whole,
-and its first message lists, within 8 KiB, the files earlier reviews read and
+round's maximum, 100 rounds have run, or a round read nothing earlier ones
+had not. A later round's first set holds files no earlier round read whole,
+and its first message lists, within 8 KiB, the files earlier rounds read and
 the candidates they reported, so it explores elsewhere and does not repeat
 them.
 
@@ -329,7 +331,7 @@ name, bytes returned, the files and ranges read with their digests, the
 searches, and the host's reasons for any rejected submission (field locations,
 never model values). The review's scope lists the files and ranges read, and its
 limitations say how many files the model read and searched. **Scan > Outputs**
-shows each exploring review's sessions: why each stopped, its calls and tool
+shows each Explore round's sessions: why each stopped, its calls and tool
 calls, the files and ranges it read and its searches.
 
 Text in the repository can address the model, for example asking it to read an
@@ -350,7 +352,7 @@ only when their prompt digests match.
 
 Results and failures are saved per scan and survive navigation, refresh and
 restart. **Scans** opens the saved job. Its **Findings** tab shows static and
-non-dismissed AI findings; **Outputs** shows each batch's architecture, assets,
+non-dismissed AI findings; **Outputs** shows each round's architecture, assets,
 trust boundaries, STRIDE, traced paths with their closures, dismissed candidates
 with their basis and cited lines, and source coverage. **Export JSON** includes
 these redacted records and usage.
@@ -362,7 +364,7 @@ billable even when a reply is refused, truncated or fails host validation.
 See [model pricing](dashboard.md#claude-model-pricing) for configuration and
 the estimate's limits.
 
-Open a finding for its trace and second-review reason. **Fix with a coding
+Open a finding for its trace and validation reason. **Fix with a coding
 agent** generates instructions from the saved finding through a selected
 provider. Its assumptions and review outcome accompany the evidence. Optional
 REA imports can be selected for this prompt. They are not inputs to AI
@@ -373,7 +375,7 @@ The local service keeps scans running when you leave the page. **Cancel scan**
 requests cancellation and saves the outcome. Model refusals and errors stop
 without retries. All scans start manually; see [dashboard.md](dashboard.md#manual-local-scans).
 
-Batch reviews expose no model tools. Explore reviews expose only the four
+Batch mode exposes no model tools. Explore mode exposes only the four
 read-only tools above. Neither has a terminal, application execution, network
 access or active target requests. The dashboard does not run a coding agent or apply patches. Source
 review is evidence for human assessment and does not prove runtime exploitability

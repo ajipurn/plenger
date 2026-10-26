@@ -448,7 +448,7 @@ export async function reviewProject(
     review.scope = { ...scope, budget: sizes };
     if (sizes.inputTokens !== null && !explore)
       review.limitations.push(
-        `The batch budget was ${Math.round(sizes.contextBytes / 1024)} KiB of source for a ${sizes.inputTokens.toLocaleString("en-US")}-token model window, within the ${LIMITS.tokens.toLocaleString("en-US")}-token review ceiling.`,
+        `This round allowed ${Math.round(sizes.contextBytes / 1024)} KiB of source for a ${sizes.inputTokens.toLocaleString("en-US")}-token model window, within the ${LIMITS.tokens.toLocaleString("en-US")}-token round ceiling.`,
       );
     const excerpts = scope.files.filter((file) => file.ranges).length;
     if (excerpts && !explore)
@@ -512,7 +512,7 @@ export async function reviewProject(
       if (limit?.kind === "usd" && (worst === null || (chargedUsd ?? 0) + worst > limit.usd)) {
         review.request.limitReached = true;
         throw new ReviewLimitError(
-          `Stopped before the ${phase === "validation" ? "second review" : "discovery"} request: its maximum cost does not fit what remains of the scan's USD limit.`,
+          `Stopped before the ${phase} request: its maximum cost does not fit what remains of the scan's USD limit.`,
         );
       }
       const charge = (details: ClaudeTokenUsage | undefined) => {
@@ -536,7 +536,7 @@ export async function reviewProject(
       });
       options.onActivity?.({
         kind: "request",
-        detail: `${phase === "validation" ? "Second review" : "Discovery"} request to ${(phase === "validation" ? (validator?.access ?? options.access) : options.access).model}`,
+        detail: `${phase === "validation" ? "Validation" : "Discovery"} request to ${(phase === "validation" ? (validator?.access ?? options.access) : options.access).model}`,
         tokens: charged(),
       });
       if (reply.refusal) {
@@ -584,7 +584,7 @@ export async function reviewProject(
       );
       options.onActivity?.({
         kind: "tool",
-        detail: `${phase === "validation" ? "Second review" : "Discovery"}: ${name}${target ? ` ${redact(target, secrets).slice(0, 200)}` : ""}`,
+        detail: `${phase === "validation" ? "Validation" : "Discovery"}: ${name}${target ? ` ${redact(target, secrets).slice(0, 200)}` : ""}`,
         tokens: charged(),
       });
     };
@@ -754,7 +754,7 @@ export async function reviewProject(
               stopped =
                 outcome.error !== undefined
                   ? `Validation response rejected. ${outcome.error}`
-                  : `The second review stopped ${EXPLORE_STOPS[outcome.record.stop]} before it decided.`;
+                  : `Validation stopped ${EXPLORE_STOPS[outcome.record.stop]} before it decided.`;
           } else {
             const cited = [
               ...new Set(candidates.flatMap((item) => item.evidence.map((cite) => cite.path))),
@@ -770,14 +770,14 @@ export async function reviewProject(
             ).catch((error: unknown) => {
               if (options.signal?.aborted) throw error;
               review.limitations.push(
-                "Imports and callers of cited files could not be read for the second review.",
+                "Imports and callers of cited files could not be read for validation.",
               );
               return [];
             });
             if (related.length) {
               review.scope.related = related.map(({ source: _source, ...file }) => file);
               review.limitations.push(
-                `The second review also read ${related.length} related ${related.length === 1 ? "file" : "files"}: imports and callers of cited files, which discovery did not see.`,
+                `Validation also read ${related.length} related ${related.length === 1 ? "file" : "files"}: imports and callers of cited files, which discovery did not see.`,
               );
             }
             decided = parseReviewValidation(
@@ -805,7 +805,7 @@ export async function reviewProject(
         } else {
           if (stopped !== null)
             review.limitations.push(
-              `The second review did not finish, so its ${candidates.length === 1 ? "candidate is" : `${candidates.length} candidates are`} kept as unvalidated. ${stopped}`,
+              `Validation did not finish, so its ${candidates.length === 1 ? "candidate is" : `${candidates.length} candidates are`} kept as unvalidated. ${stopped}`,
             );
           // Explored citations, and the related files a dismissal cites, can lie outside
           // the first set; the reader has their lines.
@@ -844,7 +844,7 @@ export async function reviewProject(
           const unchecked = review.findings.filter((item) => item.uncheckedDismissal).length;
           if (unchecked)
             review.limitations.push(
-              `${unchecked} ${unchecked === 1 ? "dismissal was" : "dismissals were"} kept as needs-review: the second review named no basis, cited no control or source line it received, or repeated a candidate that is not kept.`,
+              `${unchecked} ${unchecked === 1 ? "dismissal was" : "dismissals were"} kept as needs-review: validation named no basis, cited no control or source line it received, or repeated a candidate that is not kept.`,
             );
           review.status = "completed";
         }

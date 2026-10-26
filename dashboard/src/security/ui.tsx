@@ -22,7 +22,7 @@ export const statusLabel: Record<FindingStatus, string> = {
 export function isOpenStatus(status: FindingStatus): boolean {
   return status !== "resolved" && status !== "dismissed";
 }
-/** What a second-review dismissal rests on. */
+/** What a validation dismissal rests on. */
 export const dismissalLabel: Record<DismissalBasis, string> = {
   control: "Control",
   unreachable: "Unreachable",

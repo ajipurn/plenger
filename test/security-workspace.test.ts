@@ -681,7 +681,7 @@ describe("local project security workspace", () => {
       budget: { kind: "tokens", tokens: most - 1 },
     });
     expect(low.status).toBe(400);
-    expect(await low.text()).toContain("below one batch's maximum");
+    expect(await low.text()).toContain("below one round's maximum");
     const budget = { kind: "tokens", tokens: most } as const;
     const scan = await finished((await start(repo.id, { depth: "full", budget })).id);
     expect(scan.status).toBe("completed");
@@ -699,12 +699,21 @@ describe("local project security workspace", () => {
     const repo = await repository();
     const most = batchTokenBound(reviewBudget([])).total;
     const budget = { kind: "tokens", tokens: most } as const;
-    const first = await finished((await start(repo.id, { depth: "full", budget })).id);
+    const first = await finished(
+      (
+        await start(repo.id, {
+          depth: "full",
+          budget,
+          validatorProviderId: provider.id,
+          validatorModel: "claude-validation-override",
+        })
+      ).id,
+    );
     expect(first.coverage?.stop).toBe("budget");
     expect(first.reviews).toHaveLength(1);
     // The timeline holds the requests and the finished batch.
     expect(first.activity?.map((entry) => entry.kind)).toEqual(["request", "request", "batch"]);
-    expect(first.activity?.at(-1)?.detail).toMatch(/^Batch 1 finished: 24 files, \d+ findings?$/);
+    expect(first.activity?.at(-1)?.detail).toMatch(/^Round 1 finished: 24 files, \d+ findings?$/);
 
     const path = pathFor(API.continueSecurityScan, first.id);
     expect((await dashboard.request(path, {})).status).toBe(400);
@@ -716,6 +725,10 @@ describe("local project security workspace", () => {
     const second = await finished(first.id);
     expect(second.status).toBe("completed");
     expect(second.reviews).toHaveLength(2);
+    expect(second.validator?.model).toBe("claude-validation-override");
+    expect(
+      second.reviews.every((review) => review.validator?.model === second.validator?.model),
+    ).toBe(true);
     // The new limit counts what the scan spends from now on; the first limit is kept.
     expect(second.budget).toEqual(budget);
     expect(second.continuations).toEqual([{ at: expect.any(String), budget }]);
@@ -893,31 +906,117 @@ describe("local project security workspace", () => {
     }
   });
 
-  it("runs second reviews on a separately chosen saved connection", async () => {
-    const address = model.address();
-    if (!address || typeof address === "string") throw new Error("No model server.");
-    const second = (await (
-      await dashboard.request(API.providers, {
+  it.each([undefined, "claude-validator-override"])(
+    "runs validation on a separately chosen saved connection with model override %s",
+    async (validatorModel) => {
+      const address = model.address();
+      if (!address || typeof address === "string") throw new Error("No model server.");
+      const second = (await (
+        await dashboard.request(API.providers, {
+          name: "Claude validator",
+          provider: "anthropic",
+          model: "claude-validator",
+          apiKey: key,
+          baseUrl: `http://127.0.0.1:${address.port}/v1`,
+          maxOutputTokens: 8192,
+          temperature: null,
+        })
+      ).json()) as SavedProvider;
+      const repo = await repository();
+      const scan = await finished(
+        (
+          await start(repo.id, {
+            validatorProviderId: second.id,
+            ...(validatorModel ? { validatorModel } : {}),
+          })
+        ).id,
+      );
+      expect(scan.status).toBe("completed");
+      expect(scan.validator).toEqual({
+        id: second.id,
         name: "Claude validator",
-        provider: "anthropic",
-        model: "claude-validator",
-        apiKey: key,
-        baseUrl: `http://127.0.0.1:${address.port}/v1`,
-        maxOutputTokens: 8192,
-        temperature: null,
-      })
-    ).json()) as SavedProvider;
+        model: validatorModel ?? "claude-validator",
+      });
+      expect(scan.reviews[0]?.validator).toEqual(scan.validator);
+      expect(bodies.map((body) => body.model)).toEqual([
+        "claude-test",
+        validatorModel ?? "claude-validator",
+      ]);
+      expect(scan.modelCalls).toBe(2);
+    },
+  );
+
+  it.each(["batch", "explore"] as const)(
+    "uses a different validation model on the same connection in %s mode",
+    async (mode) => {
+      const validatorModel = "claude-validation-override";
+      const rates = { input: 2, output: 10, cacheWrite5m: 2.5, cacheWrite1h: 4, cacheRead: 0.1 };
+      expect(
+        (
+          await dashboard.request(API.providers, {
+            id: provider.id,
+            name: provider.name,
+            provider: provider.provider,
+            model: provider.model,
+            baseUrl: provider.baseUrl,
+            temperature: provider.temperature,
+            maxOutputTokens: provider.maxOutputTokens,
+            modelPricing: [{ model: validatorModel, rates }],
+          })
+        ).status,
+      ).toBe(200);
+      const repo = await repository();
+      const scan = await finished(
+        (
+          await start(repo.id, {
+            mode,
+            validatorProviderId: provider.id,
+            validatorModel,
+          })
+        ).id,
+      );
+      expect(scan.status).toBe("completed");
+      expect(scan.validator).toEqual({
+        id: provider.id,
+        name: provider.name,
+        model: validatorModel,
+      });
+      expect(bodies.map((body) => body.model)).toEqual([provider.model, validatorModel]);
+      expect(scan.reviews[0]?.request.validatorBilling?.pricing).toEqual({
+        model: validatorModel,
+        rates,
+      });
+      const saved = (await (await dashboard.request(API.providers)).json()) as SavedProvider[];
+      expect(saved.find((item) => item.id === provider.id)?.model).toBe(provider.model);
+    },
+  );
+
+  it("rejects invalid validation model choices before starting a scan", async () => {
     const repo = await repository();
-    const scan = await finished((await start(repo.id, { validatorProviderId: second.id })).id);
-    expect(scan.status).toBe("completed");
-    expect(scan.validator).toEqual({
-      id: second.id,
-      name: "Claude validator",
-      model: "claude-validator",
-    });
-    expect(scan.reviews[0]?.validator).toEqual(scan.validator);
-    expect(bodies.map((body) => body.model)).toEqual(["claude-test", "claude-validator"]);
-    expect(scan.modelCalls).toBe(2);
+    for (const validatorModel of ["", "https://invalid.example", 12, null, "model\nsecret"])
+      expect(
+        (
+          await dashboard.request(API.securityScans, {
+            repositoryId: repo.id,
+            providerId: provider.id,
+            depth: "quick",
+            validatorProviderId: provider.id,
+            validatorModel,
+          })
+        ).status,
+      ).toBe(400);
+    expect(
+      (
+        await dashboard.request(API.securityScans, {
+          repositoryId: repo.id,
+          providerId: provider.id,
+          depth: "quick",
+          validatorModel: "claude-validation-override",
+        })
+      ).status,
+    ).toBe(400);
+    expect(bodies).toHaveLength(0);
+    expect((await workspace()).scans).toHaveLength(0);
   });
 
   it("runs exploring reviews for Quick and Full coverage and rejects an unknown mode", async () => {

@@ -74,14 +74,19 @@ export class SecurityCoordinator {
     if (!canContinue(previous) || !previous.provider)
       throw new HttpError(
         400,
-        "Only a Full coverage scan that stopped at its limit, or whose later batch failed, can continue.",
+        "Only a Full coverage scan that stopped at its limit, or whose later round failed, can continue.",
       );
     return this.start(
       {
         repositoryId: previous.repositoryId,
         providerId: previous.provider.id,
         model: previous.provider.model,
-        ...(previous.validator ? { validatorProviderId: previous.validator.id } : {}),
+        ...(previous.validator
+          ? {
+              validatorProviderId: previous.validator.id,
+              validatorModel: previous.validator.model,
+            }
+          : {}),
         depth: "full",
         mode: previous.mode ?? "batch",
         budget,
@@ -111,25 +116,38 @@ export class SecurityCoordinator {
       const pricing = structuredClone(
         resolved.saved.modelPricing?.find((item) => item.model === model),
       );
-      // A different saved connection checks candidates with its saved model.
+      // Validation may use another connection, another model, or both.
       const second =
         input.validatorProviderId === undefined ||
-        (input.validatorProviderId === input.providerId && resolved.saved.model === model)
+        (input.validatorProviderId === input.providerId &&
+          (input.validatorModel ?? resolved.saved.model) === model)
           ? undefined
           : this.#store.resolveProvider(input.validatorProviderId);
-      const secondPricing = second?.saved.modelPricing?.find(
-        (item) => item.model === second.saved.model,
-      );
-      const validator = second && {
-        provider: { id: second.saved.id, name: second.saved.name, model: second.saved.model },
-        access: second.access,
-        ...(secondPricing ? { pricing: structuredClone(secondPricing) } : {}),
-        inputTokens: this.#store.providers.modelInputTokens(
-          second.saved,
-          second.access.apiKey,
-          second.saved.model,
-        ),
+      const secondAccess = second && {
+        ...second.access,
+        model: input.validatorModel ?? second.saved.model,
       };
+      if (secondAccess) {
+        try {
+          validateProviderSettings(secondAccess);
+        } catch {
+          throw new HttpError(400, "Choose a valid model for the validation provider.");
+        }
+      }
+      const secondPricing = second?.saved.modelPricing?.find(
+        (item) => item.model === secondAccess?.model,
+      );
+      const validator = second &&
+        secondAccess && {
+          provider: { id: second.saved.id, name: second.saved.name, model: secondAccess.model },
+          access: secondAccess,
+          ...(secondPricing ? { pricing: structuredClone(secondPricing) } : {}),
+          inputTokens: this.#store.providers.modelInputTokens(
+            second.saved,
+            second.access.apiKey,
+            secondAccess.model,
+          ),
+        };
       const inputTokens = this.#store.providers.modelInputTokens(
         resolved.saved,
         resolved.access.apiKey,
@@ -159,13 +177,13 @@ export class SecurityCoordinator {
         if (input.budget.usd < most.usd)
           throw new HttpError(
             400,
-            `The limit is below ${mode === "explore" ? "one exploring review's" : "one batch's"} maximum of USD ${most.usd.toFixed(2)}. Raise it, or choose a model with a smaller window.`,
+            `The limit is below one round's maximum of USD ${most.usd.toFixed(2)}. Raise it, or choose a model with a smaller window.`,
           );
       }
       if (input.budget?.kind === "tokens" && input.budget.tokens < most.tokens)
         throw new HttpError(
           400,
-          `The limit is below ${mode === "explore" ? "one exploring review's" : "one batch's"} maximum of ${most.tokens.toLocaleString("en-US")} tokens.`,
+          `The limit is below one round's maximum of ${most.tokens.toLocaleString("en-US")} tokens.`,
         );
       const revision = await sourceRevision(repository.path);
       if (this.#closed) throw new HttpError(503, "The service is shutting down.");
@@ -390,7 +408,7 @@ export class SecurityCoordinator {
               activity({
                 batch,
                 kind: "batch",
-                detail: `${mode === "explore" ? "Exploring review" : "Batch"} ${batch + 1} finished: ${review.scope.files.length} ${review.scope.files.length === 1 ? "file" : "files"}, ${reported.length} ${reported.length === 1 ? "finding" : "findings"}`,
+                detail: `Round ${batch + 1} finished: ${review.scope.files.length} ${review.scope.files.length === 1 ? "file" : "files"}, ${reported.length} ${reported.length === 1 ? "finding" : "findings"}`,
                 tokens: coverage.charged.tokens,
               });
               const readBefore = readLines(submitted);

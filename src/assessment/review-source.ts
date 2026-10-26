@@ -231,8 +231,7 @@ export async function captureReviewSource(
   const reasons = new Map<string, string>();
   for (const path of order) {
     const exclusion = reader.exclusion(path);
-    if (covered.get(path)?.ranges === null)
-      reasons.set(path, "Included in a previous source batch.");
+    if (covered.get(path)?.ranges === null) reasons.set(path, "Included in an earlier round.");
     else if (exclusion !== null) reasons.set(path, exclusion);
   }
 
@@ -246,7 +245,7 @@ export async function captureReviewSource(
     // Earlier ranges describe the earlier text; a changed file cannot continue from them.
     const previous = covered.get(path);
     if (previous !== undefined && previous.digest !== source.digest) {
-      reasons.set(path, "Changed after a previous source batch submitted part of it.");
+      reasons.set(path, "Changed after an earlier round submitted part of it.");
       return null;
     }
     captured.set(path, source);
@@ -377,7 +376,7 @@ export async function captureReviewSource(
         continued || source.bytes > budget.fileBytes || focus.has(path)
           ? await addExcerpt(path, source)
           : "no-room";
-      if (excerpt === "done") reasons.set(path, "Included in a previous source batch.");
+      if (excerpt === "done") reasons.set(path, "Included in an earlier round.");
       else if (excerpt === "no-room") reasons.set(path, "Review source budget reached.");
     }
     // 4. Spare budget extends excerpts with their files' other definitions.

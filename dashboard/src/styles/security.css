@@ -467,7 +467,7 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 }
 .security-scan-choice[data-selected] {
   @apply bg-paper;
-  border-color: var(--ink);
+  border-color: var(--accent);
 }
 .security-scan-choice[data-focus-visible] {
   outline: 2px solid var(--focus);
@@ -499,7 +499,7 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 }
 .security-scan-choice[data-selected] .security-scan-choice-indicator {
   background: var(--primary-bg);
-  border-color: var(--primary-bg);
+  border-color: var(--primary-border);
 }
 .security-scan-choice[data-selected] .security-scan-choice-indicator::after {
   @apply opacity-100;
@@ -577,18 +577,6 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 }
 .security-scan-context > summary:hover {
   @apply bg-hover;
-}
-.security-scan-includes {
-  @apply flex items-start gap-2.5 mx-6 mb-6 p-3 rounded-ui bg-paper text-muted;
-}
-.security-scan-includes > .icon {
-  @apply shrink-0 mt-0.5;
-}
-.security-scan-includes > div {
-  @apply grid gap-0.5 min-w-0;
-}
-.security-scan-includes p:first-child {
-  @apply text-ink font-medium;
 }
 .security-scan-form .security-scan-error {
   @apply mx-6 mb-6 -mt-2;
@@ -1325,7 +1313,7 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .settings-theme-switch[data-selected] .settings-theme-switch-track {
   @apply justify-end;
   background: var(--primary-bg);
-  border-color: var(--primary-bg);
+  border-color: var(--primary-border);
 }
 .settings-theme-switch[data-selected] .settings-theme-switch-track > span {
   background: var(--primary-fg);
@@ -1420,7 +1408,6 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   .security-scan-section {
     @apply px-4;
   }
-  .security-scan-includes,
   .security-scan-form .security-scan-error {
     @apply mx-4;
   }

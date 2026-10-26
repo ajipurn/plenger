@@ -109,52 +109,55 @@ project.
 1. Save a model connection under **Settings > Providers**.
 2. Press **New Scan** and choose a local project. Check the displayed folder path.
 3. Choose a provider, model, a review mode and **Quick** or **Full
-   coverage**. **Batch** sends source the scan packs; **Explore**, selected for
-   Claude connections, lets the model read the project through read-only tools.
+   coverage**. The AI review runs in rounds: each round runs discovery, then
+   validation of its candidates. **Batch** sends each round the files the scan
+   picks; **Explore**, selected for Claude connections, lets the model read the
+   project through read-only tools.
    For Full coverage, **Set a spending limit** is checked by default; enter a
    limit in tokens or in USD, or clear it to run without one. The saved model is
    selected initially. Choosing another model applies to this scan only. Use
    **Load models** if the provider's saved catalog needs refreshing. Optionally
-   choose another saved connection under **Second review** to check candidates
+   choose another saved connection under **Validation model** to check candidates
    with a different model.
 4. Optionally edit **Review context**. It is saved for subsequent scans.
 5. Press **Start Scan**. This sends redacted source and context to the provider
    and consumes API usage.
 
 Each job first runs the offline scanner, then source-based AI discovery,
-STRIDE threat modeling and a second source review of any candidates.
-**Quick** reviews one batch, the files on traced paths first, with at most two
-model calls. In Explore mode it runs one exploring review of at most 18 model
-calls instead, and Full coverage runs exploring reviews; see
-[Explore mode](ai-security-review.md#explore-mode). **Full coverage** reviews batch after batch until no unsent source
-that fits a batch remains, the limit, if set, is reached, or 100 batches have run. Later
-batches skip files already sent whole and continue excerpted files with their
+STRIDE threat modeling and validation of any candidates.
+**Quick** runs one round. In Batch mode the round sends the files on traced
+paths first and makes at most two model calls. In Explore mode it makes at most
+18 model calls; see [Explore mode](ai-security-review.md#explore-mode).
+**Full coverage** runs round after round until no unsent source that fits a
+round remains, the limit, if set, is reached, or 100 rounds have run. In Explore
+mode it also stops when a round reads nothing earlier rounds had not. Later
+rounds skip files already sent whole and continue excerpted files with their
 unsent parts.
 
-The limit counts every connection the scan uses, including a separate second
-review. A token limit counts accounted tokens: reported usage, or a request's
+The limit counts every connection the scan uses, including a separate
+validation model. A token limit counts accounted tokens: reported usage, or a request's
 full reservation when the provider reported none. A USD limit uses saved Claude
 prices, so it needs prices for every model in the scan; it is an estimate, not
-your invoice. A batch starts only when its maximum fits what remains: every
+your invoice. A round starts only when its maximum fits what remains: every
 prompt token counted at one per request byte and priced at the dearest prompt
-rate, plus the whole output allowance. Batches usually charge far less, so a
-limit covers at least the number of batches New Scan shows, often more. New
-Scan also lists how many files the review can read and how many batches full
-coverage needs, from file sizes alone. Scan details show the files covered, why
-batches stopped and what the limit was charged. Exact source and omission
+rate, plus the whole output allowance. Rounds usually charge far less, so a
+limit covers at least the number of rounds New Scan shows, often more. New
+Scan also lists how many files the review can read and, in Batch mode, how many
+rounds full coverage needs, from file sizes alone. Scan details show the files
+covered, why rounds stopped and what the limit was charged. Exact source and omission
 counts are saved in Outputs.
 
-A Full coverage scan that stopped at its limit, or whose later batch failed
+A Full coverage scan that stopped at its limit, or whose later round failed
 after earlier ones completed, for instance on a provider rate limit, shows
 **Continue this scan** in its details. Enter a new limit, in the unit of the first one or in tokens when it had none, for what the scan
-spends from now on. Later batches skip the files earlier batches sent whole and
+spends from now on. Later rounds skip the files earlier rounds sent whole and
 continue excerpted files, from the saved static scan. The scan keeps its first
 limit and lists each continuation with its limit.
 
 The job continues in the local service when you navigate away or close the
 page. Scans and scan details show its current phase. While it runs, the
 progress card lists the latest steps under the active stage: each model request,
-each file an exploring review reads or search it runs, and each finished batch.
+each file an Explore round reads or search it runs, and each finished round.
 Its heading shows the tokens charged so far. **Cancel scan** explicitly
 requests cancellation. Provider failures and refusals stop further requests. Response validation
 errors name the failed stage and field when available. Completed static
@@ -181,7 +184,7 @@ STRIDE category and overlapping source evidence, even under a new title. A
 resolved finding that is reported again reopens as **New**; a dismissed one stays
 dismissed. A complete static scan resolves static findings it no longer reports,
 unless the scan was truncated or skipped their file. AI findings are never
-resolved by absence, because each review covers one source batch.
+resolved by absence, because each round covers only part of the source.
 AI review outcomes such as Source-supported and Needs review describe the
 source analysis; they are separate from this workflow status.
 

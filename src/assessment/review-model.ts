@@ -750,11 +750,11 @@ export interface ReviewDecision {
 
 /** Host notes for a dismissal it keeps as needs-review. They never quote the model. */
 const UNCHECKED = {
-  basis: "The second review dismissed this candidate without naming its basis",
+  basis: "Validation dismissed this candidate without naming its basis",
   evidence:
-    "The second review dismissed this candidate without citing a control or source line it received",
+    "Validation dismissed this candidate without citing a control or source line it received",
   duplicate:
-    "The second review dismissed this candidate as a duplicate without naming another candidate that is kept",
+    "Validation dismissed this candidate as a duplicate without naming another candidate that is kept",
 };
 
 /**
@@ -844,7 +844,7 @@ function unchecked(id: string, reason: string, note: string): ReviewDecision {
   return {
     id,
     verdict: "needs-review",
-    reason: `${note}, so it needs review. Second review: ${reason}`,
+    reason: `${note}, so it needs review. Validation: ${reason}`,
     unchecked: true,
   };
 }
@@ -866,7 +866,7 @@ function citations(
     const path = string(cite.path, `${field}.path`);
     const file = scope.get(path);
     if (file === undefined)
-      throw invalid(`${field}.path`, "the file was not submitted in this source batch");
+      throw invalid(`${field}.path`, "the file was not submitted in this round");
     const line = cite.line as number;
     const endLine = cite.endLine as number;
     if (!Number.isSafeInteger(line) || line < 1 || line > file.lines)

@@ -34,7 +34,7 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
     scan.phase === "finished"
       ? SCAN_STEPS.length
       : SCAN_STEPS.findIndex((step) => step.phase === scan.phase);
-  const batch = Math.min(scan.reviews.length + 1, SCAN_DEPTHS[scan.depth].batches);
+  const round = Math.min(scan.reviews.length + 1, SCAN_DEPTHS[scan.depth].batches);
   const activity = scan.activity ?? [];
   const latest = activity.at(-1);
   // Motion marks steps that arrive while the page is open, not the history it opened with.
@@ -57,9 +57,7 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
           <p className="security-scan-progress-kicker">
             <span>{SCAN_DEPTHS[scan.depth].label} scan</span>
             <span aria-hidden="true">·</span>
-            <span>
-              {scan.mode === "explore" ? `Exploring review ${batch}` : `Source batch ${batch}`}
-            </span>
+            <span>Round {round}</span>
           </p>
           <h2>{cancelling ? "Cancelling scan" : phaseLabel[scan.phase]}</h2>
         </div>
@@ -114,10 +112,7 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
                         >
                           <time dateTime={entry.at}>{new Date(entry.at).toLocaleTimeString()}</time>
                           <span>
-                            <span className="muted">
-                              {scan.mode === "explore" ? "Review" : "Batch"} {entry.batch + 1} ·
-                            </span>{" "}
-                            {entry.detail}
+                            <span className="muted">Round {entry.batch + 1} ·</span> {entry.detail}
                           </span>
                         </li>
                       ))}

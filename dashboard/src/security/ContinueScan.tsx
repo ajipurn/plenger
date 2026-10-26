@@ -6,7 +6,7 @@ import { Button, Input } from "../shared/ui.tsx";
 
 /**
  * Continues a Full coverage scan that stopped at its limit, under a new limit for what it
- * spends from now on. Later batches skip files already sent whole.
+ * spends from now on. Later rounds skip files already sent whole.
  */
 export function ContinueScan({
   scan,
@@ -63,9 +63,9 @@ export function ContinueScan({
       <h2 id={`${id}-heading`}>Continue this scan</h2>
       <p className="muted">
         {scan.status === "failed"
-          ? `A later batch failed${covered ? ` with ${covered}` : ""}; the batches before it stand.`
+          ? `A later round failed${covered ? ` with ${covered}` : ""}; the rounds before it stand.`
           : `The scan stopped at its limit${covered ? ` with ${covered}` : ""}.`}{" "}
-        Continuing runs more batches under a new limit for what it spends from now on; files already
+        Continuing runs more rounds under a new limit for what it spends from now on; files already
         sent whole are skipped.
         {scan.continuations?.length
           ? ` It has continued ${scan.continuations.length} ${scan.continuations.length === 1 ? "time" : "times"}.`

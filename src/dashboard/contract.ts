@@ -280,8 +280,8 @@ export const CAMPAIGN_LIMITS = {
 
 /** Browser chrome colours matching each theme's page background. */
 export const THEME_COLORS: Record<DashboardTheme, string> = {
-  dark: "#0b0b0b",
-  light: "#fafafa",
+  dark: "#272a3b",
+  light: "#f7f7f7",
 };
 
 /**

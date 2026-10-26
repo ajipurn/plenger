@@ -10,7 +10,7 @@ repeating milestone status.
 | --- | --- |
 | [guide/install.md](guide/install.md) | Install through npm, run with npx and start the dashboard |
 | [guide/scanning.md](guide/scanning.md) | Understand static analysis: inventory, capabilities, findings and facts |
-| [guide/ai-security-review.md](guide/ai-security-review.md) | Discover source-based AI findings, review all six STRIDE categories and inspect the second review |
+| [guide/ai-security-review.md](guide/ai-security-review.md) | Discover source-based AI findings, review all six STRIDE categories and inspect validation |
 | [guide/rea-evidence.md](guide/rea-evidence.md) | Import external REA JavaScript/Electron evidence and select it for a fix prompt |
 | [guide/reports-ci.md](guide/reports-ci.md) | Produce JSON, SARIF or Markdown reports; use baselines, suppressions, the CI gate and the GitHub Action |
 | [guide/dashboard.md](guide/dashboard.md) | Use local repositories, background scans, finding triage, fix prompts and provider settings |

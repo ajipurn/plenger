@@ -38,14 +38,14 @@ export function ScanBilling({ reviews }: { reviews: SecurityReview[] }) {
           {review.request.billing && (
             <BillingSection
               id={`${review.id}-discovery`}
-              title={`Source batch ${index + 1} · ${review.provider.model}`}
+              title={`Round ${index + 1} · discovery · ${review.provider.model}`}
               billing={review.request.billing}
             />
           )}
           {review.validator && review.request.validatorBilling && (
             <BillingSection
               id={`${review.id}-validator`}
-              title={`Source batch ${index + 1} · second review · ${review.validator.model}`}
+              title={`Round ${index + 1} · validation · ${review.validator.model}`}
               billing={review.request.validatorBilling}
             />
           )}

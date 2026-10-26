@@ -298,7 +298,7 @@ describe("AI review source selection", () => {
     expect(second.scope.files.map((file) => file.path)).toEqual(["api.py"]);
     expect(second.context.omitted).toContainEqual({
       path: "ops.py",
-      reason: "Changed after a previous source batch submitted part of it.",
+      reason: "Changed after an earlier round submitted part of it.",
     });
   });
 
@@ -370,7 +370,7 @@ describe("AI review source selection", () => {
     );
     expect(submitted).toBeGreaterThan(2000);
     expect(review.limitations).toContain(
-      "The batch budget was 103 KiB of source for a 200,000-token model window, within the 400,000-token review ceiling.",
+      "This round allowed 103 KiB of source for a 200,000-token model window, within the 400,000-token round ceiling.",
     );
   });
 

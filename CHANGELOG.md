@@ -9,6 +9,12 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- The dashboard calls each AI review cycle a **round** in both modes and on
+  every page, instead of batch, source batch, review or exploring review. Each
+  round runs discovery, then **validation**, the former second review. The New
+  Scan field **Second review** is now **Validation model**. Saved scans keep
+  their data; text saved with them, such as activity and limitations, keeps
+  the earlier wording.
 - The public CLI now launches the dashboard with `plenger`. It retains
   `--help` and `--version` and adds `plenger update` with explicit confirmation.
   Published builds check for stable updates in the background with a daily cache.

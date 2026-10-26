@@ -199,8 +199,10 @@ export interface StartSecurityScan {
   providerId: string;
   /** Omit for compatibility with clients using the provider's default model. */
   model?: string;
-  /** A saved connection for second reviews, with its saved model; omit to use `providerId`. */
+  /** A saved connection for validation; omit to use the discovery provider and model. */
   validatorProviderId?: string;
+  /** Override the validation connection's saved model for this scan only. */
+  validatorModel?: string;
   depth: SelectableScanDepth;
   /** Batch when omitted. Explore runs one exploring review, so it needs Quick. */
   mode?: ReviewMode;
