@@ -2,5 +2,6 @@
 # and never run dependency install scripts unless listed here.
 packages:
   - dashboard
+  - landing
 minimumReleaseAge: 4320
 onlyBuiltDependencies: []

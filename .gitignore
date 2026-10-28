@@ -8,3 +8,6 @@ __pycache__/
 # plenger output written into scanned projects
 .plenger/
 .claude
+
+# Astro's generated types
+landing/.astro/

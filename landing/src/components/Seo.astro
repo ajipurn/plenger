@@ -1,0 +1,62 @@
+---
+import { SITE } from "../site.ts";
+
+const site = Astro.site ?? new URL(Astro.url.origin);
+const canonical = new URL(Astro.url.pathname, site).href;
+const image = new URL(SITE.image.path, site).href;
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${new URL("/", site).href}#website`,
+      url: new URL("/", site).href,
+      name: SITE.name,
+      description: SITE.description,
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: SITE.name,
+      description: SITE.description,
+      url: canonical,
+      image,
+      applicationCategory: "SecurityApplication",
+      operatingSystem: "macOS, Linux, Windows",
+      softwareRequirements: "Node.js 22.18 or newer",
+      license: SITE.license,
+      author: { "@type": "Person", name: SITE.author },
+      sameAs: [SITE.repository],
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    },
+  ],
+};
+// `<` cannot close the script element once escaped.
+const jsonLd = JSON.stringify(structuredData).replaceAll("<", "\\u003c");
+---
+
+<title>{SITE.title}</title>
+<meta name="description" content={SITE.description} />
+<link rel="canonical" href={canonical} />
+<meta name="robots" content="index, follow" />
+<meta name="author" content={SITE.author} />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content={SITE.name} />
+<meta property="og:locale" content="en_US" />
+<meta property="og:url" content={canonical} />
+<meta property="og:title" content={SITE.title} />
+<meta property="og:description" content={SITE.socialDescription} />
+<meta property="og:image" content={image} />
+<meta property="og:image:width" content={String(SITE.image.width)} />
+<meta property="og:image:height" content={String(SITE.image.height)} />
+<meta property="og:image:alt" content={SITE.image.alt} />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={SITE.title} />
+<meta name="twitter:description" content={SITE.socialDescription} />
+<meta name="twitter:image" content={image} />
+<meta name="twitter:image:alt" content={SITE.image.alt} />
+
+<link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+<script type="application/ld+json" is:inline set:html={jsonLd} />

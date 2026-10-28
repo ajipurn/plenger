@@ -36,7 +36,7 @@ updates weekly.
 ## Checks
 
 ```sh
-pnpm check            # typecheck (engine and dashboard), biome lint, vitest
+pnpm check            # typecheck (engine, dashboard, landing), biome lint, vitest
 pnpm typecheck        # engine only
 pnpm lint             # biome check .
 pnpm format           # biome check --write . (formatting and import order)

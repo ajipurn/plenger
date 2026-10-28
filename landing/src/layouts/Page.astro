@@ -1,0 +1,48 @@
+---
+import "../styles/index.css";
+import Seo from "../components/Seo.astro";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b0c12" />
+    <meta name="color-scheme" content="dark" />
+    <Seo />
+    <script is:inline>
+      // Fonts that loaded on an earlier visit are cached: use them from the first frame.
+      try {
+        if (localStorage.getItem("plenger:fonts")) document.documentElement.classList.add("fonts");
+      } catch {}
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/mark.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <noscript>
+      <style>
+        .process { height: auto; }
+        .process-panel { position: static; height: auto; }
+        .stride-desc { max-height: none; opacity: 1; margin-top: 6px; }
+      </style>
+    </noscript>
+  </head>
+  <body>
+    <canvas class="webgl" data-webgl aria-hidden="true"></canvas>
+    <div class="glow" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <div class="cursor" data-cursor aria-hidden="true">
+      <span class="cursor-ring" data-cursor-ring><span data-cursor-label></span></span>
+    </div>
+
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <slot />
+
+    <script>
+      import "../boot.ts";
+    </script>
+  </body>
+</html>

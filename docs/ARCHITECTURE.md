@@ -31,6 +31,7 @@ src/
   source/                file discovery, language classification, parsing, reading
   shared/                leaf utilities: secrets, runtime assets, JSON, hashing, guards
 dashboard/src/           React page bundled by Vite, organised by feature
+landing/                 static marketing page (Astro, three.js, GSAP); outside the package
 runtimes/                container recipes and in-container workers (llmfy, Next.js)
 schemas/                 generated JSON schemas (`pnpm generate`)
 test/                    vitest suites, `support/` helpers, fixture corpora and golden files

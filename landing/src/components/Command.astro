@@ -1,0 +1,20 @@
+---
+/** The install command as a copy button. */
+interface Props {
+  large?: boolean;
+}
+const { large = false } = Astro.props;
+const command = "npx plenger@latest";
+---
+
+<button
+  class:list={["command", { "command-large": large }]}
+  type="button"
+  data-copy={command}
+  data-magnetic
+  data-cursor-hover="Copy"
+>
+  <span class="command-prompt" aria-hidden="true">$</span>
+  <code>{command}</code>
+  <span class="command-state" data-copy-state aria-live="polite">Copy</span>
+</button>
