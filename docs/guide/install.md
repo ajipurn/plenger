@@ -1,7 +1,9 @@
 # Install and update
 
 Plenger is an npm package containing the local service, dashboard, static
-engine and bundled grammar assets. Users need Node.js 22.18 or newer with npm.
+engine and bundled grammar assets. Users need npm and Node.js 22.23.4 or later on
+the 22 line, 24.22.1 or later on the 24 line, or 26.12.1 or newer. Earlier patches
+have the Brotli flaw CVE-2026-111497, which `fetch` reaches on provider responses.
 Release availability is recorded in [../STATUS.md](../STATUS.md).
 
 ## npm

@@ -44,7 +44,9 @@ for tracing limits and [status and qualifications](docs/STATUS.md) for evidence.
 
 ## Install and start
 
-For a published release, use Node.js 22.18 or newer with npm:
+Plenger needs Node.js 22.23.4 or later on the 22 line, 24.22.1 or later on the 24
+line, or 26.12.1 or newer. Earlier patches have the Brotli flaw CVE-2026-111497
+(Node2Shell). For a published release, use npm:
 
 ```sh
 npm install -g plenger

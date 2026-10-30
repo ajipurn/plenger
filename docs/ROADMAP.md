@@ -106,7 +106,8 @@ isolation infrastructure grew far ahead of what the tool could detect.
 
 ## Stack
 
-Node.js 22.18+ and TypeScript (strict, erasable syntax only), web-tree-sitter
+Node.js 22.23.4+ (or 24.22.1+, 26.12.1+) and TypeScript (strict, erasable
+syntax only), web-tree-sitter
 with vendored WASM grammars for Python, JavaScript, TypeScript and TSX, pnpm,
 Vitest and Biome. One parser for all three languages keeps the tool free of
 native add-ons. The npm package includes the compiled engine, grammars, built

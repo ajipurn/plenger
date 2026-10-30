@@ -7,7 +7,8 @@ instructions live in [AGENTS.md](AGENTS.md).
 
 ## Toolchain
 
-- Node.js 22.18 or newer. `.nvmrc` pins the major version; run `nvm use` in the
+- Node.js 22.23.4 or later on the 22 line, 24.22.1 or later on the 24 line, or
+  26.12.1 or newer. `.nvmrc` pins the major version; run `nvm use` in the
   checkout. Node runs the TypeScript sources directly through type stripping, so
   `pnpm dev` needs no build step.
 - pnpm 10.19.0, pinned by the `packageManager` field in `package.json`. Use

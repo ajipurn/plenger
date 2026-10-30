@@ -14,7 +14,7 @@ async function isolation(hostMarker) {
   const status = readFileSync("/proc/self/status", "utf8");
   const cgroup = (name) => readFileSync(`/sys/fs/cgroup/${name}`, "utf8").trim();
   check("linux", process.platform === "linux");
-  check("node-version", process.versions.node === "22.18.0");
+  check("node-version", process.versions.node === "22.23.4");
   check("non-root", process.getuid() === 65532);
   check("no-capabilities", /CapEff:\s*0+\s/.test(status));
   check("no-new-privileges", /NoNewPrivs:\s*1/.test(status));

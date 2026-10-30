@@ -387,7 +387,7 @@ describe.skipIf(!image)("isolated real Vercel worker with synthetic model", () =
       expect(report.cleanControlPassed).toBe(true);
       expect(report.runtime).toEqual({
         image,
-        node: "22.18.0",
+        node: "22.23.4",
         ai: "7.0.29",
         databaseObserver: "committed-snapshots-v1",
       });

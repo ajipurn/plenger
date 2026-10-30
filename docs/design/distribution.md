@@ -12,8 +12,10 @@ Release availability and platform evidence are in [../STATUS.md](../STATUS.md).
 The public CLI package is named `plenger`. The `@plenger` npm organisation
 is registered. The private dashboard workspace is named `@plenger/dashboard`.
 `package.json` maps the
-`plenger` command to `dist/bin.js`. Node.js 22.18 or newer runs the compiled
-JavaScript. npm only warns about `engines`, so `dist/bin.js` checks the Node.js
+`plenger` command to `dist/bin.js`. Node.js 22.23.4+, 24.22.1+ or 26.12.1+ runs the
+compiled JavaScript. Each release line has its own minimum: the patch that fixes
+the Brotli flaw CVE-2026-111497, which `fetch` reaches on provider responses.
+npm only warns about `engines`, so `dist/bin.js` checks the Node.js
 version before it loads the CLI. The package contains:
 
 - compiled CLI, scan engine, storage, dashboard service and red-team engine

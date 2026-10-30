@@ -15,7 +15,7 @@ export const GET: APIRoute = ({ site }) => {
   choose: Claude, ChatGPT, OpenAI, Gemini or a local Ollama.
 - A separate second review rereads each candidate with its imports and callers.
 - Source leaves the machine only for the chosen provider, redacted and within a budget.
-- Requires Node.js 22.18 or newer. Start it with \`npx plenger@latest\`.
+- Requires Node.js 22.23.4+, 24.22.1+ or 26.12.1+. Start it with \`npx plenger@latest\`.
 
 ## Docs
 

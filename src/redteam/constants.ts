@@ -117,7 +117,7 @@ export const MAX_PROFILE_CASES = Math.max(
  */
 export const WORKER_PROTOCOL_VERSION = 2;
 export const LLMFY_RUNTIME = { python: "3.12.13", llmfy: "0.11.0" } as const;
-export const VERCEL_RUNTIME = { node: "22.18.0", ai: "7.0.29" } as const;
+export const VERCEL_RUNTIME = { node: "22.23.4", ai: "7.0.29" } as const;
 export const DATABASE_OBSERVER = "committed-snapshots-v1";
 /** Packages the managed Vercel profile supplies; a project must declare matching versions. */
 export const VERCEL_PACKAGES: Record<string, string> = {

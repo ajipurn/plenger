@@ -129,7 +129,7 @@ any version or check list that does not match exactly.
 | Runtime | Fields | Host requirements |
 | --- | --- | --- |
 | llmfy | `protocolVersion`, `python`, `llmfy`, `isolationChecks[]` (`qualify.py` budget mode adds `os`, `arch`) | `protocolVersion == 2`, `python == "3.12.13"`, `llmfy == "0.11.0"`, all 18 check names below present; the broker also requires `os == "Linux"` and `arch == "aarch64"` |
-| Vercel | `protocolVersion`, `node`, `ai`, `databaseObserver`, `isolationChecks[]` | `protocolVersion == 2`, `node == "22.18.0"`, `ai == "7.0.29"`, `databaseObserver == "committed-snapshots-v1"`, all 16 check names present |
+| Vercel | `protocolVersion`, `node`, `ai`, `databaseObserver`, `isolationChecks[]` | `protocolVersion == 2`, `node == "22.23.4"`, `ai == "7.0.29"`, `databaseObserver == "committed-snapshots-v1"`, all 16 check names present |
 
 Isolation check names:
 
