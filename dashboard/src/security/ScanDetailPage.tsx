@@ -21,6 +21,7 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 import { ContinueScan } from "./ContinueScan.tsx";
+import { scanSourceCoverage } from "./coverage.ts";
 import { costDescription, ScanBilling, usdLabel } from "./ScanBilling.tsx";
 import { ScanProgress } from "./ScanProgress.tsx";
 import {
@@ -86,6 +87,7 @@ export function ScanDetailPage({
     status: data.findings.find((current) => current.id === item.id)?.status ?? item.status,
   }));
   const outputs = params.get("tab") === "outputs";
+  const sourceCoverage = scanSourceCoverage(scan);
   const running = scan.status === "running";
   const projectContext = params.get("project") === scan.repositoryId;
   const projectPath = `/projects/${encodeURIComponent(scan.repositoryId)}`;
@@ -172,12 +174,21 @@ export function ScanDetailPage({
             <Icon name="inventory" /> Coverage
           </dt>
           <dd>
-            {scan.coverage && scan.coverage.eligibleFiles > 0
-              ? `${scan.coverage.sentFiles.toLocaleString()} of ${scan.coverage.eligibleFiles.toLocaleString()} files`
-              : SCAN_DEPTHS[scan.depth].label}
+            {sourceCoverage.total > 0 ? (
+              <>
+                <MorphNumber value={sourceCoverage.total} count /> files in scope
+              </>
+            ) : (
+              SCAN_DEPTHS[scan.depth].label
+            )}
           </dd>
+          {sourceCoverage.total > 0 && (
+            <p className="muted security-scan-summary-note">
+              <CoverageCounts coverage={sourceCoverage} />
+            </p>
+          )}
           {scan.coverage && (
-            <p className="muted security-scan-summary-note">{coverageNote(scan)}</p>
+            <p className="muted security-scan-summary-note">{coverageNote(scan, sourceCoverage)}</p>
           )}
         </div>
       </dl>
@@ -243,13 +254,7 @@ export function ScanDetailPage({
                 scan.reviews.map((review, index) => (
                   <section key={review.id} className="security-output-batch">
                     <h2>Round {index + 1}</h2>
-                    <p className="muted">
-                      {review.scope.files.length} of {review.scope.eligibleFiles} source files{" "}
-                      {review.mode === "explore" ? "read" : "included"} ·{" "}
-                      {review.scope.omittedFiles} {review.mode === "explore" ? "unread" : "omitted"}{" "}
-                      · {review.status}
-                      {review.validator ? ` · validation by ${review.validator.model}` : ""}
-                    </p>
+                    <RoundCoverageSummary coverage={sourceCoverage.rounds[index]} review={review} />
                     <p>{review.summary}</p>
                     {review.reason && <p className="security-output-failure">{review.reason}</p>}
                     <h3>Architecture</h3>
@@ -695,15 +700,59 @@ function ExplorationLog({ sessions }: { sessions: ExploreSessionRecord[] }) {
   );
 }
 
+function CoverageCounts({
+  coverage,
+}: {
+  coverage: Pick<ReturnType<typeof scanSourceCoverage>, "read" | "partial" | "unread">;
+}) {
+  return (
+    <>
+      {coverage.read.toLocaleString()} read · {coverage.partial.toLocaleString()} partial ·{" "}
+      {coverage.unread.toLocaleString()} unread
+    </>
+  );
+}
+
+function RoundCoverageSummary({
+  coverage,
+  review,
+}: {
+  coverage: ReturnType<typeof scanSourceCoverage>["rounds"][number] | undefined;
+  review: SecurityScan["reviews"][number];
+}) {
+  if (!coverage) return null;
+  return (
+    <>
+      <p className="muted">
+        Cumulative: <CoverageCounts coverage={coverage} />
+      </p>
+      <p className="muted">
+        This round: {coverage.files.toLocaleString()} {coverage.files === 1 ? "file" : "files"}{" "}
+        {review.mode === "explore" ? "read" : "included"}
+        {coverage.newFiles > 0 && <> · {coverage.newFiles.toLocaleString()} new</>}
+        {coverage.revisitedFiles > 0 && (
+          <> · {coverage.revisitedFiles.toLocaleString()} revisited</>
+        )}{" "}
+        · {review.status}
+        {review.validator ? ` · validation by ${review.validator.model}` : ""}
+      </p>
+    </>
+  );
+}
+
 /** Depth and mode, why rounds stopped, and what the limit charged. */
-function coverageNote(scan: SecurityScan): string {
+function coverageNote(scan: SecurityScan, source: ReturnType<typeof scanSourceCoverage>): string {
   const coverage = scan.coverage;
   const explore = scan.mode === "explore";
   const parts: string[] = [SCAN_DEPTHS[scan.depth].label, ...(explore ? ["Explore"] : [])];
   if (coverage?.stop)
     parts.push(
-      explore && coverage.stop === "complete"
-        ? "every file was read"
+      coverage.stop === "complete"
+        ? source.unread > 0
+          ? "some files were not read"
+          : source.partial > 0
+            ? "some files were read in part"
+            : "every file was read in full"
         : explore && coverage.stop === "quick"
           ? "the files the model chose to read"
           : STOP_TEXT[coverage.stop],

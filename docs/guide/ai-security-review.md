@@ -91,6 +91,12 @@ reviewed on its own: a path that crosses rounds is not analysed as one path. Cho
 source folder when related files do not fit. Included paths, omissions and
 limitations are visible in **Scan > Outputs**.
 
+Coverage is cumulative across rounds. **Read** means every line of the same file
+version was included, **Partial** means only some lines were included, and
+**Unread** means the file was never included. Excerpts from multiple rounds are
+combined without filling unread gaps. Each round shows these cumulative counts
+separately from its new and revisited files. These counts also apply to saved scans.
+
 ## Response contract and failures
 
 Native Claude reviews send the output schema using `output_config.format`.
