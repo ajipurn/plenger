@@ -1,0 +1,112 @@
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "@fontsource/sacramento";
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+@theme {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+}
+
+:root {
+  --color-fd-background: #faf9fc;
+  --color-fd-foreground: #24212b;
+  --color-fd-card: #ffffff;
+  --color-fd-primary: #665479;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-accent: #eeebf3;
+  --color-fd-accent-foreground: #3e304e;
+  --color-fd-border: #e6e1ec;
+  --color-fd-muted: #f0edf4;
+  --color-fd-muted-foreground: #686170;
+  --color-fd-secondary: #f0edf4;
+}
+
+.dark {
+  --color-fd-background: #0b0c12;
+  --color-fd-foreground: #ece9f2;
+  --color-fd-card: #12141d;
+  --color-fd-popover: #12141d;
+  --color-fd-primary: #c6b8d9;
+  --color-fd-primary-foreground: #211c29;
+  --color-fd-accent: #211d2c;
+  --color-fd-accent-foreground: #e0d5ee;
+  --color-fd-border: #292631;
+  --color-fd-muted: #191821;
+  --color-fd-muted-foreground: #a7a1b5;
+  --color-fd-secondary: #191821;
+}
+
+body {
+  overflow-wrap: break-word;
+}
+
+.docs-wordmark {
+  font-family: "Sacramento", cursive;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.docs-skip-link {
+  position: fixed;
+  inset-block-start: 1rem;
+  inset-inline-start: 1rem;
+  z-index: 100;
+  transform: translateY(calc(-100% - 1rem));
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+}
+
+.docs-skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+.docs-eyebrow {
+  margin-block-end: 1rem;
+  color: var(--color-fd-muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.docs-sidebar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 2.75rem;
+  padding-inline: 0.5rem;
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.75rem;
+}
+
+.docs-sidebar-footer:hover {
+  color: var(--color-fd-foreground);
+}
+
+#nd-page h1,
+#nd-page h2,
+#nd-page h3 {
+  text-wrap: balance;
+}
+
+#nd-page {
+  line-height: 1.65;
+}
+
+@media (width < 40rem) {
+  input {
+    font-size: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

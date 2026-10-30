@@ -9,5 +9,11 @@ __pycache__/
 .plenger/
 .claude
 
+# Documentation build and generated types
+docs-site/.next/
+docs-site/.source/
+docs-site/out/
+docs-site/next-env.d.ts
+
 # Astro's generated types
 landing/.astro/

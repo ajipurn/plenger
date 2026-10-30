@@ -1,0 +1,51 @@
+---
+title: Introduction
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+Plenger brings repository security review to your machine. Start the local
+dashboard, add a project and choose a model connection. Review findings with
+source evidence, a STRIDE threat model and a second validation pass.
+
+<Callout title="Release status">
+  Check [Status and qualifications](/docs/status/) for release availability,
+  supported capabilities and recorded evidence.
+</Callout>
+
+## Start here
+
+<Cards>
+  <Card title="Install Plenger" href="/docs/installation/" description="Requirements, installation and updates." />
+  <Card title="Run your first scan" href="/docs/dashboard/#start-a-scan" description="Connect a model and review a local project." />
+</Cards>
+
+## How a review works
+
+1. **Read the repository.** The static engine reads files, builds an inventory
+   and traces capabilities. It never runs project code.
+2. **Discover candidates.** The selected model reviews bounded, redacted source
+   and considers all six STRIDE categories.
+3. **Validate the evidence.** A second review checks candidates against source.
+   You can select a separate model connection for validation.
+4. **Decide what to fix.** Inspect locations, evidence and remediation. Generate
+   a prompt to take into your coding agent.
+
+## Explore the guides
+
+<Cards>
+  <Card title="AI security review" href="/docs/ai-security-review/" description="Review modes, coverage, threat models and validation." />
+  <Card title="Static analysis" href="/docs/static-analysis/" description="Inventory, capabilities, findings and code facts." />
+  <Card title="Reports and CI" href="/docs/reports-and-ci/" description="Export reports and add the GitHub Action." />
+  <Card title="Rule catalog" href="/docs/rules/" description="Look up static checks and their remediation." />
+</Cards>
+
+## Your source and your connection
+
+Projects, results and credentials are stored locally. Source leaves the machine
+for the provider you select, after redaction. AI review consumes that connection's
+usage. The static engine runs offline.
+
+Read the [architecture](/docs/architecture/) for the source layout, or
+[contributing guide](/docs/contributing/) to work on Plenger.

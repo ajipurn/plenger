@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 
-/** The pages this site serves. */
-const PATHS = ["/"];
+/** The landing page and the documentation entry point, which the docs site serves. */
+const PATHS = ["/", "/docs/"];
 
 export const GET: APIRoute = ({ site }) => {
   const urls = PATHS.map((path) => `  <url><loc>${new URL(path, site).href}</loc></url>`);

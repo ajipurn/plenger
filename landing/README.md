@@ -7,11 +7,15 @@ imports nothing from `src/` or `dashboard/`.
 ```sh
 pnpm landing          # dev server on http://127.0.0.1:4190
 pnpm landing:build    # static output in landing/dist
+pnpm site:build       # landing and Fumadocs documentation in landing/dist
 ```
 
 `pnpm check` typechecks the scripts with `tsc`. Astro 7 needs Node.js 22.23.4 or
 newer to build; CI only typechecks. Deploy `landing/dist` to any static host
 that serves compressed files.
+
+Run `pnpm docs:dev` alongside the landing server to open documentation at `/docs/`.
+See [docs-site/README.md](../docs-site/README.md) for the documentation workflow.
 
 ## Layout
 

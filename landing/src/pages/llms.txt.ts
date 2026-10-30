@@ -2,7 +2,8 @@ import type { APIRoute } from "astro";
 import { SITE } from "../site.ts";
 
 /** A plain summary for AI agents, in the llms.txt format. Claims follow docs/STATUS.md. */
-export const GET: APIRoute = () => {
+export const GET: APIRoute = ({ site }) => {
+  const docs = new URL("/docs/", site).href;
   const body = `# ${SITE.name}
 
 > Security review that runs locally. One npm package starts a dashboard on your machine
@@ -16,8 +17,9 @@ export const GET: APIRoute = () => {
 - Source leaves the machine only for the chosen provider, redacted and within a budget.
 - Requires Node.js 22.18 or newer. Start it with \`npx plenger@latest\`.
 
-## Links
+## Docs
 
+- [Documentation](${docs}): install, dashboard, reports and CI
 - [Status](${SITE.repository}/blob/main/docs/STATUS.md): what is available today and what is pending
 - [Source](${SITE.repository}): Apache License 2.0
 `;

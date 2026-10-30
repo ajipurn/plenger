@@ -18,6 +18,13 @@ export default defineConfig({
   // The stylesheet is small; inlining it saves a render-blocking request.
   build: { inlineStylesheets: "always" },
   vite: {
+    server: {
+      // The documentation runs as its own Next.js server; see docs-site/README.md.
+      proxy: {
+        "/docs": "http://127.0.0.1:4192",
+        "/_next": { target: "http://127.0.0.1:4192", ws: true },
+      },
+    },
     build: {
       // three.js ships as one module of about 520 kB (130 kB gzipped). It loads only
       // after the first interaction, in its own chunk.

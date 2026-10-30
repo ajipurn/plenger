@@ -3,5 +3,6 @@
 packages:
   - dashboard
   - landing
+  - docs-site
 minimumReleaseAge: 4320
 onlyBuiltDependencies: []
