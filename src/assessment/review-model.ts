@@ -19,6 +19,8 @@ export const SECURITY_REVIEW_LIMITS = {
   relatedBytes: 12 * 1024,
   relatedFiles: 8,
   findings: 6,
+  /** Independent discovery candidates plus at most six static candidates per round. */
+  validationFindings: 12,
   evidence: 6,
   /** Lines a dismissal cites: the control or source that decides it. */
   dismissalEvidence: 3,
@@ -263,6 +265,14 @@ export interface ReviewFinding extends ReviewCandidate {
   /** The second review dismissed it without a basis the host could check, so it needs review. */
   uncheckedDismissal?: true;
 }
+/** Host-owned static provenance. Discovery never receives these candidates. */
+export interface StaticReviewCandidate extends Omit<ReviewCandidate, "category"> {
+  static: { fingerprint: string; ruleId: string };
+}
+export interface StaticReviewFinding extends Omit<ReviewFinding, "category"> {
+  static: StaticReviewCandidate["static"];
+}
+export type ValidationCandidate = (ReviewCandidate | StaticReviewCandidate) & { id: string };
 export interface ReviewDiscovery {
   status: "completed" | "refused";
   reason: string | null;
@@ -407,6 +417,8 @@ export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findin
   scanId: string;
   createdAt: string;
   kind: "ai-security-review";
+  /** Absent on historical reviews, which validated AI candidates only. */
+  staticFindings?: StaticReviewFinding[];
   status: "completed" | "refused" | "failed" | "cancelled";
   /** Absent on reviews from before exploration, which are batch reviews. */
   mode?: ReviewMode;
@@ -427,6 +439,8 @@ export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findin
     contextDigest: string;
     /** Imports and callers of cited files given to the second review only. */
     related?: RelatedSourceFile[];
+    /** Cited source supplied to validation when static candidates extend the first batch. */
+    validation?: ReviewSourceFile[];
     /** The batch budget this review used; absent on earlier reviews, which used the defaults. */
     budget?: ReviewBudget;
   };
@@ -580,7 +594,7 @@ export const REVIEW_DISCOVERY_SCHEMA = object(discoveryProperties);
 export const REVIEW_VALIDATION_SCHEMA = object({
   status: { enum: REVIEW_STATES },
   reason: reviewReason,
-  decisions: list(object(decisionProperties), SECURITY_REVIEW_LIMITS.findings),
+  decisions: list(object(decisionProperties), SECURITY_REVIEW_LIMITS.validationFindings),
 });
 
 /**
@@ -777,47 +791,49 @@ export function parseReviewValidation(
   const status = state(value);
   const remaining = new Set(ids);
   const scope = new Map(files.map((file) => [file.path, file]));
-  const parsed = array(value.decisions, SECURITY_REVIEW_LIMITS.findings, "$.decisions").map(
-    (value, index) => {
-      const location = `$.decisions[${index}]`;
-      // A model without structured output may leave out what only a dismissal needs.
-      const raw = isRecord(value)
-        ? { basis: null, evidence: [], duplicateOf: null, ...value }
-        : value;
-      const decision = fields(raw, Object.keys(decisionProperties), location);
-      const id = string(decision.id, `${location}.id`);
-      if (!remaining.delete(id))
-        throw invalid(`${location}.id`, "unknown or duplicate host-assigned candidate id");
-      const verdict = enumValue(decision.verdict, VERDICTS, `${location}.verdict`);
-      const reason = clipped(decision.reason, `${location}.reason`);
-      if (verdict !== "dismissed") return { id, verdict, reason };
-      const basis =
-        decision.basis === null
-          ? null
-          : enumValue(decision.basis, DISMISSAL_BASES, `${location}.basis`);
-      if (basis === null) return unchecked(id, reason, UNCHECKED.basis);
-      if (basis === "duplicate") {
-        const target = typeof decision.duplicateOf === "string" ? decision.duplicateOf : "";
-        return target !== id && ids.includes(target)
-          ? { id, verdict, reason, dismissal: { basis, evidence: [], duplicateOf: target } }
-          : unchecked(id, reason, UNCHECKED.duplicate);
-      }
-      let evidence: ReviewCitation[] = [];
-      try {
-        evidence = citations(
-          decision.evidence,
-          scope,
-          `${location}.evidence`,
-          SECURITY_REVIEW_LIMITS.dismissalEvidence,
-        );
-      } catch (error) {
-        if (!(error instanceof ReviewResponseError)) throw error;
-      }
-      return evidence.length
-        ? { id, verdict, reason, dismissal: { basis, evidence } }
-        : unchecked(id, reason, UNCHECKED.evidence);
-    },
-  );
+  const parsed = array(
+    value.decisions,
+    SECURITY_REVIEW_LIMITS.validationFindings,
+    "$.decisions",
+  ).map((value, index) => {
+    const location = `$.decisions[${index}]`;
+    // A model without structured output may leave out what only a dismissal needs.
+    const raw = isRecord(value)
+      ? { basis: null, evidence: [], duplicateOf: null, ...value }
+      : value;
+    const decision = fields(raw, Object.keys(decisionProperties), location);
+    const id = string(decision.id, `${location}.id`);
+    if (!remaining.delete(id))
+      throw invalid(`${location}.id`, "unknown or duplicate host-assigned candidate id");
+    const verdict = enumValue(decision.verdict, VERDICTS, `${location}.verdict`);
+    const reason = clipped(decision.reason, `${location}.reason`);
+    if (verdict !== "dismissed") return { id, verdict, reason };
+    const basis =
+      decision.basis === null
+        ? null
+        : enumValue(decision.basis, DISMISSAL_BASES, `${location}.basis`);
+    if (basis === null) return unchecked(id, reason, UNCHECKED.basis);
+    if (basis === "duplicate") {
+      const target = typeof decision.duplicateOf === "string" ? decision.duplicateOf : "";
+      return target !== id && ids.includes(target)
+        ? { id, verdict, reason, dismissal: { basis, evidence: [], duplicateOf: target } }
+        : unchecked(id, reason, UNCHECKED.duplicate);
+    }
+    let evidence: ReviewCitation[] = [];
+    try {
+      evidence = citations(
+        decision.evidence,
+        scope,
+        `${location}.evidence`,
+        SECURITY_REVIEW_LIMITS.dismissalEvidence,
+      );
+    } catch (error) {
+      if (!(error instanceof ReviewResponseError)) throw error;
+    }
+    return evidence.length
+      ? { id, verdict, reason, dismissal: { basis, evidence } }
+      : unchecked(id, reason, UNCHECKED.evidence);
+  });
   // A duplicate stands only beside the candidate it repeats; two that point at each
   // other, or at one dismissed for another reason, would leave nothing reported.
   const dismissed = new Set(

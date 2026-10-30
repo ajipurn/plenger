@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router";
 import {
   FINDING_STATUSES,
   type FindingStatus,
+  findingValidation,
   type SecurityWorkspace,
   WORKSPACE_LIMITS,
 } from "../../../src/dashboard/contract.ts";
@@ -11,7 +12,7 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Checkbox, Input, Select } from "../shared/ui.tsx";
 import { SeverityFlow } from "./SeverityFlow.tsx";
-import { Empty, FindingsTable, Pagination, statusLabel } from "./ui.tsx";
+import { Empty, FindingsTable, Pagination, statusLabel, validationLabel } from "./ui.tsx";
 
 export function FindingsPage({
   data,
@@ -25,6 +26,7 @@ export function FindingsPage({
   const [query, setQuery] = useState("");
   const [statuses, setStatuses] = useState<FindingStatus[]>(["new", "triaged", "in-progress"]);
   const [severity, setSeverity] = useState("all");
+  const [validation, setValidation] = useState("active");
   const [page, setPage] = useState(0);
   const repository = params.get("project") ?? params.get("repository") ?? "all";
   const names = useMemo(
@@ -37,6 +39,10 @@ export function FindingsPage({
         .filter(
           (item) =>
             statuses.includes(item.status) &&
+            (validation === "all" ||
+              (validation === "active"
+                ? findingValidation(item) !== "dismissed"
+                : findingValidation(item) === validation)) &&
             (severity === "all" || item.severity === severity) &&
             (repository === "all" || item.repositoryId === repository) &&
             `${item.title} ${names.get(item.repositoryId) ?? ""} ${item.rootCause}`
@@ -48,7 +54,7 @@ export function FindingsPage({
             ["critical", "high", "medium", "low"].indexOf(a.severity) -
             ["critical", "high", "medium", "low"].indexOf(b.severity),
         ),
-    [data.findings, statuses, severity, repository, query, names],
+    [data.findings, statuses, severity, validation, repository, query, names],
   );
   const change = (next: FindingStatus[]) => {
     setStatuses(next);
@@ -164,6 +170,21 @@ export function FindingsPage({
                   </Checkbox>
                 ))}
               </fieldset>
+              <label htmlFor={`${id}-validation`}>Validation</label>
+              <Select
+                label="Validation filter"
+                id={`${id}-validation`}
+                value={validation}
+                items={[
+                  { value: "active", label: "Non-dismissed candidates" },
+                  { value: "all", label: "All validation outcomes" },
+                  ...Object.entries(validationLabel).map(([value, label]) => ({ value, label })),
+                ]}
+                onValueChange={(value) => {
+                  setValidation(value);
+                  setPage(0);
+                }}
+              />
               <label htmlFor={`${id}-severity`}>Severity</label>
               <Select
                 label="Severity"
@@ -206,6 +227,7 @@ export function FindingsPage({
           onClick={() => {
             change([...FINDING_STATUSES]);
             setSeverity("all");
+            setValidation("all");
             setQuery("");
             setParams({});
           }}
@@ -236,7 +258,7 @@ export function FindingsPage({
           }
           description={
             data.findings.length
-              ? "Change the status, project, or severity filters to see more findings."
+              ? "Change the status, validation, project, or severity filters to see more findings."
               : "Run a security scan to review source evidence, threat models, and remediation guidance."
           }
           action={

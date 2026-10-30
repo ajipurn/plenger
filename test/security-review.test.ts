@@ -476,6 +476,42 @@ describe("source-based AI security review", () => {
     expect(invalid.bodies).toHaveLength(2);
   });
 
+  it("keeps static candidates unvalidated when discovery consumes the remaining token allowance", async () => {
+    const root = await writeReviewProject(await temporaryDir());
+    await writeFile(
+      join(root, "command.ts"),
+      'import express from "express";\nimport { exec } from "node:child_process";\nconst app = express();\napp.get("/run", (req, res) => { exec(req.query.command); res.end(); });\n',
+    );
+    const snapshot = await scan(root);
+    const baseline = stub();
+    await reviewProject(snapshot, { scanId: "scan", provider, access }, baseline.dispatch);
+    const reserved =
+      Buffer.byteLength(JSON.stringify(baseline.bodies[0])) +
+      4096 +
+      SECURITY_REVIEW_LIMITS.outputTokens;
+    const model = stub();
+    const dispatch: typeof fetch = async (url, init) => {
+      const reply = (await (await model.dispatch(url, init)).json()) as Record<string, unknown>;
+      // Report the admitted request's full reservation, leaving too little for validation.
+      reply.usage = {
+        input_tokens: Buffer.byteLength(String(init?.body)) + 4096,
+        output_tokens: SECURITY_REVIEW_LIMITS.outputTokens,
+      };
+      return Response.json(reply);
+    };
+    const review = await reviewProject(
+      snapshot,
+      { scanId: "scan", provider, access, limit: { kind: "tokens", tokens: reserved + 100 } },
+      dispatch,
+    );
+    expect(review.status, review.reason ?? "").toBe("completed");
+    expect(review.request).toMatchObject({ calls: 1, limitReached: true });
+    expect(review.staticFindings).toHaveLength(1);
+    expect(review.staticFindings?.[0]?.validation).toBe("unvalidated");
+    expect(review.staticFindings?.[0]?.validationReason).toContain("token limit");
+    expect(model.bodies).toHaveLength(1);
+  });
+
   it("redacts source and provider secrets before transmission and uses snippets only from submitted source", async () => {
     const root = await writeReviewProject(await temporaryDir());
     const secret = "sk-ant-api03-7ZxK8vM2pQa4T9cL6nR1wU3yV5bH0fG2";

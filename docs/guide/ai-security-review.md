@@ -2,22 +2,26 @@
 
 The dashboard can discover security findings from source code through a saved
 model provider, including Anthropic Claude. It also produces a STRIDE threat
-model. This review is separate from the offline rule scanner. See
+model. Discovery is independent of the offline rule scanner. Its static candidates
+join AI candidates only for the second source review. See
 [../STATUS.md](../STATUS.md) for qualification.
 
 ## Run a review
 
 1. Add a local folder under **Projects**.
 2. Save a model connection under **Settings > Providers**.
-3. Press **New Scan**, choose the project, provider, model, review mode and
-   depth. The review runs in rounds: each round runs discovery, then validation
-   of its candidates. **Batch** sends each round the files the scan picks.
+3. Press **New Scan**, choose **Run all**, then the project, provider, model,
+   review mode and depth. The review runs in rounds: each round runs discovery, then validation
+   of static and AI candidates. **Batch** sends each round the files the scan picks.
    **Explore** lets the model read the project through read-only tools; see
    [Explore mode](#explore-mode).
 4. Press **Start Scan**. The job first captures an offline scan, then sends
    redacted source and context to that provider and consumes model usage.
 
-The static engine remains offline.
+The static engine remains offline. **Static only** runs it and stops without a
+provider. A completed static scan offers **Continue with AI**, which creates a
+linked review from the saved result after checking that the local source is
+unchanged. See [scan workflow choices](dashboard.md#start-a-scan).
 
 The host rereads files from the static scan's allowlist. It reapplies current
 exclusions and `.gitignore` rules. The allowlist holds the parsed Python,
@@ -77,7 +81,7 @@ hidden exception: `.github/workflows/*.yml`, `.github/actions/**/action.yml`,
 `.gitlab-ci.yml` and `.circleci/config.yml` are reviewed, after redaction.
 
 **Quick** runs one round. **Full coverage** keeps adding independent rounds
-until no unsent source that fits a round remains, the scan's token or USD limit
+until no unsent source or unattempted static candidates fit a round, the scan's token or USD limit
 cannot hold another round's maximum, or 100 rounds have run; see
 [dashboard.md](dashboard.md#start-a-scan). Later rounds skip files an earlier
 round sent whole. A file sent as an excerpt
@@ -212,8 +216,14 @@ not change it. **Let scans derive it** returns the choice to the scans. Each
 scan records the version it started from. STRIDE stays per round, because it
 assesses the source that round read.
 
-When candidates exist, validation checks them against the same source.
-It checks callers, guards, sanitization, scope and counterevidence. Each receives
+After independent discovery, validation checks AI candidates and up to six static
+candidates per round, within the existing 16 KiB combined candidate limit. Static
+candidates keep their rule ids, fingerprints and evidence. Batch validation rereads
+the cited files within its source budget, then adds related imports and callers.
+Explore validation starts with cited source and can read more through the same tools.
+Candidates outside those limits remain Unvalidated. Full coverage attempts later
+static candidates in later rounds, even when discovery has covered all files.
+Validation checks callers, guards, sanitization, scope and counterevidence. Each receives
 one outcome:
 
 - **Source-supported**: validation supports the path in the supplied code.
@@ -251,7 +261,9 @@ By default validation uses the same model with a separate
 instruction. **Validation model** in New Scan can pick another saved connection,
 which runs with its saved model; a different model is less likely to repeat the
 first model's mistakes. Its usage and estimated cost are reported separately.
-Validation reads source only; it is not an independent detection service or runtime testing.
+Validation reads source only; it is not runtime testing. A Source-supported static
+candidate must have all its submitted evidence ranges inside validation's captured
+source. A claimed supported decision without those ranges becomes Needs review.
 A refusal stops the review. Any other failure of validation, such as an
 invalid reply, an incomplete decision set, a provider error or a limit, keeps
 its candidates as Unvalidated and adds a limitation with the reason; the review
@@ -282,7 +294,8 @@ scan (entry points, tools, their effects and the calls the trace could not
 follow), the environment notes and a first set of files packed as in Batch mode, up
 to 48 KiB. The first validation message holds the candidates and their cited
 lines, a small file whole and a larger one as its cited ranges with 20 lines of
-context, up to 32 KiB. Static findings are not sent.
+context, up to 32 KiB. Static findings join this validation message only; discovery
+never receives them.
 
 The host checks every call:
 
@@ -319,9 +332,9 @@ the earlier conversation at the cache-read price; usage reports cache reads
 and writes, and the cost estimate prices them.
 
 **Quick** runs one round. **Full coverage** runs rounds
-until every readable file was read, the scan's limit cannot hold another
-round's maximum, 100 rounds have run, or a round read nothing earlier ones
-had not. A later round's first set holds files no earlier round read whole,
+until every readable file was read and its static candidates were attempted,
+the scan's limit cannot hold another round's maximum, 100 rounds have run, or a
+round read no new source and attempted no new static candidates. A later round's first set holds files no earlier round read whole,
 and its first message lists, within 8 KiB, the files earlier rounds read and
 the candidates they reported, so it explores elsewhere and does not repeat
 them.
@@ -359,8 +372,7 @@ only when their prompt digests match.
 ## Review results and prepare a fix
 
 Results and failures are saved per scan and survive navigation, refresh and
-restart. **Scans** opens the saved job. Its **Findings** tab shows static and
-non-dismissed AI findings; **Outputs** shows each round's architecture, assets,
+restart. **Scans** opens the saved job. Its **Findings** tab shows non-dismissed static and AI candidates; **Outputs** shows each round's architecture, assets,
 trust boundaries, STRIDE, traced paths with their closures, dismissed candidates
 with their basis and cited lines, and source coverage. **Export JSON** includes
 these redacted records and usage.
@@ -371,6 +383,18 @@ Missing usage or cache-write lifetimes cannot be priced. Valid usage remains
 billable even when a reply is refused, truncated or fails host validation.
 See [model pricing](dashboard.md#model-pricing) for configuration and
 the estimate's limits.
+
+Origin and validation appear separately. Static indications saved before this
+feature show as Unvalidated. Validation failures never promote an indication.
+Dismissed static candidates remain saved and can be selected through the Findings
+validation filter; Outputs also show their dismissal evidence.
+
+A cross-origin duplicate merges only after validation names the other candidate
+and the host matches its CWE and both source-path anchors. Similar titles do not
+merge. The report keeps each origin's rule, evidence and review, and absorbed ids
+remain aliases for triage. The most recently updated saved workflow state wins a
+merge; both earlier states remain in `mergedTriage`. Historical scan occurrences
+stay unchanged. A merged report with an AI origin is not resolved by static absence.
 
 Open a finding for its trace and validation reason. **Fix with a coding
 agent** generates instructions from the saved finding through a selected

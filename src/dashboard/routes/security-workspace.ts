@@ -8,6 +8,7 @@ import {
   type FindingStatus,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
+  type ScanAiOptions,
   type ScanBudget,
   type SelectableScanDepth,
   THREAT_MODEL_LIMITS,
@@ -158,6 +159,7 @@ export function securityWorkspaceRoutes({
           body,
           [
             "repositoryId",
+            "workflow",
             "providerId",
             "scope",
             "depth",
@@ -172,58 +174,23 @@ export function securityWorkspaceRoutes({
         // Accept earlier local-scan clients, without enabling any automatic mode.
         if (body.scope !== undefined && body.scope !== "local" && body.scope !== "repository")
           throw new HttpError(400, "Only manual scans of local folders are supported.");
-        if (
-          typeof body.depth !== "string" ||
-          !Object.hasOwn(SCAN_DEPTHS, body.depth) ||
-          !SCAN_DEPTHS[body.depth as keyof typeof SCAN_DEPTHS].selectable
-        )
-          throw new HttpError(400, "Choose Quick or Full coverage.");
-        if (body.mode !== undefined && body.mode !== "batch" && body.mode !== "explore")
-          throw new HttpError(400, "Choose Explore or Batch review mode.");
-        // Without a limit, Full coverage stops when it covers the project or at its batch cap.
-        const budget = body.budget === undefined ? undefined : scanBudget(body.budget);
-        if (body.validatorModel !== undefined && body.validatorProviderId === undefined)
-          throw new HttpError(400, "Choose a saved provider for validation.");
-        for (const field of ["model", "validatorModel"] as const) {
-          if (body[field] === undefined) continue;
-          try {
-            // The coordinator checks the selected connection too. No access overrides are accepted.
-            validateProviderSettings({ provider: "anthropic", model: body[field] });
-          } catch {
-            throw new HttpError(
-              400,
-              field === "model"
-                ? "Choose a valid model ID."
-                : "Choose a valid validation model ID.",
-            );
-          }
-        }
+        if (body.workflow !== undefined && body.workflow !== "all" && body.workflow !== "static")
+          throw new HttpError(400, "Choose Run all or Static only.");
+        if (body.workflow === "static")
+          expectKeys(
+            body,
+            ["repositoryId", "workflow", "scope"],
+            "Static-only scans do not accept AI settings.",
+          );
         try {
           const result = await security.start({
             repositoryId: requireString(body.repositoryId, "Choose a local project.", {
               min: 1,
               max: WORKSPACE_LIMITS.recordIdCharacters,
             }),
-            providerId: requireString(body.providerId, "Choose a saved provider.", {
-              min: 1,
-              max: WORKSPACE_LIMITS.recordIdCharacters,
-            }),
-            depth: body.depth as SelectableScanDepth,
-            ...(body.mode === undefined ? {} : { mode: body.mode as ReviewMode }),
-            ...(budget ? { budget } : {}),
-            ...(body.model === undefined ? {} : { model: body.model as string }),
-            ...(body.validatorModel === undefined
-              ? {}
-              : { validatorModel: body.validatorModel as string }),
-            ...(body.validatorProviderId === undefined
-              ? {}
-              : {
-                  validatorProviderId: requireString(
-                    body.validatorProviderId,
-                    "Choose a saved provider for validation.",
-                    { min: 1, max: WORKSPACE_LIMITS.recordIdCharacters },
-                  ),
-                }),
+            ...(body.workflow === "static"
+              ? { workflow: "static" as const }
+              : { workflow: "all" as const, ...scanAiOptions(body) }),
           });
           return { status: 202, body: result };
         } catch (error) {
@@ -240,6 +207,34 @@ export function securityWorkspaceRoutes({
         const scan = store.security.scan(params.id ?? "");
         if (!scan) throw new HttpError(404, "Scan not found.");
         return { status: 200, body: scan };
+      },
+    },
+    {
+      method: "POST",
+      path: API.startScanAi,
+      handler: async ({ request, params }) => {
+        const body = await jsonRequest(request);
+        expectKeys(
+          body,
+          [
+            "providerId",
+            "model",
+            "validatorProviderId",
+            "validatorModel",
+            "depth",
+            "mode",
+            "budget",
+          ],
+          "Choose the AI review settings.",
+        );
+        try {
+          const result = await security.startScanAi(params.id ?? "", scanAiOptions(body));
+          return { status: 202, body: result };
+        } catch (error) {
+          if (error instanceof StoreValidationError)
+            throw new HttpError(400, error.message, { cause: error });
+          throw error;
+        }
       },
     },
     {
@@ -277,6 +272,54 @@ export function securityWorkspaceRoutes({
       },
     },
   ];
+}
+
+/** Both new reviews and reviews continued from static results use the same checked options. */
+function scanAiOptions(body: Record<string, unknown>): ScanAiOptions {
+  if (
+    typeof body.depth !== "string" ||
+    !Object.hasOwn(SCAN_DEPTHS, body.depth) ||
+    !SCAN_DEPTHS[body.depth as keyof typeof SCAN_DEPTHS].selectable
+  )
+    throw new HttpError(400, "Choose Quick or Full coverage.");
+  if (body.mode !== undefined && body.mode !== "batch" && body.mode !== "explore")
+    throw new HttpError(400, "Choose Explore or Batch review mode.");
+  // Without a limit, Full coverage stops when it covers the project or at its batch cap.
+  const budget = body.budget === undefined ? undefined : scanBudget(body.budget);
+  if (body.validatorModel !== undefined && body.validatorProviderId === undefined)
+    throw new HttpError(400, "Choose a saved provider for validation.");
+  for (const field of ["model", "validatorModel"] as const) {
+    if (body[field] === undefined) continue;
+    try {
+      // The coordinator checks the selected connection too. No access overrides are accepted.
+      validateProviderSettings({ provider: "anthropic", model: body[field] });
+    } catch {
+      throw new HttpError(
+        400,
+        field === "model" ? "Choose a valid model ID." : "Choose a valid validation model ID.",
+      );
+    }
+  }
+  return {
+    providerId: requireString(body.providerId, "Choose a saved provider.", {
+      min: 1,
+      max: WORKSPACE_LIMITS.recordIdCharacters,
+    }),
+    depth: body.depth as SelectableScanDepth,
+    ...(body.mode === undefined ? {} : { mode: body.mode as ReviewMode }),
+    ...(budget ? { budget } : {}),
+    ...(body.model === undefined ? {} : { model: body.model as string }),
+    ...(body.validatorModel === undefined ? {} : { validatorModel: body.validatorModel as string }),
+    ...(body.validatorProviderId === undefined
+      ? {}
+      : {
+          validatorProviderId: requireString(
+            body.validatorProviderId,
+            "Choose a saved provider for validation.",
+            { min: 1, max: WORKSPACE_LIMITS.recordIdCharacters },
+          ),
+        }),
+  };
 }
 
 /** A spending limit from a request body: whole tokens, or USD to the cent. */

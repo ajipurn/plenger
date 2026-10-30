@@ -39,7 +39,12 @@ export function ScansTable({
                   {names.get(scan.repositoryId) ?? "Project"}
                 </Link>
                 <span className="security-cell-caption">
-                  {scan.revision.commit?.slice(0, 7) ?? "Local files"}
+                  {scan.workflow === "static"
+                    ? "Static only"
+                    : scan.parentScanId
+                      ? "AI review"
+                      : "Run all"}{" "}
+                  · {scan.revision.commit?.slice(0, 7) ?? "Local files"}
                 </span>
               </td>
               <td>
@@ -66,6 +71,8 @@ export function ScansTable({
               <td title={scan.cost ? costDescription(scan.cost) : undefined}>
                 {scan.cost ? (
                   <MorphNumber value={scan.cost.totalUsd} count format={usdLabel} />
+                ) : scan.workflow === "static" ? (
+                  "No model usage"
                 ) : scan.status === "running" ? (
                   "Waiting for usage"
                 ) : (

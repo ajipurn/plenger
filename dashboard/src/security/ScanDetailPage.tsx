@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import {
   canContinue,
+  canStartScanAi,
   EXPLORE_STOPS,
   type ExploreSessionRecord,
+  findingValidation,
   type ImportedReaEvidence,
   type ReviewFinding,
   type ReviewPath,
@@ -12,6 +14,7 @@ import {
   SECURITY_POLL_MS,
   type SecurityScan,
   type SecurityWorkspace,
+  type StaticReviewFinding,
 } from "../../../src/dashboard/contract.ts";
 import { useApi } from "../app/DashboardContext.tsx";
 import { ReaEvidencePanel } from "../findings/ReaEvidencePanel.tsx";
@@ -37,10 +40,12 @@ export function ScanDetailPage({
   data,
   onRefresh,
   onNewScan,
+  onContinueWithAi,
 }: {
   data: SecurityWorkspace;
   onRefresh: () => Promise<void>;
   onNewScan: (id: string) => void;
+  onContinueWithAi: (scan: SecurityScan) => void;
 }) {
   const api = useApi();
   const { id } = useParams();
@@ -82,10 +87,15 @@ export function ScanDetailPage({
     );
   const repository = data.repositories.find((item) => item.id === scan.repositoryId);
   const names = new Map(data.repositories.map((item) => [item.id, item.name]));
-  const findings = scan.findings.map((item) => ({
-    ...item,
-    status: data.findings.find((current) => current.id === item.id)?.status ?? item.status,
-  }));
+  const findings = scan.findings
+    .filter((finding) => findingValidation(finding) !== "dismissed")
+    .map((item) => ({
+      ...item,
+      status:
+        data.findings.find(
+          (current) => current.id === item.id || current.aliases?.includes(item.id),
+        )?.status ?? item.status,
+    }));
   const outputs = params.get("tab") === "outputs";
   const sourceCoverage = scanSourceCoverage(scan);
   const running = scan.status === "running";
@@ -122,8 +132,19 @@ export function ScanDetailPage({
             <ScanStatus scan={scan} />
           </div>
           <p className="muted">
-            Local source scan <span aria-hidden="true">·</span> Started {date(scan.startedAt)}
+            {scan.workflow === "static"
+              ? "Static only"
+              : scan.parentScanId
+                ? "AI review"
+                : "Run all"}{" "}
+            <span aria-hidden="true">·</span> Started {date(scan.startedAt)}
           </p>
+          {scan.parentScanId && (
+            <p className="muted">
+              Continued from{" "}
+              <Link to={`/scans/${encodeURIComponent(scan.parentScanId)}`}>saved static scan</Link>.
+            </p>
+          )}
         </div>
         <div className="security-scan-actions">
           {running && (
@@ -171,10 +192,12 @@ export function ScanDetailPage({
         </div>
         <div>
           <dt>
-            <Icon name="inventory" /> Coverage
+            <Icon name="inventory" /> {scan.workflow === "static" ? "Analysis" : "Coverage"}
           </dt>
           <dd>
-            {sourceCoverage.total > 0 ? (
+            {scan.workflow === "static" ? (
+              "Static rules"
+            ) : sourceCoverage.total > 0 ? (
               <>
                 <MorphNumber value={sourceCoverage.total} count /> files in scope
               </>
@@ -208,6 +231,34 @@ export function ScanDetailPage({
             </Link>
           </nav>
           {running && <ScanProgress scan={scan} cancelling={cancelling} />}
+          {!running && scan.workflow === "static" && (
+            <section className="security-continue-scan" aria-labelledby="static-scan-result">
+              <h2 id="static-scan-result">
+                {scan.staticCompletedAt
+                  ? "Static analysis complete"
+                  : "Static analysis did not finish"}
+              </h2>
+              <p>
+                AI discovery and validation have not been run. Static candidates are Unvalidated.
+              </p>
+              {canStartScanAi(scan) ? (
+                <Button
+                  className="button button-primary"
+                  disabled={data.scans.some((item) => item.status === "running")}
+                  onClick={() => onContinueWithAi(scan)}
+                >
+                  Continue with AI
+                </Button>
+              ) : (
+                scan.status === "completed" && (
+                  <p className="muted">
+                    Source changed while static analysis was running. Start a new static scan before
+                    continuing with AI.
+                  </p>
+                )
+              )}
+            </section>
+          )}
           {canContinue(scan) && (
             <ContinueScan
               scan={scan}
@@ -224,11 +275,16 @@ export function ScanDetailPage({
               <Icon name="alert" />
               <div>
                 <strong>
-                  {scan.status === "cancelled" ? "Scan cancelled" : "AI review could not complete"}
+                  {scan.status === "cancelled"
+                    ? "Scan cancelled"
+                    : scan.workflow === "static"
+                      ? "Static analysis could not complete"
+                      : "AI review could not complete"}
                 </strong>
                 <p>
-                  The AI portion of this scan is incomplete. Review the details before starting
-                  another scan.
+                  {scan.workflow === "static"
+                    ? "Review the error details and local folder before starting another scan."
+                    : "The AI portion of this scan is incomplete. Review the details before starting another scan."}
                 </p>
                 <details className="security-error-details">
                   <summary>Show error details</summary>
@@ -307,8 +363,25 @@ export function ScanDetailPage({
                         </details>
                       ))}
                     </div>
+                    {!!review.scope.validation?.length && (
+                      <details className="security-output-coverage">
+                        <summary>Static validation source</summary>
+                        <ul>
+                          {review.scope.validation.map((file) => (
+                            <li key={file.path}>
+                              <code>{file.path}</code>
+                              {file.ranges
+                                ? `: ${file.ranges.map((range) => `${range.line}–${range.endLine}`).join(", ")}`
+                                : " (whole file)"}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     <TracedPaths paths={review.paths ?? []} findings={review.findings} />
-                    <DismissedCandidates findings={review.findings} />
+                    <DismissedCandidates
+                      findings={[...review.findings, ...(review.staticFindings ?? [])]}
+                    />
                     <details className="security-output-coverage">
                       <summary>Source coverage and limitations</summary>
                       <p className="muted">
@@ -366,7 +439,9 @@ export function ScanDetailPage({
                 <p className="muted">
                   {scan.status === "running"
                     ? "Model outputs appear after each round finishes."
-                    : "This scan has no AI outputs. Start a new scan with a saved provider to generate STRIDE and source analysis."}
+                    : scan.workflow === "static"
+                      ? "AI discovery and validation were not run. Continue with AI to produce model outputs."
+                      : "This scan has no AI outputs. Start a new scan with a saved provider to generate STRIDE and source analysis."}
                 </p>
               )}
               {scan.reviews.length > 1 && (
@@ -470,7 +545,9 @@ export function ScanDetailPage({
                     </>
                   )}
                   <small>
-                    {running ? (
+                    {scan.workflow === "static" ? (
+                      "Static analysis does not use a model."
+                    ) : running ? (
                       "Reported usage updates after each model response."
                     ) : (
                       <>
@@ -486,6 +563,8 @@ export function ScanDetailPage({
                 <dd>
                   {scan.cost ? (
                     <MorphNumber value={scan.cost.totalUsd} count format={usdLabel} />
+                  ) : scan.workflow === "static" ? (
+                    "No model usage"
                   ) : running ? (
                     "Waiting for usage"
                   ) : (
@@ -494,7 +573,9 @@ export function ScanDetailPage({
                   <small>
                     {scan.cost
                       ? costDescription(scan.cost)
-                      : "Requires saved model prices and complete token usage."}
+                      : scan.workflow === "static"
+                        ? "Static analysis runs locally without a provider."
+                        : "Requires saved model prices and complete token usage."}
                   </small>
                 </dd>
               </div>
@@ -608,7 +689,7 @@ function TracedPaths({ paths, findings }: { paths: ReviewPath[]; findings: Revie
  * Candidates validation dismissed, which the findings table leaves out: what each
  * dismissal rests on and the lines it cites. Earlier reviews saved no basis.
  */
-function DismissedCandidates({ findings }: { findings: ReviewFinding[] }) {
+function DismissedCandidates({ findings }: { findings: (ReviewFinding | StaticReviewFinding)[] }) {
   const dismissed = findings.filter((finding) => finding.validation === "dismissed");
   if (!dismissed.length) return null;
   return (
@@ -626,6 +707,7 @@ function DismissedCandidates({ findings }: { findings: ReviewFinding[] }) {
                   {dismissal ? dismissalLabel[dismissal.basis] : "Dismissed"}
                 </span>
               </summary>
+              {"static" in finding && <p className="muted">Static rule {finding.static.ruleId}</p>}
               <p>{finding.validationReason}</p>
               {repeated && <p className="muted">Repeats the candidate {repeated.title}.</p>}
               {dismissal?.evidence.length ? (

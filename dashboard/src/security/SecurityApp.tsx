@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
-import type { SecurityWorkspace } from "../../../src/dashboard/contract.ts";
+import type { SecurityScan, SecurityWorkspace } from "../../../src/dashboard/contract.ts";
 import { SECURITY_POLL_MS } from "../../../src/dashboard/contract.ts";
 import type { SavedProvider } from "../../../src/redteam/provider-config.ts";
 import { connect, type DashboardApi } from "../api/client.ts";
@@ -85,6 +85,7 @@ export function SecurityApp() {
   const [addRepository, setAddRepository] = useState(false);
   const [formsRequested, setFormsRequested] = useState(false);
   const [repositoryId, setRepositoryId] = useState("");
+  const [staticScan, setStaticScan] = useState<SecurityScan | null>(null);
   const [resumeNewScan, setResumeNewScan] = useState(false);
   const newTrigger = useRef<HTMLButtonElement>(null);
   const newReturnFocus = useRef<HTMLElement | null>(null);
@@ -153,6 +154,7 @@ export function SecurityApp() {
     }
   }, [location.pathname]);
   function openNewScan(id = "") {
+    setStaticScan(null);
     newReturnFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setRepositoryId(id);
@@ -298,6 +300,10 @@ export function SecurityApp() {
                       data={data}
                       onRefresh={refresh}
                       onNewScan={openNewScan}
+                      onContinueWithAi={(scan) => {
+                        openNewScan(scan.repositoryId);
+                        setStaticScan(scan);
+                      }}
                     />
                   }
                 />
@@ -382,6 +388,7 @@ export function SecurityApp() {
               key={`${repositoryId}:${newScan}`}
               open={newScan}
               repositoryId={repositoryId}
+              staticScan={staticScan}
               repositories={data.repositories}
               providers={providers}
               onClose={() => setNewScan(false)}
@@ -397,7 +404,7 @@ export function SecurityApp() {
               onStarted={(scan) => {
                 setData((current) => ({
                   ...current,
-                  scans: [scan, ...current.scans],
+                  scans: [scan, ...current.scans.filter((item) => item.id !== scan.id)],
                 }));
                 void refresh().catch((failure) =>
                   setError(errorMessage(failure, "Unable to refresh scans.")),

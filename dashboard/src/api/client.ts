@@ -21,6 +21,7 @@ import {
   type ProviderTestResult,
   type ReaImportRequest,
   type RepositorySource,
+  type ScanAiOptions,
   type ScanBudget,
   type SecurityFinding,
   type SecurityScan,
@@ -41,6 +42,7 @@ export interface DashboardApi {
   deleteRepository(id: string): Promise<DeleteResult>;
   repositorySource(id: string, signal?: AbortSignal): Promise<RepositorySource>;
   startSecurityScan(input: StartSecurityScan): Promise<SecurityScan>;
+  startScanAi(id: string, input: ScanAiOptions): Promise<SecurityScan>;
   securityScan(id: string): Promise<SecurityScan>;
   cancelSecurityScan(id: string): Promise<CancelResult>;
   continueSecurityScan(id: string, budget: ScanBudget): Promise<SecurityScan>;
@@ -104,6 +106,8 @@ export async function connect(): Promise<DashboardApi> {
         signal,
       ),
     startSecurityScan: (input) => request<SecurityScan>(API.securityScans, input),
+    startScanAi: (id, input) =>
+      request<SecurityScan>(API.startScanAi.replace(":id", encodeURIComponent(id)), input),
     securityScan: (id) =>
       request<SecurityScan>(API.securityScan.replace(":id", encodeURIComponent(id))),
     cancelSecurityScan: (id) =>

@@ -60,11 +60,28 @@ export function fixPromptRoutes({ store, supervisor }: Services): Route[] {
           );
           const review = input.reviewId ? store.reviews.read(report.id, input.reviewId) : null;
           const aiContext = review ? reviewRemediationContext(review, input.fingerprint) : null;
+          const staticReview = store.reviews
+            .list(report.id)
+            .flatMap((item) =>
+              (item.staticFindings ?? [])
+                .filter((entry) => entry.static.fingerprint === input.fingerprint)
+                .map((entry) => ({
+                  status: entry.validation,
+                  reason: entry.validationReason,
+                  reviewId: item.id,
+                })),
+            )
+            .at(0);
           const findingContext = input.reviewId
             ? aiContext
             : finding
               ? {
                   finding,
+                  validation: staticReview ?? {
+                    status: "unvalidated" as const,
+                    reason: "This static indication has no saved AI validation.",
+                    reviewId: null,
+                  },
                   rule: report.rules.find((item) => item.id === finding.rule) ?? null,
                 }
               : null;

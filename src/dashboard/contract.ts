@@ -22,6 +22,7 @@ export type {
   ReviewMode,
   ReviewPath,
   SecurityReview,
+  StaticReviewFinding,
 } from "../assessment/review-model.ts";
 export {
   batchCostBound,
@@ -40,9 +41,11 @@ export type {
   LocalRepository,
   ProjectThreatModel,
   ScanActivity,
+  ScanAiOptions,
   ScanBudget,
   ScanCoverage,
   ScanDepth,
+  ScanWorkflow,
   SecurityFinding,
   SecurityScan,
   SecurityScanSummary,
@@ -52,9 +55,13 @@ export type {
 } from "../security/model.ts";
 export {
   canContinue,
+  canStartScanAi,
   FINDING_STATUSES,
+  findingOrigins,
+  findingValidation,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
+  SCAN_WORKFLOWS,
   SECURITY_POLL_MS,
   THREAT_MODEL_LIMITS,
 } from "../security/model.ts";
@@ -82,6 +89,7 @@ export const API = {
   securityScan: "/api/security/scans/:id",
   cancelSecurityScan: "/api/security/scans/:id/cancel",
   continueSecurityScan: "/api/security/scans/:id/continue",
+  startScanAi: "/api/security/scans/:id/ai",
   findingStatus: "/api/security/findings/:id/status",
   reaEvidence: "/api/evidence/rea",
   deleteReaEvidence: "/api/evidence/rea/delete",

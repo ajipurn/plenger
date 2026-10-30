@@ -30,10 +30,9 @@ const RECENT_ACTIVITY = 6;
 
 /** A running scan's stages on a timeline, with its latest steps under the active stage. */
 export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancelling: boolean }) {
+  const steps = scan.workflow === "static" ? SCAN_STEPS.slice(0, 1) : SCAN_STEPS;
   const current =
-    scan.phase === "finished"
-      ? SCAN_STEPS.length
-      : SCAN_STEPS.findIndex((step) => step.phase === scan.phase);
+    scan.phase === "finished" ? steps.length : steps.findIndex((step) => step.phase === scan.phase);
   const round = Math.min(scan.reviews.length + 1, SCAN_DEPTHS[scan.depth].batches);
   const activity = scan.activity ?? [];
   const latest = activity.at(-1);
@@ -55,9 +54,15 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
         />
         <div className="security-scan-progress-copy" role="status">
           <p className="security-scan-progress-kicker">
-            <span>{SCAN_DEPTHS[scan.depth].label} scan</span>
-            <span aria-hidden="true">·</span>
-            <span>Round {round}</span>
+            <span>
+              {scan.workflow === "static" ? "Static scan" : `${SCAN_DEPTHS[scan.depth].label} scan`}
+            </span>
+            {scan.workflow !== "static" && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>Round {round}</span>
+              </>
+            )}
           </p>
           <h2>{cancelling ? "Cancelling scan" : phaseLabel[scan.phase]}</h2>
         </div>
@@ -68,7 +73,7 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
         )}
       </div>
       <ol className="security-scan-steps" aria-label="Analysis stages">
-        {SCAN_STEPS.map((step, index) => {
+        {steps.map((step, index) => {
           const state = index < current ? "complete" : index === current ? "current" : "pending";
           return (
             <li
@@ -81,7 +86,7 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
               </span>
               <div className="security-scan-step-body">
                 <p className="security-scan-step-title">
-                  {step.title}
+                  {step.phase === "reading" && scan.parentScanId ? "Load saved source" : step.title}
                   <small>
                     {state === "complete"
                       ? "Complete"
@@ -96,10 +101,12 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
                   <p className="muted">
                     {cancelling
                       ? "Waiting for the current request to stop. Completed static results remain available."
-                      : step.description}
+                      : step.phase === "reading" && scan.parentScanId
+                        ? "Loading the saved static result and preparing source for AI review."
+                        : step.description}
                   </p>
                 )}
-                {index === Math.min(current, SCAN_STEPS.length - 1) && activity.length > 0 && (
+                {index === Math.min(current, steps.length - 1) && activity.length > 0 && (
                   <ol className="security-scan-activity" aria-label="Recent scan activity">
                     {activity
                       .slice(-RECENT_ACTIVITY)
