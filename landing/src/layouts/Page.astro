@@ -1,5 +1,8 @@
 ---
 import "../styles/index.css";
+import redaction from "@fontsource/redaction/files/redaction-latin-400-normal.woff2?url";
+import redaction70 from "@fontsource/redaction-70/files/redaction-70-latin-400-normal.woff2?url";
+import kodeMono from "@fontsource-variable/kode-mono/files/kode-mono-latin-wght-normal.woff2?url";
 import Seo from "../components/Seo.astro";
 ---
 
@@ -7,16 +10,19 @@ import Seo from "../components/Seo.astro";
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0c12" />
     <meta name="color-scheme" content="dark" />
     <Seo />
     <script is:inline>
-      // Fonts that loaded on an earlier visit are cached: use them from the first frame.
-      try {
-        if (localStorage.getItem("plenger:fonts")) document.documentElement.classList.add("fonts");
-      } catch {}
+      const html = document.documentElement;
+      html.classList.add("is-loading");
+      // Release the page even if the boot module or a font download never arrives.
+      window.setTimeout(() => html.classList.remove("is-loading"), 3000);
     </script>
+    <link rel="preload" href={redaction} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={redaction70} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={kodeMono} as="font" type="font/woff2" crossorigin />
     <link rel="icon" type="image/svg+xml" href="/mark.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <noscript>
@@ -28,6 +34,11 @@ import Seo from "../components/Seo.astro";
     </noscript>
   </head>
   <body>
+    <div class="loader" data-loader role="status" aria-live="polite" aria-atomic="true">
+      <img src="/mark.svg" alt="" width="48" height="48" />
+      <span>Loading Plenger…</span>
+    </div>
+
     <canvas class="webgl" data-webgl aria-hidden="true"></canvas>
     <div class="glow" aria-hidden="true"></div>
     <div class="vignette" aria-hidden="true"></div>
@@ -37,9 +48,11 @@ import Seo from "../components/Seo.astro";
       <span class="cursor-ring" data-cursor-ring><span data-cursor-label></span></span>
     </div>
 
-    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="page-content">
+      <a class="skip-link" href="#main">Skip to content</a>
 
-    <slot />
+      <slot />
+    </div>
 
     <script>
       import "../boot.ts";

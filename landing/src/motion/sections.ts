@@ -41,13 +41,21 @@ export function setupProcess(scene: ParticleScene | null, reduced: boolean) {
     return;
   }
 
-  apply(0);
-  const progress = { value: 0 };
-  gsap.to(progress, {
-    value: 1,
-    ease: "none",
-    onUpdate: () => apply(progress.value),
-    scrollTrigger: { trigger: section, start: "top top", end: "bottom bottom", scrub: 1 },
+  // Compact screens read every step in normal flow. Recreate the desktop driver
+  // after a resize so a narrow initial visit never inherits a four-screen scroll.
+  gsap.matchMedia().add("(min-width: 900px)", () => {
+    active = -1;
+    apply(0);
+    const progress = { value: 0 };
+    gsap.to(progress, {
+      value: 1,
+      ease: "none",
+      onUpdate: () => apply(progress.value),
+      scrollTrigger: { trigger: section, start: "top top", end: "bottom bottom", scrub: 1 },
+    });
+    return () => {
+      for (const step of steps) step.classList.remove("is-active");
+    };
   });
 }
 

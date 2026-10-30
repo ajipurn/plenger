@@ -107,11 +107,6 @@ h2 {
     background-color 0.4s ease;
 }
 
-.command:hover {
-  border-color: rgb(198 184 217 / 0.6);
-  background: rgb(28 30 43 / 0.75);
-}
-
 .command code {
   font-size: inherit;
   color: var(--ink);
@@ -150,10 +145,6 @@ h2 {
   font-weight: 500;
   color: var(--ink-soft);
   transition: color 0.3s ease;
-}
-
-.link-arrow:hover {
-  color: var(--ink);
 }
 
 /* Marquee */
@@ -210,9 +201,10 @@ h2 {
 /* Wide screens keep the text clear of the code particles on the right. */
 .manifesto-text {
   max-width: min(720px, 100%);
-  font-size: clamp(1.35rem, 2.3vw, 2.4rem);
-  line-height: 1.22;
-  letter-spacing: -0.012em;
+  font-family: var(--font-mono);
+  font-size: clamp(1.125rem, 1.5vw, 1.5rem);
+  line-height: 1.7;
+  letter-spacing: normal;
 }
 
 /* Process: the panel sticks for three screens of scroll while the scan runs. CSS sizes
@@ -225,7 +217,7 @@ h2 {
   padding: clamp(88px, 13vh, 128px) var(--inset) clamp(28px, 5vh, 48px);
 }
 
-@media (prefers-reduced-motion: no-preference) {
+@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
   .process {
     height: 400svh;
   }
@@ -249,8 +241,8 @@ h2 {
 }
 
 .process-steps {
-  align-self: center;
-  margin-top: 4vh;
+  align-self: start;
+  margin-top: clamp(24px, 4vh, 40px);
 }
 
 .process-step {
@@ -296,7 +288,7 @@ h2 {
     margin 0.8s var(--ease-out);
 }
 
-@media (prefers-reduced-motion: no-preference) {
+@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
   .is-enhanced .process-step:not(.is-active) h3 {
     font-family: var(--font-redact-35);
     color: var(--ink-dim);
@@ -457,16 +449,6 @@ h2 {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.5s ease;
-}
-
-.agentic-card:hover,
-.stat:hover {
-  border-color: rgb(198 184 217 / 0.32);
-}
-
-.agentic-card:hover::before,
-.stat:hover::before {
-  opacity: 1;
 }
 
 .agentic-card {
@@ -905,15 +887,6 @@ h2 {
   transition: transform 0.5s var(--ease-out);
 }
 
-.footer-links a:hover {
-  color: var(--ink);
-}
-
-.footer-links a:hover::after {
-  transform: scaleX(1);
-  transform-origin: left;
-}
-
 /* background-clip: text paints only inside the box, so pad it around the swashes. */
 .footer-word {
   margin: 0;
@@ -934,6 +907,33 @@ h2 {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .command:hover {
+    border-color: rgb(198 184 217 / 0.6);
+    background: rgb(28 30 43 / 0.75);
+  }
+
+  .link-arrow:hover,
+  .footer-links a:hover {
+    color: var(--ink);
+  }
+
+  .agentic-card:hover,
+  .stat:hover {
+    border-color: rgb(198 184 217 / 0.32);
+  }
+
+  .agentic-card:hover::before,
+  .stat:hover::before {
+    opacity: 1;
+  }
+
+  .footer-links a:hover::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
 }
 
 /* Tablet and phone */
@@ -968,39 +968,163 @@ h2 {
 }
 
 @media (max-width: 899px) {
+  section {
+    padding-block: 72px;
+  }
+
+  h2 {
+    font-size: clamp(2rem, 6vw, 3rem);
+    line-height: 1.08;
+  }
+
+  .hero {
+    justify-content: flex-start;
+    padding-top: calc(88px + env(safe-area-inset-top, 0px));
+    padding-bottom: 48px;
+  }
+
+  .hero-title {
+    font-size: clamp(1.875rem, 10vw, 3.5rem);
+  }
+
+  .hero-copy {
+    max-width: 48ch;
+    font-size: 15px;
+  }
+
+  .hero-foot {
+    gap: 24px;
+    margin-top: 24px;
+  }
+
+  /* Keep the illustration in the flow so short screens cannot overlap the copy. */
+  .emblem-poster {
+    position: relative;
+    top: auto;
+    left: auto;
+    z-index: auto;
+    align-self: center;
+    flex: none;
+    width: clamp(180px, 48vw, 260px);
+    height: auto;
+    margin-bottom: 24px;
+    translate: none;
+  }
+
+  .has-scene .emblem-poster {
+    opacity: 0.9;
+  }
+
+  .manifesto {
+    padding-block: 80px;
+  }
+
+  .manifesto-text {
+    font-size: clamp(1.0625rem, 2.4vw, 1.25rem);
+  }
+
+  .process {
+    padding: 0;
+  }
+
+  .process-panel {
+    padding: 48px var(--inset);
+  }
+
   .process-inner,
   .stride-head,
   .stride-list {
     max-width: none;
   }
 
+  .process-inner {
+    height: auto;
+    grid-template-rows: auto auto;
+  }
+
+  .process-title {
+    font-size: clamp(2rem, 6vw, 3rem);
+  }
+
   .process-steps {
-    align-self: end;
+    margin-top: 28px;
   }
 
   .process-step {
-    background: linear-gradient(90deg, rgb(11 12 18 / 0.7), rgb(11 12 18 / 0.35));
+    grid-template-columns: 28px minmax(0, 1fr);
+    padding-block: 20px;
   }
 
-  .emblem-poster {
-    top: calc(50svh - 1.1 * var(--unit));
-    left: 50%;
-    width: calc(3.8 * 0.5 * var(--unit));
-  }
-}
-
-@media (max-width: 767px) {
-  /* Phones put the emblem above the copy. */
-  .hero {
-    justify-content: flex-end;
+  .process-step h3,
+  .stride-name {
+    font-size: 1.25rem;
+    line-height: 1.3;
   }
 
-  .hero-title {
-    font-size: 11vw;
+  .process-step p,
+  .stride-desc,
+  .stride-item.is-active .stride-desc {
+    max-height: none;
+    overflow: visible;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .process-progress {
+    display: none;
+  }
+
+  .stride-intro,
+  .showcase-intro,
+  .local-intro {
+    font-size: 15px;
+  }
+
+  .stride-list,
+  .agentic-grid,
+  .stats,
+  .showcase-stage {
+    margin-top: 32px;
   }
 
   .stride-item {
-    grid-template-columns: 36px 1fr;
+    padding-block: 18px;
+  }
+
+  .stride-name {
+    color: var(--ink);
+  }
+
+  .stride-desc,
+  .stride-item.is-active .stride-desc {
+    opacity: 1;
+    margin-top: 8px;
+  }
+
+  .agentic-card {
+    padding: 22px;
+    gap: 20px;
+  }
+
+  .agentic-card h3 {
+    font-size: 1.25rem;
+  }
+
+  .agentic-card p,
+  .stat dd,
+  .start-note {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .app-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-list,
+  .app-detail {
+    min-width: 0;
+    padding: 16px;
   }
 
   .app-bar {
@@ -1010,16 +1134,78 @@ h2 {
   .app-pill,
   .app-search,
   .app-row-path,
-  .app-tabs span:not(.is-active) {
+  .app-tabs span:not(.is-active),
+  .app-row .status {
     display: none;
   }
 
   .app-row {
-    grid-template-columns: 66px 1fr;
+    grid-template-columns: 66px minmax(0, 1fr);
+    gap: 10px;
+    padding-inline: 8px;
   }
 
-  .app-row .status {
-    display: none;
+  .app-row-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .app-detail-foot {
+    flex-wrap: wrap;
+  }
+
+  .app-code {
+    overflow-x: auto;
+  }
+
+  .start {
+    min-height: 0;
+    padding-block: 88px;
+  }
+
+  .start-title {
+    font-size: clamp(2.25rem, 8vw, 3.5rem);
+  }
+
+  .footer {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .footer-links {
+    gap: 0 24px;
+  }
+
+  .footer-links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .command,
+  .link-arrow {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 767px) {
+  .hero-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .hero-actions .command {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .hero-actions .command-state {
+    margin-inline-start: auto;
+  }
+
+  .stride-item {
+    grid-template-columns: 36px 1fr;
   }
 
   /* Phones list the stats one per row, number beside its label. */
@@ -1042,11 +1228,28 @@ h2 {
 
   .command {
     max-width: 100%;
+    gap: 8px;
+    padding-inline: 12px 8px;
+    font-size: 13px;
+  }
+
+  .command-state {
+    min-width: 48px;
+  }
+
+  .start-commands {
+    width: 100%;
   }
 
   .footer-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 359px) {
+  .command {
+    font-size: 12px;
   }
 }
 

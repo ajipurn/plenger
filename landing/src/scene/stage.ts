@@ -44,7 +44,10 @@ export function startScene(reduced: boolean, monoFont: string): ParticleScene | 
   );
   html.addEventListener("pointerleave", () => scene.pointer(9, 9));
 
+  const compact = window.matchMedia("(max-width: 899px)");
   gsap.ticker.add((time) => {
+    // Compact layouts use the in-flow static shield and keep particles off the copy.
+    if (compact.matches) return;
     scene.render(reduced ? 0 : time);
     if (glow) {
       glow.style.transform = `translate3d(${scene.state.x * unit}px, ${-scene.state.y * unit}px, 0)`;

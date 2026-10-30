@@ -36,17 +36,18 @@ See [docs-site/README.md](../docs-site/README.md) for the documentation workflow
 The page is built to score 100 in every Lighthouse category, on mobile and
 desktop. It is complete as HTML and CSS. Keep these properties when you change it.
 
-- The first paint needs only the HTML. Astro inlines the stylesheet, and the boot
-  script is 2 kB.
+- The first paint shows a small loading screen. Astro inlines the stylesheet and
+  preloads the hero fonts. The boot script stays small.
 - GSAP, Lenis and three.js load on the first pointer, key, wheel, touch or scroll
   event. Until then the hero shows `EmblemPoster`, an SVG drawing of the shield
   in the same place the particles assemble.
 - Layout does not depend on scripts. The process section sticks with CSS, and the
   marquee loops in CSS. Reveals animate only content still below the fold when
   the motion bundle arrives.
-- Fonts load in two stages. The first paint uses local fonts sized to match the
-  web fonts' widths, so lines break in the same places. `boot.ts` switches to
-  the web fonts on the next frame, and from the first frame on later visits.
+- `boot.ts` waits for all eight font families, then reveals the page with its
+  final typography. A failed download or a three-second deadline reveals local
+  fallbacks for that visit, without a later font swap. The deadline also works
+  if the boot module fails to load. Without JavaScript the page reads immediately.
 - The grain and the glow layers start with the scene. Large blended layers slow
   the first frame on phones.
 
@@ -68,12 +69,11 @@ from the hero.
 
 Redaction (MCKL, SIL OFL 1.1) sets display type. Its numbered cuts, Redaction
 35, 70 and 100, are the same letters with growing pixelation; their widths
-differ by about 2%. `src/motion/redact.ts` swaps them through `data-redact`,
-split lines do not wrap, and manifesto words keep their clean width. Headings
-clear from redacted as they enter, manifesto words clear as the scroll reaches
-them, and `<em>` accents stay redacted until hovered.
+differ by about 2%. `src/motion/redact.ts` swaps them through `data-redact`, and
+split lines do not wrap. Headings clear from redacted as they enter, and `<em>`
+accents stay redacted until hovered.
 
-Kode Mono sets everything else: copy, labels, commands and the code the
+Kode Mono sets the Approach paragraph, navigation, copy, labels, commands and the code the
 particles spell. The dashboard mock keeps the dashboard's own faces, Geist and
 Geist Mono, and the wordmark keeps Sacramento.
 
@@ -102,6 +102,12 @@ With `prefers-reduced-motion`, the page skips smooth scroll, reveals, the
 marquee and the cursor, and the process section is a static list. Without
 WebGL the hero keeps its static shield. Without JavaScript every section still
 reads.
+
+Below 1024px, navigation uses a native disclosure menu. Below 900px, the shield
+sits above the hero copy in normal flow. Process steps and all STRIDE descriptions stay
+open, with no sticky scroll sequence. Particles, text reveals and the dashboard
+tilt stay on wide screens. Touch controls have at least 44px of height, and the
+fixed header and footer respect device safe areas.
 
 Copy follows the repository docs: plain English, short sentences, claims that
 [docs/STATUS.md](../docs/STATUS.md) supports. The install command assumes a

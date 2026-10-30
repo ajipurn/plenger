@@ -28,6 +28,14 @@ const sections = [
     </a>
   </nav>
   <div class="nav-actions">
+    <details class="nav-menu" data-nav-menu>
+      <summary>Menu</summary>
+      <nav class="nav-menu-links" aria-label="Mobile sections">
+        {sections.map(({ href, label }) => <a href={href}>{label}</a>)}
+        <a href="/docs/">Docs</a>
+        <a href="https://github.com/ajipurn/plenger">GitHub</a>
+      </nav>
+    </details>
     <a
       class="nav-github"
       href="https://github.com/ajipurn/plenger"

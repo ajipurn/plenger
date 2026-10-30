@@ -1,6 +1,6 @@
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
-import { applyRedaction, unredact } from "./redact.ts";
+import { unredact } from "./redact.ts";
 
 /**
  * The motion bundle loads on the first interaction, so the reader may already see part
@@ -59,31 +59,6 @@ export function setupReveals() {
       ease: "power2.out",
       snap: { textContent: 1 },
       scrollTrigger: { trigger: value, start: "top 90%", once: true },
-    });
-  }
-
-  // Plenger reads: words stay redacted until the scroll reaches them.
-  const manifesto = document.querySelector<HTMLElement>("[data-words]");
-  if (manifesto && ahead(manifesto)) {
-    SplitText.create(manifesto, {
-      type: "words",
-      // A paragraph cannot carry aria-label; the word spans read as the same text.
-      aria: "none",
-      autoSplit: true,
-      onSplit: (self) => {
-        const words = self.words as HTMLElement[];
-        // The cuts differ in width by about 2%; fix each word to its clean width so
-        // clearing words never pushes the next one onto another line.
-        for (const word of words) word.style.width = `${word.getBoundingClientRect().width}px`;
-        const state = { progress: 0 };
-        applyRedaction(words, 0, 0.85);
-        return gsap.to(state, {
-          progress: 1,
-          ease: "none",
-          onUpdate: () => applyRedaction(words, state.progress, 0.85),
-          scrollTrigger: { trigger: manifesto, start: "top 78%", end: "bottom 42%", scrub: true },
-        });
-      },
     });
   }
 

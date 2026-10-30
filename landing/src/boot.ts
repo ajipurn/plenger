@@ -1,29 +1,30 @@
 import { setupCopy, setupNav } from "./motion/chrome.ts";
 
-/**
- * Web fonts load in two stages. The first paint uses local faces sized to match them,
- * so it never waits for a download; the `fonts` class switches to the web fonts on the
- * next frame. Once they have loaded, a flag lets later visits switch before the first
- * paint (see the inline script in Page.astro), when the fonts come from the cache.
- */
-const FONTS_KEY = "plenger:fonts";
-const FONT_FACES = ['400 1em "Redaction"', '400 1em "Kode Mono Variable"'];
+const FONT_FACES = [
+  '400 1em "Redaction"',
+  '400 1em "Redaction 35"',
+  '400 1em "Redaction 70"',
+  '400 1em "Redaction 100"',
+  '400 1em "Kode Mono Variable"',
+  '400 1em "Geist Variable"',
+  '400 1em "Geist Mono Variable"',
+  '400 1em "Sacramento"',
+];
 
-function loadFonts() {
+/** Reveal one stable set of fonts. A timed-out visit keeps its local fallbacks. */
+async function loadFonts() {
   const html = document.documentElement;
-  const remember = () => {
-    try {
-      localStorage.setItem(FONTS_KEY, "1");
-    } catch {
-      // Storage is optional; without it every visit takes the two-stage path.
+  try {
+    const loaded = await Promise.all(FONT_FACES.map((face) => document.fonts.load(face)));
+    // The inline deadline may have already revealed the page while downloads continued.
+    if (html.classList.contains("is-loading") && loaded.every((faces) => faces.length > 0)) {
+      html.classList.add("fonts");
     }
-  };
-  const swap = () => {
-    html.classList.add("fonts");
-    void Promise.all(FONT_FACES.map((face) => document.fonts.load(face))).then(remember, () => {});
-  };
-  if (html.classList.contains("fonts")) swap();
-  else requestAnimationFrame(() => requestAnimationFrame(swap));
+  } catch {
+    // Keep every family on its readable local fallback if a download fails.
+  } finally {
+    html.classList.remove("is-loading");
+  }
 }
 
 /**
@@ -32,7 +33,7 @@ function loadFonts() {
  */
 const INPUTS = ["pointermove", "pointerdown", "keydown", "wheel", "touchstart", "scroll"] as const;
 
-loadFonts();
+void loadFonts();
 setupCopy();
 setupNav();
 

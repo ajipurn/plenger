@@ -35,6 +35,19 @@ export function setupCopy() {
 export function setupNav() {
   const nav = document.querySelector<HTMLElement>("[data-nav]");
   if (!nav) return;
+  const menu = nav.querySelector<HTMLDetailsElement>("[data-nav-menu]");
+  const menuTrigger = menu?.querySelector("summary");
+  menu?.addEventListener("click", (event) => {
+    if ((event.target as Element).closest("a")) menu.open = false;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !menu?.open) return;
+    menu.open = false;
+    menuTrigger?.focus();
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (menu?.open && !menu.contains(event.target as Node)) menu.open = false;
+  });
 
   let last = window.scrollY;
   let queued = false;
@@ -42,7 +55,9 @@ export function setupNav() {
     queued = false;
     const y = window.scrollY;
     nav.classList.toggle("is-scrolled", y > 40);
-    if (Math.abs(y - last) > 4) nav.classList.toggle("is-hidden", y > last && y > 240);
+    if (Math.abs(y - last) > 4) {
+      nav.classList.toggle("is-hidden", y > last && y > 240 && !menu?.open);
+    }
     last = y;
   };
   window.addEventListener(

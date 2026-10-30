@@ -43,8 +43,11 @@ export async function enhance() {
   setupSpotlights();
   if (lenis) setupMarqueeBoost(lenis);
   if (!reduced) {
-    setupReveals();
-    setupShowcase(reduced);
+    // Small screens keep content readable immediately and the dashboard mock flat.
+    gsap.matchMedia().add("(min-width: 900px)", () => {
+      setupReveals();
+      setupShowcase(false);
+    });
     setupCursor();
     setupMagnetic();
   }

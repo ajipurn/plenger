@@ -44,7 +44,7 @@
   --medium: #e6cf86;
   --success: #8fd3b4;
 
-  /* Fonts load in two stages; see boot.ts. The first paint uses only local faces. */
+  /* Local faces stay active until every web font is ready behind the loading screen. */
   --font-sans: "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Kode Mono Fallback", ui-monospace, monospace;
   --font-mono-app: ui-monospace, monospace;
@@ -57,13 +57,18 @@
   --gutter: clamp(20px, 5vw, 64px);
   /* Content sits in one centred column; `--inset` pads full-width blocks to it. */
   --content: 1200px;
-  --inset: max(var(--gutter), calc((100% - var(--content)) / 2));
+  --inset: max(
+    var(--gutter),
+    env(safe-area-inset-left, 0px),
+    env(safe-area-inset-right, 0px),
+    calc((100% - var(--content)) / 2)
+  );
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.76, 0, 0.24, 1);
 }
 
-/* The web fonts, from the second frame on, or from the first once they are cached.
- * Redaction sets display type; its numbered cuts are the same letters, redacted. */
+/* Activate all web fonts together before revealing the page. Redaction's numbered
+ * cuts are the same letters, redacted. A failed or timed-out visit keeps local faces. */
 :root.fonts {
   --font-sans: "Geist Variable", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Kode Mono Variable", "Kode Mono Fallback", ui-monospace, monospace;
@@ -92,13 +97,44 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(88px + env(safe-area-inset-top, 0px));
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100svh;
   background: var(--bg);
   overflow-x: clip;
+}
+
+.loader {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  place-content: center;
+  justify-items: center;
+  gap: 20px;
+  background: var(--bg);
+  color: var(--ink-soft);
+  /* The loading label must never swap fonts itself. */
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+:root.is-loading,
+:root.is-loading body {
+  overflow: hidden;
+}
+
+:root.is-loading .loader {
+  display: grid;
+}
+
+:root.is-loading .page-content {
+  visibility: hidden;
 }
 
 ::selection {
@@ -133,6 +169,18 @@ button {
   color: inherit;
 }
 
+a,
+button,
+summary {
+  touch-action: manipulation;
+}
+
+.nav-cta:active,
+.command:active,
+.nav-menu summary:active {
+  opacity: 0.75;
+}
+
 code,
 pre {
   font-family: var(--font-mono);
@@ -143,7 +191,6 @@ h1,
 h2,
 h3,
 .marquee-track,
-.manifesto-text,
 .stride-letter,
 .stride-name,
 .agentic-num,
@@ -181,8 +228,10 @@ em {
   font-family: inherit;
 }
 
-em:hover {
-  font-family: var(--font-display);
+@media (hover: hover) and (pointer: fine) {
+  em:hover {
+    font-family: var(--font-display);
+  }
 }
 
 :focus-visible {
@@ -316,7 +365,7 @@ main,
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: 16px var(--inset);
+  padding: calc(16px + env(safe-area-inset-top, 0px)) var(--inset) 16px;
   transition:
     transform 0.6s var(--ease-out),
     background-color 0.4s ease;
@@ -361,14 +410,14 @@ main,
   -webkit-backdrop-filter: blur(14px);
 }
 
-/* The bar speaks in Geist, the product face; mono stays with the content. */
+/* Navigation shares Kode Mono with the page copy. */
 .nav-links a,
 .nav-github,
 .nav-cta {
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 500;
-  letter-spacing: -0.005em;
+  letter-spacing: normal;
 }
 
 .nav-links a {
@@ -380,7 +429,6 @@ main,
     background-color 0.4s ease;
 }
 
-.nav-links a:hover,
 .nav-links a.is-current {
   color: var(--ink);
 }
@@ -404,14 +452,6 @@ main,
   transform: translateY(100%);
 }
 
-.nav-links a:hover .nav-roll > span:first-child {
-  transform: translateY(-100%);
-}
-
-.nav-links a:hover .nav-roll > span + span {
-  transform: none;
-}
-
 .nav-actions {
   justify-self: end;
   display: flex;
@@ -425,10 +465,6 @@ main,
   gap: 7px;
   color: var(--ink-soft);
   transition: color 0.3s ease;
-}
-
-.nav-github:hover {
-  color: var(--ink);
 }
 
 .nav-github svg {
@@ -446,6 +482,26 @@ main,
   background: var(--ink);
   color: var(--bg);
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.nav-menu {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nav-links a:hover,
+  .nav-github:hover {
+    color: var(--ink);
+  }
+
+  .nav-links a:hover .nav-roll > span:first-child {
+    transform: translateY(-100%);
+  }
+
+  .nav-links a:hover .nav-roll > span + span {
+    transform: none;
+  }
 }
 
 .nav-cta svg,
@@ -529,19 +585,102 @@ main,
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .nav {
     grid-template-columns: 1fr auto;
-    padding-block: 14px;
+    column-gap: 12px;
+    padding-block: calc(10px + env(safe-area-inset-top, 0px)) 10px;
+    background: rgb(11 12 18 / 0.96);
   }
 
   .nav-links,
-  .nav-github span {
+  .nav-github {
     display: none;
+  }
+
+  .nav-actions {
+    gap: 8px;
+  }
+
+  .brand,
+  .nav-cta {
+    min-height: 44px;
   }
 
   .brand-word {
     font-size: 24px;
+  }
+
+  .nav-menu {
+    display: block;
+  }
+
+  .nav-menu summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding-inline: 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .nav-menu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .nav-menu[open] summary {
+    background: var(--bg-raise);
+  }
+
+  .nav-menu-links {
+    position: absolute;
+    top: 100%;
+    inset-inline: var(--inset);
+    display: grid;
+    padding: 8px;
+    max-height: calc(100svh - 96px - env(safe-area-inset-top, 0px));
+    overflow-y: auto;
+    border: 1px solid var(--line-strong);
+    border-radius: 16px;
+    background: var(--bg-raise);
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.3);
+  }
+
+  .nav-menu-links a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 15px;
+  }
+
+  .nav-menu-links a:active {
+    background: var(--line);
+  }
+}
+
+@media (max-width: 899px) {
+  .webgl,
+  .glow,
+  .is-enhanced .grain,
+  .cursor {
+    display: none;
+  }
+}
+
+@media (max-width: 359px) {
+  .brand {
+    justify-content: center;
+    min-width: 44px;
+  }
+
+  .brand-word {
+    display: none;
   }
 }
 
