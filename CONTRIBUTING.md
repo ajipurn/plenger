@@ -121,6 +121,10 @@ detects a case. Counting only source-supported findings is stricter. Counting
 only findings that name the labeled weakness needs the finding's CWE to be in
 the label's family (`WEAKNESS_FAMILIES` in `scripts/lib/evaluation.ts`); it
 keeps a second weakness at the same lines from counting for the labeled one.
+The static rules and each AI review also get a table per labeled CWE. Precision and
+recall carry a 95% Wilson score interval that counts each case once, so more
+`--runs` show the model's spread but do not narrow it. A CWE with one pair has an
+interval too wide to compare.
 `test/evaluation.test.ts` fails when the static results drift from the labels.
 `--corpus test/fixtures/evaluation-library` scores the library corpus, whose cases
 are scanned as the engine's library mode scans a package.

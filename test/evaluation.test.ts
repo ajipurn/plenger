@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type AiOutcome,
   aiOutcome,
+  cweMetrics,
   dismissedByMistake,
   type EvaluationCase,
   evaluateAi,
@@ -9,12 +10,14 @@ import {
   formatEvaluation,
   loadCorpus,
   metrics,
+  pooled,
   RATE_LIMIT_PAUSE_MS,
   reviewSnapshot,
   ruleMetrics,
   sameWeakness,
   severityAgreement,
   spread,
+  wilson,
 } from "../scripts/lib/evaluation.ts";
 import { STRIDE } from "../src/assessment/model.ts";
 import {
@@ -110,6 +113,10 @@ describe("evaluation corpus", () => {
       safe: 0,
       precision: 1,
     });
+    // Per CWE the largest weakness comes first, and a single pair proves almost nothing.
+    const byCwe = cweMetrics(cases, [outcomes]);
+    expect(byCwe[0]).toMatchObject({ cwe: "CWE-22", vulnerable: 26, safe: 24 });
+    expect(byCwe.find((row) => row.cwe === "CWE-319")?.recall?.low).toBeCloseTo(0.2065, 4);
     // 150 projects scanned one after another.
   }, 30000);
 
@@ -181,6 +188,30 @@ describe("weakness matching", () => {
     expect(sameWeakness("CWE-89", "CWE-639")).toBe(false);
     expect(sameWeakness("CWE-918", "CWE-400")).toBe(false);
     expect(sameWeakness("CWE-78", null)).toBe(false);
+  });
+});
+
+describe("intervals", () => {
+  it("gives the 95% Wilson interval, within 0 and 1 at the extremes", () => {
+    expect(wilson(0.5, 10).low).toBeCloseTo(0.2366, 4);
+    expect(wilson(0.5, 10).high).toBeCloseTo(0.7634, 4);
+    expect(wilson(0, 10).low).toBeCloseTo(0, 10);
+    expect(wilson(0, 10).high).toBeCloseTo(0.2775, 4);
+    expect(wilson(1, 10).low).toBeCloseTo(0.7225, 4);
+    expect(wilson(1, 10).high).toBeCloseTo(1, 10);
+  });
+
+  it("pools runs without narrowing the interval, and has none without cases", () => {
+    const run = metrics([
+      ...Array.from({ length: 10 }, (_, index) => ({
+        kind: "vulnerable" as const,
+        detected: index < 8,
+      })),
+      { kind: "safe" as const, detected: true },
+    ]);
+    expect(pooled([run])).toEqual({ precision: wilson(8 / 9, 9), recall: wilson(0.8, 10) });
+    expect(pooled([run, run, run])).toEqual(pooled([run]));
+    expect(pooled([metrics([])])).toEqual({ precision: null, recall: null });
   });
 });
 
@@ -399,6 +430,13 @@ describe("AI review evaluation", () => {
     expect(markdown).toContain(
       "Counting only source-supported findings: precision 1.00 (min 1.00, max 1.00), recall 0.50 (min 0.50, max 0.50).",
     );
+    // Two runs of two vulnerable cases weigh as two cases, not four.
+    const ai = markdown.slice(markdown.indexOf("## AI review")).replace(/ {2,}/g, " ");
+    expect(ai).toContain(
+      "Over all runs, with 95% intervals: precision 1.00 (0.21 to 1.00), recall 0.50 (0.09 to 0.91).",
+    );
+    expect(ai).toContain("| CWE-89 | 1 | 1 | n/a | n/a | 0.00 | 0.00 to 0.79 |");
+    expect(ai).toContain("| CWE-639 | 1 | 1 | 1.00 | 0.21 to 1.00 | 1.00 | 0.21 to 1.00 |");
     expect(markdown).not.toContain(access.apiKey);
   });
 });
