@@ -16,11 +16,11 @@ import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs, promisify } from "node:util";
+import { sameWeakness } from "../src/assessment/weaknesses.ts";
 import type { Span as FactSpan } from "../src/facts/model.ts";
 import { RULE_BY_ID } from "../src/rules/catalog.ts";
 import type { Finding } from "../src/rules/model.ts";
 import { scan } from "../src/scan.ts";
-import { sameWeakness } from "./lib/evaluation.ts";
 
 const run = promisify(execFile);
 

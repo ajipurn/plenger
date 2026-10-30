@@ -14,9 +14,9 @@ import {
   RATE_LIMIT_PAUSE_MS,
   reviewSnapshot,
   ruleMetrics,
-  sameWeakness,
   severityAgreement,
   spread,
+  supportedMetrics,
   wilson,
 } from "../scripts/lib/evaluation.ts";
 import { STRIDE } from "../src/assessment/model.ts";
@@ -28,6 +28,7 @@ import {
 } from "../src/assessment/review-model.ts";
 import { captureReviewSource } from "../src/assessment/review-source.ts";
 import { REVIEW_PROMPT_DIGEST } from "../src/assessment/security-review.ts";
+import { sameWeakness } from "../src/assessment/weaknesses.ts";
 import { fixturePath } from "./support/fixtures.ts";
 import { nativeReviewReply, reviewDecision } from "./support/security-review.ts";
 
@@ -235,6 +236,56 @@ describe("AI review evaluation", () => {
     expect(aiOutcome(item, batch).read).toBeUndefined();
   });
 
+  it("counts a kept static finding as detected and an AI duplicate merged into it as discovered", async () => {
+    const item = required(
+      (await loadCorpus(fixturePath("evaluation"))).find((entry) => entry.id === "py-sql-tool"),
+    );
+    const cite = { ...item.location, role: "sink", message: "SQL text" };
+    const staticFinding = {
+      static: { fingerprint: "f", ruleId: "PLG106" },
+      cwe: "CWE-89",
+      severity: "high",
+      evidence: [cite],
+      validation: "source-supported",
+      validationReason: "The customer argument reaches the query text.",
+    };
+    const review = {
+      status: "completed",
+      findings: [
+        {
+          cwe: "CWE-89",
+          severity: "critical",
+          evidence: [cite],
+          validation: "dismissed",
+          validationReason: "Duplicates the static candidate.",
+          dismissal: { basis: "duplicate", evidence: [], duplicateOf: "static" },
+        },
+      ],
+      staticFindings: [staticFinding],
+      request: { calls: 2, usage: null },
+      scope: { files: [] },
+    } as unknown as SecurityReview;
+    // The dashboard lists the static finding; discovery's rating of the duplicate still counts.
+    const merged = aiOutcome(item, review);
+    expect(merged).toMatchObject({
+      detected: true,
+      discovered: true,
+      matched: true,
+      severity: "critical",
+      verdicts: ["dismissed"],
+    });
+    expect(dismissedByMistake([merged])).toBe(0);
+    expect(supportedMetrics([merged]).truePositives).toBe(1);
+    // A dismissed static finding with nothing else at the label is a mistaken dismissal.
+    const dismissed = aiOutcome(item, {
+      ...review,
+      findings: [],
+      staticFindings: [{ ...staticFinding, validation: "dismissed" }],
+    } as unknown as SecurityReview);
+    expect(dismissed).toMatchObject({ detected: false, discovered: false, severity: null });
+    expect(dismissedByMistake([dismissed])).toBe(1);
+  });
+
   it("reviews cases concurrently in case order and reruns a review the provider rate-limited", async () => {
     const cases = (await loadCorpus(fixturePath("evaluation"))).filter((item) =>
       ["py-sql-tool", "ts-idor-route"].includes(item.id),
@@ -306,6 +357,7 @@ describe("AI review evaluation", () => {
         kind: id === "e" ? "safe" : "vulnerable",
         detected: true,
         verdicts: [],
+        staticCandidates: [],
         ...fields,
       }) as AiOutcome;
     const outcomes = [
@@ -372,9 +424,31 @@ describe("AI review evaluation", () => {
     expect(result.runs).toHaveLength(2);
     const first = required(result.runs[0]);
     const outcome = (id: string) => required(first.find((item) => item.id === id));
-    // The SQL findings cite line 1, outside both labels: no detection, one unlabeled finding.
-    expect(outcome("py-sql-tool")).toMatchObject({ detected: false, unlabeled: 1 });
-    expect(outcome("py-sql-tool-param")).toMatchObject({ detected: false, unlabeled: 1 });
+    // The SQL findings cite line 1, outside both labels: one unlabeled finding each. The
+    // static SQL finding at the vulnerable label is validated with them, so that case is
+    // detected although discovery did not report it.
+    expect(outcome("py-sql-tool")).toMatchObject({
+      detected: true,
+      discovered: false,
+      matched: true,
+      severity: null,
+      unlabeled: 1,
+    });
+    expect(outcome("py-sql-tool").staticCandidates).toEqual([
+      {
+        rule: "PLG106",
+        cwe: "CWE-89",
+        labeled: true,
+        verdict: "source-supported",
+        basis: null,
+        reason: expect.stringMatching(/\S/),
+      },
+    ]);
+    expect(outcome("py-sql-tool-param")).toMatchObject({
+      detected: false,
+      unlabeled: 1,
+      staticCandidates: [],
+    });
     expect(outcome("ts-idor-route")).toMatchObject({
       detected: true,
       matched: true,
@@ -402,17 +476,17 @@ describe("AI review evaluation", () => {
       },
     ]);
     expect(result.metrics[0]).toEqual({
-      truePositives: 1,
+      truePositives: 2,
       falsePositives: 0,
-      falseNegatives: 1,
+      falseNegatives: 0,
       trueNegatives: 2,
       precision: 1,
-      recall: 0.5,
+      recall: 1,
     });
     expect(spread(result.metrics.map((item) => item.recall))).toEqual({
-      mean: 0.5,
-      min: 0.5,
-      max: 0.5,
+      mean: 1,
+      min: 1,
+      max: 1,
     });
     const markdown = formatEvaluation(cases, await evaluateStatic(cases), [result], "2026-10-16");
     expect(markdown).toContain(
@@ -428,15 +502,21 @@ describe("AI review evaluation", () => {
       "Severity of 2 rated detections across runs: 2 at the labeled level, 2 within one level, 0 rated higher and 0 lower. Vulnerable cases dismissed by mistake per run: 0, 0. Dismissals the host kept as needs-review: 0. Traced paths listed across runs: 4, closed 0 (finding 0, safe 0, open 0), unclosed 4.",
     );
     expect(markdown).toContain(
-      "Counting only source-supported findings: precision 1.00 (min 1.00, max 1.00), recall 0.50 (min 0.50, max 0.50).",
+      "Precision 1.00 (min 1.00, max 1.00). Recall 1.00 (min 1.00, max 1.00). Discovery alone, without static findings: precision 1.00 (min 1.00, max 1.00), recall 0.50 (min 0.50, max 0.50). Counting only source-supported findings: precision 1.00 (min 1.00, max 1.00), recall 1.00 (min 1.00, max 1.00).",
     );
     // Two runs of two vulnerable cases weigh as two cases, not four.
     const ai = markdown.slice(markdown.indexOf("## AI review")).replace(/ {2,}/g, " ");
     expect(ai).toContain(
-      "Over all runs, with 95% intervals: precision 1.00 (0.21 to 1.00), recall 0.50 (0.09 to 0.91).",
+      "Over all runs, with 95% intervals: precision 1.00 (0.34 to 1.00), recall 1.00 (0.34 to 1.00).",
     );
-    expect(ai).toContain("| CWE-89 | 1 | 1 | n/a | n/a | 0.00 | 0.00 to 0.79 |");
+    expect(ai).toContain("| CWE-89 | 1 | 1 | 1.00 | 0.21 to 1.00 | 1.00 | 0.21 to 1.00 |");
     expect(ai).toContain("| CWE-639 | 1 | 1 | 1.00 | 0.21 to 1.00 | 1.00 | 0.21 to 1.00 |");
+    expect(ai).toContain(
+      "| py-sql-tool | vulnerable | 2/2 | static source-supported, static source-supported | 2 | high: none |",
+    );
+    expect(ai).toContain("| At a vulnerable label | 2 | 0 | 0 | 0 |");
+    expect(ai).toContain("| At a safe label | 0 | 0 | 0 | 0 |");
+    expect(ai).toContain("| Elsewhere | 0 | 0 | 0 | 0 |");
     expect(markdown).not.toContain(access.apiKey);
   });
 });

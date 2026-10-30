@@ -34,7 +34,6 @@ import {
   Plus,
   Shield,
   Sun,
-  TargetDart,
   TrashBin,
   Wrench,
   Xmark,
@@ -83,7 +82,7 @@ export type IconName =
   | "plus";
 const glyphs: Record<IconName, typeof Folder> = {
   overview: LayoutCellsLarge,
-  findings: TargetDart,
+  findings: Fingerprint,
   inventory: Layers,
   redteam: Shield,
   history: ClockArrowRotateLeft,
@@ -114,7 +113,7 @@ const glyphs: Record<IconName, typeof Folder> = {
   checklist: ListCheck,
   sun: Sun,
   moon: Moon,
-  scan: Fingerprint,
+  scan: Magnifier,
   download: ArrowDownToLine,
   check: Check,
   search: Magnifier,

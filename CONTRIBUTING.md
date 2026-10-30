@@ -117,11 +117,16 @@ docs/qualifications/<name>.md`. `--json <file>` writes every outcome, including
 each finding at a labeled location with its title, STRIDE category, CWE,
 severity, second-review verdict and reason, to see why a safe case was reported.
 
-The report gives three counts. Any kept finding that cites the labeled lines
-detects a case. Counting only source-supported findings is stricter. Counting
-only findings that name the labeled weakness needs the finding's CWE to be in
-the label's family (`WEAKNESS_FAMILIES` in `scripts/lib/evaluation.ts`); it
-keeps a second weakness at the same lines from counting for the labeled one.
+The second review decides the static scanner's findings with the AI candidates,
+and the dashboard lists both. So any kept finding of either origin that cites
+the labeled lines detects a case. Discovery alone leaves static findings out and
+counts an AI finding dismissed as a duplicate of a kept candidate, which keeps it
+comparable with runs from before static candidates were validated. Counting only
+source-supported findings is stricter. Counting only findings that name the
+labeled weakness needs the finding's CWE to be in the label's family
+(`src/assessment/weaknesses.ts`); it keeps a second weakness at the same lines
+from counting for the labeled one. A table counts the static findings' verdicts
+by whether they cite a vulnerable label, a safe label or neither.
 The static rules and each AI review also get a table per labeled CWE. Precision and
 recall carry a 95% Wilson score interval that counts each case once, so more
 `--runs` show the model's spread but do not narrow it. A CWE with one pair has an

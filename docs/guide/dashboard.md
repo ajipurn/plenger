@@ -245,8 +245,8 @@ The breakdown records the pricing basis and completeness for each pass.
 **Export scan** downloads the redacted job, its findings and review records.
 It is distinct from the static engine's versioned JSON report. Dismissed model
 candidates remain in the review records even though they are absent from the
-default finding table. Cross-origin duplicates merge only with a matching CWE and
-source-path evidence after validation identifies the duplicate. Rule ids,
+default finding table. Cross-origin duplicates merge only with a CWE of the same
+family and an overlapping sink after validation identifies the duplicate. Rule ids,
 provenance, review reasons and earlier triage states remain traceable in the report.
 
 ### Generate a fix prompt

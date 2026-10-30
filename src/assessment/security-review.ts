@@ -835,7 +835,7 @@ export async function reviewProject(
               !sameCandidatePath(candidate, target)
             ) {
               decision.verdict = "needs-review";
-              decision.reason = `The host could not match the duplicate's weakness and source path. ${decision.reason}`;
+              decision.reason = `The host could not match the duplicate's weakness and sink. ${decision.reason}`;
               delete decision.dismissal;
               decision.unchecked = true;
             }

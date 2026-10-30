@@ -9,6 +9,7 @@ import {
   REVIEW_PROMPT_DIGEST,
   reviewProject,
 } from "../../src/assessment/security-review.ts";
+import { cweNumber, sameWeakness } from "../../src/assessment/weaknesses.ts";
 import type { ModelPricing } from "../../src/redteam/model-pricing.ts";
 import type { ProviderAccess } from "../../src/redteam/provider.ts";
 import { type Finding, SEVERITIES, type Severity } from "../../src/rules/model.ts";
@@ -64,17 +65,24 @@ export interface AiOutcome {
   status: SecurityReview["status"];
   /** Why a review did not complete. */
   reason?: string;
+  /** A kept finding of either origin cites the labeled lines, as the dashboard shows it. */
   detected: boolean;
-  /** Second-review verdicts of the findings at the labeled location, dismissed ones included. */
+  /**
+   * Discovery reported the labeled lines: an AI finding there was kept, or dismissed as a
+   * duplicate of a kept candidate. Static findings do not count.
+   */
+  discovered: boolean;
+  /** Second-review verdicts of the AI findings at the labeled location, dismissed ones included. */
   verdicts: string[];
   /** A kept finding at the labeled location names the labeled weakness (see `sameWeakness`). */
   matched: boolean;
   /**
-   * The highest severity of the kept findings at the labeled location, of those that name
-   * the labeled weakness when any does; null without one.
+   * The highest severity discovery gave the AI findings it reported at the labeled location,
+   * of those that name the labeled weakness when any does; null without one. Static rule
+   * severities are not rated.
    */
   severity: Severity | null;
-  /** Those findings, with what they claim and why the second review decided as it did. */
+  /** The AI findings at the labeled location, with what they claim and why the second review decided as it did. */
   findings: {
     title: string;
     category: string;
@@ -87,6 +95,15 @@ export interface AiOutcome {
   }[];
   /** Findings that were not dismissed and cite none of the labeled lines. */
   unlabeled: number;
+  /** The static scanner's findings the second review decided, and whether each cites the labeled lines. */
+  staticCandidates: {
+    rule: string;
+    cwe: string | null;
+    labeled: boolean;
+    verdict: string;
+    basis: string | null;
+    reason: string;
+  }[];
   /** Dismissals in the review that the host kept as needs-review. */
   uncheckedDismissals: number;
   /** Traced paths the review was asked to close, by how it closed them. */
@@ -181,45 +198,29 @@ export function staticOutcome(item: EvaluationCase, findings: readonly Finding[]
 }
 
 /**
- * CWEs that name the same weakness for scoring: a review that calls a traversal CWE-23
- * or an insecure direct object reference CWE-862 has found the labeled weakness.
+ * A review's findings at the labeled location. Dismissed findings never count as detection;
+ * kept static findings do, since the dashboard lists them with the AI findings.
  */
-const WEAKNESS_FAMILIES: readonly (readonly number[])[] = [
-  [77, 78, 88],
-  // Path traversal with its named relative (23 to 35) and absolute (36 to 40) variants.
-  [22, ...Array.from({ length: 18 }, (_, index) => 23 + index), 59, 73],
-  [89, 564, 943],
-  [94, 95, 96, 1336, 1426],
-  [74, 1427],
-  [269, 284, 285, 287, 306, 566, 639, 862, 863],
-  [441, 918],
-  [502],
-  [200, 201, 256, 259, 312, 321, 359, 522, 532, 798],
-  [494, 829, 1104, 1357],
-  [311, 319],
-  [400, 770, 834, 835],
-];
-
-/** The number of a `CWE-<n>` id; NaN for anything else. */
-function cweNumber(value: string): number {
-  return Number(/^CWE-(\d+)$/.exec(value)?.[1] ?? Number.NaN);
-}
-
-/** Whether a finding's CWE names the labeled weakness, directly or within its family. */
-export function sameWeakness(label: string, cwe: string | null | undefined): boolean {
-  if (!cwe) return false;
-  const [a, b] = [cweNumber(label), cweNumber(cwe)];
-  return a === b || WEAKNESS_FAMILIES.some((family) => family.includes(a) && family.includes(b));
-}
-
-/** A review's findings at the labeled location; dismissed findings never count as detection. */
 export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutcome {
-  const at = (finding: SecurityReview["findings"][number]) =>
+  const at = (finding: Pick<SecurityReview["findings"][number], "evidence">) =>
     finding.evidence.some((cite) => overlaps(item.location, cite));
   const kept = review.findings.filter((finding) => finding.validation !== "dismissed");
-  const here = kept.filter(at);
+  const staticFindings = review.staticFindings ?? [];
+  const here = [
+    ...kept,
+    ...staticFindings.filter((finding) => finding.validation !== "dismissed"),
+  ].filter(at);
   const named = here.filter((finding) => sameWeakness(item.cwe, finding.cwe));
-  const rated = (named.length ? named : here).map((finding) => finding.severity);
+  // A duplicate dismissal names a kept candidate, so discovery still reported the weakness.
+  const reported = review.findings.filter(
+    (finding) =>
+      at(finding) &&
+      (finding.validation !== "dismissed" || finding.dismissal?.basis === "duplicate"),
+  );
+  const reportedNamed = reported.filter((finding) => sameWeakness(item.cwe, finding.cwe));
+  const rated = (reportedNamed.length ? reportedNamed : reported).map(
+    (finding) => finding.severity,
+  );
   const usage = review.request.usage;
   const costs = [review.request.billing?.cost, review.request.validatorBilling?.cost];
   return {
@@ -228,6 +229,7 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
     status: review.status,
     ...(review.status !== "completed" && review.reason ? { reason: review.reason } : {}),
     detected: here.length > 0,
+    discovered: reported.length > 0,
     matched: named.length > 0,
     severity: SEVERITIES.find((severity) => rated.includes(severity)) ?? null,
     verdicts: review.findings.filter(at).map((finding) => finding.validation),
@@ -242,6 +244,14 @@ export function aiOutcome(item: EvaluationCase, review: SecurityReview): AiOutco
       reason: finding.validationReason,
     })),
     unlabeled: kept.filter((finding) => !at(finding)).length,
+    staticCandidates: staticFindings.map((finding) => ({
+      rule: finding.static.ruleId,
+      cwe: finding.cwe ?? null,
+      labeled: at(finding),
+      verdict: finding.validation,
+      basis: finding.dismissal?.basis ?? null,
+      reason: finding.validationReason,
+    })),
     uncheckedDismissals: review.findings.filter((finding) => finding.uncheckedDismissal).length,
     paths: (["finding", "safe", "open", "unclosed"] as const).reduce(
       (sum, closure) => {
@@ -483,14 +493,27 @@ export async function evaluateAi(
   };
 }
 
+/** Second-review verdicts at the labeled location, of the AI and the static findings. */
+function labeledVerdicts(outcome: AiOutcome): string[] {
+  return [
+    ...outcome.verdicts,
+    ...outcome.staticCandidates.filter((item) => item.labeled).map((item) => item.verdict),
+  ];
+}
+
 /** Metrics when only a finding the second review marked source-supported counts. */
 export function supportedMetrics(outcomes: readonly AiOutcome[]): Metrics {
   return metrics(
     outcomes.map((item) => ({
       kind: item.kind,
-      detected: item.verdicts.includes("source-supported"),
+      detected: labeledVerdicts(item).includes("source-supported"),
     })),
   );
+}
+
+/** Metrics of discovery alone: static findings do not count, merged duplicates do. */
+export function discoveryMetrics(outcomes: readonly AiOutcome[]): Metrics {
+  return metrics(outcomes.map((item) => ({ kind: item.kind, detected: item.discovered })));
 }
 
 /** Metrics when only a kept finding that names the labeled weakness counts. */
@@ -525,8 +548,36 @@ export function severityAgreement(
 /** Vulnerable cases whose findings at the labeled location were all dismissed. */
 export function dismissedByMistake(outcomes: readonly AiOutcome[]): number {
   return outcomes.filter(
-    (item) => item.kind === "vulnerable" && !item.detected && item.verdicts.includes("dismissed"),
+    (item) =>
+      item.kind === "vulnerable" && !item.detected && labeledVerdicts(item).includes("dismissed"),
   ).length;
+}
+
+const VALIDATIONS = [
+  "source-supported",
+  "needs-review",
+  "dismissed",
+  "unvalidated",
+] as const satisfies readonly SecurityReview["findings"][number]["validation"][];
+
+/** Static candidates by where they cite, counted per second-review verdict in `VALIDATIONS` order. */
+export function staticVerdicts(outcomes: readonly AiOutcome[]) {
+  const places: [string, (kind: EvaluationCase["kind"], labeled: boolean) => boolean][] = [
+    ["At a vulnerable label", (kind, labeled) => labeled && kind === "vulnerable"],
+    ["At a safe label", (kind, labeled) => labeled && kind === "safe"],
+    ["Elsewhere", (_kind, labeled) => !labeled],
+  ];
+  return places.map(([place, test]) => {
+    const decided = outcomes.flatMap((outcome) =>
+      outcome.staticCandidates.filter((item) => test(outcome.kind, item.labeled)),
+    );
+    return {
+      place,
+      counts: VALIDATIONS.map(
+        (verdict) => decided.filter((item) => item.verdict === verdict).length,
+      ),
+    };
+  });
 }
 
 /** Mean, lowest and highest of the non-null values. */
@@ -588,6 +639,10 @@ export function formatEvaluation(
     const precision = spread(evaluation.metrics.map((item) => item.precision));
     const recall = spread(evaluation.metrics.map((item) => item.recall));
     const all = pooled(evaluation.metrics);
+    // Discovery alone, comparable with evaluations from before static candidates were validated.
+    const discovery = evaluation.runs.map((outcomes) => discoveryMetrics(outcomes));
+    const discoveryPrecision = spread(discovery.map((item) => item.precision));
+    const discoveryRecall = spread(discovery.map((item) => item.recall));
     // Counting only findings the second review supported, the triage view of a strict reader.
     const supported = evaluation.runs.map((outcomes) => supportedMetrics(outcomes));
     const strictPrecision = spread(supported.map((item) => item.precision));
@@ -630,11 +685,19 @@ export function formatEvaluation(
       "",
       `${evaluation.mode === "explore" ? "Explore" : "Batch"} mode, prompt digest \`${evaluation.promptDigest.slice(0, 12)}\`, ${evaluation.runs.length} ${evaluation.runs.length === 1 ? "run" : "runs"}, Standard depth. ${failed} of ${outcomes.length} reviews did not complete.${rerun ? ` ${rerun} ${rerun === 1 ? "review was" : "reviews were"} rerun after the provider answered HTTP 429.` : ""}${costs.length ? ` Estimated cost USD ${costs.reduce((sum, cost) => sum + cost, 0).toFixed(4)}.` : ""} ${requests} model requests${tools.length ? `; tool calls: ${tools.map(([name, count]) => `${name} ${count}`).join(", ")}` : ""}.`,
       "",
-      `Precision ${range(precision)}. Recall ${range(recall)}. Counting only source-supported findings: precision ${range(strictPrecision)}, recall ${range(strictRecall)}. Counting only findings that name the labeled weakness: precision ${range(weaknessPrecision)}, recall ${range(weaknessRecall)}.`,
+      `Precision ${range(precision)}. Recall ${range(recall)}. Discovery alone, without static findings: precision ${range(discoveryPrecision)}, recall ${range(discoveryRecall)}. Counting only source-supported findings: precision ${range(strictPrecision)}, recall ${range(strictRecall)}. Counting only findings that name the labeled weakness: precision ${range(weaknessPrecision)}, recall ${range(weaknessRecall)}.`,
       "",
       `Over all runs, with 95% intervals: precision ${stated(all.precision)}, recall ${stated(all.recall)}.`,
       "",
       `Severity of ${agreement.rated} rated detections across runs: ${agreement.exact} at the labeled level, ${agreement.withinOne} within one level, ${agreement.higher} rated higher and ${agreement.lower} lower. Vulnerable cases dismissed by mistake per run: ${evaluation.runs.map((run) => dismissedByMistake(run)).join(", ")}. Dismissals the host kept as needs-review: ${unchecked}. Traced paths listed across runs: ${listed}, closed ${listed - paths.unclosed} (finding ${paths.finding}, safe ${paths.safe}, open ${paths.open}), unclosed ${paths.unclosed}.`,
+      "",
+      "Static scanner findings the second review decided across runs, by where they cite:",
+      "",
+      table(
+        ["Static candidates", "Source-supported", "Needs review", "Dismissed", "Unvalidated"],
+        staticVerdicts(outcomes).map((row) => [row.place, ...row.counts]),
+        [1, 2, 3, 4],
+      ),
       "",
       table(
         ["Run", "TP", "FP", "FN", "TN", "Precision", "Recall"],
@@ -666,7 +729,12 @@ export function formatEvaluation(
             outcomes.find((outcome) => outcome.id === item.id),
           );
           const detected = own.filter((outcome) => outcome?.detected).length;
-          const verdicts = own.flatMap((outcome) => outcome?.verdicts ?? []);
+          const verdicts = own.flatMap((outcome) => [
+            ...(outcome?.verdicts ?? []),
+            ...(outcome?.staticCandidates ?? [])
+              .filter((candidate) => candidate.labeled)
+              .map((candidate) => `static ${candidate.verdict}`),
+          ]);
           const unlabeled = own.reduce((sum, outcome) => sum + (outcome?.unlabeled ?? 0), 0);
           const reported = own.flatMap((outcome) => (outcome?.severity ? [outcome.severity] : []));
           return [

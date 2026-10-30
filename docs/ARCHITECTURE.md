@@ -102,7 +102,8 @@ Secrets are redacted by `shared/secrets.ts` before anything is written.
 `assessment/security-review.ts` runs bounded source discovery and a skeptical
 second review through the saved provider. Discovery remains independent.
 `review-static.ts` converts static indications to host-owned validation candidates
-and checks duplicate path anchors. The same second pass decides static and AI
+and checks that a duplicate names a weakness of the same family, from
+`weaknesses.ts`, and an overlapping sink. The same second pass decides static and AI
 candidates within the existing context, request, token, time and spending limits.
 `review-source.ts` rereads only files
 in a saved scan's allowlist through the bounded regular-file reader. It redacts

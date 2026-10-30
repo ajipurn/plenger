@@ -6,6 +6,7 @@ import {
   type ReviewCitation,
   type StaticReviewCandidate,
 } from "./review-model.ts";
+import { sameWeakness } from "./weaknesses.ts";
 
 /** Static indications are hypotheses for validation, never inputs to discovery. */
 export function staticReviewCandidates(snapshot: ScanResult): StaticReviewCandidate[] {
@@ -48,22 +49,22 @@ function overlaps(a: ReviewCitation, b: ReviewCitation): boolean {
   return a.path === b.path && a.line <= b.endLine && b.line <= a.endLine;
 }
 
-/** A model's duplicate claim also needs the same weakness and both path anchors. */
+/** The citations a candidate marks as its effect, or its last citation when it marks none. */
+function sinks(candidate: Pick<ReviewCandidate, "evidence">): ReviewCitation[] {
+  const marked = candidate.evidence.filter((cite) => cite.role === "sink");
+  return marked.length ? marked : candidate.evidence.slice(-1);
+}
+
+/**
+ * A model's duplicate claim across origins also needs a weakness of the same family and an
+ * overlapping sink. Sources are not compared: a configuration rule cites only its sink, and
+ * a rule and the model often cite different lines of the same input.
+ */
 export function sameCandidatePath(
   a: Pick<ReviewCandidate, "cwe" | "evidence">,
   b: Pick<ReviewCandidate, "cwe" | "evidence">,
 ): boolean {
-  if (!a.cwe || a.cwe !== b.cwe || !a.evidence.length || !b.evidence.length) return false;
-  const first = a.evidence[0];
-  const otherFirst = b.evidence[0];
-  const sink = a.evidence.at(-1);
-  const otherSink = b.evidence.at(-1);
-  return Boolean(
-    first &&
-      otherFirst &&
-      sink &&
-      otherSink &&
-      overlaps(first, otherFirst) &&
-      overlaps(sink, otherSink),
-  );
+  if (!sameWeakness(a.cwe, b.cwe)) return false;
+  const others = sinks(b);
+  return sinks(a).some((sink) => others.some((other) => overlaps(sink, other)));
 }
