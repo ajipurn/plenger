@@ -106,6 +106,8 @@ export const API = {
 export const TOKEN_HEADER = "X-Plenger-Token";
 /** Provider settings can include a bounded price table for up to 100 models. */
 export const PROVIDER_SETTINGS_BYTES = 128 * 1024;
+/** Short selects retain their compact list; larger lists include a search field. */
+export const SELECT_SEARCH_MIN_OPTIONS = 10;
 
 // --- Shared models ----------------------------------------------------------------
 

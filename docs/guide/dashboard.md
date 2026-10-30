@@ -61,6 +61,10 @@ Browser Back, Forward and refresh
 work. `/history` redirects to Scans; `/repositories` and `/inventory` redirect to Projects.
 The `/redteam` route displays **Coming soon** and exposes no testing controls.
 
+Select menus with ten or more options include a search field. Search matches display
+names and IDs without regard to case. Use arrow keys and Enter to choose a result,
+or Escape to close the menu. Shorter lists keep the compact select menu.
+
 The workspace accepts local folders. It does not need a GitHub connection.
 Projects can be in any language. Static agent-specific rules cover Python,
 JavaScript and TypeScript; PHP is parsed for the model analysis but has no

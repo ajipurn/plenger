@@ -245,13 +245,48 @@ main:focus-visible {
   @apply z-[70];
 }
 .ui-select-popup {
-  @apply bg-raised text-ink rounded-panel p-1;
+  @apply flex flex-col overflow-hidden bg-raised text-ink rounded-panel p-1;
   min-width: var(--trigger-width);
   max-width: calc(100vw - 32px);
+  max-height: var(--available-height, 380px);
   box-shadow: var(--shadow-popover);
 }
+.ui-select-search {
+  @apply relative shrink-0 m-1 mb-2;
+}
+.ui-select-search > .icon {
+  @apply absolute size-3.5 text-muted pointer-events-none;
+  inset-inline-start: 10px;
+  top: 50%;
+  translate: 0 -50%;
+}
+.ui-select-search input {
+  @apply w-full;
+  padding-inline: 32px 36px;
+}
+.ui-select-search input::-webkit-search-cancel-button,
+.ui-select-search input::-webkit-search-decoration {
+  appearance: none;
+}
+.ui-select-search-clear {
+  @apply absolute inline-grid place-items-center text-muted rounded-ui bg-transparent border-0 p-0;
+  inset-inline-end: 4px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 28px;
+  height: 28px;
+}
+.ui-select-search-clear:hover {
+  @apply bg-hover text-ink;
+}
+.ui-select-search[data-empty] .ui-select-search-clear {
+  visibility: hidden;
+}
+.ui-select-empty {
+  @apply text-muted text-label px-3 py-4;
+}
 .ui-select-list {
-  @apply overflow-y-auto overscroll-contain;
+  @apply min-h-0 overflow-y-auto overscroll-contain;
   max-height: min(320px, var(--available-height, 320px));
 }
 .ui-select-item {
