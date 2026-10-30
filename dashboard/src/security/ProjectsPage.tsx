@@ -5,6 +5,7 @@ import type {
   SecurityFinding,
   SecurityScanSummary,
 } from "../../../src/dashboard/contract.ts";
+import { findingValidation } from "../../../src/dashboard/contract.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
@@ -34,7 +35,7 @@ export function ProjectsPage({
   // Open findings across every scan, as the project page counts them, not the last scan's.
   const openFindings = new Map<string, number>();
   for (const finding of findings)
-    if (isOpenStatus(finding.status))
+    if (isOpenStatus(finding.status) && findingValidation(finding) !== "dismissed")
       openFindings.set(finding.repositoryId, (openFindings.get(finding.repositoryId) ?? 0) + 1);
   const filtered = projects.filter((item) =>
     `${item.name} ${item.path}`.toLowerCase().includes(query.toLowerCase()),

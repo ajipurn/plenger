@@ -109,25 +109,42 @@ project.
 
 ## Start a scan
 
-1. Save a model connection under **Settings > Providers**.
-2. Press **New Scan** and choose a local project. Check the displayed folder path.
-3. Choose a provider, model, a review mode and **Quick** or **Full
-   coverage**. The AI review runs in rounds: each round runs discovery, then
-   validation of its candidates. **Batch** sends each round the files the scan
-   picks; **Explore**, selected for Claude connections, lets the model read the
-   project through read-only tools.
-   For Full coverage, **Set a spending limit** is checked by default; enter a
-   limit in tokens or in USD, or clear it to run without one. The saved model is
-   selected initially. Choosing another model applies to this scan only. Use
-   **Load models** if the provider's saved catalog needs refreshing. Optionally
-   choose another saved connection under **Validation model** to check candidates
-   with a different model.
-4. Optionally edit **Review context**. It is saved for subsequent scans.
-5. Press **Start Scan**. This sends redacted source and context to the provider
-   and consumes API usage.
+1. Press **New Scan** and choose **Run all** or **Static only** under **Steps to run**.
+2. Choose a local project and check its folder path.
+3. For **Run all**, choose a saved provider, model, review mode and **Quick** or
+   **Full coverage**. Save a connection in **Settings > Providers** first if needed.
+   **Batch** sends each round the files the scan picks. **Explore**, selected for
+   Claude connections, lets the model read the project through read-only tools.
+   For Full coverage, **Set a spending limit** is checked by default. Enter a token
+   or USD limit, or clear it to run without one. Choosing another model applies to
+   this scan only. **Load models** refreshes the saved catalog. Optionally choose
+   a different validation model.
+4. Optionally edit **Review context**, which is saved for subsequent scans.
+5. Press **Start Scan** for the whole workflow, or **Run static scan** for local
+   rules only. Run all sends redacted source and context to the selected providers
+   and consumes model usage.
 
-Each job first runs the offline scanner, then source-based AI discovery,
-STRIDE threat modeling and validation of any candidates.
+**Static only** needs no provider, model or AI budget. It runs local rules and
+stops with a completed static result, zero model calls and no model usage cost.
+Its candidates are **Unvalidated**. AI discovery, STRIDE and validation are marked
+as not run. The result and triage survive navigation and service restarts.
+
+Open a completed static result and select **Continue with AI** to choose AI
+settings later. This creates a linked scan that reuses the saved static result
+without repeating static analysis. The original scan remains unchanged. The AI
+scan keeps the same finding identities and saved triage, with its own model usage
+and spending limit. Discovery remains independent, followed by validation of
+static and AI candidates. Discovery and validation run together in this workflow.
+
+The host fingerprints bounded local source before and after a static-only scan.
+Before continuing, it checks the contents and included file list again. Changed,
+added, removed or newly excluded files require a fresh static scan. If source
+changes during static analysis, the result is still saved but cannot continue
+with AI. These checks do not freeze files during the later review. Review source
+digests and limitations identify the source that AI actually received.
+
+**Run all**, the default for earlier clients and scans, first runs the offline
+scanner, then AI discovery, STRIDE and source validation.
 **Quick** runs one round. In Batch mode the round sends the files on traced
 paths first and makes at most two model calls. In Explore mode it makes at most
 18 model calls; see [Explore mode](ai-security-review.md#explore-mode).
@@ -156,8 +173,9 @@ A Full coverage scan that stopped at its limit, or whose later round failed
 after earlier ones completed, for instance on a provider rate limit, shows
 **Continue this scan** in its details. Enter a new limit, in the unit of the first one or in tokens when it had none, for what the scan
 spends from now on. Later rounds skip the files earlier rounds sent whole and
-continue excerpted files, from the saved static scan. The scan keeps its first
-limit and lists each continuation with its limit.
+continue excerpted files, from the saved static scan. They also attempt remaining
+static candidates and may retry ones left Unvalidated before this continuation.
+The scan keeps its first limit and lists each continuation with its limit.
 
 The job continues in the local service when you navigate away or close the
 page. Scans and scan details show its current phase. While it runs, the
@@ -177,8 +195,11 @@ project dependencies or probe a running application. The static engine and the r
 ## Review findings and outputs
 
 **Findings** combines saved static and AI findings across local projects. Search,
-project, severity and status filters update the table and severity-to-status
-diagram. The initial view includes New, Triaged and In progress findings.
+project, severity, validation and status filters update the table and severity-to-status
+diagram. The initial view includes New, Triaged and In progress candidates that validation
+has not dismissed. Origin and validation have separate labels. Static indications
+without a completed source review show as Unvalidated, including historical data.
+Use the validation filter to see dismissed static candidates.
 Open a row to see its summary, root cause, attack path, validation, remediation,
 affected source locations and captured evidence.
 
@@ -190,7 +211,7 @@ resolved finding that is reported again reopens as **New**; a dismissed one stay
 dismissed. A complete static scan resolves static findings it no longer reports,
 unless the scan was truncated or skipped their file. AI findings are never
 resolved by absence, because each round covers only part of the source.
-AI review outcomes such as Source-supported and Needs review describe the
+Validation outcomes for either origin, such as Source-supported and Needs review, describe the
 source analysis; they are separate from this workflow status.
 
 **Scans** lists start time, source, initiator, duration, reported tokens and job
@@ -214,7 +235,9 @@ The breakdown records the pricing basis and completeness for each pass.
 **Export scan** downloads the redacted job, its findings and review records.
 It is distinct from the static engine's versioned JSON report. Dismissed model
 candidates remain in the review records even though they are absent from the
-finding table.
+default finding table. Cross-origin duplicates merge only with a matching CWE and
+source-path evidence after validation identifies the duplicate. Rule ids,
+provenance, review reasons and earlier triage states remain traceable in the report.
 
 ### Generate a fix prompt
 

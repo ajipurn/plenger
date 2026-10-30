@@ -23,6 +23,8 @@ export interface FixPromptContext {
   scan: { id: string; createdAt: string };
   finding: Finding | ReviewFinding;
   rule: Rule | null;
+  /** Static validation, including undecided and dismissed indications. */
+  validation?: { status: ReviewFinding["validation"]; reason: string; reviewId: string | null };
   externalEvidence?: ReaObject;
   origin?: {
     kind: "ai-security-review";

@@ -105,13 +105,26 @@ export class SecurityRepository {
   saveFindings(scan: SecurityScan, resolved: readonly string[] = []): void {
     this.#storage.transaction(() => {
       for (const finding of scan.findings) {
-        const row = this.#storage.database
-          .prepare("SELECT payload FROM security_findings WHERE id = ?")
-          .get(finding.id);
-        if (row) {
-          const previous = parsePayload<SecurityFinding>(row);
+        const saved = [finding.id, ...(finding.aliases ?? [])].flatMap((id) => {
+          const row = this.#storage.database
+            .prepare("SELECT payload FROM security_findings WHERE id = ? AND repository_id = ?")
+            .get(id, scan.repositoryId);
+          return row ? [parsePayload<SecurityFinding>(row)] : [];
+        });
+        const previous = saved.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+        if (previous) {
           finding.status = previous.status === "resolved" ? "new" : previous.status;
-          finding.detectedAt = previous.detectedAt;
+          finding.detectedAt =
+            saved.map((item) => item.detectedAt).sort()[0] ?? previous.detectedAt;
+          if (saved.length > 1)
+            finding.mergedTriage = [
+              ...(finding.mergedTriage ?? []),
+              ...saved.map((item) => ({
+                id: item.id,
+                status: item.status,
+                updatedAt: item.updatedAt,
+              })),
+            ];
         }
         redactReport(finding);
         this.#storage.database
@@ -119,6 +132,11 @@ export class SecurityRepository {
             "INSERT INTO security_findings (id, repository_id, payload) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
           )
           .run(finding.id, finding.repositoryId, JSON.stringify(finding));
+        for (const alias of finding.aliases ?? [])
+          if (alias !== finding.id)
+            this.#storage.database
+              .prepare("DELETE FROM security_findings WHERE id = ? AND repository_id = ?")
+              .run(alias, scan.repositoryId);
       }
       for (const id of resolved) {
         const row = this.#storage.database
@@ -140,13 +158,15 @@ export class SecurityRepository {
     const row = this.#storage.database
       .prepare("SELECT payload FROM security_findings WHERE id = ?")
       .get(id);
-    if (!row) return null;
-    const finding = parsePayload<SecurityFinding>(row);
+    const finding = row
+      ? parsePayload<SecurityFinding>(row)
+      : this.workspace().findings.find((item) => item.aliases?.includes(id));
+    if (!finding) return null;
     finding.status = status;
     finding.updatedAt = new Date().toISOString();
     this.#storage.database
       .prepare("UPDATE security_findings SET payload = ? WHERE id = ?")
-      .run(JSON.stringify(finding), id);
+      .run(JSON.stringify(finding), finding.id);
     return finding;
   }
   workspace(): SecurityWorkspace {

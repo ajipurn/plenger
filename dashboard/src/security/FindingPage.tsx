@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 import {
   FINDING_STATUSES,
   type FindingStatus,
+  findingValidation,
   type ImportedReaEvidence,
   type SecurityFinding,
   type SecurityWorkspace,
@@ -13,7 +14,7 @@ import { FixPromptGenerator } from "../findings/FixPromptGenerator.tsx";
 import { errorMessage } from "../shared/async.ts";
 import { DetailDrawer } from "../shared/DetailDrawer.tsx";
 import { Button, Select } from "../shared/ui.tsx";
-import { date, Empty, statusLabel } from "./ui.tsx";
+import { date, Empty, originLabel, statusLabel, validationLabel } from "./ui.tsx";
 
 export function FindingPage({
   data,
@@ -28,7 +29,7 @@ export function FindingPage({
   const { id } = useParams();
   const [params] = useSearchParams();
   const occurrenceScan = params.get("scan");
-  const current = data.findings.find((item) => item.id === id);
+  const current = data.findings.find((item) => item.id === id || item.aliases?.includes(id ?? ""));
   const [occurrence, setOccurrence] = useState<SecurityFinding | null>(null);
   const [loadingOccurrence, setLoadingOccurrence] = useState(Boolean(occurrenceScan));
   const [error, setError] = useState("");
@@ -175,6 +176,35 @@ export function FindingPage({
               </div>
             ))}
           </section>
+          {!!finding.provenance?.length && (
+            <section>
+              <h2>Finding provenance</h2>
+              {finding.provenance.map((entry) => (
+                <div key={`${entry.origin}:${entry.sourceFindingId}:${entry.reviewId}`}>
+                  <h3>
+                    {entry.origin === "static" ? `Static rule ${entry.ruleId ?? ""}` : "AI review"}
+                  </h3>
+                  <p className="muted">
+                    Source scan: {entry.sourceScanId}
+                    {entry.reviewId ? ` · Review: ${entry.reviewId}` : ""}
+                  </p>
+                  {entry.review && (
+                    <p>
+                      {validationLabel[entry.review.validation]}: {entry.review.validationReason}
+                    </p>
+                  )}
+                  {entry.review?.dismissal?.evidence.map((cite) => (
+                    <p key={JSON.stringify(cite)}>
+                      <code>
+                        {cite.path}:{cite.line}
+                      </code>{" "}
+                      {cite.message}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </section>
+          )}
           <details className="security-raw-evidence">
             <summary>Full finding evidence</summary>
             <pre className="code-block">
@@ -235,7 +265,11 @@ export function FindingPage({
             </div>
             <div>
               <dt>Origin</dt>
-              <dd>{finding.origin === "ai" ? "AI source review" : "Static rule"}</dd>
+              <dd>{originLabel(finding)}</dd>
+            </div>
+            <div>
+              <dt>Validation</dt>
+              <dd>{validationLabel[findingValidation(finding)]}</dd>
             </div>
             {finding.cwe && (
               <div>

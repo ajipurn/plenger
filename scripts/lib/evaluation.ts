@@ -200,11 +200,15 @@ const WEAKNESS_FAMILIES: readonly (readonly number[])[] = [
   [400, 770, 834, 835],
 ];
 
+/** The number of a `CWE-<n>` id; NaN for anything else. */
+function cweNumber(value: string): number {
+  return Number(/^CWE-(\d+)$/.exec(value)?.[1] ?? Number.NaN);
+}
+
 /** Whether a finding's CWE names the labeled weakness, directly or within its family. */
 export function sameWeakness(label: string, cwe: string | null | undefined): boolean {
-  const id = (value: string) => Number(/^CWE-(\d+)$/.exec(value)?.[1] ?? Number.NaN);
   if (!cwe) return false;
-  const [a, b] = [id(label), id(cwe)];
+  const [a, b] = [cweNumber(label), cweNumber(cwe)];
   return a === b || WEAKNESS_FAMILIES.some((family) => family.includes(a) && family.includes(b));
 }
 
@@ -284,6 +288,61 @@ export function metrics(outcomes: readonly { kind: EvaluationCase["kind"]; detec
     recall:
       truePositives + falseNegatives ? truePositives / (truePositives + falseNegatives) : null,
   } satisfies Metrics;
+}
+
+/** A proportion with its 95% interval. */
+export interface Estimate {
+  value: number;
+  low: number;
+  high: number;
+}
+
+/**
+ * The 95% Wilson score interval of a proportion over `n` cases. Unlike the normal
+ * approximation it stays within 0 and 1 and holds for the few cases of one weakness.
+ */
+export function wilson(value: number, n: number): Estimate {
+  const z2 = 1.96 ** 2;
+  const scale = 1 + z2 / n;
+  const center = (value + z2 / (2 * n)) / scale;
+  const margin = (1.96 * Math.sqrt((value * (1 - value)) / n + z2 / (4 * n * n))) / scale;
+  return { value, low: Math.max(0, center - margin), high: Math.min(1, center + margin) };
+}
+
+/**
+ * Precision and recall over all runs together, null where the run metrics are. The
+ * interval counts each case once, since a rerun of a case is no new sample: more runs
+ * never narrow it.
+ */
+export function pooled(runs: readonly Metrics[]) {
+  const total = (key: "truePositives" | "falsePositives" | "falseNegatives") =>
+    runs.reduce((sum, item) => sum + item[key], 0);
+  const found = total("truePositives");
+  const estimate = (whole: number) => (whole ? wilson(found / whole, whole / runs.length) : null);
+  return {
+    precision: estimate(found + total("falsePositives")),
+    recall: estimate(found + total("falseNegatives")),
+  };
+}
+
+/** Per labeled CWE, most vulnerable cases first: its cases and the pooled estimates. */
+export function cweMetrics(
+  cases: readonly EvaluationCase[],
+  runs: readonly (readonly { id: string; kind: EvaluationCase["kind"]; detected: boolean }[])[],
+) {
+  const labels = new Map(cases.map((item) => [item.id, item.cwe]));
+  const count = (cwe: string, kind: EvaluationCase["kind"]) =>
+    cases.filter((item) => item.cwe === cwe && item.kind === kind).length;
+  return [...new Set(cases.map((item) => item.cwe))]
+    .map((cwe) => ({
+      cwe,
+      vulnerable: count(cwe, "vulnerable"),
+      safe: count(cwe, "safe"),
+      ...pooled(
+        runs.map((outcomes) => metrics(outcomes.filter((item) => labels.get(item.id) === cwe))),
+      ),
+    }))
+    .sort((a, b) => b.vulnerable - a.vulnerable || cweNumber(a.cwe) - cweNumber(b.cwe));
 }
 
 /** Per rule: how often it fired on vulnerable and on safe locations. */
@@ -495,7 +554,7 @@ export function formatEvaluation(
   const lines = [
     `# Detection evaluation ${date}`,
     "",
-    `Corpus: ${cases.length} labeled cases in \`${corpus}\`, ${vulnerable} vulnerable and ${cases.length - vulnerable} safe near-misses. A finding counts for a case when it overlaps the labeled lines; AI findings dismissed by the second review do not count. The corpus is small and synthetic: these figures describe it, not arbitrary projects.`,
+    `Corpus: ${cases.length} labeled cases in \`${corpus}\`, ${vulnerable} vulnerable and ${cases.length - vulnerable} safe near-misses. A finding counts for a case when it overlaps the labeled lines; AI findings dismissed by the second review do not count. The corpus is small and synthetic: these figures describe it, not arbitrary projects. Intervals are 95% Wilson score intervals that count each case once, so more runs do not narrow them; a CWE with one or two cases has an interval too wide to compare.`,
     "",
     ...(libraries > 0
       ? [
@@ -505,7 +564,9 @@ export function formatEvaluation(
       : []),
     "## Static rules",
     "",
-    tableOf(metrics(staticOutcomes), ratio),
+    tableOf(metrics(staticOutcomes)),
+    "",
+    cweTable(cweMetrics(cases, [staticOutcomes])),
     "",
     table(
       ["Rule", "Vulnerable cases", "Safe cases", "Precision"],
@@ -526,6 +587,7 @@ export function formatEvaluation(
   for (const evaluation of ai) {
     const precision = spread(evaluation.metrics.map((item) => item.precision));
     const recall = spread(evaluation.metrics.map((item) => item.recall));
+    const all = pooled(evaluation.metrics);
     // Counting only findings the second review supported, the triage view of a strict reader.
     const supported = evaluation.runs.map((outcomes) => supportedMetrics(outcomes));
     const strictPrecision = spread(supported.map((item) => item.precision));
@@ -570,6 +632,8 @@ export function formatEvaluation(
       "",
       `Precision ${range(precision)}. Recall ${range(recall)}. Counting only source-supported findings: precision ${range(strictPrecision)}, recall ${range(strictRecall)}. Counting only findings that name the labeled weakness: precision ${range(weaknessPrecision)}, recall ${range(weaknessRecall)}.`,
       "",
+      `Over all runs, with 95% intervals: precision ${stated(all.precision)}, recall ${stated(all.recall)}.`,
+      "",
       `Severity of ${agreement.rated} rated detections across runs: ${agreement.exact} at the labeled level, ${agreement.withinOne} within one level, ${agreement.higher} rated higher and ${agreement.lower} lower. Vulnerable cases dismissed by mistake per run: ${evaluation.runs.map((run) => dismissedByMistake(run)).join(", ")}. Dismissals the host kept as needs-review: ${unchecked}. Traced paths listed across runs: ${listed}, closed ${listed - paths.unclosed} (finding ${paths.finding}, safe ${paths.safe}, open ${paths.open}), unclosed ${paths.unclosed}.`,
       "",
       table(
@@ -585,6 +649,8 @@ export function formatEvaluation(
         ]),
         [0, 1, 2, 3, 4, 5, 6],
       ),
+      "",
+      cweTable(cweMetrics(cases, evaluation.runs)),
       "",
       table(
         [
@@ -619,21 +685,49 @@ export function formatEvaluation(
   return `${lines.join("\n")}\n`;
 }
 
-function tableOf(value: Metrics, ratio: (value: number | null) => string): string {
+function tableOf(value: Metrics): string {
+  const { precision, recall } = pooled([value]);
   return table(
-    ["TP", "FP", "FN", "TN", "Precision", "Recall"],
+    ["TP", "FP", "FN", "TN", "Precision", "95% interval", "Recall", "95% interval"],
     [
       [
         value.truePositives,
         value.falsePositives,
         value.falseNegatives,
         value.trueNegatives,
-        ratio(value.precision),
-        ratio(value.recall),
+        ...cells(precision),
+        ...cells(recall),
       ],
     ],
-    [0, 1, 2, 3, 4, 5],
+    [0, 1, 2, 3, 4, 6],
   );
+}
+
+function cweTable(rows: ReturnType<typeof cweMetrics>): string {
+  return table(
+    ["CWE", "Vulnerable", "Safe", "Precision", "95% interval", "Recall", "95% interval"],
+    rows.map((row) => [
+      row.cwe,
+      row.vulnerable,
+      row.safe,
+      ...cells(row.precision),
+      ...cells(row.recall),
+    ]),
+    [1, 2, 3, 5],
+  );
+}
+
+/** An estimate's value and interval as two table cells. */
+function cells(estimate: Estimate | null): [string, string] {
+  return estimate
+    ? [estimate.value.toFixed(2), `${estimate.low.toFixed(2)} to ${estimate.high.toFixed(2)}`]
+    : ["n/a", "n/a"];
+}
+
+/** An estimate as prose: its value with the interval in parentheses. */
+function stated(estimate: Estimate | null): string {
+  const [value, interval] = cells(estimate);
+  return estimate ? `${value} (${interval})` : value;
 }
 
 /** Markdown tables with columns aligned for plain terminal output too. */

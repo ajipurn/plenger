@@ -1,12 +1,16 @@
 import { useId, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { type SecurityWorkspace, WORKSPACE_LIMITS } from "../../../src/dashboard/contract.ts";
+import {
+  findingValidation,
+  type SecurityWorkspace,
+  WORKSPACE_LIMITS,
+} from "../../../src/dashboard/contract.ts";
 import { SEVERITIES } from "../../../src/rules/model.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.tsx";
-import { costLabel } from "./ScanBilling.tsx";
+import { usdLabel } from "./ScanBilling.tsx";
 import { ScansTable } from "./ScansTable.tsx";
 import { ThreatModelPanel } from "./ThreatModelPanel.tsx";
 import {
@@ -55,8 +59,12 @@ export function ProjectDetailPage({
   const path = `/projects/${encodeURIComponent(project.id)}`;
   const scans = data.scans.filter((scan) => scan.repositoryId === project.id);
   const latest = scans[0];
-  const findings = data.findings.filter((finding) => finding.repositoryId === project.id);
-  const open = findings.filter((finding) => isOpenStatus(finding.status)).length;
+  const findings = data.findings.filter(
+    (finding) => finding.repositoryId === project.id && findingValidation(finding) !== "dismissed",
+  );
+  const open = findings.filter(
+    (finding) => isOpenStatus(finding.status) && findingValidation(finding) !== "dismissed",
+  ).length;
   const matches = findings
     .filter((finding) =>
       `${finding.title} ${finding.rootCause}`.toLowerCase().includes(query.toLowerCase()),
@@ -321,7 +329,7 @@ export function ProjectDetailPage({
                           "Unavailable"
                         )
                       ) : (
-                        <MorphNumber value={latest.tokens} />
+                        <MorphNumber value={latest.tokens} count />
                       )}
                     </dd>
                   </div>
@@ -329,7 +337,9 @@ export function ProjectDetailPage({
                     <dt>Estimated cost</dt>
                     <dd>
                       {latest.cost ? (
-                        <MorphNumber value={costLabel(latest.cost)} />
+                        <MorphNumber value={latest.cost.totalUsd} count format={usdLabel} />
+                      ) : latest.workflow === "static" ? (
+                        "No model usage"
                       ) : latest.status === "running" ? (
                         "Waiting for usage"
                       ) : (

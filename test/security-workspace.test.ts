@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process";
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ValidationCandidate } from "../src/assessment/review-model.ts";
 import {
   API,
   batchCostBound,
@@ -12,6 +13,7 @@ import {
   type RepositorySource,
   reviewBudget,
   SCAN_BUDGET_LIMITS,
+  SECURITY_REVIEW_LIMITS,
   type SecurityScan,
   type SecurityWorkspace,
   TOKEN_HEADER,
@@ -43,7 +45,9 @@ let root: string;
 let project: string;
 let provider: SavedProvider;
 let bodies: Record<string, unknown>[];
-let mode: "normal" | "refusal" | "error" | "long-stride";
+let mode: "normal" | "refusal" | "error" | "long-stride" | "validation-error";
+let discoveryReply: ReturnType<typeof reviewDiscovery> | undefined;
+let validationReply: ((candidates: ValidationCandidate[]) => unknown) | undefined;
 let billingUsage: Record<string, unknown> | undefined;
 let hold: (() => Promise<void>) | undefined;
 let release: (() => void) | undefined;
@@ -53,6 +57,8 @@ beforeEach(async () => {
   project = await writeReviewProject(join(root, "project"));
   bodies = [];
   mode = "normal";
+  discoveryReply = undefined;
+  validationReply = undefined;
   billingUsage = undefined;
   hold = undefined;
   release = undefined;
@@ -67,7 +73,10 @@ beforeEach(async () => {
     const body = JSON.parse(encoded);
     bodies.push(body);
     await hold?.();
-    if (mode === "error") {
+    if (
+      mode === "error" ||
+      (mode === "validation-error" && JSON.parse(body.messages[0].content[0].text).candidates)
+    ) {
       response.writeHead(429);
       response.end(`Private error ${key}`);
       return;
@@ -78,7 +87,7 @@ beforeEach(async () => {
         ? `Declined ${key}`
         : data.candidates
           ? reviewDecision(data.candidates.map((item: { id: string }) => item.id))
-          : reviewDiscovery();
+          : (discoveryReply ?? reviewDiscovery());
     if (
       !data.candidates &&
       !data.files?.some((item: { path: string }) => item.path === "server.ts")
@@ -92,6 +101,7 @@ beforeEach(async () => {
       }));
       content = empty;
     }
+    if (data.candidates && validationReply) content = validationReply(data.candidates);
     if (data.finding)
       content = {
         status: "generated",
@@ -1168,5 +1178,788 @@ describe("local project security workspace", () => {
       await supervisor.settled();
       store.close();
     }
+  });
+});
+
+/** These tests exercise the public dashboard with a local, scripted provider only. */
+describe("static candidate source validation", () => {
+  async function commandProject(count = 1, guard = false, padding = "") {
+    await writeFile(
+      join(project, "server.ts"),
+      [
+        'import express from "express";',
+        'import { exec } from "node:child_process";',
+        ...(guard ? ['import { assertCommand } from "./control.ts";'] : []),
+        "const app = express();",
+        ...Array.from({ length: count }, (_, index) =>
+          [
+            `app.get("/run${index}", (req, res) => {`,
+            ...(guard ? ["  assertCommand(req.query.command);"] : []),
+            padding,
+            "  exec(req.query.command);",
+            "  res.end();",
+            "});",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        ),
+        "",
+      ].join("\n"),
+    );
+    if (guard)
+      await writeFile(
+        join(project, "control.ts"),
+        [
+          "export function assertCommand(command: string) {",
+          '  if (command !== "uptime") throw new Error("Command rejected");',
+          "}",
+          "",
+        ].join("\n"),
+      );
+    discoveryReply = reviewDiscovery();
+    discoveryReply.findings = [];
+    discoveryReply.stride = discoveryReply.stride.map((item) => ({
+      ...item,
+      status: "insufficient-context",
+      evidence: [],
+    }));
+    validationReply = (candidates) => ({
+      status: "completed",
+      reason: null,
+      decisions: candidates.map((item) => ({
+        id: item.id,
+        verdict: "source-supported",
+        reason:
+          "server.ts:4-7 forwards request query input directly to exec; no guard is on that path.",
+        basis: null,
+        duplicateOf: null,
+        evidence: [],
+      })),
+    });
+  }
+  const data = () =>
+    bodies.map((body) =>
+      JSON.parse((body.messages as { content: { text: string }[] }[])[0]?.content[0]?.text ?? "{}"),
+    );
+  const staticOnly = (scan: SecurityScan) =>
+    scan.findings.filter((item) => item.origin === "static");
+
+  it.each(["batch", "explore"])(
+    "validates static candidates after independent discovery in %s mode",
+    async (reviewMode) => {
+      await commandProject();
+      const result = await finished(
+        (await start((await repository()).id, { mode: reviewMode })).id,
+      );
+      expect(result.status, result.error ?? "").toBe("completed");
+      expect(staticOnly(result)).toHaveLength(1);
+      expect(result.findings[0]).toMatchObject({
+        validationStatus: "source-supported",
+        status: "new",
+        provenance: [
+          { origin: "static", ruleId: "PLG801", review: { validation: "source-supported" } },
+        ],
+      });
+      expect(result.findings[0]?.validation).toContain("No runtime validation");
+      expect(result.reviews[0]?.findings).toEqual([]);
+      expect(result.reviews[0]?.staticFindings?.[0]?.evidence.at(-1)?.snippet).toContain(
+        "exec(req.query.command)",
+      );
+      expect(data()[0]).not.toHaveProperty("candidates");
+      expect(JSON.stringify(data()[0])).not.toContain('"ruleId"');
+      expect(data()[1].candidates[0].static.ruleId).toBe("PLG801");
+      expect(result.modelCalls).toBe(2);
+    },
+  );
+
+  it("saves an evidenced dismissal using a related control and keeps workflow triage separate", async () => {
+    await commandProject(1, true);
+    validationReply = (candidates) => ({
+      status: "completed",
+      reason: null,
+      decisions: candidates.map((item) => ({
+        id: item.id,
+        verdict: "dismissed",
+        basis: "control",
+        duplicateOf: null,
+        reason:
+          "control.ts:2 rejects every command except the fixed uptime command before exec is called.",
+        evidence: [
+          {
+            path: "control.ts",
+            line: 2,
+            endLine: 2,
+            role: "guard",
+            message: "Only the application's fixed command can reach exec.",
+          },
+        ],
+      })),
+    });
+    const result = await finished((await start((await repository()).id)).id);
+    const finding = staticOnly(result)[0];
+    expect(finding).toMatchObject({
+      validationStatus: "dismissed",
+      status: "new",
+      provenance: [
+        {
+          ruleId: "PLG801",
+          review: {
+            dismissal: {
+              basis: "control",
+              evidence: [
+                { path: "control.ts", snippet: expect.stringContaining('command !== "uptime"') },
+              ],
+            },
+          },
+        },
+      ],
+    });
+    expect(result.findingCount).toBe(0);
+    expect(data()[1].related.some((file: { path: string }) => file.path === "control.ts")).toBe(
+      true,
+    );
+    expect(
+      (await workspace()).findings.find((item) => item.id === finding?.id)?.validationStatus,
+    ).toBe("dismissed");
+  });
+
+  it("keeps insufficient context as needs-review and rejects unsupported source-supported decisions", async () => {
+    await commandProject();
+    validationReply = (candidates) => ({
+      status: "completed",
+      reason: null,
+      decisions: candidates.map((item) => ({
+        id: item.id,
+        verdict: "needs-review",
+        reason: "The router's authorization middleware is in an omitted deployment module.",
+      })),
+    });
+    const repo = await repository();
+    const first = await finished((await start(repo.id)).id);
+    expect(first.findings[0]?.validationStatus).toBe("needs-review");
+    expect(first.findings[0]?.validation).toContain("omitted deployment module");
+    await commandProject(
+      1,
+      false,
+      Array.from(
+        { length: 2000 },
+        (_, index) => `  const padding${index} = "${"x".repeat(40)}";`,
+      ).join("\n"),
+    );
+    const second = await finished((await start(repo.id)).id, 5000);
+    expect(second.status, second.error ?? "").toBe("completed");
+    expect(second.findings[0]?.validationStatus).toBe("needs-review");
+    expect(second.findings[0]?.validation).toContain("Essential static evidence was not supplied");
+  });
+
+  it.each(["discovery", "validation", "refusal", "invalid", "tokens"])(
+    "retains static indications as unvalidated after %s failure or limit",
+    async (failure) => {
+      await commandProject(failure === "tokens" ? 7 : 1);
+      if (failure === "discovery") mode = "error";
+      if (failure === "validation") mode = "validation-error";
+      if (failure === "refusal")
+        validationReply = () => ({
+          status: "refused",
+          reason: "Declined validation",
+          decisions: [],
+        });
+      if (failure === "invalid")
+        validationReply = () => ({ status: "completed", reason: null, decisions: [] });
+      const result = await finished(
+        (
+          await start(
+            (
+              await repository()
+            ).id,
+            failure === "tokens"
+              ? {
+                  depth: "full",
+                  budget: { kind: "tokens", tokens: batchTokenBound(reviewBudget([])).total },
+                }
+              : {},
+          )
+        ).id,
+      );
+      expect(staticOnly(result)).toHaveLength(failure === "tokens" ? 7 : 1);
+      const pending = result.findings.find((finding) => finding.validationStatus === "unvalidated");
+      expect(pending).toMatchObject({ validationStatus: "unvalidated", status: "new" });
+      expect(pending?.validation).not.toContain("source-supported:");
+      expect(bodies).toHaveLength(failure === "discovery" ? 1 : 2);
+      if (failure === "tokens") {
+        expect(result.coverage?.stop).toBe("budget");
+        const response = await dashboard.request(pathFor(API.continueSecurityScan, result.id), {
+          budget: { kind: "tokens", tokens: batchTokenBound(reviewBudget([])).total },
+        });
+        expect(response.status).toBe(202);
+        const continued = await finished(result.id);
+        expect(continued.findings).toHaveLength(7);
+        expect(
+          continued.findings.every((finding) => finding.validationStatus === "source-supported"),
+        ).toBe(true);
+        expect(continued.modelCalls).toBe(4);
+      }
+    },
+  );
+
+  it("leaves excess Quick candidates unvalidated and drains the queue in bounded Full coverage rounds", async () => {
+    await commandProject(7);
+    const repo = await repository();
+    const quick = await finished((await start(repo.id)).id);
+    expect(
+      quick.findings.filter((item) => item.validationStatus === "source-supported"),
+    ).toHaveLength(6);
+    expect(quick.findings.filter((item) => item.validationStatus === "unvalidated")).toHaveLength(
+      1,
+    );
+    const full = await finished((await start(repo.id, { depth: "full" })).id);
+    expect(full.findings).toHaveLength(7);
+    expect(full.findings.every((item) => item.validationStatus === "source-supported")).toBe(true);
+    expect(full.reviews.map((review) => review.staticFindings?.length)).toEqual([6, 1]);
+    expect(full.modelCalls).toBe(4);
+    expect(full.coverage?.stop).toBe("complete");
+  });
+
+  function discoverCommand(mismatchedPath = false) {
+    if (!discoveryReply) throw new Error("No synthetic discovery.");
+    const finding = reviewDiscovery().findings[0];
+    if (!finding) throw new Error("No synthetic candidate.");
+    discoveryReply.findings = [
+      {
+        ...finding,
+        title: "Command injection in run handler",
+        cwe: "CWE-78",
+        description: "The request command reaches exec unchanged.",
+        evidence: [
+          {
+            path: "server.ts",
+            line: mismatchedPath ? 1 : 4,
+            endLine: mismatchedPath ? 2 : 7,
+            role: "source",
+            message: "Request command",
+          },
+          {
+            path: "server.ts",
+            line: mismatchedPath ? 1 : 5,
+            endLine: mismatchedPath ? 2 : 5,
+            role: "sink",
+            message: "Shell execution",
+          },
+        ],
+      },
+    ];
+  }
+  function duplicateReply(candidates: ValidationCandidate[]) {
+    const target = candidates.find((item) => "static" in item);
+    return {
+      status: "completed",
+      reason: null,
+      decisions: candidates.map((item) =>
+        "static" in item
+          ? {
+              id: item.id,
+              verdict: "source-supported",
+              reason: "server.ts:4-7 passes the caller's command to exec.",
+            }
+          : {
+              id: item.id,
+              verdict: "dismissed",
+              reason: "The same request-to-exec path is reported by the static candidate.",
+              basis: "duplicate",
+              duplicateOf: target?.id,
+              evidence: [],
+            },
+      ),
+    };
+  }
+
+  it("merges an evidenced cross-origin duplicate and preserves both triage states and provenance through rescan and restart", async () => {
+    await commandProject();
+    discoverCommand();
+    const repo = await repository();
+    const first = await finished((await start(repo.id)).id);
+    expect(first.findings).toHaveLength(2);
+    const staticFinding = first.findings.find((item) => item.origin === "static");
+    const aiFinding = first.findings.find((item) => item.origin === "ai");
+    const updates: { updatedAt: string; status: string }[] = [];
+    for (const [finding, status] of [
+      [staticFinding, "triaged"],
+      [aiFinding, "in-progress"],
+    ] as const) {
+      const response = await dashboard.request(pathFor(API.findingStatus, finding?.id ?? ""), {
+        status,
+      });
+      expect(response.status).toBe(200);
+      updates.push((await response.json()) as { updatedAt: string; status: string });
+    }
+    // Timestamp ties keep the canonical report's state; both originals remain saved.
+    const expectedStatus = updates.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
+      ?.status;
+    validationReply = duplicateReply;
+    const merged = await finished((await start(repo.id)).id);
+    expect(merged.findings).toHaveLength(1);
+    expect(merged.findings[0]).toMatchObject({
+      id: staticFinding?.id,
+      validationStatus: "source-supported",
+      status: expectedStatus,
+    });
+    expect(merged.findings[0]?.provenance?.map((item) => item.origin).sort()).toEqual([
+      "ai",
+      "static",
+    ]);
+    expect(merged.findings[0]?.mergedTriage).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: staticFinding?.id, status: "triaged" }),
+        expect.objectContaining({ id: aiFinding?.id, status: "in-progress" }),
+      ]),
+    );
+    expect((await workspace()).findings).toHaveLength(1);
+    mode = "error";
+    const failed = await finished((await start(repo.id)).id);
+    expect(failed.findings[0]).toMatchObject({
+      id: staticFinding?.id,
+      validationStatus: "unvalidated",
+      status: expectedStatus,
+    });
+    expect(failed.findings[0]?.provenance?.map((item) => item.origin).sort()).toEqual([
+      "ai",
+      "static",
+    ]);
+    await dashboard.close();
+    dashboard = await startTestDashboard({ root, workspace: project });
+    expect((await workspace()).findings).toEqual(failed.findings);
+    const aliasUpdate = await dashboard.request(pathFor(API.findingStatus, aiFinding?.id ?? ""), {
+      status: "triaged",
+    });
+    expect(aliasUpdate.status).toBe(200);
+    expect((await workspace()).findings[0]).toMatchObject({
+      id: staticFinding?.id,
+      status: "triaged",
+    });
+  });
+
+  it("does not merge a similar title or a model duplicate claim with different source anchors", async () => {
+    await commandProject();
+    discoverCommand(true);
+    validationReply = duplicateReply;
+    const result = await finished((await start((await repository()).id)).id);
+    expect(result.findings).toHaveLength(2);
+    expect(result.findings.find((item) => item.origin === "ai")?.validationStatus).toBe(
+      "needs-review",
+    );
+    expect(result.findings.find((item) => item.origin === "ai")?.validation).toContain(
+      "could not match the duplicate",
+    );
+  });
+
+  describe("selectable scan workflow", () => {
+    async function runStatic(repositoryId: string) {
+      const response = await dashboard.request(API.securityScans, {
+        repositoryId,
+        workflow: "static",
+      });
+      expect(response.status, await response.clone().text()).toBe(202);
+      return finished(((await response.json()) as SecurityScan).id, 5000);
+    }
+    async function continueAi(base: SecurityScan, patch = {}) {
+      return dashboard.request(pathFor(API.startScanAi, base.id), {
+        providerId: provider.id,
+        depth: "quick",
+        ...patch,
+      });
+    }
+    it("runs only static rules without a saved provider or model usage and persists an honest result", async () => {
+      await commandProject();
+      expect((await dashboard.request(API.deleteProvider, { id: provider.id })).status).toBe(200);
+      const repo = await repository();
+      const result = await runStatic(repo.id);
+      expect(result).toMatchObject({
+        workflow: "static",
+        status: "completed",
+        phase: "finished",
+        provider: null,
+        reviews: [],
+        modelCalls: 0,
+        tokens: 0,
+        cost: null,
+        error: null,
+      });
+      expect(result.staticSourceDigest).toMatch(/^[a-f0-9]{64}$/);
+      expect(result.staticCompletedAt).toBeTruthy();
+      expect(result.findings).toHaveLength(1);
+      expect(result.findings[0]).toMatchObject({
+        validationStatus: "unvalidated",
+        provenance: [{ origin: "static", ruleId: "PLG801", reviewId: null }],
+      });
+      expect(result.findings[0]?.validation).toContain("have not been run");
+      expect(result).not.toHaveProperty("coverage");
+      expect(bodies).toEqual([]);
+      await dashboard.close();
+      dashboard = await startTestDashboard({ root, workspace: project });
+      const persisted = await (
+        await dashboard.request(pathFor(API.securityScan, result.id))
+      ).json();
+      expect(persisted).toEqual(result);
+      expect(await (await dashboard.request(API.providers)).json()).toEqual([]);
+    });
+
+    it.each(["batch", "explore"])(
+      "continues saved static results with %s AI without repeating static analysis or rewriting history",
+      async (reviewMode) => {
+        await commandProject();
+        const repo = await repository();
+        const base = await runStatic(repo.id);
+        expect(bodies).toHaveLength(0);
+        const finding = base.findings[0];
+        expect(
+          (
+            await dashboard.request(pathFor(API.findingStatus, finding?.id ?? ""), {
+              status: "triaged",
+            })
+          ).status,
+        ).toBe(200);
+        await dashboard.close();
+        dashboard = await startTestDashboard({ root, workspace: project });
+        const response = await continueAi(base, {
+          mode: reviewMode,
+          model: "claude-workflow-discovery",
+          validatorProviderId: provider.id,
+          validatorModel: "claude-workflow-validator",
+        });
+        expect(response.status, await response.clone().text()).toBe(202);
+        const result = await finished(((await response.json()) as SecurityScan).id, 5000);
+        expect(result.status, result.error ?? "").toBe("completed");
+        expect(result.id).not.toBe(base.id);
+        expect(result).toMatchObject({
+          workflow: "all",
+          parentScanId: base.id,
+          sourceScanId: base.sourceScanId,
+          mode: reviewMode,
+          staticCompletedAt: base.staticCompletedAt,
+          modelCalls: 2,
+        });
+        expect(result.provider?.model).toBe("claude-workflow-discovery");
+        expect(result.validator?.model).toBe("claude-workflow-validator");
+        expect(result.findings[0]).toMatchObject({
+          id: finding?.id,
+          status: "triaged",
+          validationStatus: "source-supported",
+        });
+        expect((await dashboard.state()).report?.id).toBe(base.sourceScanId);
+        expect(await (await dashboard.request(pathFor(API.securityScan, base.id))).json()).toEqual(
+          base,
+        );
+        expect(data()[0]).not.toHaveProperty("candidates");
+        expect(data()[1].candidates[0].static.ruleId).toBe("PLG801");
+        expect((await workspace()).scans).toHaveLength(2);
+      },
+    );
+
+    it.each(["edit", "add", "delete", "exclude", "symlink"])(
+      "rejects AI continuation after a source %s before any provider request",
+      async (change) => {
+        await commandProject();
+        const base = await runStatic((await repository()).id);
+        if (change === "edit")
+          await writeFile(
+            join(project, "server.ts"),
+            (await readFile(join(project, "server.ts"), "utf8")).replace(
+              "req.query.command",
+              "req.query.COMMAND",
+            ),
+          );
+        if (change === "add")
+          await writeFile(join(project, "new.ts"), "export const added = true;\n");
+        if (change === "delete" || change === "symlink") await rm(join(project, "server.ts"));
+        if (change === "symlink")
+          await symlink(join(project, "store.ts"), join(project, "server.ts"));
+        if (change === "exclude") await writeFile(join(project, ".gitignore"), "server.ts\n");
+        const response = await continueAi(base);
+        expect(response.status).toBe(409);
+        expect(await response.text()).toContain("changed since static analysis");
+        expect(bodies).toHaveLength(0);
+        expect((await workspace()).scans).toHaveLength(1);
+        expect(await (await dashboard.request(pathFor(API.securityScan, base.id))).json()).toEqual(
+          base,
+        );
+      },
+    );
+
+    it("requires a fresh explicit AI start and preserves static findings when that review fails", async () => {
+      await commandProject();
+      const repo = await repository();
+      const base = await runStatic(repo.id);
+      mode = "error";
+      const response = await continueAi(base);
+      expect(response.status).toBe(202);
+      const failed = await finished(((await response.json()) as SecurityScan).id);
+      expect(failed).toMatchObject({ parentScanId: base.id, status: "failed", modelCalls: 1 });
+      expect(failed.findings[0]?.validationStatus).toBe("unvalidated");
+      expect(await (await dashboard.request(pathFor(API.securityScan, base.id))).json()).toEqual(
+        base,
+      );
+      mode = "normal";
+      const retried = await continueAi(base);
+      expect(retried.status).toBe(202);
+      const completed = await finished(((await retried.json()) as SecurityScan).id);
+      expect(completed.findings[0]?.validationStatus).toBe("source-supported");
+    });
+
+    it("enforces AI budgets and can continue Full coverage from a static result under a new limit", async () => {
+      await commandProject(7);
+      const base = await runStatic((await repository()).id);
+      const most = batchTokenBound(reviewBudget([])).total;
+      const low = await continueAi(base, {
+        depth: "full",
+        budget: { kind: "tokens", tokens: most - 1 },
+      });
+      expect(low.status).toBe(400);
+      expect(bodies).toHaveLength(0);
+      const response = await continueAi(base, {
+        depth: "full",
+        budget: { kind: "tokens", tokens: most },
+      });
+      expect(response.status).toBe(202);
+      const first = await finished(((await response.json()) as SecurityScan).id);
+      expect(first).toMatchObject({ parentScanId: base.id, coverage: { stop: "budget" } });
+      expect(first.findings.filter((item) => item.validationStatus === "unvalidated")).toHaveLength(
+        1,
+      );
+      const next = await dashboard.request(pathFor(API.continueSecurityScan, first.id), {
+        budget: { kind: "tokens", tokens: most },
+      });
+      expect(next.status).toBe(202);
+      const continued = await finished(first.id);
+      expect(continued.parentScanId).toBe(base.id);
+      expect(continued.sourceScanId).toBe(base.sourceScanId);
+      expect(continued.findings.every((item) => item.validationStatus === "source-supported")).toBe(
+        true,
+      );
+      expect(continued.modelCalls).toBe(4);
+    });
+
+    it("authenticates workflow writes and rejects invalid settings without model access", async () => {
+      await commandProject();
+      const repo = await repository();
+      const base = await runStatic(repo.id);
+      const aiPath = pathFor(API.startScanAi, base.id);
+      const aiOptions = { providerId: provider.id, depth: "quick" };
+      expect(
+        (
+          await dashboard.request(
+            API.securityScans,
+            { repositoryId: repo.id, workflow: "static" },
+            { [TOKEN_HEADER]: "" },
+          )
+        ).status,
+      ).toBe(403);
+      expect((await dashboard.request(aiPath, aiOptions, { [TOKEN_HEADER]: "" })).status).toBe(403);
+      expect(
+        (await dashboard.request(aiPath, aiOptions, { Origin: "https://untrusted.example" }))
+          .status,
+      ).toBe(403);
+      for (const patch of [
+        { providerId: provider.id },
+        { depth: "full" },
+        { budget: { kind: "tokens", tokens: 1000 } },
+        { mode: "explore" },
+        { path: "/" },
+        { source: "injected" },
+        { apiKey: "injected" },
+      ]) {
+        expect(
+          (
+            await dashboard.request(API.securityScans, {
+              repositoryId: repo.id,
+              workflow: "static",
+              ...patch,
+            })
+          ).status,
+        ).toBe(400);
+      }
+      for (const patch of [
+        { providerId: "missing" },
+        { depth: "invalid" },
+        { mode: "invalid" },
+        { repositoryId: "other" },
+        { sourceScanId: "injected" },
+        { path: "/" },
+        { source: "injected" },
+        { apiKey: "injected" },
+        { validatorModel: "other" },
+      ]) {
+        expect((await dashboard.request(aiPath, { ...aiOptions, ...patch })).status).toBe(400);
+      }
+      expect((await dashboard.request(pathFor(API.startScanAi, "missing"), aiOptions)).status).toBe(
+        404,
+      );
+      expect(
+        (
+          await dashboard.request(API.securityScans, {
+            repositoryId: repo.id,
+            workflow: "unknown",
+            ...aiOptions,
+          })
+        ).status,
+      ).toBe(400);
+      expect(
+        (
+          await dashboard.request(pathFor(API.continueSecurityScan, base.id), {
+            budget: { kind: "tokens", tokens: SCAN_BUDGET_LIMITS.defaultTokens },
+          })
+        ).status,
+      ).toBe(400);
+      expect(bodies).toHaveLength(0);
+      expect((await workspace()).scans).toHaveLength(1);
+    });
+
+    it("checks the saved-review cap before dispatching another AI continuation", async () => {
+      await commandProject();
+      const base = await runStatic((await repository()).id);
+      const response = await continueAi(base);
+      expect(response.status).toBe(202);
+      const result = await finished(((await response.json()) as SecurityScan).id);
+      const template = result.reviews[0];
+      if (!template) throw new Error("No synthetic review.");
+      await dashboard.close();
+      const store = await DashboardStore.open(join(root, "data"));
+      try {
+        for (let index = 1; index < SECURITY_REVIEW_LIMITS.perScan; index++)
+          store.reviews.save({ ...template, id: `saved-review-${index}` });
+      } finally {
+        store.close();
+      }
+      dashboard = await startTestDashboard({ root, workspace: project });
+      const rejected = await continueAi(base);
+      expect(rejected.status).toBe(400);
+      expect(await rejected.text()).toContain("review history limit");
+      expect(bodies).toHaveLength(2);
+    });
+
+    it("does not overlap AI continuation with another project operation", async () => {
+      await commandProject();
+      const repo = await repository();
+      const base = await runStatic(repo.id);
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      hold = () => gate;
+      const response = await continueAi(base);
+      expect(response.status).toBe(202);
+      const running = (await response.json()) as SecurityScan;
+      try {
+        await vi.waitFor(() => expect(bodies).toHaveLength(1));
+        expect((await continueAi(base)).status).toBe(409);
+        expect(
+          (
+            await dashboard.request(API.securityScans, {
+              repositoryId: repo.id,
+              workflow: "static",
+            })
+          ).status,
+        ).toBe(409);
+      } finally {
+        release?.();
+        hold = undefined;
+      }
+      expect((await finished(running.id)).status).toBe("completed");
+      expect(bodies).toHaveLength(2);
+    });
+
+    it("can cancel a static-only job without starting any AI stages", async () => {
+      await commandProject();
+      for (let index = 0; index < 80; index++)
+        await writeFile(
+          join(project, `module-${index}.ts`),
+          `export const value${index} = ${index};\n`,
+        );
+      const response = await dashboard.request(API.securityScans, {
+        repositoryId: (await repository()).id,
+        workflow: "static",
+      });
+      expect(response.status).toBe(202);
+      const running = (await response.json()) as SecurityScan;
+      expect(
+        (await dashboard.request(pathFor(API.cancelSecurityScan, running.id), {})).status,
+      ).toBe(200);
+      const result = await finished(running.id);
+      expect(result).toMatchObject({
+        workflow: "static",
+        status: "cancelled",
+        phase: "finished",
+        modelCalls: 0,
+        provider: null,
+        reviews: [],
+      });
+      expect((await continueAi(result)).status).toBe(400);
+      expect(bodies).toHaveLength(0);
+    });
+
+    it("saves a static failure when the selected local folder disappears", async () => {
+      const repo = await repository();
+      await rm(project, { recursive: true });
+      const result = await runStatic(repo.id);
+      expect(result).toMatchObject({
+        workflow: "static",
+        status: "failed",
+        sourceScanId: null,
+        findings: [],
+        reviews: [],
+        provider: null,
+        modelCalls: 0,
+      });
+      expect(result.error).toContain("Unable to finish static analysis");
+      expect((await continueAi(result)).status).toBe(400);
+      expect(bodies).toHaveLength(0);
+    });
+
+    it("completes static analysis of a folder without static-language source", async () => {
+      const folder = join(root, "go-project");
+      await mkdir(folder);
+      await writeFile(join(folder, "main.go"), "package main\nfunc main() {}\n");
+      const repo = (await (
+        await dashboard.request(API.repositories, { path: folder })
+      ).json()) as LocalRepository;
+      const result = await runStatic(repo.id);
+      expect(result).toMatchObject({
+        status: "completed",
+        workflow: "static",
+        findings: [],
+        modelCalls: 0,
+      });
+      expect(result.staticSourceDigest).toBeTruthy();
+      expect(bodies).toHaveLength(0);
+    });
+
+    it("keeps the default Run all behavior and declines AI continuation from a non-static job", async () => {
+      await commandProject();
+      const repo = await repository();
+      const result = await finished((await start(repo.id)).id);
+      expect(result.workflow).toBe("all");
+      expect(result.modelCalls).toBe(2);
+      const response = await continueAi(result);
+      expect(response.status).toBe(400);
+      expect(bodies).toHaveLength(2);
+    });
+
+    it("keeps static findings and triage when the user chooses another static-only rescan", async () => {
+      await commandProject();
+      const repo = await repository();
+      const base = await runStatic(repo.id);
+      expect(
+        (
+          await dashboard.request(pathFor(API.findingStatus, base.findings[0]?.id ?? ""), {
+            status: "in-progress",
+          })
+        ).status,
+      ).toBe(200);
+      const next = await runStatic(repo.id);
+      expect(next.findings[0]).toMatchObject({
+        id: base.findings[0]?.id,
+        status: "in-progress",
+        validationStatus: "unvalidated",
+      });
+      expect(bodies).toHaveLength(0);
+    });
   });
 });

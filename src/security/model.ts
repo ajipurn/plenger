@@ -1,4 +1,5 @@
 import {
+  type ReviewFinding,
   type ReviewMode,
   SECURITY_REVIEW_LIMITS,
   type SecurityReview,
@@ -30,6 +31,17 @@ export const SCAN_DEPTHS = {
 export type ScanDepth = keyof typeof SCAN_DEPTHS;
 /** The depths a new scan can choose. */
 export type SelectableScanDepth = "quick" | "full";
+export const SCAN_WORKFLOWS = {
+  all: {
+    label: "Run all",
+    description: "Run static analysis, AI discovery and source validation.",
+  },
+  static: {
+    label: "Static only",
+    description: "Run local rules and stop. You can continue with AI later.",
+  },
+} as const;
+export type ScanWorkflow = keyof typeof SCAN_WORKFLOWS;
 /**
  * A scan's spending limit across every model connection it uses: accounted tokens, or
  * USD estimated from saved prices. A batch starts only when its maximum fits what remains.
@@ -105,6 +117,14 @@ export interface SecurityFinding {
   sourceFindingId: string;
   fingerprint: string;
   origin: "ai" | "static";
+  /** Each contributing source keeps its original identity, rule and evidence. */
+  provenance?: FindingProvenance[];
+  /** Identities absorbed into this report; old scan occurrences are retained. */
+  aliases?: string[];
+  /** Workflow states preserved when reports with different identities merge. */
+  mergedTriage?: { id: string; status: FindingStatus; updatedAt: string }[];
+  /** Absent on historical reports. Static indications then remain unvalidated. */
+  validationStatus?: ReviewFinding["validation"];
   /** STRIDE category of an AI finding; matches it to the same issue in a later scan. */
   category?: string;
   /** The weakness, as a CWE id (`CWE-89`): the review's choice, or the rule's first mapping. */
@@ -121,6 +141,28 @@ export interface SecurityFinding {
   remediation: string;
   evidence: { path: string; line: number; endLine: number; message: string; snippet: string }[];
 }
+export interface FindingProvenance {
+  origin: SecurityFinding["origin"];
+  sourceScanId: string;
+  sourceFindingId: string;
+  ruleId?: string;
+  reviewId: string | null;
+  evidence: SecurityFinding["evidence"];
+  review?: Pick<ReviewFinding, "id" | "validation" | "validationReason" | "dismissal">;
+}
+/** Historical prose never upgrades a static indication to a supported finding. */
+export function findingValidation(finding: SecurityFinding): ReviewFinding["validation"] {
+  if (finding.validationStatus) return finding.validationStatus;
+  if (finding.origin === "ai") {
+    const verdict = finding.validation.split(":", 1)[0];
+    if (verdict === "source-supported" || verdict === "needs-review" || verdict === "dismissed")
+      return verdict;
+  }
+  return "unvalidated";
+}
+export function findingOrigins(finding: SecurityFinding): SecurityFinding["origin"][] {
+  return [...new Set([finding.origin, ...(finding.provenance ?? []).map((item) => item.origin)])];
+}
 export type SecurityScanStatus = "running" | "completed" | "failed" | "cancelled";
 export type SecurityScanPhase = "reading" | "discovering" | "validating" | "finished";
 export interface SecurityScanSummary {
@@ -135,6 +177,13 @@ export interface SecurityScanSummary {
   initiatedBy: "Local user" | "Continuous scanning" | "Imported history";
   scope: "local" | "repository" | "continuous";
   depth: ScanDepth;
+  /** Absent on historical scans, which ran the whole workflow. */
+  workflow?: ScanWorkflow;
+  /** A saved static scan this AI scan continues, without rewriting its history. */
+  parentScanId?: string;
+  /** Local source fingerprint for explicitly continuing a completed static scan. */
+  staticSourceDigest?: string;
+  staticCompletedAt?: string;
   /** How its reviews read the source; absent on scans from before exploration, which ran batches. */
   mode?: ReviewMode;
   provider: { id: string; name: string; model: string } | null;
@@ -182,6 +231,14 @@ export function canContinue(scan: SecurityScan): boolean {
     scan.reviews.at(-1)?.status === "failed"
   );
 }
+export function canStartScanAi(scan: SecurityScanSummary): boolean {
+  return (
+    scan.workflow === "static" &&
+    scan.status === "completed" &&
+    scan.sourceScanId !== null &&
+    Boolean(scan.staticSourceDigest)
+  );
+}
 /** Activity entries a scan keeps; older ones drop off. */
 export const SCAN_ACTIVITY_LIMIT = 60;
 export interface SecurityScan extends SecurityScanSummary {
@@ -196,8 +253,7 @@ export interface SecurityWorkspace {
   scans: SecurityScanSummary[];
   findings: SecurityFinding[];
 }
-export interface StartSecurityScan {
-  repositoryId: string;
+export interface ScanAiOptions {
   providerId: string;
   /** Omit for compatibility with clients using the provider's default model. */
   model?: string;
@@ -206,8 +262,11 @@ export interface StartSecurityScan {
   /** Override the validation connection's saved model for this scan only. */
   validatorModel?: string;
   depth: SelectableScanDepth;
-  /** Batch when omitted. Explore runs one exploring review, so it needs Quick. */
+  /** Batch when omitted. */
   mode?: ReviewMode;
   /** Omit for no limit: Full coverage then stops when covered or at its batch cap. */
   budget?: ScanBudget;
 }
+export type StartSecurityScan =
+  | { repositoryId: string; workflow: "static" }
+  | (ScanAiOptions & { repositoryId: string; workflow?: "all" });

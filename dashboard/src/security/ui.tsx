@@ -1,11 +1,13 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router";
-import type {
-  DismissalBasis,
-  FindingStatus,
-  ReviewPath,
-  SecurityFinding,
-  SecurityScanSummary,
+import {
+  type DismissalBasis,
+  type FindingStatus,
+  findingOrigins,
+  findingValidation,
+  type ReviewPath,
+  type SecurityFinding,
+  type SecurityScanSummary,
 } from "../../../src/dashboard/contract.ts";
 import { SEVERITIES } from "../../../src/rules/model.ts";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
@@ -18,6 +20,17 @@ export const statusLabel: Record<FindingStatus, string> = {
   resolved: "Resolved",
   dismissed: "Dismissed",
 };
+export const validationLabel = {
+  "source-supported": "Source-supported",
+  "needs-review": "Needs review",
+  dismissed: "Dismissed by review",
+  unvalidated: "Unvalidated",
+} as const;
+export function originLabel(finding: SecurityFinding): string {
+  return findingOrigins(finding)
+    .map((origin) => (origin === "ai" ? "AI review" : "Static rule"))
+    .join(" + ");
+}
 /** Resolved and dismissed findings are closed; every other status is open. */
 export function isOpenStatus(status: FindingStatus): boolean {
   return status !== "resolved" && status !== "dismissed";
@@ -121,6 +134,7 @@ export function FindingsTable({
               Severity <span aria-hidden="true">↓</span>
             </th>
             <th scope="col">Finding</th>
+            <th scope="col">Validation</th>
             <th scope="col">Status</th>
             <th scope="col">Detected</th>
           </tr>
@@ -142,7 +156,12 @@ export function FindingsTable({
                   </Link>
                   <span className="security-cell-caption">
                     {names.get(finding.repositoryId) ?? "Project"} <span aria-hidden="true">·</span>{" "}
-                    {finding.origin === "ai" ? "AI review" : "Static rule"}
+                    {originLabel(finding)}
+                  </span>
+                </td>
+                <td>
+                  <span className="security-status">
+                    {validationLabel[findingValidation(finding)]}
                   </span>
                 </td>
                 <td>

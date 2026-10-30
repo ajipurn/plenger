@@ -100,7 +100,11 @@ Secrets are redacted by `shared/secrets.ts` before anything is written.
 ## Read-only model assessment
 
 `assessment/security-review.ts` runs bounded source discovery and a skeptical
-second review through the saved provider. `review-source.ts` rereads only files
+second review through the saved provider. Discovery remains independent.
+`review-static.ts` converts static indications to host-owned validation candidates
+and checks duplicate path anchors. The same second pass decides static and AI
+candidates within the existing context, request, token, time and spending limits.
+`review-source.ts` rereads only files
 in a saved scan's allowlist through the bounded regular-file reader. It redacts
 and line-numbers source before model dispatch. `review-focus.ts` orders files by
 the scan's traced entry point, tool and model output paths. `review-excerpt.ts`
@@ -143,11 +147,20 @@ exposed as a public CLI command.
 `security/model.ts` defines local repositories, environments, monitoring, scan
 jobs, finding statuses and scan depths. `security/findings.ts` normalizes
 static and AI evidence into reports with stable fingerprints. The workflow
-status is separate from an AI validation verdict.
+status is separate from a validation verdict for either origin. Reports keep rule
+provenance, review decisions and absorbed identities. Storage preserves prior
+triage states on merges and accepts absorbed identities for later status updates.
+Historical static reports without a verdict are unvalidated.
 
 `dashboard/security-coordinator.ts` owns background jobs and local commit
-monitoring. It captures an offline scan, runs one or up to three independent
-source-review batches, saves results and stops at failures or refusals.
+monitoring. A static-only job requires no provider and ends after saving local
+results with unvalidated candidates. `security/scan-source.ts` fingerprints the
+bounded source before and after that scan. An explicit AI start checks the
+fingerprint again and creates a linked job from the saved scan, without changing
+the original job or repeating static analysis. Source changes require a new scan.
+Historical jobs without a workflow field retain their previous whole-workflow
+behavior. Run all captures an offline scan, runs bounded source-review rounds,
+saves results and stops at failures or refusals.
 `OperationSupervisor` serializes jobs with other project operations and owns
 cancellation. The coordinator passes each review the project threat model; it
 saves the extended model when a scan completes. `continueScan` reruns the batch loop on a scan that stopped at its

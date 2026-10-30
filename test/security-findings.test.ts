@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { ReviewFinding, SecurityReview } from "../src/assessment/review-model.ts";
 import type { ScanResult } from "../src/scan.ts";
 import { scanFindings, vanishedStaticFindings } from "../src/security/findings.ts";
-import type { SecurityFinding, SecurityScan } from "../src/security/model.ts";
+import {
+  findingValidation,
+  type SecurityFinding,
+  type SecurityScan,
+} from "../src/security/model.ts";
 import { DashboardStore } from "../src/storage/store.ts";
 import { temporaryDir } from "./support/tmp.ts";
 
@@ -186,6 +190,58 @@ describe("finding lifecycle", () => {
       const saved = store.security.findings(repository.id);
       expect(saved.find((item) => item.id === leak?.id)?.status).toBe("resolved");
       expect(saved.find((item) => item.id === replay?.id)?.status).toBe("dismissed");
+    } finally {
+      store.close();
+    }
+  });
+});
+
+describe("historical static validation", () => {
+  it("reads earlier history as unvalidated and preserves triage when a rescan adds explicit validation fields", async () => {
+    const store = await DashboardStore.open(join(await temporaryDir(), "data"));
+    try {
+      const repo = store.security.add(
+        await temporaryDir(),
+        "Legacy",
+        { commit: null, branch: null, dirty: null },
+        { name: "Local workspace", notes: "" },
+      );
+      const result = {
+        findings: [
+          {
+            fingerprint: "legacy-static",
+            rule: "PLG801",
+            title: "Request command reaches shell",
+            severity: "high",
+            confidence: "high",
+            notes: [],
+            evidence: [],
+            location: { path: "server.ts", line: 4, endLine: 4 },
+          },
+        ],
+      } as unknown as ScanResult;
+      const first = job("old", repo.id);
+      first.findings = scanFindings(first, result, [], []);
+      const legacy = first.findings[0];
+      if (!legacy) throw new Error("No finding.");
+      delete legacy.validationStatus;
+      delete legacy.provenance;
+      legacy.validation =
+        "Static rule indication. Review the cited source; no runtime validation was performed.";
+      store.security.saveFindings(first);
+      store.security.findingStatus(legacy.id, "triaged");
+      expect(findingValidation(store.security.findings(repo.id)[0] ?? legacy)).toBe("unvalidated");
+      expect(store.security.scan("old")?.findings[0]).not.toHaveProperty("validationStatus");
+      const next = job("new", repo.id);
+      next.findings = scanFindings(next, result, [], [], store.security.findings(repo.id));
+      store.security.saveFindings(next);
+      expect(next.findings[0]).toMatchObject({
+        id: legacy.id,
+        status: "triaged",
+        validationStatus: "unvalidated",
+        provenance: [{ origin: "static", ruleId: "PLG801" }],
+      });
+      expect(store.security.scan("old")?.findings[0]?.validation).toBe(legacy.validation);
     } finally {
       store.close();
     }
