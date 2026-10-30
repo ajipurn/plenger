@@ -1,3 +1,4 @@
+import type { ServerResponse } from "node:http";
 import { basename } from "node:path";
 import type { ReviewMode } from "../../assessment/review-model.ts";
 import { reviewPaths, reviewSourceSize } from "../../assessment/review-source.ts";
@@ -20,12 +21,42 @@ import {
   type DeleteResult,
   type RepositorySource,
   type ScanSourceFiles,
+  type SecurityEvent,
   WORKSPACE_LIMITS,
 } from "../contract.ts";
 import { expectKeys, HttpError, jsonRequest, requireInt, requireString } from "../http.ts";
 import type { Route } from "../router.ts";
 import type { Services } from "../services.ts";
 import { resolveDirectory } from "../workspace.ts";
+
+/** A comment line keeps idle connections open through proxies. */
+const KEEP_ALIVE_MS = 15_000;
+
+/**
+ * Server-sent events until the page disconnects. Events carry ids and counts only; the
+ * page fetches a changed scan through its authenticated JSON route.
+ */
+function streamEvents(
+  response: ServerResponse,
+  subscribe: (listener: (event: SecurityEvent) => void) => () => void,
+): Promise<undefined> {
+  response.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+  response.write(": connected\n\n");
+  const unsubscribe = subscribe((event) => {
+    response.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+  });
+  const keepAlive = setInterval(() => response.write(": keep-alive\n\n"), KEEP_ALIVE_MS);
+  return new Promise((resolve) => {
+    response.once("close", () => {
+      clearInterval(keepAlive);
+      unsubscribe();
+      resolve(undefined);
+    });
+  });
+}
 
 export function securityWorkspaceRoutes({
   store,
@@ -212,8 +243,14 @@ export function securityWorkspaceRoutes({
       handler: ({ params }) => {
         const scan = store.security.scan(params.id ?? "");
         if (!scan) throw new HttpError(404, "Scan not found.");
-        return { status: 200, body: scan };
+        const reply = security.reply(scan.id);
+        return { status: 200, body: reply ? { ...scan, reply } : scan };
       },
+    },
+    {
+      method: "GET",
+      path: API.securityEvents,
+      handler: ({ response }) => streamEvents(response, (listener) => security.subscribe(listener)),
     },
     {
       method: "GET",

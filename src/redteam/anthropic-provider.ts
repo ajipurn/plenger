@@ -1,8 +1,9 @@
 import { isRecord } from "../shared/guards.ts";
 import { redact } from "../shared/secrets.ts";
-import { ANTHROPIC, MAX_OUTPUT_TOKENS } from "./constants.ts";
+import { ANTHROPIC, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP } from "./constants.ts";
 import { type ClaudeTokenUsage, parseClaudeTokenUsage } from "./model-pricing.ts";
 import {
+  eventStream,
   ModelProviderHttpError,
   type ModelReply,
   type ModelRequest,
@@ -11,8 +12,10 @@ import {
   type RunProvider,
   readModelJson,
   record,
+  replyProgress,
   replyToolCalls,
   requestBounds,
+  serverEvents,
 } from "./provider.ts";
 import { PROVIDER_URLS, providerBaseUrl } from "./provider-config.ts";
 import { anthropicModelOutputLimit } from "./provider-models.ts";
@@ -110,7 +113,7 @@ export function createAnthropicProvider(
           }
         : {}),
       ...(access.temperature == null ? {} : { temperature: access.temperature }),
-      stream: false,
+      stream: true,
     });
     if (Buffer.byteLength(encoded) > requestBounds(access).bytes)
       throw new Error("Model request exceeds the runtime profile's size limit.");
@@ -129,7 +132,7 @@ export function createAnthropicProvider(
         additionalTokensUpperBound: 0,
       };
     },
-    async generate(request, { signal, maxOutputTokens }) {
+    async generate(request, { signal, maxOutputTokens, onProgress }) {
       if (access.maxOutputTokens === null && modelOutputLimit === undefined)
         modelOutputLimit = await anthropicModelOutputLimit(access, signal, dispatch);
       const encoded = body(request, Math.min(maxOutputTokens, modelOutputLimit ?? outputLimit));
@@ -153,7 +156,12 @@ export function createAnthropicProvider(
         await response.body?.cancel();
         throw new ModelProviderHttpError(response.status);
       }
-      const raw = record(await readModelJson(response));
+      // A server that ignores `stream` answers with one JSON message, which reads the same.
+      const raw = record(
+        eventStream(response)
+          ? await streamedMessage(response, replyProgress(onProgress))
+          : await readModelJson(response),
+      );
       if (raw.type !== "message" || raw.role !== "assistant" || !Array.isArray(raw.content))
         throw new Error("Invalid Claude response.");
       const tokenDetails = parseClaudeTokenUsage(raw.usage);
@@ -230,6 +238,90 @@ export function createAnthropicProvider(
       }
     },
   };
+}
+
+/**
+ * A streamed Messages API reply, assembled into the shape of an unstreamed one so it is
+ * checked the same way. Unknown events are skipped, as the API asks of clients.
+ */
+async function streamedMessage(
+  response: Response,
+  progress: ReturnType<typeof replyProgress>,
+): Promise<Record<string, unknown>> {
+  let message: Record<string, unknown> | null = null;
+  let stopped = false;
+  const blocks: Record<string, unknown>[] = [];
+  const inputs = new Map<number, string>();
+  const block = (index: unknown) => {
+    const value = Number.isSafeInteger(index) ? blocks[index as number] : undefined;
+    if (!value) throw new Error("Invalid Claude stream.");
+    return value;
+  };
+  for await (const event of serverEvents(response, "Claude")) {
+    if (event.type === "error")
+      throw new Error(`Claude response failed: ${stopReason(record(event.error).type)}.`);
+    if (event.type === "message_start") {
+      message = { ...record(event.message) };
+      const usage = record(message.usage ?? {});
+      const input = [
+        usage.input_tokens,
+        usage.cache_read_input_tokens,
+        usage.cache_creation_input_tokens,
+      ]
+        .filter((value): value is number => Number.isSafeInteger(value))
+        .reduce((sum, value) => sum + value, 0);
+      progress.update({ inputTokens: input });
+    } else if (event.type === "content_block_start") {
+      const index = event.index;
+      if (!Number.isSafeInteger(index) || index !== blocks.length)
+        throw new Error("Invalid Claude stream.");
+      const value = { ...record(event.content_block) };
+      blocks.push(value);
+      if (value.type === "tool_use") {
+        inputs.set(index as number, "");
+        progress.tool(value.name);
+      } else progress.update({ thinking: value.type === "thinking", tool: null });
+    } else if (event.type === "content_block_delta") {
+      const target = block(event.index);
+      const delta = record(event.delta);
+      if (delta.type === "text_delta" && typeof delta.text === "string") {
+        target.text = `${typeof target.text === "string" ? target.text : ""}${delta.text}`;
+        progress.add(delta.text);
+      } else if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") {
+        inputs.set(
+          event.index as number,
+          `${inputs.get(event.index as number) ?? ""}${delta.partial_json}`,
+        );
+        progress.add(delta.partial_json);
+      } else if (delta.type === "thinking_delta" && typeof delta.thinking === "string") {
+        target.thinking = `${typeof target.thinking === "string" ? target.thinking : ""}${delta.thinking}`;
+        progress.add(delta.thinking);
+      } else if (delta.type === "signature_delta" && typeof delta.signature === "string")
+        target.signature = `${typeof target.signature === "string" ? target.signature : ""}${delta.signature}`;
+    } else if (event.type === "content_block_stop") {
+      const target = block(event.index);
+      const input = inputs.get(event.index as number);
+      if (target.type === "tool_use" && input !== undefined) {
+        try {
+          target.input = input ? JSON.parse(input) : {};
+        } catch {
+          throw new Error("Invalid Claude tool arguments.");
+        }
+      }
+    } else if (event.type === "message_delta") {
+      if (!message) throw new Error("Invalid Claude stream.");
+      const delta = record(event.delta);
+      if (delta.stop_reason !== undefined) message.stop_reason = delta.stop_reason;
+      // Usage in a delta is cumulative, so it replaces what message_start reported.
+      if (event.usage !== undefined)
+        message.usage = { ...record(message.usage ?? {}), ...record(event.usage) };
+    } else if (event.type === "message_stop") stopped = true;
+  }
+  if (!message || !stopped) throw new Error("Claude stream ended before completion.");
+  message.content = blocks;
+  if (Buffer.byteLength(JSON.stringify(message)) > MODEL_RESPONSE_CAP)
+    throw new Error("Model response exceeds the size limit.");
+  return message;
 }
 
 /** A stop reason as Claude's enum spells it, or "unknown". */

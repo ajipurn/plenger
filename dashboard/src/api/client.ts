@@ -24,6 +24,7 @@ import {
   type ScanAiOptions,
   type ScanBudget,
   type ScanSourceFiles,
+  type SecurityEvent,
   type SecurityFinding,
   type SecurityScan,
   type SecurityWorkspace,
@@ -46,6 +47,15 @@ export interface DashboardApi {
   startScanAi(id: string, input: ScanAiOptions): Promise<SecurityScan>;
   securityScan(id: string): Promise<SecurityScan>;
   scanSourceFiles(id: string, signal?: AbortSignal): Promise<ScanSourceFiles>;
+  /**
+   * Read pushed scan events until the stream ends or `signal` aborts. `onOpen` runs once
+   * the service accepts the stream.
+   */
+  securityEvents(
+    signal: AbortSignal,
+    onEvent: (event: SecurityEvent) => void,
+    onOpen: () => void,
+  ): Promise<void>;
   cancelSecurityScan(id: string): Promise<CancelResult>;
   continueSecurityScan(id: string, budget: ScanBudget): Promise<SecurityScan>;
   setFindingStatus(id: string, status: FindingStatus): Promise<SecurityFinding>;
@@ -112,6 +122,37 @@ export async function connect(): Promise<DashboardApi> {
       request<SecurityScan>(API.startScanAi.replace(":id", encodeURIComponent(id)), input),
     securityScan: (id) =>
       request<SecurityScan>(API.securityScan.replace(":id", encodeURIComponent(id))),
+    securityEvents: async (signal, onEvent, onOpen) => {
+      // EventSource cannot send the session token header, so the stream is read by hand.
+      const response = await fetch(API.securityEvents, {
+        cache: "no-store",
+        signal,
+        headers: { [TOKEN_HEADER]: session.token },
+      });
+      if (!response.ok || !response.body) throw new Error("Unable to open scan events.");
+      onOpen();
+      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+      let pending = "";
+      try {
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done) return;
+          pending += chunk.value;
+          const frames = pending.split("\n\n");
+          pending = frames.pop() ?? "";
+          for (const frame of frames) {
+            const data = frame
+              .split("\n")
+              .filter((line) => line.startsWith("data:"))
+              .map((line) => line.slice(5).trimStart())
+              .join("\n");
+            if (data) onEvent(JSON.parse(data) as SecurityEvent);
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    },
     scanSourceFiles: (id, signal) =>
       request<ScanSourceFiles>(
         API.scanSourceFiles.replace(":id", encodeURIComponent(id)),

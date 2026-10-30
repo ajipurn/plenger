@@ -11,6 +11,7 @@ import {
   type ReviewPath,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
+  type ScanReply,
   SECURITY_POLL_MS,
   type SecurityScan,
   type SecurityWorkspace,
@@ -37,6 +38,7 @@ import {
   ScanDuration,
   ScanStatus,
 } from "./ui.tsx";
+import { useSecurityEvents } from "./useSecurityEvents.ts";
 
 export function ScanDetailPage({
   data,
@@ -56,9 +58,14 @@ export function ScanDetailPage({
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [rea, setRea] = useState<ImportedReaEvidence[]>([]);
-  // Bumped when the page restarts a scan, so polling resumes while it runs.
-  const [polling, setPolling] = useState(0);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new polling value restarts this effect after a continue
+  // Bumped to load the scan again: the service saved it, or the page restarted it.
+  const [version, setVersion] = useState(0);
+  const live = useSecurityEvents(api, scan?.status === "running", (event) => {
+    if (event.id !== id) return;
+    if (event.type === "scan") setVersion((value) => value + 1);
+    else setScan((current) => current && withReply(current, event.reply));
+  });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new version loads the scan again
   useEffect(() => {
     if (!api || !id) return;
     let stopped = false;
@@ -69,7 +76,9 @@ export function ScanDetailPage({
         if (!stopped) {
           setScan(next);
           setError("");
-          if (next.status === "running") timer = setTimeout(() => void load(), SECURITY_POLL_MS);
+          // Pushed events replace polling; without them, poll while the scan runs.
+          if (next.status === "running" && !live)
+            timer = setTimeout(() => void load(), SECURITY_POLL_MS);
         }
       } catch (failure) {
         if (!stopped) setError(errorMessage(failure, "Unable to load scan."));
@@ -80,7 +89,7 @@ export function ScanDetailPage({
       stopped = true;
       clearTimeout(timer);
     };
-  }, [api, id, polling]);
+  }, [api, id, version, live]);
   if (!scan)
     return (
       <div className="security-empty" role={error ? "alert" : "status"}>
@@ -277,7 +286,7 @@ export function ScanDetailPage({
               disabled={data.scans.some((item) => item.status === "running")}
               onContinued={async (next) => {
                 setScan(next);
-                setPolling((value) => value + 1);
+                setVersion((value) => value + 1);
                 await onRefresh();
               }}
             />
@@ -638,6 +647,12 @@ export function ScanDetailPage({
       </div>
     </div>
   );
+}
+
+/** The scan with the reply a pushed event reports, or without one once it ends. */
+function withReply(scan: SecurityScan, reply: ScanReply | null): SecurityScan {
+  const { reply: _ended, ...rest } = scan;
+  return reply ? { ...rest, reply } : rest;
 }
 
 /** "Discovery claude-x, default temperature, up to 8,192 output tokens" */

@@ -14,6 +14,7 @@ import type { ProviderModel } from "../redteam/provider-models.ts";
 export type { ProviderModel } from "../redteam/provider-models.ts";
 
 import type { FixPromptDraft } from "../remediation/fix-prompt.ts";
+import type { ScanReply } from "../security/model.ts";
 
 export type {
   DismissalBasis,
@@ -45,6 +46,7 @@ export type {
   ScanBudget,
   ScanCoverage,
   ScanDepth,
+  ScanReply,
   ScanWorkflow,
   SecurityFinding,
   SecurityScan,
@@ -88,6 +90,7 @@ export const API = {
   securityScans: "/api/security/scans",
   securityScan: "/api/security/scans/:id",
   scanSourceFiles: "/api/security/scans/:id/source-files",
+  securityEvents: "/api/security/events",
   cancelSecurityScan: "/api/security/scans/:id/cancel",
   continueSecurityScan: "/api/security/scans/:id/continue",
   startScanAi: "/api/security/scans/:id/ai",
@@ -228,6 +231,14 @@ export interface RepositorySource {
   /** Listing stopped at the scan's file limit; the project holds more. */
   truncated: boolean;
 }
+
+/**
+ * What `API.securityEvents` streams as server-sent events: a scan was saved, so its
+ * record and the workspace changed, or a running scan's reply progressed.
+ */
+export type SecurityEvent =
+  | { type: "scan"; id: string }
+  | { type: "reply"; id: string; reply: ScanReply | null };
 
 /** The files a scan's reviews could read, listed from its saved static scan. */
 export interface ScanSourceFiles {

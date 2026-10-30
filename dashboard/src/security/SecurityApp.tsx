@@ -9,6 +9,10 @@ import { useTheme } from "../app/useTheme.ts";
 import { errorMessage } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
 import { Button } from "../shared/ui.tsx";
+import { useSecurityEvents } from "./useSecurityEvents.ts";
+
+/** How long the workspace waits after a pushed save, so a burst of saves refreshes once. */
+const SAVE_REFRESH_MS = 250;
 
 const ProvidersView = lazy(() =>
   import("../providers/ProvidersView.tsx").then((module) => ({
@@ -126,6 +130,12 @@ export function SecurityApp() {
     setData(next);
     setError("");
   }, [api]);
+  // Bumped by each pushed scan save, which refreshes the workspace.
+  const [saves, setSaves] = useState(0);
+  const pushed = useSecurityEvents(api, active, (event) => {
+    if (event.type === "scan") setSaves((value) => value + 1);
+  });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each pushed save refreshes the workspace
   useEffect(() => {
     if (!api || !active) return;
     let stopped = false;
@@ -138,15 +148,17 @@ export function SecurityApp() {
         if (!stopped)
           setError("Unable to refresh scan progress. Check the local service connection.");
       } finally {
-        if (!stopped) timer = setTimeout(() => void poll(), SECURITY_POLL_MS);
+        // Pushed saves replace polling; without them, poll while a scan runs.
+        if (!stopped && !pushed) timer = setTimeout(() => void poll(), SECURITY_POLL_MS);
       }
     };
-    timer = setTimeout(() => void poll(), SECURITY_POLL_MS);
+    // A burst of saves within the short wait refreshes once.
+    timer = setTimeout(() => void poll(), pushed ? SAVE_REFRESH_MS : SECURITY_POLL_MS);
     return () => {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [api, active]);
+  }, [api, active, pushed, saves]);
   useLayoutEffect(() => {
     if (previousPath.current !== location.pathname) {
       previousPath.current = location.pathname;

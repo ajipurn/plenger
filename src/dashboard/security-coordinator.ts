@@ -26,6 +26,7 @@ import {
   type ScanAiOptions,
   type ScanBudget,
   type ScanCoverage,
+  type ScanReply,
   type SecurityScan,
   type StartSecurityScan,
 } from "../security/model.ts";
@@ -33,6 +34,7 @@ import { scanSourceDigest } from "../security/scan-source.ts";
 import { extendThreatModel, type ThreatModelContent } from "../security/threat-model.ts";
 import { reportedScanTokens } from "../security/usage.ts";
 import type { DashboardStore } from "../storage/store.ts";
+import type { SecurityEvent } from "./contract.ts";
 import { HttpError } from "./http.ts";
 import type { ModelPricingCatalog } from "./model-pricing.ts";
 import type { OperationSupervisor } from "./operations.ts";
@@ -49,11 +51,18 @@ function readLines(files: readonly ReviewSourceFile[]): number {
   return [...read.values()].reduce((sum, lines) => sum + lines.size, 0);
 }
 
+/** Reply events go out at most this often per scan; a reply that ends goes out at once. */
+const REPLY_EVENT_MS = 250;
+
 /** Background scans survive page navigation. The same supervisor protects legacy operations. */
 export class SecurityCoordinator {
   readonly #store: DashboardStore;
   readonly #supervisor: OperationSupervisor;
   #closed = false;
+  readonly #listeners = new Set<(event: SecurityEvent) => void>();
+  // Replies stream too fast to save; they live here until their request ends.
+  readonly #replies = new Map<string, ScanReply>();
+  readonly #replyTimers = new Map<string, ReturnType<typeof setTimeout>>();
   readonly #pricing: ModelPricingCatalog | undefined;
   constructor(
     store: DashboardStore,
@@ -73,6 +82,55 @@ export class SecurityCoordinator {
   }
   async close(): Promise<void> {
     this.#closed = true;
+    for (const timer of this.#replyTimers.values()) clearTimeout(timer);
+    this.#replyTimers.clear();
+  }
+
+  /** Every scan save and reply update, until the returned function unsubscribes. */
+  subscribe(listener: (event: SecurityEvent) => void): () => void {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+
+  /** The reply a running scan is receiving, if a request is under way. */
+  reply(id: string): ScanReply | undefined {
+    return this.#replies.get(id);
+  }
+
+  #emit(event: SecurityEvent): void {
+    for (const listener of this.#listeners)
+      try {
+        listener(event);
+      } catch {
+        /* One closed stream must not stop the others or the scan. */
+      }
+  }
+
+  #saveScan(job: SecurityScan): void {
+    this.#store.security.saveScan(job);
+    this.#emit({ type: "scan", id: job.id });
+  }
+
+  /** Hold a scan's reply and send it on: the first update at once, then the latest each interval. */
+  #reply(id: string, reply: ScanReply | null): void {
+    if (!reply) {
+      clearTimeout(this.#replyTimers.get(id));
+      this.#replyTimers.delete(id);
+      if (this.#replies.delete(id)) this.#emit({ type: "reply", id, reply: null });
+      return;
+    }
+    this.#replies.set(id, reply);
+    if (this.#replyTimers.has(id)) return;
+    this.#emit({ type: "reply", id, reply });
+    const later = (sent: ScanReply) =>
+      setTimeout(() => {
+        const latest = this.#replies.get(id);
+        if (latest && latest !== sent) {
+          this.#emit({ type: "reply", id, reply: latest });
+          this.#replyTimers.set(id, later(latest));
+        } else this.#replyTimers.delete(id);
+      }, REPLY_EVENT_MS);
+    this.#replyTimers.set(id, later(reply));
   }
 
   /**
@@ -155,7 +213,7 @@ export class SecurityCoordinator {
         findings: [],
         reviews: [],
       };
-      this.#store.security.saveScan(job);
+      this.#saveScan(job);
       const controller = new AbortController();
       const task = Promise.resolve()
         .then(async () => {
@@ -196,7 +254,8 @@ export class SecurityCoordinator {
                 job,
                 vanishedStaticFindings(previous, job.findings, captured),
               );
-            } else this.#store.security.saveScan(job);
+              this.#emit({ type: "scan", id: job.id });
+            } else this.#saveScan(job);
           }
         })
         .catch(() => {
@@ -379,7 +438,7 @@ export class SecurityCoordinator {
             findings: [],
             reviews: [],
           };
-      this.#store.security.saveScan(job);
+      this.#saveScan(job);
       // The live timeline: recent requests, tool calls and batch results, saved at most
       // once a second while a review runs.
       let savedAt = 0;
@@ -389,7 +448,7 @@ export class SecurityCoordinator {
         );
         if (entry.kind === "batch" || performance.now() - savedAt > 1000) {
           savedAt = performance.now();
-          this.#store.security.saveScan(job);
+          this.#saveScan(job);
         }
       };
       const controller = new AbortController();
@@ -427,7 +486,7 @@ export class SecurityCoordinator {
               job.staticCompletedAt = new Date().toISOString();
               this.#store.saveScan(result);
               job.sourceScanId = result.id;
-              this.#store.security.saveScan(job);
+              this.#saveScan(job);
             }
             const paths = reviewPaths(result.scan);
             const coverage: ScanCoverage = continued?.coverage
@@ -551,7 +610,7 @@ export class SecurityCoordinator {
                   }),
                 onPhase: (phase) => {
                   job.phase = phase;
-                  this.#store.security.saveScan(job);
+                  this.#saveScan(job);
                 },
                 onUsage: (request) => {
                   // A timed-out provider may settle after this round or scan has ended.
@@ -562,7 +621,17 @@ export class SecurityCoordinator {
                   )
                     return;
                   updateUsage(request);
-                  this.#store.security.saveScan(job);
+                  this.#saveScan(job);
+                },
+                onReply: (reply) => {
+                  // As with usage, a provider that settles late must not overwrite a later round.
+                  if (
+                    job.status !== "running" ||
+                    controller.signal.aborted ||
+                    job.reviews.length !== batch
+                  )
+                    return;
+                  this.#reply(job.id, reply && { ...reply, batch });
                 },
               });
               // Exhausted readable source after a successful batch is coverage information.
@@ -610,7 +679,7 @@ export class SecurityCoordinator {
               coverage.sentFiles = new Set(submitted.map((file) => file.path)).size;
               if (review.request.limitReached) {
                 stop = "budget";
-                this.#store.security.saveScan(job);
+                this.#saveScan(job);
                 break;
               }
               // Without new source or static candidates, another round would repeat itself.
@@ -620,10 +689,10 @@ export class SecurityCoordinator {
                 !review.staticFindings?.length
               ) {
                 stop = "explored";
-                this.#store.security.saveScan(job);
+                this.#saveScan(job);
                 break;
               }
-              this.#store.security.saveScan(job);
+              this.#saveScan(job);
             }
             if (job.status === "running") coverage.stop = stop;
             if (job.status === "running") job.status = "completed";
@@ -653,6 +722,7 @@ export class SecurityCoordinator {
               ? "Scan cancelled."
               : "Unable to finish this scan. Check the folder and provider settings, then start a new scan.";
           } finally {
+            this.#reply(job.id, null);
             job.phase = "finished";
             job.finishedAt = new Date().toISOString();
             job.durationMs = before + Math.round(performance.now() - started);
@@ -666,7 +736,8 @@ export class SecurityCoordinator {
                 job,
                 vanishedStaticFindings(previous, job.findings, captured),
               );
-            } else this.#store.security.saveScan(job);
+              this.#emit({ type: "scan", id: job.id });
+            } else this.#saveScan(job);
           }
         })
         .catch(() => {

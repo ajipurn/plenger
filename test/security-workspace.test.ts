@@ -15,6 +15,7 @@ import {
   SCAN_BUDGET_LIMITS,
   type ScanSourceFiles,
   SECURITY_REVIEW_LIMITS,
+  type SecurityEvent,
   type SecurityScan,
   type SecurityWorkspace,
   TOKEN_HEADER,
@@ -695,6 +696,65 @@ describe("local project security workspace", () => {
     expect(scan.reviews).toHaveLength(3);
     expect(scan.coverage).toMatchObject({ stop: "complete", eligibleFiles: 52, sentFiles: 52 });
     expect(scan.coverage?.charged.tokens).toBeGreaterThan(0);
+  });
+
+  it("streams scan saves and the reply under way, which the scan record also carries", async () => {
+    const repo = await repository();
+    const events = await dashboard.request(API.securityEvents);
+    expect(events.headers.get("content-type")).toContain("text/event-stream");
+    if (!events.body) throw new Error("No event stream.");
+    const reader = events.body.getReader();
+    const decoder = new TextDecoder();
+    const received: SecurityEvent[] = [];
+    let buffered = "";
+    const until = async (match: (event: SecurityEvent) => boolean) => {
+      for (;;) {
+        const found = received.find(match);
+        if (found) return found;
+        const chunk = await reader.read();
+        if (chunk.done) throw new Error("The event stream ended.");
+        buffered += decoder.decode(chunk.value, { stream: true });
+        const frames = buffered.split("\n\n");
+        buffered = frames.pop() ?? "";
+        for (const frame of frames) {
+          const data = frame.split("\n").find((line) => line.startsWith("data: "));
+          if (data) received.push(JSON.parse(data.slice(6)));
+        }
+      }
+    };
+    let held = false;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    hold = async () => {
+      held = true;
+      await gate;
+    };
+    try {
+      const job = await start(repo.id);
+      try {
+        await until((event) => event.type === "scan" && event.id === job.id);
+        expect(
+          await until((event) => event.type === "reply" && event.id === job.id && !!event.reply),
+        ).toMatchObject({
+          reply: { batch: 0, phase: "discovery", characters: 0, thinking: false, tool: null },
+        });
+        await vi.waitFor(() => expect(held).toBe(true));
+        const running = (await (
+          await dashboard.request(pathFor(API.securityScan, job.id))
+        ).json()) as SecurityScan;
+        expect(running.reply).toMatchObject({ batch: 0, phase: "discovery" });
+      } finally {
+        release?.();
+        hold = undefined;
+      }
+      await until((event) => event.type === "reply" && event.id === job.id && !event.reply);
+      const result = await finished(job.id);
+      expect(result.status).toBe("completed");
+      expect(result).not.toHaveProperty("reply");
+    } finally {
+      await reader.cancel();
+    }
   });
 
   it("lists the files a scan could read from its saved static scan", async () => {

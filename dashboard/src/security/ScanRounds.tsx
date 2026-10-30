@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import type { SecurityScan } from "../../../src/dashboard/contract.ts";
+import type { ScanReply, SecurityScan } from "../../../src/dashboard/contract.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import type { SourceCoverage } from "./coverage.ts";
 import { phaseLabel } from "./ui.tsx";
 
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+/** A rough average for estimating output while it streams; reported usage replaces it. */
+const CHARACTERS_PER_TOKEN = 4;
 
 /**
  * One row per round, newest first: what it covered, what it found, its time and tokens.
@@ -27,8 +29,15 @@ export function ScanRounds({
   // Motion marks rounds that finish while the page is open, not the ones it opened with.
   const [openedWith] = useState(scan.reviews.length);
   const current = scan.reviews.length;
-  const steps = (scan.activity ?? []).filter((entry) => entry.batch === current);
+  const activity = scan.activity ?? [];
+  const steps = activity.filter((entry) => entry.batch === current);
   const latest = steps.at(-1);
+  const reply = scan.reply?.batch === current ? scan.reply : undefined;
+  // The round began when the previous one finished; the first round, with its first reply.
+  const began =
+    activity.filter((entry) => entry.batch === current - 1 && entry.kind === "batch").at(-1)?.at ??
+    steps[0]?.at ??
+    reply?.startedAt;
   const live = scan.status === "running" && scan.workflow !== "static" && scan.phase !== "reading";
   const rounds = scan.reviews
     .map((review, index) => ({ review, index }))
@@ -45,13 +54,15 @@ export function ScanRounds({
                 Round <MorphNumber value={current + 1} />
               </span>
               <span className="security-round-detail">
-                <NumericText>{latest?.detail ?? phaseLabel[scan.phase]}</NumericText>
+                {reply ? (
+                  <ReplyDetail reply={reply} />
+                ) : (
+                  <NumericText>{latest?.detail ?? phaseLabel[scan.phase]}</NumericText>
+                )}
               </span>
               {/* Findings are counted when the round finishes. */}
               <span />
-              <span className="muted">
-                {steps[0] ? roundTime(Date.now() - new Date(steps[0].at).getTime()) : "Starting"}
-              </span>
+              <span className="muted">{began ? <Elapsed since={began} /> : "Starting"}</span>
               <span className="muted">
                 {latest ? (
                   <>
@@ -140,6 +151,48 @@ export function ScanRounds({
       )}
     </div>
   );
+}
+
+/** What the reply under way has produced so far. Counts and the tool name, never its text. */
+function ReplyDetail({ reply }: { reply: ScanReply }) {
+  const output = Math.ceil(reply.characters / CHARACTERS_PER_TOKEN);
+  return (
+    <>
+      {reply.phase === "validation" ? "Validation" : "Discovery"} reply
+      {reply.inputTokens !== null && (
+        <>
+          {" "}
+          · <MorphNumber value={compact.format(reply.inputTokens)} /> input tokens
+        </>
+      )}{" "}
+      ·{" "}
+      {reply.characters > 0 ? (
+        <>
+          about <MorphNumber value={compact.format(output)} /> output tokens
+        </>
+      ) : reply.thinking ? (
+        "thinking"
+      ) : (
+        "waiting for the model"
+      )}
+      {reply.tool && (
+        <>
+          {" "}
+          · calling <code>{reply.tool}</code>
+        </>
+      )}
+    </>
+  );
+}
+
+/** Time since `since`, ticking each second: pushed events do not arrive while a model thinks. */
+function Elapsed({ since }: { since: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return <>{roundTime(now - new Date(since).getTime())}</>;
 }
 
 /** "42s", "1m 04s", "1h 05m" */

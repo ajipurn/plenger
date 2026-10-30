@@ -348,7 +348,7 @@ describe("saved provider settings", () => {
                     : "Reply with OK.",
               },
             ],
-            stream: false,
+            stream: provider === "anthropic",
             temperature: 0.2,
             max_tokens: 2048,
           },

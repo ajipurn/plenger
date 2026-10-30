@@ -1,4 +1,4 @@
-import { CHATGPT, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP, MODEL_STREAM_CAP } from "./constants.ts";
+import { CHATGPT, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP } from "./constants.ts";
 import { parseOpenAIResponsesTokenUsage } from "./model-pricing.ts";
 import {
   ModelProviderHttpError,
@@ -10,8 +10,10 @@ import {
   parseModelReply,
   type RunProvider,
   record,
+  replyProgress,
   replyToolCalls,
   requestBounds,
+  serverEvents,
 } from "./provider.ts";
 
 /** SIWC uses the public Responses API. No Codex credentials or agent process are involved. */
@@ -122,7 +124,7 @@ export function createChatgptProvider(access: ProviderAccess, dispatch: typeof f
         additionalTokensUpperBound: 0,
       };
     },
-    async generate(request, { signal }) {
+    async generate(request, { signal, onProgress }) {
       const encoded = body(request);
       const token = await accessToken(signal);
       let response: Response;
@@ -141,7 +143,7 @@ export function createChatgptProvider(access: ProviderAccess, dispatch: typeof f
         await response.body?.cancel();
         throw new ModelProviderHttpError(response.status);
       }
-      const raw = await completedResponse(response);
+      const raw = await completedResponse(response, replyProgress(onProgress));
       const tokenDetails =
         raw.usage === undefined ? undefined : parseOpenAIResponsesTokenUsage(raw.usage);
       try {
@@ -206,79 +208,66 @@ export function createChatgptProvider(access: ProviderAccess, dispatch: typeof f
   };
 }
 
-async function completedResponse(response: Response): Promise<Record<string, unknown>> {
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("ChatGPT returned an empty stream.");
-  const decoder = new TextDecoder();
+/** Output deltas of a Responses stream, counted for progress and otherwise unused. */
+const DELTAS = new Set([
+  "response.output_text.delta",
+  "response.refusal.delta",
+  "response.function_call_arguments.delta",
+  "response.reasoning_summary_text.delta",
+  "response.reasoning_text.delta",
+]);
+
+async function completedResponse(
+  response: Response,
+  progress: ReturnType<typeof replyProgress>,
+): Promise<Record<string, unknown>> {
   const completedItems = new Map<number, unknown>();
   let itemBytes = 0;
-  let pending = "",
-    bytes = 0;
-  try {
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      bytes += chunk.value.byteLength;
-      if (bytes > MODEL_STREAM_CAP) throw new Error("ChatGPT stream exceeds the size limit.");
-      pending += decoder.decode(chunk.value, { stream: true });
-      for (;;) {
-        const boundary = /\r?\n\r?\n/.exec(pending);
-        if (!boundary) break;
-        const frame = pending.slice(0, boundary.index);
-        pending = pending.slice(boundary.index + boundary[0].length);
-        const data = frame
-          .split(/\r?\n/)
-          .filter((line) => line.startsWith("data:"))
-          .map((line) => line.slice(5).trimStart())
-          .join("\n");
-        if (!data || data === "[DONE]") continue;
-        let event: Record<string, unknown>;
-        try {
-          event = record(JSON.parse(data));
-        } catch {
-          throw new Error("Invalid ChatGPT stream.");
-        }
-        // A response cut at its output allowance is a recognizable output limit.
-        if (
-          event.type === "response.incomplete" &&
-          record(record(event.response).incomplete_details).reason === "max_output_tokens"
-        ) {
-          const error = new OutputLimitError(
-            "ChatGPT response did not complete: output limit reached.",
-          );
-          const usage = record(event.response).usage;
-          const details = usage === undefined ? undefined : parseOpenAIResponsesTokenUsage(usage);
-          throw details ? new ModelResponseError(error, details) : error;
-        }
-        if (["error", "response.failed", "response.incomplete"].includes(String(event.type)))
-          throw new Error(
-            "ChatGPT response failed. Check access and usage limits in ChatGPT settings.",
-          );
-        if (event.type === "response.output_item.done") {
-          if (!Number.isSafeInteger(event.output_index) || (event.output_index as number) < 0)
-            throw new Error("Invalid ChatGPT output index.");
-          const index = event.output_index as number;
-          if (completedItems.has(index)) throw new Error("Duplicate ChatGPT output item.");
-          itemBytes += Buffer.byteLength(JSON.stringify(event.item) ?? "");
-          if (itemBytes > MODEL_RESPONSE_CAP)
-            throw new Error("ChatGPT response exceeds the size limit.");
-          completedItems.set(index, event.item);
-        }
-        if (event.type === "response.completed") {
-          const result = record(event.response);
-          // Some direct streams deliver output only through output_item.done.
-          if (Array.isArray(result.output) && result.output.length === 0 && completedItems.size)
-            result.output = [...completedItems.entries()]
-              .sort(([a], [b]) => a - b)
-              .map(([, item]) => item);
-          if (Buffer.byteLength(JSON.stringify(result)) > MODEL_RESPONSE_CAP)
-            throw new Error("ChatGPT response exceeds the size limit.");
-          return result;
-        }
-      }
+  for await (const event of serverEvents(response, "ChatGPT")) {
+    if (DELTAS.has(String(event.type))) progress.add(event.delta);
+    if (event.type === "response.output_item.added") {
+      const item = record(event.item);
+      if (item.type === "reasoning") progress.update({ thinking: true });
+      else if (item.type === "function_call") progress.tool(item.name);
+      else progress.update({ thinking: false, tool: null });
     }
-    throw new Error("ChatGPT stream ended before completion.");
-  } finally {
-    await reader.cancel();
+    // A response cut at its output allowance is a recognizable output limit.
+    if (
+      event.type === "response.incomplete" &&
+      record(record(event.response).incomplete_details).reason === "max_output_tokens"
+    ) {
+      const error = new OutputLimitError(
+        "ChatGPT response did not complete: output limit reached.",
+      );
+      const usage = record(event.response).usage;
+      const details = usage === undefined ? undefined : parseOpenAIResponsesTokenUsage(usage);
+      throw details ? new ModelResponseError(error, details) : error;
+    }
+    if (["error", "response.failed", "response.incomplete"].includes(String(event.type)))
+      throw new Error(
+        "ChatGPT response failed. Check access and usage limits in ChatGPT settings.",
+      );
+    if (event.type === "response.output_item.done") {
+      if (!Number.isSafeInteger(event.output_index) || (event.output_index as number) < 0)
+        throw new Error("Invalid ChatGPT output index.");
+      const index = event.output_index as number;
+      if (completedItems.has(index)) throw new Error("Duplicate ChatGPT output item.");
+      itemBytes += Buffer.byteLength(JSON.stringify(event.item) ?? "");
+      if (itemBytes > MODEL_RESPONSE_CAP)
+        throw new Error("ChatGPT response exceeds the size limit.");
+      completedItems.set(index, event.item);
+    }
+    if (event.type === "response.completed") {
+      const result = record(event.response);
+      // Some direct streams deliver output only through output_item.done.
+      if (Array.isArray(result.output) && result.output.length === 0 && completedItems.size)
+        result.output = [...completedItems.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([, item]) => item);
+      if (Buffer.byteLength(JSON.stringify(result)) > MODEL_RESPONSE_CAP)
+        throw new Error("ChatGPT response exceeds the size limit.");
+      return result;
+    }
   }
+  throw new Error("ChatGPT stream ended before completion.");
 }

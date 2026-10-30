@@ -11,6 +11,7 @@ import {
   MAX_OUTPUT_TOKENS,
   MODEL_REQUEST_CAP,
   MODEL_RESPONSE_CAP,
+  MODEL_STREAM_CAP,
   MODEL_TOOL_CALL_LIMIT,
   type ProviderId,
 } from "./constants.ts";
@@ -34,13 +35,29 @@ export interface ModelReply {
   /** A provider refusal ends the step without executing tools or retrying. */
   refusal?: string;
 }
+/** How much of a reply has arrived while it streams. Counts and tool names, never reply text. */
+export interface ReplyProgress {
+  /** Characters of text, reasoning and tool arguments received so far. */
+  characters: number;
+  /** The model is reasoning and has not written yet. */
+  thinking: boolean;
+  /** The tool call the reply is composing. */
+  tool: string | null;
+  /** Input tokens, when the provider reports them before the reply ends. */
+  inputTokens: number | null;
+}
 export interface RunProvider {
   name: string;
   model: string;
   reservation(request: ModelRequest, purpose: ModelReservation["purpose"]): ModelReservation;
   generate(
     request: ModelRequest,
-    allowance: { signal: AbortSignal; maxOutputTokens: number },
+    allowance: {
+      signal: AbortSignal;
+      maxOutputTokens: number;
+      /** Called as a streaming reply arrives; transports that do not stream never call it. */
+      onProgress?: (progress: ReplyProgress) => void;
+    },
   ): Promise<{ value: ModelReply; usage?: TokenUsage; tokenDetails?: BillableTokenUsage }>;
 }
 export interface ProviderAccess {
@@ -134,6 +151,8 @@ export function createRunProvider(
   // Gemini's OpenAI-compatible transport requires its returned thought signatures
   // on later function-call turns. Retain these only within this provider instance.
   const metadata = new Map<string, unknown>();
+  // Only OpenAI streams: compatible servers differ in whether they report usage in a stream.
+  const streams = access.provider === "openai";
   const requestBody = (request: ModelRequest, maxOutputTokens: number) => ({
     model: access.model,
     messages: request.messages.map((value) => {
@@ -153,7 +172,8 @@ export function createRunProvider(
       };
     }),
     ...(request.tools?.length ? { tools: normalizeTools(request.tools) } : {}),
-    stream: false,
+    stream: streams,
+    ...(streams ? { stream_options: { include_usage: true } } : {}),
     ...(access.temperature == null ? {} : { temperature: access.temperature }),
     ...(access.provider === "openai"
       ? { max_completion_tokens: maxOutputTokens, store: false }
@@ -176,7 +196,7 @@ export function createRunProvider(
         additionalTokensUpperBound: 0,
       };
     },
-    async generate(request, { signal, maxOutputTokens }) {
+    async generate(request, { signal, maxOutputTokens, onProgress }) {
       let response: Response;
       try {
         response = await dispatch(url, {
@@ -196,7 +216,9 @@ export function createRunProvider(
         await response.body?.cancel();
         throw new ModelProviderHttpError(response.status);
       }
-      const raw = await readModelJson(response);
+      const raw = eventStream(response)
+        ? await streamedChatCompletion(response, replyProgress(onProgress), replyToolCalls(access))
+        : await readModelJson(response);
       const details =
         access.provider === "openai" &&
         isRecord(raw) &&
@@ -368,6 +390,156 @@ export function parseModelReply(
 export function record(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) throw new Error("Invalid runtime message.");
   return value;
+}
+
+/** Reports what a streaming reply has received; counts only, so no reply text leaves it. */
+export function replyProgress(onProgress?: (progress: ReplyProgress) => void) {
+  const state: ReplyProgress = { characters: 0, thinking: false, tool: null, inputTokens: null };
+  const update = (change: Partial<ReplyProgress>) => {
+    Object.assign(state, change);
+    onProgress?.({ ...state });
+  };
+  return {
+    update,
+    /** Count received text. */
+    add(text: unknown) {
+      if (typeof text === "string" && text) update({ characters: state.characters + text.length });
+    },
+    /** Name the tool call being composed, when it is a valid tool name. */
+    tool(name: unknown) {
+      update({
+        thinking: false,
+        tool: typeof name === "string" && TOOL_NAME.test(name) ? name : null,
+      });
+    },
+  };
+}
+const TOOL_NAME = /^[\w-]{1,128}$/;
+
+/** Whether a provider answered with server-sent events rather than one JSON body. */
+export function eventStream(response: Response): boolean {
+  return response.headers.get("content-type")?.includes("text/event-stream") ?? false;
+}
+
+/**
+ * The JSON data of each server-sent event of a bounded stream, in order. Comments and
+ * `[DONE]` are skipped. `label` names the provider in errors.
+ */
+export async function* serverEvents(
+  response: Response,
+  label: string,
+  byteCap = MODEL_STREAM_CAP,
+): AsyncGenerator<Record<string, unknown>> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error(`${label} returned an empty stream.`);
+  const decoder = new TextDecoder();
+  let pending = "",
+    bytes = 0;
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      if (bytes > byteCap) throw new Error(`${label} stream exceeds the size limit.`);
+      pending += decoder.decode(chunk.value, { stream: true });
+      for (;;) {
+        const boundary = /\r?\n\r?\n/.exec(pending);
+        if (!boundary) break;
+        const frame = pending.slice(0, boundary.index);
+        pending = pending.slice(boundary.index + boundary[0].length);
+        const data = frame
+          .split(/\r?\n/)
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trimStart())
+          .join("\n");
+        if (!data || data === "[DONE]") continue;
+        let event: Record<string, unknown>;
+        try {
+          event = record(JSON.parse(data));
+        } catch {
+          throw new Error(`Invalid ${label} stream.`);
+        }
+        yield event;
+      }
+    }
+  } finally {
+    await reader.cancel();
+  }
+}
+
+/** A streamed chat completion, assembled into the shape of an unstreamed one. */
+async function streamedChatCompletion(
+  response: Response,
+  progress: ReturnType<typeof replyProgress>,
+  toolCallLimit: number,
+): Promise<Record<string, unknown>> {
+  let content: string | null = null,
+    refusal: string | null = null,
+    finishReason: unknown = null,
+    usage: unknown,
+    serviceTier: unknown;
+  const calls: { id?: unknown; type: "function"; function: { name: string; arguments: string } }[] =
+    [];
+  for await (const chunk of serverEvents(response, "Model provider")) {
+    if (chunk.usage != null) usage = chunk.usage;
+    if (chunk.service_tier !== undefined) serviceTier = chunk.service_tier;
+    if (!Array.isArray(chunk.choices)) throw new Error("Invalid model stream.");
+    for (const value of chunk.choices) {
+      const choice = record(value);
+      const delta = choice.delta === undefined ? {} : record(choice.delta);
+      if (typeof delta.content === "string") {
+        content = (content ?? "") + delta.content;
+        progress.add(delta.content);
+      }
+      if (typeof delta.refusal === "string") {
+        refusal = (refusal ?? "") + delta.refusal;
+        progress.add(delta.refusal);
+      }
+      for (const part of Array.isArray(delta.tool_calls) ? delta.tool_calls : []) {
+        const call = record(part);
+        // One past the limit still parses, so the reply fails with the usual message.
+        if (
+          !Number.isSafeInteger(call.index) ||
+          (call.index as number) < 0 ||
+          (call.index as number) > toolCallLimit
+        )
+          throw new Error("Invalid model tool calls.");
+        const fn = call.function === undefined ? {} : record(call.function);
+        const index = call.index as number;
+        calls[index] ??= { type: "function", function: { name: "", arguments: "" } };
+        const current = calls[index];
+        if (call.id !== undefined) current.id = call.id;
+        if (typeof fn.name === "string") {
+          current.function.name += fn.name;
+          progress.tool(current.function.name);
+        }
+        if (typeof fn.arguments === "string") {
+          current.function.arguments += fn.arguments;
+          progress.add(fn.arguments);
+        }
+      }
+      if (choice.finish_reason != null) finishReason = choice.finish_reason;
+    }
+  }
+  // Spreading turns skipped indexes into undefined entries.
+  if ([...calls].some((call) => call === undefined)) throw new Error("Invalid model tool calls.");
+  const raw = {
+    choices: [
+      {
+        finish_reason: finishReason,
+        message: {
+          content,
+          ...(refusal ? { refusal } : {}),
+          ...(calls.length ? { tool_calls: calls } : {}),
+        },
+      },
+    ],
+    ...(usage === undefined ? {} : { usage }),
+    ...(serviceTier === undefined ? {} : { service_tier: serviceTier }),
+  };
+  if (Buffer.byteLength(JSON.stringify(raw)) > MODEL_RESPONSE_CAP)
+    throw new Error("Model response exceeds the size limit.");
+  return raw;
 }
 
 /** Bounded JSON for native and compatible model transports. */

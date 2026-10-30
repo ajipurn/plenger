@@ -1,5 +1,6 @@
 import type { TokenUsage } from "../redteam/budget.ts";
 import { type ModelPricing, type ReviewBilling, worstCaseCost } from "../redteam/model-pricing.ts";
+import type { ReplyProgress } from "../redteam/provider.ts";
 import { SEVERITIES, type Severity } from "../rules/model.ts";
 import { isRecord } from "../shared/guards.ts";
 import { STRIDE } from "./model.ts";
@@ -410,6 +411,12 @@ export interface ExploreSessionRecord {
 
 /** How a review read the source: one host-packed batch, or model-chosen reads. */
 export type ReviewMode = "batch" | "explore";
+/** A model reply a review is receiving. Counts only: reply text is never reported. */
+export interface ReviewReply extends ReplyProgress {
+  phase: "discovery" | "validation";
+  model: string;
+  startedAt: string;
+}
 
 export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findings" | "closures"> {
   schemaVersion: 1;

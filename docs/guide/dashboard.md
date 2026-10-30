@@ -186,14 +186,24 @@ the pace from the latest rounds: the new files a round covers, and where the rou
 limit or spending limit stops the scan at that pace. It is an estimate only.
 The progress card shows reading the source, then the discover and validate steps
 of the current round. Below it, the latest rounds list their files, findings,
-time and tokens. The current round shows its latest step, such as a model request
-or a file an Explore round reads. The details column appears when the scan
-finishes. **Cancel scan** explicitly
+time and tokens. While a model replies, the current round shows the reply as it
+streams: thinking, about how many output tokens it has written, and the tool it
+is calling. Claude also reports the input tokens at the start. The output count
+is an estimate from the characters received. The reply's reported usage replaces
+it when the reply ends, and only reported usage counts toward the limit. Reply
+text is never shown or saved. Between replies, the current round shows its
+latest step, such as a file an Explore round reads. The details column appears
+when the scan finishes. **Cancel scan** explicitly
 requests cancellation. Provider failures and refusals stop further requests. Response validation
 errors name the failed stage and field when available. Completed static
 findings remain visible if the AI review fails.
 Stopping the service cancels its active job; an interrupted persisted job is
 reported as failed on restart.
+
+The local service pushes scan changes to the page as they happen. The page
+polls every second only while that connection is closed. Claude, OpenAI and
+ChatGPT replies stream. Gemini and Ollama replies arrive whole, because
+compatible servers differ in how they report usage in a stream.
 
 No project code, package scripts or model tools execute. The service reads
 source and uses fixed read-only Git metadata commands. It does not install

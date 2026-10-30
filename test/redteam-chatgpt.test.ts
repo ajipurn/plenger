@@ -9,6 +9,7 @@ import { CHATGPT, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP } from "../src/redteam/c
 import {
   createRunProvider,
   type ModelRequest,
+  type ReplyProgress,
   reachedOutputLimit,
 } from "../src/redteam/provider.ts";
 import { PROVIDER_URLS, type SavedProvider } from "../src/redteam/provider-config.ts";
@@ -551,6 +552,46 @@ describe("ChatGPT streaming provider", () => {
     await expect(
       provider(async () => new Response(body)).generate(request, allowance()),
     ).rejects.toThrow();
+  });
+
+  it("reports reasoning, written characters and the composed tool, never the text", async () => {
+    const call = {
+      type: "function_call",
+      call_id: "call-1",
+      namespace: "plenger",
+      name: "save",
+      arguments: '{"path":"allowed"}',
+    };
+    const events = [
+      { type: "response.output_item.added", output_index: 0, item: { type: "reasoning" } },
+      { type: "response.reasoning_summary_text.delta", delta: "Thinking" },
+      { type: "response.output_item.added", output_index: 1, item: { ...call, arguments: "" } },
+      { type: "response.function_call_arguments.delta", delta: call.arguments },
+      {
+        type: "response.completed",
+        response: {
+          status: "completed",
+          output: [{ type: "reasoning" }, call],
+          usage: { input_tokens: 10, output_tokens: 3, total_tokens: 13 },
+        },
+      },
+    ];
+    const progress: ReplyProgress[] = [];
+    const result = await provider(
+      async () =>
+        new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")),
+    ).generate(request, { ...allowance(), onProgress: (next) => progress.push(next) });
+    expect(result.value.toolCalls).toEqual([
+      { id: "call-1", name: "save", arguments: { path: "allowed" } },
+    ]);
+    expect(progress[0]).toMatchObject({ thinking: true, characters: 0 });
+    expect(progress.at(-1)).toEqual({
+      characters: 26,
+      thinking: false,
+      tool: "save",
+      inputTokens: null,
+    });
+    expect(JSON.stringify(progress)).not.toMatch(/Thinking|allowed/);
   });
 
   it("marks a response cut at its output allowance as an output limit", async () => {

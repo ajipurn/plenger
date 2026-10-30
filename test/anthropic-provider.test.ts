@@ -8,6 +8,7 @@ import {
 import {
   createRunProvider,
   type ModelRequest,
+  type ReplyProgress,
   testProviderConnection,
 } from "../src/redteam/provider.ts";
 import { validateProviderSettings } from "../src/redteam/provider-config.ts";
@@ -30,7 +31,116 @@ function message(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** A Messages API event stream. */
+function sse(events: unknown[]): Response {
+  return new Response(
+    events
+      .map(
+        (event) => `event: ${(event as { type: string }).type}\ndata: ${JSON.stringify(event)}\n\n`,
+      )
+      .join(""),
+    { headers: { "Content-Type": "text/event-stream; charset=utf-8" } },
+  );
+}
+
 describe("native Anthropic transport", () => {
+  it("assembles a streamed reply and reports its progress without reply text", async () => {
+    const progress: ReplyProgress[] = [];
+    const result = await createRunProvider(access, async () =>
+      sse([
+        {
+          type: "message_start",
+          message: message({
+            content: [],
+            stop_reason: null,
+            usage: { input_tokens: 10, cache_read_input_tokens: 5, output_tokens: 1 },
+          }),
+        },
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "thinking", thinking: "", signature: "" },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "thinking_delta", thinking: "Plan" },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "signature_delta", signature: "sig" },
+        },
+        { type: "content_block_stop", index: 0 },
+        { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
+        { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Saving" } },
+        { type: "content_block_stop", index: 1 },
+        {
+          type: "content_block_start",
+          index: 2,
+          content_block: { type: "tool_use", id: "toolu_1", name: "save", input: {} },
+        },
+        {
+          type: "content_block_delta",
+          index: 2,
+          delta: { type: "input_json_delta", partial_json: '{"note":' },
+        },
+        {
+          type: "content_block_delta",
+          index: 2,
+          delta: { type: "input_json_delta", partial_json: '"Hi"}' },
+        },
+        { type: "content_block_stop", index: 2 },
+        { type: "ping" },
+        { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 12 } },
+        { type: "message_stop" },
+      ]),
+    ).generate(request, { ...allowance, onProgress: (next) => progress.push(next) });
+    expect(result.value).toEqual({
+      content: "Saving",
+      toolCalls: [{ id: "toolu_1", name: "save", arguments: { note: "Hi" } }],
+    });
+    expect(result.usage).toEqual({ inputTokens: 15, outputTokens: 12, additionalTokens: 0 });
+    expect(progress[0]).toMatchObject({ inputTokens: 15, characters: 0 });
+    expect(progress.some((next) => next.thinking)).toBe(true);
+    // Plan, Saving and the tool arguments: 4 + 6 + 8 + 5 characters.
+    expect(progress.at(-1)).toEqual({
+      characters: 23,
+      thinking: false,
+      tool: "save",
+      inputTokens: 15,
+    });
+    expect(JSON.stringify(progress)).not.toMatch(/Plan|Saving|Hi/);
+  });
+
+  it.each([
+    [
+      "an unfinished stream",
+      [{ type: "message_start", message: message({ content: [] }) }],
+      "ended before completion",
+    ],
+    [
+      "an error event",
+      [{ type: "error", error: { type: "overloaded_error", message: "private-detail" } }],
+      "overloaded_error",
+    ],
+    [
+      "a delta for a block that never started",
+      [
+        { type: "message_start", message: message({ content: [] }) },
+        { type: "content_block_delta", index: 3, delta: { type: "text_delta", text: "x" } },
+      ],
+      "Invalid Claude stream",
+    ],
+  ])("rejects %s without echoing its details", async (_label, events, reason) => {
+    const failure = await createRunProvider(access, async () => sse(events))
+      .generate(request, allowance)
+      .catch((error: unknown) => error as Error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain(reason);
+    expect((failure as Error).message).not.toContain("private-detail");
+  });
+
   it("maps system instructions and both tool formats with native headers and cached token accounting", async () => {
     const dispatch = vi.fn<typeof fetch>(async (url, init) => {
       expect(url).toBe("https://api.anthropic.com/v1/messages");
@@ -44,7 +154,7 @@ describe("native Anthropic transport", () => {
       expect(JSON.parse(init?.body as string)).toEqual({
         model: access.model,
         max_tokens: 1024,
-        stream: false,
+        stream: true,
         temperature: 0.2,
         system: [
           { type: "text", text: "Security policy" },

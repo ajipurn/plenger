@@ -1,6 +1,7 @@
 import {
   type ReviewFinding,
   type ReviewMode,
+  type ReviewReply,
   SECURITY_REVIEW_LIMITS,
   type SecurityReview,
   type SpendingLimit,
@@ -247,6 +248,13 @@ export interface SecurityScan extends SecurityScanSummary {
   reviews: SecurityReview[];
   /** The latest steps, newest last; absent on older scans. */
   activity?: ScanActivity[];
+  /** The reply a running scan is receiving. The service holds it in memory and never saves it. */
+  reply?: ScanReply;
+}
+/** A running scan's model reply while it streams, in the round it belongs to. */
+export interface ScanReply extends ReviewReply {
+  /** 0-based batch, or exploring review, of the scan. */
+  batch: number;
 }
 export interface SecurityWorkspace {
   repositories: LocalRepository[];

@@ -9,6 +9,7 @@ import {
   ModelProviderHttpError,
   normalizeTools,
   parseModelReply,
+  type ReplyProgress,
   reachedOutputLimit,
 } from "../src/redteam/provider.ts";
 import { executeRun, newRun, type RunOptions } from "../src/redteam/run.ts";
@@ -445,7 +446,8 @@ describe("bounded provider transport", () => {
         expect(JSON.parse(init?.body as string)).toMatchObject({
           max_completion_tokens: 1024,
           store: false,
-          stream: false,
+          stream: true,
+          stream_options: { include_usage: true },
         });
         return Response.json({
           choices: [{ finish_reason: "stop", message: { content: "done" } }],
@@ -466,6 +468,74 @@ describe("bounded provider transport", () => {
     });
     expect(calls).toBe(1);
   });
+  it("assembles a streamed OpenAI reply with its tool calls and final usage", async () => {
+    const chunks = [
+      {
+        choices: [
+          {
+            index: 0,
+            delta: {
+              role: "assistant",
+              content: null,
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "call_1",
+                  type: "function",
+                  function: { name: "save", arguments: "" },
+                },
+              ],
+            },
+            finish_reason: null,
+          },
+        ],
+        usage: null,
+      },
+      {
+        choices: [
+          { index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: '{"path":' } }] } },
+        ],
+      },
+      {
+        choices: [
+          { index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: '"a"}' } }] } },
+        ],
+      },
+      { choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], usage: null },
+      { choices: [], usage: { prompt_tokens: 4, completion_tokens: 2, total_tokens: 6 } },
+    ];
+    const provider = createRunProvider(
+      { provider: "openai", model: "test-model", apiKey: "test-private-key" },
+      async () =>
+        new Response(
+          `${chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("")}data: [DONE]\n\n`,
+          { headers: { "Content-Type": "text/event-stream" } },
+        ),
+    );
+    const progress: ReplyProgress[] = [];
+    const result = await provider.generate(
+      { messages: [{ role: "user", content: "hi" }], tools: null },
+      {
+        signal: new AbortController().signal,
+        maxOutputTokens: 1024,
+        onProgress: (next) => progress.push(next),
+      },
+    );
+    expect(result).toMatchObject({
+      value: {
+        content: null,
+        toolCalls: [{ id: "call_1", name: "save", arguments: { path: "a" } }],
+      },
+      usage: { inputTokens: 4, outputTokens: 2, additionalTokens: 0 },
+    });
+    expect(progress.at(-1)).toEqual({
+      characters: 12,
+      thinking: false,
+      tool: "save",
+      inputTokens: null,
+    });
+  });
+
   it("wraps llmfy's flat tool definitions as function tools for every transport", async () => {
     const flat = {
       name: "save_note",

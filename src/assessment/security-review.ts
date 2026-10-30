@@ -45,6 +45,7 @@ import {
   type ReviewMode,
   type ReviewPath,
   type ReviewRange,
+  type ReviewReply,
   ReviewResponseError,
   type ReviewSampling,
   type ReviewSourceFile,
@@ -336,6 +337,8 @@ export async function reviewProject(
     onActivity?: (event: { kind: "request" | "tool"; detail: string; tokens: number }) => void;
     /** Reported usage after each request starts or finishes, including rejected replies. */
     onUsage?: (request: SecurityReview["request"]) => void;
+    /** The reply being received while it streams, then null once its request ends. */
+    onReply?: (reply: ReviewReply | null) => void;
   },
   dispatch: typeof fetch = fetch,
 ): Promise<SecurityReview> {
@@ -576,8 +579,24 @@ export async function reviewProject(
       const reply = await budget.execute(reservation, async (allowance) => {
         admitted[account] += 1;
         options.onUsage?.(requestUsage());
+        const replying = {
+          phase,
+          model: (phase === "validation" ? (validator?.access ?? options.access) : options.access)
+            .model,
+          startedAt: new Date().toISOString(),
+        };
+        options.onReply?.({
+          ...replying,
+          characters: 0,
+          thinking: false,
+          tool: null,
+          inputTokens: null,
+        });
         try {
-          const result = await provider.generate(request, allowance);
+          const result = await provider.generate(request, {
+            ...allowance,
+            onProgress: (progress) => options.onReply?.({ ...replying, ...progress }),
+          });
           if (result.usage) reportedUsage.push(result.usage);
           if (result.tokenDetails) usage[account].push(result.tokenDetails);
           charge(result.tokenDetails);
@@ -596,6 +615,7 @@ export async function reviewProject(
           } else charge(undefined);
           throw error;
         } finally {
+          options.onReply?.(null);
           options.onUsage?.(requestUsage());
         }
       });
