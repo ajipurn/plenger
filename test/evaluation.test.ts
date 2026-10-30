@@ -387,10 +387,10 @@ describe("AI review evaluation", () => {
     expect(markdown).toContain(
       `Batch mode, prompt digest \`${REVIEW_PROMPT_DIGEST.slice(0, 12)}\``,
     );
-    expect(markdown).toContain(
+    expect(markdown.replace(/ {2,}/g, " ")).toContain(
       "| ts-idor-route | vulnerable | 2/2 | source-supported, source-supported | 0 | high: high, high |",
     );
-    expect(markdown).toContain(
+    expect(markdown.replace(/ {2,}/g, " ")).toContain(
       "| ts-idor-route-scoped | safe | 0/2 | dismissed, dismissed | 0 | n/a: none |",
     );
     expect(markdown).toContain(

@@ -507,16 +507,20 @@ export function formatEvaluation(
     "",
     tableOf(metrics(staticOutcomes), ratio),
     "",
-    "| Rule | Vulnerable cases | Safe cases | Precision |",
-    "| --- | --- | --- | --- |",
-    ...ruleMetrics(staticOutcomes).map(
-      (row) => `| ${row.rule} | ${row.vulnerable} | ${row.safe} | ${row.precision.toFixed(2)} |`,
+    table(
+      ["Rule", "Vulnerable cases", "Safe cases", "Precision"],
+      ruleMetrics(staticOutcomes).map((row) => [
+        row.rule,
+        row.vulnerable,
+        row.safe,
+        row.precision.toFixed(2),
+      ]),
+      [1, 2, 3],
     ),
     "",
-    "| Case | Truth | Static rules at the location |",
-    "| --- | --- | --- |",
-    ...staticOutcomes.map(
-      (item) => `| ${item.id} | ${item.kind} | ${item.rules.join(", ") || "none"} |`,
+    table(
+      ["Case", "Truth", "Static rules at the location"],
+      staticOutcomes.map((item) => [item.id, item.kind, item.rules.join(", ") || "none"]),
     ),
   ];
   for (const evaluation of ai) {
@@ -568,34 +572,89 @@ export function formatEvaluation(
       "",
       `Severity of ${agreement.rated} rated detections across runs: ${agreement.exact} at the labeled level, ${agreement.withinOne} within one level, ${agreement.higher} rated higher and ${agreement.lower} lower. Vulnerable cases dismissed by mistake per run: ${evaluation.runs.map((run) => dismissedByMistake(run)).join(", ")}. Dismissals the host kept as needs-review: ${unchecked}. Traced paths listed across runs: ${listed}, closed ${listed - paths.unclosed} (finding ${paths.finding}, safe ${paths.safe}, open ${paths.open}), unclosed ${paths.unclosed}.`,
       "",
-      "| Run | TP | FP | FN | TN | Precision | Recall |",
-      "| --- | --- | --- | --- | --- | --- | --- |",
-      ...evaluation.metrics.map(
-        (item, index) =>
-          `| ${index + 1} | ${item.truePositives} | ${item.falsePositives} | ${item.falseNegatives} | ${item.trueNegatives} | ${ratio(item.precision)} | ${ratio(item.recall)} |`,
+      table(
+        ["Run", "TP", "FP", "FN", "TN", "Precision", "Recall"],
+        evaluation.metrics.map((item, index) => [
+          index + 1,
+          item.truePositives,
+          item.falsePositives,
+          item.falseNegatives,
+          item.trueNegatives,
+          ratio(item.precision),
+          ratio(item.recall),
+        ]),
+        [0, 1, 2, 3, 4, 5, 6],
       ),
       "",
-      "| Case | Truth | Detected in runs | Verdicts at the location | Unlabeled findings | Severity: label, reported |",
-      "| --- | --- | --- | --- | --- | --- |",
-      ...cases.map((item) => {
-        const own = evaluation.runs.map((outcomes) =>
-          outcomes.find((outcome) => outcome.id === item.id),
-        );
-        const detected = own.filter((outcome) => outcome?.detected).length;
-        const verdicts = own.flatMap((outcome) => outcome?.verdicts ?? []);
-        const unlabeled = own.reduce((sum, outcome) => sum + (outcome?.unlabeled ?? 0), 0);
-        const reported = own.flatMap((outcome) => (outcome?.severity ? [outcome.severity] : []));
-        return `| ${item.id} | ${item.kind} | ${detected}/${own.length} | ${verdicts.join(", ") || "none"} | ${unlabeled} | ${item.severity ?? "n/a"}: ${reported.join(", ") || "none"} |`;
-      }),
+      table(
+        [
+          "Case",
+          "Truth",
+          "Detected in runs",
+          "Verdicts at the location",
+          "Unlabeled findings",
+          "Severity: label, reported",
+        ],
+        cases.map((item) => {
+          const own = evaluation.runs.map((outcomes) =>
+            outcomes.find((outcome) => outcome.id === item.id),
+          );
+          const detected = own.filter((outcome) => outcome?.detected).length;
+          const verdicts = own.flatMap((outcome) => outcome?.verdicts ?? []);
+          const unlabeled = own.reduce((sum, outcome) => sum + (outcome?.unlabeled ?? 0), 0);
+          const reported = own.flatMap((outcome) => (outcome?.severity ? [outcome.severity] : []));
+          return [
+            item.id,
+            item.kind,
+            `${detected}/${own.length}`,
+            verdicts.join(", ") || "none",
+            unlabeled,
+            `${item.severity ?? "n/a"}: ${reported.join(", ") || "none"}`,
+          ];
+        }),
+        [2, 4],
+      ),
     );
   }
   return `${lines.join("\n")}\n`;
 }
 
 function tableOf(value: Metrics, ratio: (value: number | null) => string): string {
-  return [
-    "| TP | FP | FN | TN | Precision | Recall |",
-    "| --- | --- | --- | --- | --- | --- |",
-    `| ${value.truePositives} | ${value.falsePositives} | ${value.falseNegatives} | ${value.trueNegatives} | ${ratio(value.precision)} | ${ratio(value.recall)} |`,
-  ].join("\n");
+  return table(
+    ["TP", "FP", "FN", "TN", "Precision", "Recall"],
+    [
+      [
+        value.truePositives,
+        value.falsePositives,
+        value.falseNegatives,
+        value.trueNegatives,
+        ratio(value.precision),
+        ratio(value.recall),
+      ],
+    ],
+    [0, 1, 2, 3, 4, 5],
+  );
+}
+
+/** Markdown tables with columns aligned for plain terminal output too. */
+function table(
+  headers: readonly string[],
+  rows: readonly (readonly (string | number)[])[],
+  right: readonly number[] = [],
+): string {
+  const columns = headers.map((header, index) => ({
+    width: Math.max(3, header.length, ...rows.map((row) => String(row[index] ?? "").length)),
+    right: right.includes(index),
+  }));
+  const line = (cells: readonly (string | number)[]) =>
+    `| ${columns
+      .map(({ width, right }, index) => {
+        const cell = String(cells[index] ?? "");
+        return right ? cell.padStart(width) : cell.padEnd(width);
+      })
+      .join(" | ")} |`;
+  const separator = columns.map(({ width, right }) =>
+    right ? `${"-".repeat(width - 1)}:` : "-".repeat(width),
+  );
+  return [line(headers), `| ${separator.join(" | ")} |`, ...rows.map(line)].join("\n");
 }
