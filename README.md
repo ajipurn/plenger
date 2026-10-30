@@ -17,6 +17,31 @@ project and needs no network access. Its specialty is Python, JavaScript and
 TypeScript: agent inventory, tool and entry point capabilities, and findings
 with supporting code. Other languages enter AI review as text.
 
+## Static rules and risk mappings
+
+The [rule catalog](docs/RULES.md) defines 48 static risk rules. A default scan
+uses 41 rules. Seven additional library rules (`PLG901` to `PLG907`) require
+`library: true` in the engine API. Library mode is not exposed in the dashboard.
+
+Rules map to selected OWASP risk categories and CWE weakness types:
+
+| Reference | Catalog mappings | Scope |
+| --- | --- | --- |
+| [OWASP Top 10 for LLM Applications 2025](https://genai.owasp.org/llm-top-10/) | 8 of 10 categories | No mapping for LLM04 Data and Model Poisoning or LLM09 Misinformation |
+| [OWASP Top 10 for Agentic Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) | 9 of 10 categories | ASI01 to ASI09 have mappings; ASI10 has none |
+| [Common Weakness Enumeration](https://cwe.mitre.org/about/index.html) | 27 distinct CWE IDs | Selected weaknesses, including path traversal, command injection, SQL injection, unsafe deserialization and SSRF |
+
+A mapping means at least one rule addresses a specific pattern in that
+category. It does not establish full detection coverage for the category.
+
+The engine parses source, traces inputs to effects and emits a matching rule
+ID. Reports then use that rule's fixed `owasp` and `cwe` mappings from
+[src/rules/catalog.ts](src/rules/catalog.ts). For example, `PLG101` detects a
+tool running a shell command built from model input, or a program named by
+model input. Its mappings include `LLM06:2025` Excessive Agency. This
+classification needs no model call. See [static analysis](docs/guide/scanning.md)
+for tracing limits and [status and qualifications](docs/STATUS.md) for evidence.
+
 ## Install and start
 
 For a published release, use Node.js 22.18 or newer with npm:
