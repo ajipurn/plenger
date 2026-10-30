@@ -178,10 +178,17 @@ static candidates and may retry ones left Unvalidated before this continuation.
 The scan keeps its first limit and lists each continuation with its limit.
 
 The job continues in the local service when you navigate away or close the
-page. Scans and scan details show its current phase. While it runs, the
-progress card lists the latest steps under the active stage: each model request,
-each file an Explore round reads or search it runs, and each finished round.
-Its heading shows the tokens charged so far. **Cancel scan** explicitly
+page. Scans and scan details show its current phase. For an AI scan, a coverage
+card at the top of scan details shows the files covered, read in full, read in
+part and unread. It has one cell per round the scan may run. While the scan runs,
+the card also shows the findings and tokens so far. After two rounds it estimates
+the pace from the latest rounds: the new files a round covers, and where the round
+limit or spending limit stops the scan at that pace. It is an estimate only.
+The progress card shows reading the source, then the discover and validate steps
+of the current round. Below it, the latest rounds list their files, findings,
+time and tokens. The current round shows its latest step, such as a model request
+or a file an Explore round reads. The details column appears when the scan
+finishes. **Cancel scan** explicitly
 requests cancellation. Provider failures and refusals stop further requests. Response validation
 errors name the failed stage and field when available. Completed static
 findings remain visible if the AI review fails.
@@ -215,7 +222,10 @@ Validation outcomes for either origin, such as Source-supported and Needs review
 source analysis; they are separate from this workflow status.
 
 **Scans** lists start time, source, initiator, duration, reported tokens and job
-status. Open a scan for its findings and an **Outputs** tab containing
+status. Open a scan for its findings. The **Coverage** tab of an AI scan lists
+the eligible files by folder, read, partial and unread, and every round with the
+files it read. The file list comes from the saved static scan. A scan without one
+lists only the files its rounds covered. The **Outputs** tab contains
 architecture, assets, trust boundaries, all six STRIDE categories, traced paths
 with how the review closed each, dismissed candidates with what each dismissal
 rests on, source coverage and limitations. The right column records the observed

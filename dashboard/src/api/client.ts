@@ -23,6 +23,7 @@ import {
   type RepositorySource,
   type ScanAiOptions,
   type ScanBudget,
+  type ScanSourceFiles,
   type SecurityFinding,
   type SecurityScan,
   type SecurityWorkspace,
@@ -44,6 +45,7 @@ export interface DashboardApi {
   startSecurityScan(input: StartSecurityScan): Promise<SecurityScan>;
   startScanAi(id: string, input: ScanAiOptions): Promise<SecurityScan>;
   securityScan(id: string): Promise<SecurityScan>;
+  scanSourceFiles(id: string, signal?: AbortSignal): Promise<ScanSourceFiles>;
   cancelSecurityScan(id: string): Promise<CancelResult>;
   continueSecurityScan(id: string, budget: ScanBudget): Promise<SecurityScan>;
   setFindingStatus(id: string, status: FindingStatus): Promise<SecurityFinding>;
@@ -110,6 +112,12 @@ export async function connect(): Promise<DashboardApi> {
       request<SecurityScan>(API.startScanAi.replace(":id", encodeURIComponent(id)), input),
     securityScan: (id) =>
       request<SecurityScan>(API.securityScan.replace(":id", encodeURIComponent(id))),
+    scanSourceFiles: (id, signal) =>
+      request<ScanSourceFiles>(
+        API.scanSourceFiles.replace(":id", encodeURIComponent(id)),
+        undefined,
+        signal,
+      ),
     cancelSecurityScan: (id) =>
       request<CancelResult>(API.cancelSecurityScan.replace(":id", encodeURIComponent(id)), {}),
     continueSecurityScan: (id, budget) =>

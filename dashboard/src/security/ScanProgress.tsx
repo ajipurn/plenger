@@ -1,44 +1,67 @@
 import { useId, useState } from "react";
-import {
-  SCAN_DEPTHS,
-  type ScanActivity,
-  type SecurityScan,
-} from "../../../src/dashboard/contract.ts";
-import { Icon } from "../shared/icons.tsx";
-import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
+import { SCAN_DEPTHS, type SecurityScan } from "../../../src/dashboard/contract.ts";
+import { Icon, type IconName } from "../shared/icons.tsx";
+import { MorphNumber } from "../shared/MorphNumber.tsx";
+import type { SourceCoverage } from "./coverage.ts";
+import { ScanRounds } from "./ScanRounds.tsx";
 import { phaseLabel } from "./ui.tsx";
 
-const SCAN_STEPS = [
-  {
-    phase: "reading",
+type Stage = Exclude<SecurityScan["phase"], "finished">;
+const STAGES: Record<Stage, { title: string; icon: IconName; description: string }> = {
+  reading: {
     title: "Read source",
+    icon: "source-files",
     description: "Reading local files and preparing the static scan.",
   },
-  {
-    phase: "discovering",
-    title: "Review code",
+  discovering: {
+    title: "Discover",
+    icon: "search",
     description: "Mapping architecture, assessing STRIDE threats, and discovering findings.",
   },
-  {
-    phase: "validating",
-    title: "Validate findings",
+  validating: {
+    title: "Validate",
+    icon: "checklist",
     description: "Checking candidates against the source, callers, and existing safeguards.",
   },
-] as const;
-/** Latest steps listed under the active stage; the saved timeline keeps more. */
-const RECENT_ACTIVITY = 6;
+};
+const ORDER: Stage[] = ["reading", "discovering", "validating"];
+/** Finished rounds listed under the current one; the Coverage tab lists every round. */
+const RECENT_ROUNDS = 5;
 
-/** A running scan's stages on a timeline, with its latest steps under the active stage. */
-export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancelling: boolean }) {
-  const steps = scan.workflow === "static" ? SCAN_STEPS.slice(0, 1) : SCAN_STEPS;
-  const current =
-    scan.phase === "finished" ? steps.length : steps.findIndex((step) => step.phase === scan.phase);
-  const round = Math.min(scan.reviews.length + 1, SCAN_DEPTHS[scan.depth].batches);
-  const activity = scan.activity ?? [];
-  const latest = activity.at(-1);
+/**
+ * A running scan: reading the source once, then a discover and validate loop per round,
+ * with the latest rounds under it.
+ */
+export function ScanProgress({
+  scan,
+  coverage,
+  cancelling,
+  roundsPath,
+}: {
+  scan: SecurityScan;
+  coverage: SourceCoverage;
+  cancelling: boolean;
+  roundsPath: string;
+}) {
+  const ai = scan.workflow !== "static";
+  const limit = SCAN_DEPTHS[scan.depth].batches;
+  const round = Math.min(scan.reviews.length + 1, limit);
+  const latest = scan.activity?.at(-1);
   // Motion marks steps that arrive while the page is open, not the history it opened with.
   const [openedAt] = useState(() => latest?.at ?? "");
-  const arrived = (entry: ScanActivity) => entry.at > openedAt;
+  const current = scan.phase === "finished" ? ORDER.length : ORDER.indexOf(scan.phase);
+  const state = (stage: Stage) => {
+    const index = ORDER.indexOf(stage);
+    return index < current ? "complete" : index === current ? "current" : "pending";
+  };
+  const stage = (name: Stage) => (
+    <li data-state={state(name)} aria-current={state(name) === "current" ? "step" : undefined}>
+      <span className="security-scan-stage-marker" aria-hidden="true">
+        <Icon name={state(name) === "complete" ? "check" : STAGES[name].icon} />
+      </span>
+      {name === "reading" && scan.parentScanId ? "Load saved source" : STAGES[name].title}
+    </li>
+  );
   return (
     <section
       className="security-scan-progress"
@@ -49,97 +72,51 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
       <div className="security-scan-progress-heading">
         <ScanIllustration
           step={
-            !cancelling && latest && arrived(latest) ? `${latest.at}-${latest.detail}` : undefined
+            !cancelling && latest && latest.at > openedAt
+              ? `${latest.at}-${latest.detail}`
+              : undefined
           }
         />
         <div className="security-scan-progress-copy" role="status">
           <p className="security-scan-progress-kicker">
-            <span>
-              {scan.workflow === "static" ? "Static scan" : `${SCAN_DEPTHS[scan.depth].label} scan`}
-            </span>
-            {scan.workflow !== "static" && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>
-                  Round <MorphNumber value={round} />
-                </span>
-              </>
-            )}
+            {ai ? `${SCAN_DEPTHS[scan.depth].label} scan` : "Static scan"}
           </p>
           <h2>{cancelling ? "Cancelling scan" : phaseLabel[scan.phase]}</h2>
         </div>
-        {latest && (
-          <p className="security-scan-progress-tokens">
-            <MorphNumber value={latest.tokens} /> tokens
-          </p>
-        )}
       </div>
-      <ol className="security-scan-steps" aria-label="Analysis stages">
-        {steps.map((step, index) => {
-          const state = index < current ? "complete" : index === current ? "current" : "pending";
-          return (
-            <li
-              key={step.phase}
-              data-state={state}
-              aria-current={state === "current" ? "step" : undefined}
-            >
-              <span className="security-scan-step-number" aria-hidden="true">
-                {state === "complete" ? <Icon name="check" /> : <MorphNumber value={index + 1} />}
+      <ol className="security-scan-stages" aria-label="Analysis stages">
+        {stage("reading")}
+        {ai && (
+          <li className="security-scan-stage-round">
+            <div>
+              <span className="security-scan-stage-label">
+                Round <MorphNumber value={round} />
               </span>
-              <div className="security-scan-step-body">
-                <p className="security-scan-step-title">
-                  {step.phase === "reading" && scan.parentScanId ? "Load saved source" : step.title}
-                  <small>
-                    {state === "complete"
-                      ? "Complete"
-                      : state === "pending"
-                        ? "Pending"
-                        : cancelling
-                          ? "Stopping…"
-                          : "In progress"}
-                  </small>
-                </p>
-                {state === "current" && (
-                  <p className="muted">
-                    {cancelling
-                      ? "Waiting for the current request to stop. Completed static results remain available."
-                      : step.phase === "reading" && scan.parentScanId
-                        ? "Loading the saved static result and preparing source for AI review."
-                        : step.description}
-                  </p>
-                )}
-                {index === Math.min(current, steps.length - 1) && activity.length > 0 && (
-                  <ol className="security-scan-activity" aria-label="Recent scan activity">
-                    {activity
-                      .slice(-RECENT_ACTIVITY)
-                      .reverse()
-                      .map((entry) => (
-                        <li
-                          key={`${entry.at}-${entry.detail}`}
-                          data-kind={entry.kind}
-                          data-arrived={arrived(entry) || undefined}
-                        >
-                          <time dateTime={entry.at}>
-                            <MorphNumber
-                              value={new Date(entry.at).toLocaleTimeString()}
-                              variant="text"
-                            />
-                          </time>
-                          <span>
-                            <span className="muted">
-                              Round <MorphNumber value={entry.batch + 1} /> ·
-                            </span>{" "}
-                            <NumericText>{entry.detail}</NumericText>
-                          </span>
-                        </li>
-                      ))}
-                  </ol>
-                )}
-              </div>
-            </li>
-          );
-        })}
+              <ol>
+                {stage("discovering")}
+                {stage("validating")}
+              </ol>
+            </div>
+          </li>
+        )}
       </ol>
+      <p className="security-scan-stage-note muted">
+        {cancelling
+          ? "Waiting for the current request to stop. Completed static results remain available."
+          : scan.phase === "reading" && scan.parentScanId
+            ? "Loading the saved static result and preparing source for AI review."
+            : scan.phase === "finished"
+              ? "Saving the results."
+              : STAGES[scan.phase].description}
+        {ai &&
+          !cancelling &&
+          (limit > 1
+            ? " Each round discovers, then validates when it has candidates."
+            : " Validation runs when the round has candidates.")}
+      </p>
+      {ai && (
+        <ScanRounds scan={scan} coverage={coverage} limit={RECENT_ROUNDS} allPath={roundsPath} />
+      )}
       <p className="security-scan-progress-note">
         <Icon name="info" /> You can leave this page. The scan continues in the local service.
       </p>

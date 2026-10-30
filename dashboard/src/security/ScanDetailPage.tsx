@@ -24,9 +24,11 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 import { ContinueScan } from "./ContinueScan.tsx";
+import { CoverageOverview, FolderCoverage } from "./CoverageOverview.tsx";
 import { scanSourceCoverage } from "./coverage.ts";
 import { costDescription, ScanBilling, usdCounterLabel } from "./ScanBilling.tsx";
 import { ScanProgress } from "./ScanProgress.tsx";
+import { ScanRounds } from "./ScanRounds.tsx";
 import {
   closureLabel,
   date,
@@ -96,8 +98,11 @@ export function ScanDetailPage({
           (current) => current.id === item.id || current.aliases?.includes(item.id),
         )?.status ?? item.status,
     }));
-  const outputs = params.get("tab") === "outputs";
   const sourceCoverage = scanSourceCoverage(scan);
+  // AI scans that know their eligible files show coverage first and list it by round.
+  const coverage = scan.workflow !== "static" && sourceCoverage.total > 0;
+  const outputs = params.get("tab") === "outputs";
+  const coverageTab = coverage && params.get("tab") === "coverage";
   const running = scan.status === "running";
   const projectContext = params.get("project") === scan.repositoryId;
   const projectPath = `/projects/${encodeURIComponent(scan.repositoryId)}`;
@@ -106,6 +111,7 @@ export function ScanDetailPage({
     ? `${scanPath}?project=${encodeURIComponent(scan.repositoryId)}`
     : scanPath;
   const outputsPath = `${findingsPath}${projectContext ? "&" : "?"}tab=outputs`;
+  const coveragePath = `${findingsPath}${projectContext ? "&" : "?"}tab=coverage`;
   async function cancel() {
     if (!api || !running || cancelling) return;
     setCancelling(true);
@@ -130,15 +136,38 @@ export function ScanDetailPage({
           <div>
             <h1>{repository?.name ?? "Project"}</h1>
             <ScanStatus scan={scan} />
+            <span className="muted security-scan-duration">
+              <ScanDuration scan={scan} />
+            </span>
           </div>
-          <p className="muted">
-            {scan.workflow === "static"
-              ? "Static only"
-              : scan.parentScanId
-                ? "AI review"
-                : "Run all"}{" "}
-            <span aria-hidden="true">·</span> Started{" "}
-            <MorphNumber value={date(scan.startedAt)} variant="text" />
+          {/* The details panel waits for the scan to finish, so a running scan names its source here. */}
+          <p className="muted security-scan-facts">
+            <span>
+              {scan.workflow === "static"
+                ? "Static only"
+                : scan.parentScanId
+                  ? "AI review"
+                  : "Run all"}
+            </span>
+            {scan.workflow !== "static" && (
+              <span>
+                {SCAN_DEPTHS[scan.depth].label}
+                {scan.mode === "explore" ? " · Explore" : ""}
+              </span>
+            )}
+            {running && scan.provider && (
+              <span>
+                {scan.provider.model} via {scan.provider.name}
+              </span>
+            )}
+            {running && (
+              <span>
+                <code>{scan.revision.commit?.slice(0, 12) ?? "Local files"}</code>
+              </span>
+            )}
+            <span>
+              Started <MorphNumber value={date(scan.startedAt)} variant="text" />
+            </span>
           </p>
           {scan.parentScanId && (
             <p className="muted">
@@ -174,54 +203,21 @@ export function ScanDetailPage({
           )}
         </div>
       </header>
-      <dl className="security-scan-summary" aria-label="Scan summary">
-        <div>
-          <dt>
-            <Icon name="clock" /> {running ? "Elapsed time" : "Duration"}
-          </dt>
-          <dd>
-            <ScanDuration scan={scan} />
-          </dd>
-        </div>
-        <div>
-          <dt>
-            <Icon name="findings" /> Saved findings
-          </dt>
-          <dd>
-            {running && !findings.length ? "Pending" : <MorphNumber value={findings.length} />}
-          </dd>
-        </div>
-        <div>
-          <dt>
-            <Icon name="inventory" /> {scan.workflow === "static" ? "Analysis" : "Coverage"}
-          </dt>
-          <dd>
-            {scan.workflow === "static" ? (
-              "Static rules"
-            ) : sourceCoverage.total > 0 ? (
-              <>
-                <MorphNumber value={sourceCoverage.total} /> files in scope
-              </>
-            ) : (
-              SCAN_DEPTHS[scan.depth].label
-            )}
-          </dd>
-          {sourceCoverage.total > 0 && (
-            <p className="muted security-scan-summary-note">
-              <CoverageCounts coverage={sourceCoverage} />
-            </p>
-          )}
-          {scan.coverage && (
-            <p className="muted security-scan-summary-note">
-              <NumericText>{coverageNote(scan, sourceCoverage)}</NumericText>
-            </p>
-          )}
-        </div>
-      </dl>
-      <div className="security-detail-layout security-scan-layout">
+      {coverage && (
+        <CoverageOverview
+          scan={scan}
+          coverage={sourceCoverage}
+          findings={findings.length}
+          note={!running && scan.coverage ? coverageNote(scan, sourceCoverage) : null}
+        />
+      )}
+      <div
+        className="security-detail-layout security-scan-layout"
+        data-running={running || undefined}
+      >
         <section className="security-detail-main">
           <nav className="security-subnav" aria-label="Scan detail">
-            <Link aria-current={!outputs ? "page" : undefined} to={findingsPath}>
+            <Link aria-current={!outputs && !coverageTab ? "page" : undefined} to={findingsPath}>
               <Icon name="findings" /> Findings
               {(!running || findings.length > 0) && (
                 <span className="security-count">
@@ -229,11 +225,24 @@ export function ScanDetailPage({
                 </span>
               )}
             </Link>
+            {coverage && (
+              <Link aria-current={coverageTab ? "page" : undefined} to={coveragePath}>
+                <Icon name="inventory" /> Coverage
+              </Link>
+            )}
             <Link aria-current={outputs ? "page" : undefined} to={outputsPath}>
               <Icon name="source-files" /> Outputs
             </Link>
           </nav>
-          {running && <ScanProgress scan={scan} cancelling={cancelling} />}
+          {/* The Coverage tab lists every round, the current one included. */}
+          {running && !coverageTab && (
+            <ScanProgress
+              scan={scan}
+              coverage={sourceCoverage}
+              cancelling={cancelling}
+              roundsPath={coveragePath}
+            />
+          )}
           {!running && scan.workflow === "static" && (
             <section className="security-continue-scan" aria-labelledby="static-scan-result">
               <h2 id="static-scan-result">
@@ -477,6 +486,15 @@ export function ScanDetailPage({
                 />
               )}
             </div>
+          ) : coverageTab ? (
+            <div className="security-coverage-tab">
+              <FolderCoverage scanId={scan.id} coverage={sourceCoverage} />
+              <section aria-labelledby="scan-rounds">
+                <h2 id="scan-rounds">Rounds</h2>
+                <ScanRounds scan={scan} coverage={sourceCoverage} />
+                {!scan.reviews.length && !running && <p className="muted">No round finished.</p>}
+              </section>
+            </div>
           ) : findings.length ? (
             <FindingsTable
               findings={findings}
@@ -503,131 +521,120 @@ export function ScanDetailPage({
             )
           )}
         </section>
-        <aside className="security-detail-meta security-scan-meta" aria-label="Scan details">
-          <section>
-            <h2>
-              <Icon name="folder" /> Source
-            </h2>
-            <dl>
-              <div>
-                <dt>Project</dt>
-                <dd>
-                  <Link to={projectPath}>{repository?.name ?? "Project"}</Link>
-                </dd>
-              </div>
-              <div>
-                <dt>Revision</dt>
-                <dd>
-                  <code>{scan.revision.commit?.slice(0, 12) ?? "Local files"}</code>
-                  {scan.revision.dirty && <small>Includes uncommitted changes</small>}
-                </dd>
-              </div>
-              <div className="security-meta-path">
-                <dt>Local folder</dt>
-                <dd>
-                  <code>{repository?.path ?? "Unavailable"}</code>
-                </dd>
-              </div>
-            </dl>
-            {scan.environment.notes && (
-              <details className="security-scan-context">
-                <summary>Review context</summary>
-                <p>{scan.environment.notes}</p>
-              </details>
-            )}
-          </section>
-          <section>
-            <h2>
-              <Icon name="models" /> Model &amp; usage
-            </h2>
-            <dl>
-              <div>
-                <dt>Provider</dt>
-                <dd>
-                  {scan.provider?.name ?? "Offline scan"}
-                  <small>{scan.provider?.model}</small>
-                </dd>
-              </div>
-              <div>
-                <dt>Usage</dt>
-                <dd>
-                  {scan.tokens === null ? (
-                    running ? (
-                      "Not reported yet"
-                    ) : (
+        {!running && (
+          <aside className="security-detail-meta security-scan-meta" aria-label="Scan details">
+            <section>
+              <h2>
+                <Icon name="folder" /> Source
+              </h2>
+              <dl>
+                <div>
+                  <dt>Project</dt>
+                  <dd>
+                    <Link to={projectPath}>{repository?.name ?? "Project"}</Link>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Revision</dt>
+                  <dd>
+                    <code>{scan.revision.commit?.slice(0, 12) ?? "Local files"}</code>
+                    {scan.revision.dirty && <small>Includes uncommitted changes</small>}
+                  </dd>
+                </div>
+                <div className="security-meta-path">
+                  <dt>Local folder</dt>
+                  <dd>
+                    <code>{repository?.path ?? "Unavailable"}</code>
+                  </dd>
+                </div>
+              </dl>
+              {scan.environment.notes && (
+                <details className="security-scan-context">
+                  <summary>Review context</summary>
+                  <p>{scan.environment.notes}</p>
+                </details>
+              )}
+            </section>
+            <section>
+              <h2>
+                <Icon name="models" /> Model &amp; usage
+              </h2>
+              <dl>
+                <div>
+                  <dt>Provider</dt>
+                  <dd>
+                    {scan.provider?.name ?? "Offline scan"}
+                    <small>{scan.provider?.model}</small>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Usage</dt>
+                  <dd>
+                    {scan.tokens === null ? (
                       "Not reported by provider"
-                    )
-                  ) : (
-                    <>
-                      <MorphNumber value={scan.tokens} /> tokens
-                    </>
-                  )}
-                  <small>
-                    {scan.workflow === "static" ? (
-                      "Static analysis does not use a model."
-                    ) : running ? (
-                      "Reported usage updates after each model response."
                     ) : (
                       <>
-                        <MorphNumber value={scan.modelCalls} /> model calls
-                        {scan.tokensComplete === false && " · Some responses did not report usage."}
+                        <MorphNumber value={scan.tokens} /> tokens
                       </>
                     )}
-                  </small>
-                </dd>
-              </div>
-              <div>
-                <dt>Estimated cost</dt>
-                <dd>
-                  {scan.cost ? (
-                    <MorphNumber value={usdCounterLabel(scan.cost.totalUsd)} />
-                  ) : scan.workflow === "static" ? (
-                    "No model usage"
-                  ) : running ? (
-                    "Waiting"
-                  ) : (
-                    "Unavailable"
-                  )}
-                  <small>
-                    {scan.cost
-                      ? costDescription(scan.cost)
-                      : scan.workflow === "static"
-                        ? "Static analysis runs locally without a provider."
-                        : "Requires saved model prices and complete token usage."}
-                  </small>
-                </dd>
-              </div>
-            </dl>
-          </section>
-          <section>
-            <h2>
-              <Icon name="clock" /> Timeline
-            </h2>
-            <dl>
-              <div>
-                <dt>Started</dt>
-                <dd>
-                  <MorphNumber value={date(scan.startedAt)} variant="text" />
-                </dd>
-              </div>
-              <div>
-                <dt>Finished</dt>
-                <dd>
-                  <MorphNumber
-                    value={
-                      scan.finishedAt
-                        ? date(scan.finishedAt)
-                        : running
-                          ? "In progress"
-                          : "Unavailable"
-                    }
-                    variant="text"
-                  />
-                </dd>
-              </div>
-            </dl>
-          </section>
-        </aside>
+                    <small>
+                      {scan.workflow === "static" ? (
+                        "Static analysis does not use a model."
+                      ) : (
+                        <>
+                          <MorphNumber value={scan.modelCalls} /> model calls
+                          {scan.tokensComplete === false &&
+                            " · Some responses did not report usage."}
+                        </>
+                      )}
+                    </small>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Estimated cost</dt>
+                  <dd>
+                    {scan.cost ? (
+                      <MorphNumber value={usdCounterLabel(scan.cost.totalUsd)} />
+                    ) : scan.workflow === "static" ? (
+                      "No model usage"
+                    ) : (
+                      "Unavailable"
+                    )}
+                    <small>
+                      {scan.cost
+                        ? costDescription(scan.cost)
+                        : scan.workflow === "static"
+                          ? "Static analysis runs locally without a provider."
+                          : "Requires saved model prices and complete token usage."}
+                    </small>
+                  </dd>
+                </div>
+              </dl>
+            </section>
+            <section>
+              <h2>
+                <Icon name="clock" /> Timeline
+              </h2>
+              <dl>
+                <div>
+                  <dt>Started</dt>
+                  <dd>
+                    <MorphNumber value={date(scan.startedAt)} variant="text" />
+                  </dd>
+                </div>
+                <div>
+                  <dt>Finished</dt>
+                  <dd>
+                    <MorphNumber
+                      value={scan.finishedAt ? date(scan.finishedAt) : "Unavailable"}
+                      variant="text"
+                    />
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          </aside>
+        )}
       </div>
     </div>
   );
@@ -864,11 +871,11 @@ function RoundCoverageSummary({
   );
 }
 
-/** Depth and mode, why rounds stopped, and what the limit charged. */
+/** Why rounds stopped and what the limit charged; the heading names depth and mode. */
 function coverageNote(scan: SecurityScan, source: ReturnType<typeof scanSourceCoverage>): string {
   const coverage = scan.coverage;
   const explore = scan.mode === "explore";
-  const parts: string[] = [SCAN_DEPTHS[scan.depth].label, ...(explore ? ["Explore"] : [])];
+  const parts: string[] = [];
   if (coverage?.stop)
     parts.push(
       coverage.stop === "complete"
@@ -889,5 +896,6 @@ function coverageNote(scan: SecurityScan, source: ReturnType<typeof scanSourceCo
     );
   else if (coverage && scan.depth === "full")
     parts.push(`${coverage.charged.tokens.toLocaleString()} tokens charged, no limit`);
-  return parts.join(" · ");
+  const note = parts.join(" · ");
+  return note.charAt(0).toUpperCase() + note.slice(1);
 }

@@ -868,8 +868,8 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 }
 .security-scan-progress-heading {
   @apply grid items-center gap-x-5;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas: "art copy tokens";
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "art copy";
 }
 .security-scan-illustration {
   @apply text-ink;
@@ -887,74 +887,217 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-scan-progress h2 {
   @apply text-[18px] leading-snug;
 }
-.security-scan-progress-tokens {
-  @apply text-[12px] text-muted tabular-nums whitespace-nowrap;
-  grid-area: tokens;
-}
-.security-scan-steps {
-  @apply list-none p-0 m-0 mt-4 pt-5 border-t border-line;
-}
-.security-scan-steps > li {
-  @apply relative grid gap-x-3 text-muted;
-  grid-template-columns: 1.5rem minmax(0, 1fr);
-}
-.security-scan-steps > li:not(:last-child) {
-  @apply pb-4;
-}
-/* The rail from one stage marker to the next. */
-.security-scan-steps > li:not(:last-child)::before {
-  @apply absolute w-px bg-line-strong;
-  content: "";
-  left: calc(0.75rem - 0.5px);
-  top: calc(1.5rem + 4px);
-  bottom: 4px;
-}
-.security-scan-step-number {
-  @apply inline-flex items-center justify-center size-6 rounded-full border border-line text-[11px] tabular-nums;
-}
-.security-scan-step-body {
-  @apply min-w-0;
-}
-.security-scan-step-title {
-  @apply flex flex-wrap items-baseline gap-x-2 text-[13px] leading-6;
-}
-.security-scan-step-title small {
-  @apply text-[11px] text-muted font-normal;
-}
-.security-scan-step-body > .muted {
-  @apply text-[12px] leading-relaxed;
-  max-width: 60ch;
-}
-.security-scan-steps [data-state="current"] .security-scan-step-title {
-  @apply text-ink font-medium;
-}
-.security-scan-steps [data-state="current"] .security-scan-step-number {
-  @apply bg-ink text-canvas border-ink;
-}
-.security-scan-steps [data-state="complete"] .security-scan-step-number {
-  @apply bg-hover text-ink;
-}
-.security-scan-activity {
-  @apply grid gap-1.5 list-none p-0 m-0 mt-3 text-[12px];
-}
-.security-scan-activity li {
-  @apply grid gap-x-3 items-baseline text-ink;
-  grid-template-columns: auto minmax(0, 1fr);
-}
-.security-scan-activity li > span {
-  @apply wrap-anywhere;
-}
-.security-scan-activity time {
-  @apply text-muted tabular-nums;
-}
-.security-scan-activity li[data-kind="batch"] {
-  @apply font-medium;
-}
 .security-scan-progress-note {
   @apply flex items-start gap-2 text-[12px] text-muted leading-relaxed mt-5;
 }
 .security-scan-progress-note > .icon {
   @apply shrink-0 mt-0.5;
+}
+.security-scan-duration {
+  @apply text-[13px] tabular-nums;
+}
+.security-scan-facts {
+  @apply flex flex-wrap items-center gap-x-2 gap-y-1;
+}
+.security-scan-facts > span + span::before {
+  @apply me-2;
+  content: "·";
+}
+.security-scan-layout[data-running] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.security-coverage {
+  @apply grid gap-3 rounded-panel border border-line bg-surface p-5 mb-5;
+}
+.security-coverage-heading {
+  @apply flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-[13px];
+}
+.security-coverage-total {
+  @apply flex items-baseline gap-1.5 text-muted;
+}
+.security-coverage-total strong {
+  @apply text-[22px] leading-7 font-semibold text-ink;
+}
+.security-coverage-bar,
+.security-folder-bar {
+  @apply block w-full h-2 rounded-full bg-hover overflow-hidden;
+}
+:is(.security-coverage-bar, .security-folder-bar) rect[data-state="read"] {
+  fill: var(--accent);
+}
+:is(.security-coverage-bar, .security-folder-bar) rect[data-state="partial"] {
+  fill: var(--accent);
+  opacity: 0.4;
+}
+.security-coverage-legend,
+.security-round-legend {
+  @apply flex flex-wrap gap-x-4 gap-y-1 list-none p-0 m-0 text-[12px] text-muted;
+}
+:is(.security-coverage-legend, .security-round-legend) li {
+  @apply inline-flex items-center gap-1.5;
+}
+:is(.security-coverage-legend, .security-round-legend) li::before {
+  @apply size-2.5 rounded-[3px] border border-line-strong;
+  content: "";
+}
+.security-coverage-legend [data-state="read"]::before {
+  @apply bg-accent border-accent;
+}
+.security-coverage-legend [data-state="partial"]::before {
+  @apply bg-accent/40 border-transparent;
+}
+.security-coverage-note {
+  @apply text-[13px] leading-relaxed;
+}
+.security-coverage-note[data-tone="warning"] {
+  @apply flex items-start gap-2 rounded-ui px-3 py-2 bg-medium-soft text-medium;
+}
+.security-coverage-note > .icon {
+  @apply shrink-0 mt-0.5;
+}
+.security-round-strip {
+  @apply grid gap-2 pt-3 border-t border-line;
+}
+.security-round-strip > p {
+  @apply flex flex-wrap justify-between gap-2 text-[13px] font-medium;
+}
+.security-round-strip > p > .muted {
+  @apply font-normal tabular-nums;
+}
+.security-round-strip ol {
+  @apply grid list-none p-0 m-0;
+  grid-template-columns: repeat(50, minmax(0, 1fr));
+  gap: 3px;
+}
+.security-round-strip ol > li,
+.security-round-legend li::before {
+  @apply rounded-[3px] border border-line;
+}
+.security-round-strip ol > li {
+  aspect-ratio: 1;
+}
+.security-round-strip [data-state="finished"]::before,
+.security-round-strip ol > [data-state="finished"] {
+  @apply bg-line-strong border-transparent;
+}
+.security-round-strip [data-state="found"]::before,
+.security-round-strip ol > [data-state="found"] {
+  @apply bg-high border-transparent;
+}
+.security-round-strip [data-state="incomplete"]::before,
+.security-round-strip ol > [data-state="incomplete"] {
+  @apply bg-critical border-transparent;
+}
+.security-round-strip ol > [data-state="current"] {
+  @apply bg-accent border-transparent;
+}
+.security-scan-stages {
+  @apply flex flex-wrap items-center gap-x-3 gap-y-2 list-none p-0 m-0 mt-4 pt-4 border-t border-line text-[13px];
+}
+.security-scan-stages li {
+  @apply inline-flex items-center gap-2 text-muted;
+}
+.security-scan-stages > li + li::before {
+  @apply text-muted;
+  content: "→";
+}
+.security-scan-stage-round > div {
+  @apply inline-flex items-center gap-1 rounded-ui border border-line ps-3 pe-1 py-1;
+}
+.security-scan-stage-round ol {
+  @apply flex items-center gap-1 list-none p-0 m-0;
+}
+.security-scan-stage-round ol > li {
+  @apply px-2 py-1;
+}
+.security-scan-stage-round ol > li + li::before {
+  @apply me-1 text-muted;
+  content: "→";
+}
+.security-scan-stage-label {
+  @apply text-[12px] text-muted tabular-nums whitespace-nowrap me-1;
+}
+.security-scan-stage-marker {
+  @apply inline-flex items-center justify-center size-5 rounded-full border border-line;
+}
+.security-scan-stage-marker > .icon {
+  @apply size-3;
+}
+.security-scan-stages [data-state="current"] {
+  @apply text-ink font-medium;
+}
+.security-scan-stages [data-state="current"] .security-scan-stage-marker {
+  @apply bg-ink text-canvas border-ink;
+}
+.security-scan-stages [data-state="complete"] .security-scan-stage-marker {
+  @apply bg-hover text-ink;
+}
+.security-scan-stage-note {
+  @apply mt-2 text-[12px] leading-relaxed;
+  max-width: 72ch;
+}
+.security-rounds {
+  @apply grid gap-2 mt-4;
+}
+.security-rounds > ol {
+  @apply grid list-none p-0 m-0 border-t border-line;
+}
+.security-round {
+  @apply border-b border-line text-[13px];
+}
+.security-round-row {
+  @apply grid items-baseline gap-x-3 py-2.5;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 6.5rem 4.5rem 6.5rem;
+}
+summary.security-round-row {
+  @apply cursor-pointer -mx-2 px-2 rounded-ui;
+}
+summary.security-round-row:hover {
+  @apply bg-hover;
+}
+.security-round-row > span {
+  @apply min-w-0 tabular-nums;
+}
+.security-round-name {
+  @apply font-medium;
+}
+.security-round-detail {
+  @apply wrap-anywhere;
+}
+.security-round-detail > .security-status {
+  @apply ms-2 capitalize;
+}
+.security-round[data-state="current"] .security-round-name {
+  @apply text-accent;
+}
+.security-round-files {
+  @apply grid gap-1 list-none p-0 m-0 pb-3 text-[12px];
+  padding-inline-start: calc(5.5rem + 0.75rem);
+}
+.security-round-files code {
+  @apply break-all;
+}
+.security-coverage-tab {
+  @apply grid gap-6;
+}
+.security-coverage-tab h2 {
+  @apply text-[15px] mb-2;
+}
+/* Rows share the list's columns, so every bar starts at the same place. */
+.security-folder-coverage > ul {
+  @apply grid gap-x-3 list-none p-0 m-0 mt-3 border-t border-line;
+  grid-template-columns: minmax(0, 1fr) minmax(6rem, 12rem) auto;
+}
+.security-folder-coverage li {
+  @apply grid items-center py-2 border-b border-line text-[13px];
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+.security-folder-coverage code {
+  @apply wrap-anywhere;
+}
+.security-folder-coverage li > .muted {
+  @apply text-end tabular-nums whitespace-nowrap;
 }
 .scan-art-grid {
   opacity: 0.12;
@@ -1022,17 +1165,10 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 }
 @container (max-width: 32rem) {
   .security-scan-progress-heading {
-    @apply items-start gap-x-4;
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas:
-      "art copy"
-      "art tokens";
+    @apply gap-x-4;
   }
   .security-scan-illustration {
     width: 76px;
-  }
-  .security-scan-progress-tokens {
-    @apply mt-1;
   }
 }
 .scan-art-ping {
@@ -1070,8 +1206,11 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   .security-scan-illustration[data-step] .scan-art-ping {
     animation: scan-step-ping 700ms cubic-bezier(0.23, 1, 0.32, 1);
   }
-  .security-scan-activity li[data-arrived] {
-    animation: scan-activity-arrive 200ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+  .security-round[data-arrived] {
+    animation: scan-round-arrive 200ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+  }
+  .security-round-strip li[data-state="current"] {
+    animation: scan-round-current 1.6s ease-in-out infinite;
   }
 }
 @keyframes scan-source-sweep {
@@ -1127,7 +1266,12 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
     transform: scale(1.4);
   }
 }
-@keyframes scan-activity-arrive {
+@keyframes scan-round-current {
+  50% {
+    opacity: 0.45;
+  }
+}
+@keyframes scan-round-arrive {
   from {
     opacity: 0;
     transform: translateY(-4px);
@@ -1367,8 +1511,27 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   .security-scan-summary > div {
     @apply px-3 py-4;
   }
-  .security-scan-progress {
+  .security-scan-progress,
+  .security-coverage {
     @apply p-4;
+  }
+  .security-round-row {
+    grid-template-columns: 5rem minmax(0, 1fr) auto;
+  }
+  .security-round-row > span:nth-child(n + 4) {
+    @apply hidden;
+  }
+  .security-round-files {
+    @apply ps-0;
+  }
+  .security-round-strip ol {
+    grid-template-columns: repeat(25, minmax(0, 1fr));
+  }
+  .security-folder-coverage > ul {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .security-folder-bar {
+    @apply hidden;
   }
   .security-form-footer {
     @apply px-4;

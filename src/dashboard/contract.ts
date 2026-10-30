@@ -87,6 +87,7 @@ export const API = {
   deleteRepository: "/api/security/repositories/:id/delete",
   securityScans: "/api/security/scans",
   securityScan: "/api/security/scans/:id",
+  scanSourceFiles: "/api/security/scans/:id/source-files",
   cancelSecurityScan: "/api/security/scans/:id/cancel",
   continueSecurityScan: "/api/security/scans/:id/continue",
   startScanAi: "/api/security/scans/:id/ai",
@@ -226,6 +227,12 @@ export interface RepositorySource {
   bytes: number;
   /** Listing stopped at the scan's file limit; the project holds more. */
   truncated: boolean;
+}
+
+/** The files a scan's reviews could read, listed from its saved static scan. */
+export interface ScanSourceFiles {
+  /** Null when the scan has no saved static scan to list them from. */
+  paths: string[] | null;
 }
 
 export interface UpdateRepositoryRequest {

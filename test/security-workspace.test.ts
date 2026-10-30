@@ -13,6 +13,7 @@ import {
   type RepositorySource,
   reviewBudget,
   SCAN_BUDGET_LIMITS,
+  type ScanSourceFiles,
   SECURITY_REVIEW_LIMITS,
   type SecurityScan,
   type SecurityWorkspace,
@@ -694,6 +695,18 @@ describe("local project security workspace", () => {
     expect(scan.reviews).toHaveLength(3);
     expect(scan.coverage).toMatchObject({ stop: "complete", eligibleFiles: 52, sentFiles: 52 });
     expect(scan.coverage?.charged.tokens).toBeGreaterThan(0);
+  });
+
+  it("lists the files a scan could read from its saved static scan", async () => {
+    await writeFile(join(project, "module.ts"), "export const value = 1;\n");
+    const repo = await repository();
+    const scan = await finished((await start(repo.id)).id, 5000);
+    const response = await dashboard.request(pathFor(API.scanSourceFiles, scan.id));
+    expect(response.status).toBe(200);
+    const { paths } = (await response.json()) as ScanSourceFiles;
+    expect(paths).toHaveLength(scan.coverage?.eligibleFiles ?? -1);
+    expect(paths).toContain("module.ts");
+    expect((await dashboard.request(pathFor(API.scanSourceFiles, "missing"))).status).toBe(404);
   });
 
   it("reviews a folder without Python, JavaScript or TypeScript as plain text", async () => {

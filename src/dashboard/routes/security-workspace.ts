@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import type { ReviewMode } from "../../assessment/review-model.ts";
-import { reviewSourceSize } from "../../assessment/review-source.ts";
+import { reviewPaths, reviewSourceSize } from "../../assessment/review-source.ts";
 import { validateProviderSettings } from "../../redteam/provider-config.ts";
 import { sourceRevision } from "../../security/git.ts";
 import {
@@ -15,7 +15,13 @@ import {
 } from "../../security/model.ts";
 import { isRecord } from "../../shared/guards.ts";
 import { StoreValidationError } from "../../storage/store.ts";
-import { API, type DeleteResult, type RepositorySource, WORKSPACE_LIMITS } from "../contract.ts";
+import {
+  API,
+  type DeleteResult,
+  type RepositorySource,
+  type ScanSourceFiles,
+  WORKSPACE_LIMITS,
+} from "../contract.ts";
 import { expectKeys, HttpError, jsonRequest, requireInt, requireString } from "../http.ts";
 import type { Route } from "../router.ts";
 import type { Services } from "../services.ts";
@@ -207,6 +213,18 @@ export function securityWorkspaceRoutes({
         const scan = store.security.scan(params.id ?? "");
         if (!scan) throw new HttpError(404, "Scan not found.");
         return { status: 200, body: scan };
+      },
+    },
+    {
+      method: "GET",
+      path: API.scanSourceFiles,
+      // The saved static scan lists them, so the project folder is not read again.
+      handler: ({ params }) => {
+        const scan = store.security.scan(params.id ?? "");
+        if (!scan) throw new HttpError(404, "Scan not found.");
+        const saved = scan.sourceScanId ? store.scans.readScan(scan.sourceScanId) : null;
+        const body: ScanSourceFiles = { paths: saved ? reviewPaths(saved.scan) : null };
+        return { status: 200, body };
       },
     },
     {
