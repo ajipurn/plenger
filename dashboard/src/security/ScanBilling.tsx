@@ -4,20 +4,26 @@ import {
   type CostSummary,
   tokenCost,
 } from "../../../src/redteam/model-pricing.ts";
+import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 
 export function costLabel(cost: CostSummary | null | undefined): string {
   return cost ? usdLabel(cost.totalUsd) : "Unavailable";
 }
 
-export function usdLabel(totalUsd: number): string {
+export function usdLabel(totalUsd: number, minimumFractionDigits = 2): string {
   return totalUsd > 0 && totalUsd < 0.000001
     ? "< $0.000001"
     : new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
-        minimumFractionDigits: 2,
+        minimumFractionDigits,
         maximumFractionDigits: 6,
       }).format(totalUsd);
+}
+
+/** Keep decimal places aligned as the cost changes. */
+export function usdCounterLabel(totalUsd: number): string {
+  return usdLabel(totalUsd, 6);
 }
 
 export function costDescription(cost: CostSummary | null | undefined): string {
@@ -94,11 +100,15 @@ function BillingSection({
 }) {
   return (
     <section>
-      <h3>{title}</h3>
+      <h3>
+        <NumericText>{title}</NumericText>
+      </h3>
       <p className="muted">
-        {billing.pricing
-          ? `Estimated cost: ${costLabel(billing.cost)}. ${billing.cost?.complete ? "" : "Some requests or token details could not be priced."}`
-          : "No saved model prices. Usage is shown without a cost estimate."}
+        <NumericText>
+          {billing.pricing
+            ? `Estimated cost: ${costLabel(billing.cost)}. ${billing.cost?.complete ? "" : "Some requests or token details could not be priced."}`
+            : "No saved model prices. Usage is shown without a cost estimate."}
+        </NumericText>
       </p>
       {!billing.usage.length && <p className="muted">No token usage was reported.</p>}
       {billing.usage.map((usage) => {
@@ -118,7 +128,7 @@ function BillingSection({
           <div className="security-table-scroll" key={`${id}-${usage.request}`}>
             <table className="security-table security-billing-table">
               <caption>
-                Reported request {usage.request}
+                Reported request <MorphNumber value={usage.request} />
                 {charge?.longContext ? " · Long context rates" : ""}
               </caption>
               <thead>
@@ -134,17 +144,27 @@ function BillingSection({
                   (field) => rates?.[field] !== undefined || counts[field],
                 ).map((field) => (
                   <tr key={field}>
-                    <th scope="row">{labels[field]}</th>
-                    <td>{counts[field]?.toLocaleString() ?? "Unknown"}</td>
-                    <td>{charge && rates ? rates[field] : "—"}</td>
+                    <th scope="row">
+                      <NumericText>{labels[field]}</NumericText>
+                    </th>
                     <td>
-                      {charge
-                        ? costLabel({
-                            currency: "USD",
-                            totalUsd: charge.amounts[field] ?? 0,
-                            complete: true,
-                          })
-                        : "—"}
+                      <MorphNumber value={counts[field] ?? "Unknown"} />
+                    </td>
+                    <td>
+                      <MorphNumber value={charge && rates ? (rates[field] ?? "—") : "—"} />
+                    </td>
+                    <td>
+                      <MorphNumber
+                        value={
+                          charge
+                            ? costLabel({
+                                currency: "USD",
+                                totalUsd: charge.amounts[field] ?? 0,
+                                complete: true,
+                              })
+                            : "—"
+                        }
+                      />
                     </td>
                   </tr>
                 ))}
@@ -152,8 +172,8 @@ function BillingSection({
             </table>
             {usage.cacheWrite5mTokens === null && (
               <p className="muted">
-                Cache writes: {usage.cacheCreationTokens.toLocaleString()} tokens. The provider did
-                not report their lifetimes; this request cannot be priced.
+                Cache writes: <MorphNumber value={usage.cacheCreationTokens} /> tokens. The provider
+                did not report their lifetimes; this request cannot be priced.
               </p>
             )}
           </div>

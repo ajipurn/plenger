@@ -112,13 +112,17 @@ export function ProjectsPage({
                           <Link className="security-row-link" to={`/scans/${latest.id}`}>
                             <ScanStatus scan={latest} />
                           </Link>
-                          <span className="security-cell-caption">{date(latest.startedAt)}</span>
+                          <span className="security-cell-caption">
+                            <MorphNumber value={date(latest.startedAt)} variant="text" />
+                          </span>
                         </>
                       ) : (
                         <span className="muted">Not scanned</span>
                       )}
                     </td>
-                    <td>{latest ? (openFindings.get(project.id) ?? 0) : "—"}</td>
+                    <td>
+                      {latest ? <MorphNumber value={openFindings.get(project.id) ?? 0} /> : "—"}
+                    </td>
                     <td>
                       <div className="security-row-actions">
                         <Button

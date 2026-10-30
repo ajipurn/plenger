@@ -141,6 +141,11 @@
   fill: var(--ink);
   font-size: 11px;
 }
+.security-flow-number {
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 14px;
+}
 .security-flow .security-flow-label {
   fill: var(--muted);
 }

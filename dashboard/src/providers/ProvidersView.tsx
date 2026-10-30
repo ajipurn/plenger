@@ -11,7 +11,7 @@ import {
 import { useApi } from "../app/DashboardContext.tsx";
 import { useAsyncAction } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
-import { MorphNumber } from "../shared/MorphNumber.tsx";
+import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 import { DeleteProviderDialog } from "./DeleteProviderDialog.tsx";
 import { ProviderEditor, type ProviderForm, savedGeneration } from "./ProviderEditor.tsx";
@@ -339,12 +339,12 @@ export function ProvidersView({
         </div>
         {!editorOpen && error && (
           <p className="error-message" role="alert">
-            {error}
+            <NumericText>{error}</NumericText>
           </p>
         )}
         {!editorOpen && notice && (
           <p className="provider-notice" role="status">
-            {notice}
+            <NumericText>{notice}</NumericText>
           </p>
         )}
         <ProviderTable

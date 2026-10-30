@@ -13,6 +13,7 @@ import { useApi } from "../app/DashboardContext.tsx";
 import { FixPromptGenerator } from "../findings/FixPromptGenerator.tsx";
 import { errorMessage } from "../shared/async.ts";
 import { DetailDrawer } from "../shared/DetailDrawer.tsx";
+import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { Button, Select } from "../shared/ui.tsx";
 import { date, Empty, originLabel, statusLabel, validationLabel } from "./ui.tsx";
 
@@ -136,11 +137,12 @@ export function FindingPage({
             <span className="security-status">{statusLabel[findingStatus]}</span>
           </div>
           <p className="muted security-finding-updated">
-            Updated {date(current?.updatedAt ?? finding.updatedAt)}
+            Updated{" "}
+            <MorphNumber value={date(current?.updatedAt ?? finding.updatedAt)} variant="text" />
           </p>
           {error && (
             <p role="alert" className="error-message">
-              {error}
+              <NumericText>{error}</NumericText>
             </p>
           )}
           {[
@@ -164,8 +166,12 @@ export function FindingPage({
                 id={`source-${finding.evidence.indexOf(cite)}`}
               >
                 <code>
-                  {cite.path}:{cite.line}
-                  {cite.endLine > cite.line ? `–${cite.endLine}` : ""}
+                  {cite.path}:<MorphNumber value={String(cite.line)} />
+                  {cite.endLine > cite.line && (
+                    <>
+                      –<MorphNumber value={String(cite.endLine)} />
+                    </>
+                  )}
                 </code>
                 <p className="muted">{cite.message}</p>
                 {cite.snippet && (
@@ -196,7 +202,7 @@ export function FindingPage({
                   {entry.review?.dismissal?.evidence.map((cite) => (
                     <p key={JSON.stringify(cite)}>
                       <code>
-                        {cite.path}:{cite.line}
+                        {cite.path}:<MorphNumber value={String(cite.line)} />
                       </code>{" "}
                       {cite.message}
                     </p>
@@ -249,7 +255,9 @@ export function FindingPage({
             </div>
             <div>
               <dt>Detected</dt>
-              <dd>{date(finding.detectedAt)}</dd>
+              <dd>
+                <MorphNumber value={date(finding.detectedAt)} variant="text" />
+              </dd>
             </div>
             <div>
               <dt>Affected locations</dt>
@@ -257,7 +265,7 @@ export function FindingPage({
                 {finding.evidence.map((cite) => (
                   <a key={JSON.stringify(cite)} href={`#source-${finding.evidence.indexOf(cite)}`}>
                     <code>
-                      {cite.path}:{cite.line}
+                      {cite.path}:<MorphNumber value={String(cite.line)} />
                     </code>
                   </a>
                 ))}

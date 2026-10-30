@@ -16,6 +16,7 @@ import {
 } from "../../../src/redteam/provider-config.ts";
 import { DetailDrawer } from "../shared/DetailDrawer.tsx";
 import { Icon } from "../shared/icons.tsx";
+import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { PROVIDER_OPTIONS, type ProviderKind } from "../shared/providers.ts";
 import { Button, Checkbox, Input, Select } from "../shared/ui.tsx";
 import { ModelPricingEditor } from "./ModelPricingEditor.tsx";
@@ -264,7 +265,9 @@ export function ProviderEditor({
                   <Icon name="models" />
                   Model pricing
                   {form.modelPricing.length > 0 && (
-                    <span className="tag">{form.modelPricing.length}</span>
+                    <span className="tag">
+                      <MorphNumber value={form.modelPricing.length} />
+                    </span>
                   )}
                 </Tab>
               )}
@@ -348,15 +351,17 @@ export function ProviderEditor({
                       </Button>
                     </div>
                     <p className="muted" role="status">
-                      {catalog.loading
-                        ? "Loading available models…"
-                        : catalog.loaded
-                          ? catalog.models.length
-                            ? `${catalog.models.length} models available. You can choose another model when starting a scan.`
-                            : "No models are available for this key."
-                          : keySaved
-                            ? "Load models using the saved API key, or enter a replacement key."
-                            : "Enter an API key, then load available models."}
+                      <NumericText>
+                        {catalog.loading
+                          ? "Loading available models…"
+                          : catalog.loaded
+                            ? catalog.models.length
+                              ? `${catalog.models.length} models available. You can choose another model when starting a scan.`
+                              : "No models are available for this key."
+                            : keySaved
+                              ? "Load models using the saved API key, or enter a replacement key."
+                              : "Enter an API key, then load available models."}
+                      </NumericText>
                     </p>
                     {form.model && <code className="provider-model-id muted">{form.model}</code>}
                     {catalog.error && (
@@ -474,16 +479,18 @@ export function ProviderEditor({
                       onChange={(checked) => onChange({ keepGeneration: checked })}
                     >
                       Keep the saved{" "}
-                      {[
-                        generation.temperature === null
-                          ? null
-                          : `temperature ${generation.temperature}`,
-                        generation.maxOutputTokens === null
-                          ? null
-                          : `output limit of ${generation.maxOutputTokens.toLocaleString("en-US")} tokens`,
-                      ]
-                        .filter(Boolean)
-                        .join(" and ")}
+                      <NumericText>
+                        {[
+                          generation.temperature === null
+                            ? null
+                            : `temperature ${generation.temperature}`,
+                          generation.maxOutputTokens === null
+                            ? null
+                            : `output limit of ${generation.maxOutputTokens.toLocaleString("en-US")} tokens`,
+                        ]
+                          .filter(Boolean)
+                          .join(" and ")}
+                      </NumericText>
                     </Checkbox>
                   )}
                 </details>

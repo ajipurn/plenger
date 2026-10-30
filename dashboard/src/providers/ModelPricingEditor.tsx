@@ -4,6 +4,7 @@ import type { ModelPricing, TokenRates } from "../../../src/redteam/model-pricin
 import type { PricingProvider } from "../../../src/redteam/models-dev-pricing.ts";
 import { useApi } from "../app/DashboardContext.tsx";
 import { errorMessage } from "../shared/async.ts";
+import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 
 const price = (value: number | undefined) =>
@@ -138,7 +139,7 @@ export function ModelPricingEditor({
         <a href="https://models.dev" target="_blank" rel="noreferrer">
           Models.dev
         </a>
-        , in USD per 1 million tokens.
+        , in USD per <MorphNumber value={1} /> million tokens.
       </p>
       {apiEquivalent && (
         <p className="muted">
@@ -194,10 +195,20 @@ export function ModelPricingEditor({
                       )}
                     </th>
                     <td>
-                      {pricing ? price(pricing.rates.input) : loading ? "Loading…" : "Unavailable"}
+                      {pricing ? (
+                        <MorphNumber value={price(pricing.rates.input)} />
+                      ) : loading ? (
+                        "Loading…"
+                      ) : (
+                        "Unavailable"
+                      )}
                     </td>
-                    <td>{price(pricing?.rates.output)}</td>
-                    <td>{price(pricing?.rates.cacheRead)}</td>
+                    <td>
+                      <MorphNumber value={price(pricing?.rates.output)} />
+                    </td>
+                    <td>
+                      <MorphNumber value={price(pricing?.rates.cacheRead)} />
+                    </td>
                   </tr>
                   <tr>
                     <td colSpan={4}>
@@ -209,7 +220,10 @@ export function ModelPricingEditor({
                               <>
                                 Source: Models.dev · Updated{" "}
                                 <time dateTime={pricing.source.fetchedAt}>
-                                  {new Date(pricing.source.fetchedAt).toLocaleString()}
+                                  <MorphNumber
+                                    value={new Date(pricing.source.fetchedAt).toLocaleString()}
+                                    variant="text"
+                                  />
                                 </time>
                               </>
                             ) : (
@@ -220,13 +234,16 @@ export function ModelPricingEditor({
                           {pricing.longContext && (
                             <>
                               <p>
-                                Long context: above {pricing.longContext.threshold.toLocaleString()}{" "}
-                                input tokens, including cache.
+                                Long context: above{" "}
+                                <MorphNumber value={pricing.longContext.threshold} /> input tokens,
+                                including cache.
                               </p>
                               <p>
-                                Input {price(pricing.longContext.rates.input)} · Output{" "}
-                                {price(pricing.longContext.rates.output)} · Cache read{" "}
-                                {price(pricing.longContext.rates.cacheRead)}
+                                Input <MorphNumber value={price(pricing.longContext.rates.input)} />{" "}
+                                · Output{" "}
+                                <MorphNumber value={price(pricing.longContext.rates.output)} /> ·
+                                Cache read{" "}
+                                <MorphNumber value={price(pricing.longContext.rates.cacheRead)} />
                               </p>
                               <CacheRates rates={pricing.longContext.rates} provider={provider} />
                             </>
@@ -248,12 +265,13 @@ export function ModelPricingEditor({
       )}
       {allModels.length > ids.length && (
         <p className="muted">
-          Showing {ids.length} models, including the default and saved prices.
+          Showing <MorphNumber value={ids.length} /> models, including the default and saved prices.
         </p>
       )}
       <p className="muted">
-        Prices refresh after 24 hours and are checked when a scan starts. Each scan keeps its
-        original price snapshot. Estimates exclude discounts, taxes and other service charges.
+        Prices refresh after <MorphNumber value={24} /> hours and are checked when a scan starts.
+        Each scan keeps its original price snapshot. Estimates exclude discounts, taxes and other
+        service charges.
       </p>
     </section>
   );
@@ -263,13 +281,13 @@ function CacheRates({ rates, provider }: { rates: TokenRates; provider: PricingP
   return (
     <p className="muted">
       {provider === "anthropic" ? (
-        <>
-          Cache write · 5 minutes: {price(rates.cacheWrite5m)} · 1 hour: {price(rates.cacheWrite1h)}
-        </>
+        <NumericText>{`Cache write · 5 minutes: ${price(rates.cacheWrite5m)} · 1 hour: ${price(rates.cacheWrite1h)}`}</NumericText>
       ) : rates.cacheWrite === undefined ? (
         "No separate cache-write price listed."
       ) : (
-        <>Cache write · Default lifetime: {price(rates.cacheWrite)}</>
+        <>
+          Cache write · Default lifetime: <MorphNumber value={price(rates.cacheWrite)} />
+        </>
       )}
     </p>
   );

@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import type { SecurityScanSummary } from "../../../src/dashboard/contract.ts";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
-import { costDescription, usdLabel } from "./ScanBilling.tsx";
+import { costDescription, usdCounterLabel } from "./ScanBilling.tsx";
 import { date, ScanDuration, ScanStatus } from "./ui.tsx";
 
 export function ScansTable({
@@ -30,7 +30,9 @@ export function ScansTable({
         <tbody>
           {scans.map((scan) => (
             <tr key={scan.id}>
-              <td className="security-date">{date(scan.startedAt)}</td>
+              <td className="security-date">
+                <MorphNumber value={date(scan.startedAt)} variant="text" />
+              </td>
               <td>
                 <Link
                   className="security-row-link"
@@ -60,21 +62,21 @@ export function ScansTable({
               >
                 {scan.tokens === null ? (
                   scan.status === "running" ? (
-                    "Waiting for usage"
+                    "Waiting"
                   ) : (
                     "Unavailable"
                   )
                 ) : (
-                  <MorphNumber value={scan.tokens} count />
+                  <MorphNumber value={scan.tokens} />
                 )}
               </td>
               <td title={scan.cost ? costDescription(scan.cost) : undefined}>
                 {scan.cost ? (
-                  <MorphNumber value={scan.cost.totalUsd} count format={usdLabel} />
+                  <MorphNumber value={usdCounterLabel(scan.cost.totalUsd)} />
                 ) : scan.workflow === "static" ? (
                   "No model usage"
                 ) : scan.status === "running" ? (
-                  "Waiting for usage"
+                  "Waiting"
                 ) : (
                   "Unavailable"
                 )}

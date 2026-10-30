@@ -5,6 +5,7 @@ import { useAsyncAction } from "../shared/async.ts";
 import { ConfirmDialog } from "../shared/ConfirmDialog.tsx";
 import { plural } from "../shared/format.ts";
 import { Icon } from "../shared/icons.tsx";
+import { NumericText } from "../shared/MorphNumber.tsx";
 
 export type ProjectDeletion = ReturnType<typeof useProjectDeletion>;
 
@@ -63,9 +64,11 @@ export function DeleteProjectDialog({
       title="Delete project?"
       description={
         <>
-          {scans
-            ? `Delete ${project?.name} and its ${scans} ${plural(scans, "scan")} from this device? Saved findings, reviews, imported evidence and the threat model are deleted with it.`
-            : `Delete ${project?.name} from this device? It has no saved scans.`}{" "}
+          <NumericText>
+            {scans
+              ? `Delete ${project?.name} and its ${scans} ${plural(scans, "scan")} from this device? Saved findings, reviews, imported evidence and the threat model are deleted with it.`
+              : `Delete ${project?.name} from this device? It has no saved scans.`}
+          </NumericText>{" "}
           The folder and its files stay unchanged. This cannot be undone.
         </>
       }

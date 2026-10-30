@@ -3,6 +3,7 @@ import { type LocalRepository, THREAT_MODEL_LIMITS } from "../../../src/dashboar
 import { useApi } from "../app/DashboardContext.tsx";
 import { errorMessage } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
+import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { Button, TextArea } from "../shared/ui.tsx";
 import { date } from "./ui.tsx";
 
@@ -109,7 +110,7 @@ export function ThreatModelPanel({
           </p>
           {error && (
             <p role="alert" className="error-message">
-              {error}
+              <NumericText>{error}</NumericText>
             </p>
           )}
           <div className="security-threat-model-actions">
@@ -128,9 +129,9 @@ export function ThreatModelPanel({
       ) : model ? (
         <>
           <p className="muted">
-            Version {model.version} ·{" "}
+            Version <MorphNumber value={model.version} /> ·{" "}
             {model.origin === "user" ? "written on this page" : "derived by the last scan"} ·{" "}
-            {date(model.updatedAt)}
+            <MorphNumber value={date(model.updatedAt)} variant="text" />
           </p>
           <p>{model.architecture || "No architecture written."}</p>
           {model.assets.length > 0 && (
@@ -155,7 +156,7 @@ export function ThreatModelPanel({
           )}
           {error && (
             <p role="alert" className="error-message">
-              {error}
+              <NumericText>{error}</NumericText>
             </p>
           )}
           <div className="security-threat-model-actions">

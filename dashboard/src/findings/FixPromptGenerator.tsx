@@ -5,6 +5,7 @@ import type { SavedProvider } from "../../../src/redteam/provider-config.ts";
 import { useApi } from "../app/DashboardContext.tsx";
 import { routes } from "../app/routes.ts";
 import { errorMessage } from "../shared/async.ts";
+import { NumericText } from "../shared/MorphNumber.tsx";
 import { Button, Select, TextArea } from "../shared/ui.tsx";
 
 export function FixPromptGenerator({
@@ -154,7 +155,7 @@ export function FixPromptGenerator({
       )}
       {error && (
         <p className="error-message" role="alert">
-          {error}
+          <NumericText>{error}</NumericText>
         </p>
       )}
       {result?.status === "refused" && (

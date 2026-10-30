@@ -10,7 +10,7 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.tsx";
-import { usdLabel } from "./ScanBilling.tsx";
+import { usdCounterLabel } from "./ScanBilling.tsx";
 import { ScansTable } from "./ScansTable.tsx";
 import { ThreatModelPanel } from "./ThreatModelPanel.tsx";
 import {
@@ -96,7 +96,9 @@ export function ProjectDetailPage({
           <Button
             className="button button-secondary"
             {...(active
-              ? { title: "Finish or cancel the running scan before deleting a project" }
+              ? {
+                  title: "Finish or cancel the running scan before deleting a project",
+                }
               : {})}
             disabled={active}
             onClick={(event) => deletion.open(project, event.currentTarget)}
@@ -270,7 +272,9 @@ export function ProjectDetailPage({
               </div>
               <div>
                 <dt>Added</dt>
-                <dd>{date(project.createdAt)}</dd>
+                <dd>
+                  <MorphNumber value={date(project.createdAt)} variant="text" />
+                </dd>
               </div>
             </dl>
             {project.environment.notes && (
@@ -298,7 +302,9 @@ export function ProjectDetailPage({
                   </div>
                   <div>
                     <dt>Started</dt>
-                    <dd>{date(latest.startedAt)}</dd>
+                    <dd>
+                      <MorphNumber value={date(latest.startedAt)} variant="text" />
+                    </dd>
                   </div>
                   <div>
                     <dt>{latest.status === "running" ? "Elapsed time" : "Duration"}</dt>
@@ -324,12 +330,12 @@ export function ProjectDetailPage({
                     >
                       {latest.tokens === null ? (
                         latest.status === "running" ? (
-                          "Waiting for usage"
+                          "Waiting"
                         ) : (
                           "Unavailable"
                         )
                       ) : (
-                        <MorphNumber value={latest.tokens} count />
+                        <MorphNumber value={latest.tokens} />
                       )}
                     </dd>
                   </div>
@@ -337,11 +343,11 @@ export function ProjectDetailPage({
                     <dt>Estimated cost</dt>
                     <dd>
                       {latest.cost ? (
-                        <MorphNumber value={latest.cost.totalUsd} count format={usdLabel} />
+                        <MorphNumber value={usdCounterLabel(latest.cost.totalUsd)} />
                       ) : latest.workflow === "static" ? (
                         "No model usage"
                       ) : latest.status === "running" ? (
-                        "Waiting for usage"
+                        "Waiting"
                       ) : (
                         "Unavailable"
                       )}

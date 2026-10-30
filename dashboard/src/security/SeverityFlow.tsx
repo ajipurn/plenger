@@ -1,5 +1,17 @@
 import type { SecurityFinding } from "../../../src/dashboard/contract.ts";
+import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { statusLabel } from "./ui.tsx";
+
+/** HTML inside SVG lets Torph animate the labels without changing the ribbon geometry. */
+function FlowCount({ x, y, value }: { x: number; y: number; value: number }) {
+  return (
+    <foreignObject x={x} y={y - 11} width={80} height={22}>
+      <div className="security-flow-number">
+        <MorphNumber value={value} />
+      </div>
+    </foreignObject>
+  );
+}
 
 /** Each ribbon is calculated from the currently filtered findings. */
 export function SeverityFlow({ findings }: { findings: SecurityFinding[] }) {
@@ -73,9 +85,7 @@ export function SeverityFlow({ findings }: { findings: SecurityFinding[] }) {
                   {node.severity[0]?.toUpperCase()}
                   {node.severity.slice(1)}
                 </text>
-                <text x="528" y={y + 12}>
-                  {node.count}
-                </text>
+                <FlowCount x={528} y={y + 12} value={node.count} />
               </g>
             );
           })}
@@ -89,9 +99,7 @@ export function SeverityFlow({ findings }: { findings: SecurityFinding[] }) {
           <text x="20" y={124 - (findings.length * unit) / 2} className="security-flow-label">
             Findings
           </text>
-          <text x="20" y={142 - (findings.length * unit) / 2}>
-            {findings.length}
-          </text>
+          <FlowCount x={20} y={142 - (findings.length * unit) / 2} value={findings.length} />
           {right.map((node) => (
             <g key={node.status}>
               <line
@@ -104,9 +112,7 @@ export function SeverityFlow({ findings }: { findings: SecurityFinding[] }) {
               <text x="1018" y={node.center - 6} className="security-flow-label">
                 {statusLabel[node.status]}
               </text>
-              <text x="1018" y={node.center + 12}>
-                {node.count}
-              </text>
+              <FlowCount x={1018} y={node.center + 12} value={node.count} />
             </g>
           ))}
         </svg>

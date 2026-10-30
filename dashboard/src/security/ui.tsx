@@ -169,7 +169,9 @@ export function FindingsTable({
                     {statusLabel[finding.status]}
                   </span>
                 </td>
-                <td className="muted security-date">{date(finding.detectedAt)}</td>
+                <td className="muted security-date">
+                  <MorphNumber value={date(finding.detectedAt)} variant="text" />
+                </td>
               </tr>
             ))}
         </tbody>

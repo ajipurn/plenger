@@ -3,6 +3,7 @@ import { type ImportedReaEvidence, REA_LIMITS } from "../../../src/dashboard/con
 import { useApi } from "../app/DashboardContext.tsx";
 import { errorMessage, useAsyncAction } from "../shared/async.ts";
 import { downloadJson } from "../shared/download.ts";
+import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 
 export function ReaEvidencePanel({
@@ -83,7 +84,8 @@ export function ReaEvidencePanel({
   return (
     <details className="rea-evidence-panel">
       <summary>
-        REA evidence <span className="tag">{loading ? "Loading…" : records.length}</span>
+        REA evidence{" "}
+        <span className="tag">{loading ? "Loading…" : <MorphNumber value={records.length} />}</span>
       </summary>
       <div className="rea-evidence-body">
         <p className="muted">
@@ -128,7 +130,7 @@ export function ReaEvidencePanel({
         </form>
         {error && (
           <p className="error-message" role="alert">
-            {error}
+            <NumericText>{error}</NumericText>
           </p>
         )}
         <div className="rea-evidence-list">
@@ -139,9 +141,10 @@ export function ReaEvidencePanel({
                 <span className="tag">Unverified import</span>
               </div>
               <p className="muted">
-                {record.analysis.artifact.name} · {record.analysis.graph.nodes.length}{" "}
+                {record.analysis.artifact.name} ·{" "}
+                <MorphNumber value={record.analysis.graph.nodes.length} />{" "}
                 {record.analysis.graph.nodes.length === 1 ? "node" : "nodes"} ·{" "}
-                {record.analysis.graph.edges.length}{" "}
+                <MorphNumber value={record.analysis.graph.edges.length} />{" "}
                 {record.analysis.graph.edges.length === 1 ? "relationship" : "relationships"}
               </p>
               <p className="muted">
@@ -166,7 +169,12 @@ export function ReaEvidencePanel({
                   </div>
                   <div>
                     <dt>Imported by Plenger</dt>
-                    <dd>{new Date(record.importedAt).toLocaleString()}</dd>
+                    <dd>
+                      <MorphNumber
+                        value={new Date(record.importedAt).toLocaleString()}
+                        variant="text"
+                      />
+                    </dd>
                   </div>
                 </dl>
                 <p className="muted">
@@ -211,7 +219,7 @@ export function ReaEvidencePanel({
           ))}
         </div>
         <p className="muted rea-evidence-status" role="status">
-          {notice}
+          <NumericText>{notice}</NumericText>
         </p>
       </div>
     </details>

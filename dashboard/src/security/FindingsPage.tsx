@@ -145,7 +145,9 @@ export function FindingsPage({
         <DialogTrigger>
           <Button className="button button-secondary security-filter-trigger">
             <Icon name="checklist" /> Filters{" "}
-            <span className="security-status">{statuses.length + Number(severity !== "all")}</span>
+            <span className="security-status">
+              <MorphNumber value={statuses.length + Number(severity !== "all")} />
+            </span>
           </Button>
           <Popover className="security-filter-body ui-popover" placement="bottom end" offset={6}>
             <Dialog aria-label="Finding filters">

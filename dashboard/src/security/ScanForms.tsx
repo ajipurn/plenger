@@ -32,6 +32,7 @@ import { useProviderModels } from "../providers/useProviderModels.ts";
 import { errorMessage } from "../shared/async.ts";
 import { DetailDrawer } from "../shared/DetailDrawer.tsx";
 import { Icon } from "../shared/icons.tsx";
+import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { Button, Checkbox, Input, Select, TextArea } from "../shared/ui.tsx";
 import { useScanModelPricing } from "./useScanModelPricing.ts";
 
@@ -222,7 +223,7 @@ export function ProjectForm({
         </div>
         {error && (
           <p role="alert" className="error-message">
-            {error}
+            <NumericText>{error}</NumericText>
           </p>
         )}
       </form>
@@ -675,9 +676,10 @@ export function NewScanForm({
                   </span>
                   {source && (
                     <span className="security-scan-source-size">
-                      {source.files.toLocaleString()}
+                      <MorphNumber value={source.files} />
                       {source.truncated ? "+" : ""} reviewable{" "}
-                      {source.files === 1 ? "file" : "files"} · {sizeText(source.bytes)}
+                      {source.files === 1 ? "file" : "files"} ·{" "}
+                      <MorphNumber value={sizeText(source.bytes)} />
                     </span>
                   )}
                 </div>
@@ -886,18 +888,20 @@ export function NewScanForm({
                         {MODE_COPY[value].description}
                       </span>
                       <span id={`${id}-mode-${value}-calls`} className="security-scan-choice-meta">
-                        {MODE_COPY[value].calls}
+                        <NumericText>{MODE_COPY[value].calls}</NumericText>
                       </span>
                     </Radio>
                   ))}
                 </div>
                 {provider && (
                   <Text slot="description" elementType="p" className="muted">
-                    {mode === "explore"
-                      ? `Explore starts from up to ${Math.round(Math.min(budget.contextBytes, EXPLORE_LIMITS.firstBytes) / 1024)} KiB of source and reads the rest through tools.`
-                      : budget.inputTokens === null
-                        ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per round.${hasProviderModelCatalog(provider.provider) ? " Load models to size it to this model's context window." : ""}`
-                        : `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per round for this model's ${budget.inputTokens.toLocaleString()}-token window.`}
+                    <NumericText>
+                      {mode === "explore"
+                        ? `Explore starts from up to ${Math.round(Math.min(budget.contextBytes, EXPLORE_LIMITS.firstBytes) / 1024)} KiB of source and reads the rest through tools.`
+                        : budget.inputTokens === null
+                          ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per round.${hasProviderModelCatalog(provider.provider) ? " Load models to size it to this model's context window." : ""}`
+                          : `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per round for this model's ${budget.inputTokens.toLocaleString()}-token window.`}
+                    </NumericText>
                     {validator && mode === "batch"
                       ? " A validation model with a smaller or unknown window lowers it."
                       : ""}
@@ -935,7 +939,7 @@ export function NewScanForm({
                           : DEPTH_COPY[value][mode]}
                       </span>
                       <span id={`${id}-${value}-calls`} className="security-scan-choice-meta">
-                        {depthCalls[value]}
+                        <NumericText>{depthCalls[value]}</NumericText>
                       </span>
                     </Radio>
                   ))}
@@ -1005,14 +1009,16 @@ export function NewScanForm({
                         </span>
                       </div>
                       <p id={`${id}-limit-help`} className={limitError ? "error-message" : "muted"}>
-                        {limitError ||
-                          (kind === "usd" && subscription
-                            ? `Each round reserves up to USD ${mostUsd?.toFixed(2)} at standard API rates. The remaining allowance is checked before each request. Subscription output usage is checked after each response.`
-                            : `Each round charges at most ${
-                                kind === "tokens"
-                                  ? `${mostTokens.toLocaleString()} tokens`
-                                  : `USD ${mostUsd?.toFixed(2)} at current prices`
-                              }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "round" : "rounds"}. Most rounds charge less. A round starts only when its maximum fits what remains.`)}
+                        <NumericText>
+                          {limitError ||
+                            (kind === "usd" && subscription
+                              ? `Each round reserves up to USD ${mostUsd?.toFixed(2)} at standard API rates. The remaining allowance is checked before each request. Subscription output usage is checked after each response.`
+                              : `Each round charges at most ${
+                                  kind === "tokens"
+                                    ? `${mostTokens.toLocaleString()} tokens`
+                                    : `USD ${mostUsd?.toFixed(2)} at current prices`
+                                }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "round" : "rounds"}. Most rounds charge less. A round starts only when its maximum fits what remains.`)}
+                        </NumericText>
                       </p>
                       {!usdPricing && kind === "tokens" && (
                         <p className="muted">
@@ -1024,7 +1030,7 @@ export function NewScanForm({
                     </>
                   ) : (
                     <p className="muted">
-                      {`No limit: the scan stops after ${SCAN_BUDGET_LIMITS.fullBatches} rounds at most. Each round charges up to ${mostTokens.toLocaleString()} tokens.`}
+                      <NumericText>{`No limit: the scan stops after ${SCAN_BUDGET_LIMITS.fullBatches} rounds at most. Each round charges up to ${mostTokens.toLocaleString()} tokens.`}</NumericText>
                     </p>
                   )}
                 </div>
@@ -1034,7 +1040,7 @@ export function NewScanForm({
         )}
         {error && (
           <p className="error-message security-scan-error" role="alert">
-            {error}
+            <NumericText>{error}</NumericText>
           </p>
         )}
       </form>

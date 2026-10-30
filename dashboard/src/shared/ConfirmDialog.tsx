@@ -1,5 +1,6 @@
 import type { ReactNode, RefObject } from "react";
 import { Dialog, Heading, Modal, ModalOverlay, Text } from "react-aria-components";
+import { NumericText } from "./MorphNumber.tsx";
 import { useElementScrollbars } from "./ScrollArea.tsx";
 import { Button } from "./ui.tsx";
 import { useDialogFocus } from "./useDialogFocus.ts";
@@ -61,7 +62,7 @@ export function ConfirmDialog({
           </Text>
           {error && (
             <p className="error-message" role="alert">
-              {error}
+              <NumericText>{error}</NumericText>
             </p>
           )}
           <div className={actionsClassName}>

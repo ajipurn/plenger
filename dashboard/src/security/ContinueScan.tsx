@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { SCAN_BUDGET_LIMITS, type SecurityScan } from "../../../src/dashboard/contract.ts";
 import { useApi } from "../app/DashboardContext.tsx";
 import { errorMessage } from "../shared/async.ts";
+import { NumericText } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 
 /**
@@ -62,14 +63,18 @@ export function ContinueScan({
     <section className="security-continue-scan" aria-labelledby={`${id}-heading`}>
       <h2 id={`${id}-heading`}>Continue this scan</h2>
       <p className="muted">
-        {scan.status === "failed"
-          ? `A later round failed${covered ? ` with ${covered}` : ""}; the rounds before it stand.`
-          : `The scan stopped at its limit${covered ? ` with ${covered}` : ""}.`}{" "}
+        <NumericText>
+          {scan.status === "failed"
+            ? `A later round failed${covered ? ` with ${covered}` : ""}; the rounds before it stand.`
+            : `The scan stopped at its limit${covered ? ` with ${covered}` : ""}.`}
+        </NumericText>{" "}
         Continuing runs more rounds under a new limit for what it spends from now on; files already
         sent whole are skipped.
-        {scan.continuations?.length
-          ? ` It has continued ${scan.continuations.length} ${scan.continuations.length === 1 ? "time" : "times"}.`
-          : ""}
+        <NumericText>
+          {scan.continuations?.length
+            ? ` It has continued ${scan.continuations.length} ${scan.continuations.length === 1 ? "time" : "times"}.`
+            : ""}
+        </NumericText>
       </p>
       <form
         className="security-continue-scan-form"
@@ -104,7 +109,7 @@ export function ContinueScan({
       </form>
       {error && (
         <p role="alert" className="error-message">
-          {error}
+          <NumericText>{error}</NumericText>
         </p>
       )}
     </section>

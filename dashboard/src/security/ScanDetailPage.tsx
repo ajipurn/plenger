@@ -21,11 +21,11 @@ import { ReaEvidencePanel } from "../findings/ReaEvidencePanel.tsx";
 import { errorMessage } from "../shared/async.ts";
 import { downloadJson } from "../shared/download.ts";
 import { Icon } from "../shared/icons.tsx";
-import { MorphNumber } from "../shared/MorphNumber.tsx";
+import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 import { ContinueScan } from "./ContinueScan.tsx";
 import { scanSourceCoverage } from "./coverage.ts";
-import { costDescription, ScanBilling, usdLabel } from "./ScanBilling.tsx";
+import { costDescription, ScanBilling, usdCounterLabel } from "./ScanBilling.tsx";
 import { ScanProgress } from "./ScanProgress.tsx";
 import {
   closureLabel,
@@ -137,7 +137,8 @@ export function ScanDetailPage({
               : scan.parentScanId
                 ? "AI review"
                 : "Run all"}{" "}
-            <span aria-hidden="true">·</span> Started {date(scan.startedAt)}
+            <span aria-hidden="true">·</span> Started{" "}
+            <MorphNumber value={date(scan.startedAt)} variant="text" />
           </p>
           {scan.parentScanId && (
             <p className="muted">
@@ -199,7 +200,7 @@ export function ScanDetailPage({
               "Static rules"
             ) : sourceCoverage.total > 0 ? (
               <>
-                <MorphNumber value={sourceCoverage.total} count /> files in scope
+                <MorphNumber value={sourceCoverage.total} /> files in scope
               </>
             ) : (
               SCAN_DEPTHS[scan.depth].label
@@ -211,7 +212,9 @@ export function ScanDetailPage({
             </p>
           )}
           {scan.coverage && (
-            <p className="muted security-scan-summary-note">{coverageNote(scan, sourceCoverage)}</p>
+            <p className="muted security-scan-summary-note">
+              <NumericText>{coverageNote(scan, sourceCoverage)}</NumericText>
+            </p>
           )}
         </div>
       </dl>
@@ -288,7 +291,9 @@ export function ScanDetailPage({
                 </p>
                 <details className="security-error-details">
                   <summary>Show error details</summary>
-                  <p>{scan.error}</p>
+                  <p>
+                    <NumericText>{scan.error}</NumericText>
+                  </p>
                 </details>
                 {findings.some((finding) => finding.origin === "static") && (
                   <p className="muted">
@@ -300,7 +305,7 @@ export function ScanDetailPage({
           )}
           {error && (
             <p role="alert" className="error-message security-inline-error">
-              {error}
+              <NumericText>{error}</NumericText>
             </p>
           )}
           <ScanBilling reviews={scan.reviews} />
@@ -309,7 +314,9 @@ export function ScanDetailPage({
               {scan.reviews.length ? (
                 scan.reviews.map((review, index) => (
                   <section key={review.id} className="security-output-batch">
-                    <h2>Round {index + 1}</h2>
+                    <h2>
+                      Round <MorphNumber value={index + 1} />
+                    </h2>
                     <RoundCoverageSummary coverage={sourceCoverage.rounds[index]} review={review} />
                     <p>{review.summary}</p>
                     {review.reason && <p className="security-output-failure">{review.reason}</p>}
@@ -354,7 +361,7 @@ export function ScanDetailPage({
                             {entry.evidence.map((cite) => (
                               <li key={JSON.stringify(cite)}>
                                 <code>
-                                  {cite.path}:{cite.line}
+                                  {cite.path}:<MorphNumber value={String(cite.line)} />
                                 </code>{" "}
                                 {cite.message}
                               </li>
@@ -370,9 +377,11 @@ export function ScanDetailPage({
                           {review.scope.validation.map((file) => (
                             <li key={file.path}>
                               <code>{file.path}</code>
-                              {file.ranges
-                                ? `: ${file.ranges.map((range) => `${range.line}–${range.endLine}`).join(", ")}`
-                                : " (whole file)"}
+                              <NumericText>
+                                {file.ranges
+                                  ? `: ${file.ranges.map((range) => `${range.line}–${range.endLine}`).join(", ")}`
+                                  : " (whole file)"}
+                              </NumericText>
                             </li>
                           ))}
                         </ul>
@@ -385,28 +394,37 @@ export function ScanDetailPage({
                     <details className="security-output-coverage">
                       <summary>Source coverage and limitations</summary>
                       <p className="muted">
-                        Captured {date(review.scope.capturedAt)}. Source may include working tree
-                        changes.
-                        {review.scope.budget
-                          ? ` Up to ${Math.round(review.scope.budget.contextBytes / 1024)} KiB of source per round${review.scope.budget.inputTokens ? ` for a ${review.scope.budget.inputTokens.toLocaleString()}-token model window` : ""}.`
-                          : ""}
+                        Captured{" "}
+                        <MorphNumber value={date(review.scope.capturedAt)} variant="text" />. Source
+                        may include working tree changes.
+                        <NumericText>
+                          {review.scope.budget
+                            ? ` Up to ${Math.round(review.scope.budget.contextBytes / 1024)} KiB of source per round${review.scope.budget.inputTokens ? ` for a ${review.scope.budget.inputTokens.toLocaleString()}-token model window` : ""}.`
+                            : ""}
+                        </NumericText>
                       </p>
                       {review.generation && (
                         <p className="muted">
                           Prompt <code>{review.generation.promptDigest.slice(0, 12)}</code> ·{" "}
-                          {samplingText("Discovery", review.generation.discovery)}
-                          {review.generation.validation
-                            ? ` · ${samplingText("validation", review.generation.validation)}`
-                            : ""}
+                          <NumericText>
+                            {samplingText("Discovery", review.generation.discovery)}
+                          </NumericText>
+                          <NumericText>
+                            {review.generation.validation
+                              ? ` · ${samplingText("validation", review.generation.validation)}`
+                              : ""}
+                          </NumericText>
                         </p>
                       )}
                       <ul>
                         {review.scope.files.map((file) => (
                           <li key={file.path}>
                             <code>{file.path}</code> ·{" "}
-                            {file.ranges
-                              ? `${file.ranges.reduce((sum, range) => sum + range.endLine - range.line + 1, 0)} of ${file.lines} lines, function excerpt`
-                              : `${file.lines} lines`}
+                            <NumericText>
+                              {file.ranges
+                                ? `${file.ranges.reduce((sum, range) => sum + range.endLine - range.line + 1, 0)} of ${file.lines} lines, function excerpt`
+                                : `${file.lines} lines`}
+                            </NumericText>
                           </li>
                         ))}
                       </ul>
@@ -541,7 +559,7 @@ export function ScanDetailPage({
                     )
                   ) : (
                     <>
-                      <MorphNumber value={scan.tokens} count /> tokens
+                      <MorphNumber value={scan.tokens} /> tokens
                     </>
                   )}
                   <small>
@@ -562,11 +580,11 @@ export function ScanDetailPage({
                 <dt>Estimated cost</dt>
                 <dd>
                   {scan.cost ? (
-                    <MorphNumber value={scan.cost.totalUsd} count format={usdLabel} />
+                    <MorphNumber value={usdCounterLabel(scan.cost.totalUsd)} />
                   ) : scan.workflow === "static" ? (
                     "No model usage"
                   ) : running ? (
-                    "Waiting for usage"
+                    "Waiting"
                   ) : (
                     "Unavailable"
                   )}
@@ -588,16 +606,23 @@ export function ScanDetailPage({
             <dl>
               <div>
                 <dt>Started</dt>
-                <dd>{date(scan.startedAt)}</dd>
+                <dd>
+                  <MorphNumber value={date(scan.startedAt)} variant="text" />
+                </dd>
               </div>
               <div>
                 <dt>Finished</dt>
                 <dd>
-                  {scan.finishedAt
-                    ? date(scan.finishedAt)
-                    : running
-                      ? "In progress"
-                      : "Unavailable"}
+                  <MorphNumber
+                    value={
+                      scan.finishedAt
+                        ? date(scan.finishedAt)
+                        : running
+                          ? "In progress"
+                          : "Unavailable"
+                    }
+                    variant="text"
+                  />
                 </dd>
               </div>
             </dl>
@@ -635,8 +660,8 @@ function TracedPaths({ paths, findings }: { paths: ReviewPath[]; findings: Revie
     <>
       <h3>Traced paths</h3>
       <p className="muted">
-        {closed} of {paths.length} closed. The static scan traced these paths; the closures are the
-        review's account.
+        <MorphNumber value={closed} /> of <MorphNumber value={paths.length} /> closed. The static
+        scan traced these paths; the closures are the review's account.
       </p>
       <div className="security-stride-list">
         {paths.map((path) => {
@@ -647,7 +672,7 @@ function TracedPaths({ paths, findings }: { paths: ReviewPath[]; findings: Revie
                 <span>
                   {path.label}{" "}
                   <code>
-                    {path.at.path}:{path.at.line}
+                    {path.at.path}:<MorphNumber value={String(path.at.line)} />
                   </code>
                 </span>
                 <span className="security-status">{closureLabel[path.closure]}</span>
@@ -670,7 +695,7 @@ function TracedPaths({ paths, findings }: { paths: ReviewPath[]; findings: Revie
                   {path.evidence.map((cite) => (
                     <li key={JSON.stringify(cite)}>
                       <code>
-                        {cite.path}:{cite.line}
+                        {cite.path}:<MorphNumber value={String(cite.line)} />
                       </code>{" "}
                       {cite.message}
                     </li>
@@ -715,7 +740,7 @@ function DismissedCandidates({ findings }: { findings: (ReviewFinding | StaticRe
                   {dismissal.evidence.map((cite) => (
                     <li key={JSON.stringify(cite)}>
                       <code>
-                        {cite.path}:{cite.line}
+                        {cite.path}:<MorphNumber value={String(cite.line)} />
                       </code>{" "}
                       {cite.message}
                     </li>
@@ -738,25 +763,33 @@ function ExplorationLog({ sessions }: { sessions: ExploreSessionRecord[] }) {
         <div key={session.phase}>
           <h4>{session.phase === "discovery" ? "Discovery session" : "Validation session"}</h4>
           <p className="muted">
-            Stopped {EXPLORE_STOPS[session.stop]} · {session.modelCalls}{" "}
+            Stopped {EXPLORE_STOPS[session.stop]} · <MorphNumber value={session.modelCalls} />{" "}
             {session.modelCalls === 1 ? "model call" : "model calls"} ·{" "}
-            {Object.entries(session.toolCalls)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([name, count]) => `${name} ${count}`)
-              .join(", ") || "no tool calls"}{" "}
-            · {Math.round(session.bytesReturned / 1024)} KiB returned
-            {session.cutReplies ? ` · ${session.cutReplies} reply cut at the output limit` : ""}
-            {session.rejected?.length
-              ? ` · ${session.rejected.length} ${session.rejected.length === 1 ? "submission" : "submissions"} rejected`
-              : ""}
+            <NumericText>
+              {Object.entries(session.toolCalls)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([name, count]) => `${name} ${count}`)
+                .join(", ") || "no tool calls"}
+            </NumericText>{" "}
+            · <MorphNumber value={Math.round(session.bytesReturned / 1024)} /> KiB returned
+            <NumericText>
+              {session.cutReplies ? ` · ${session.cutReplies} reply cut at the output limit` : ""}
+            </NumericText>
+            <NumericText>
+              {session.rejected?.length
+                ? ` · ${session.rejected.length} ${session.rejected.length === 1 ? "submission" : "submissions"} rejected`
+                : ""}
+            </NumericText>
           </p>
           <ul>
             {session.reads.map((read) => (
               <li key={read.path}>
                 <code>{read.path}</code> ·{" "}
-                {read.ranges
-                  ? read.ranges.map((range) => `${range.line}-${range.endLine}`).join(", ")
-                  : "whole file"}
+                <NumericText>
+                  {read.ranges
+                    ? read.ranges.map((range) => `${range.line}-${range.endLine}`).join(", ")
+                    : "whole file"}
+                </NumericText>
               </li>
             ))}
           </ul>
@@ -771,7 +804,8 @@ function ExplorationLog({ sessions }: { sessions: ExploreSessionRecord[] }) {
                       under <code>{search.prefix}</code>
                     </>
                   ) : null}{" "}
-                  · {search.matches} {search.matches === 1 ? "match" : "matches"}
+                  · <MorphNumber value={search.matches} />{" "}
+                  {search.matches === 1 ? "match" : "matches"}
                 </li>
               ))}
             </ul>
@@ -789,8 +823,8 @@ function CoverageCounts({
 }) {
   return (
     <>
-      {coverage.read.toLocaleString()} read · {coverage.partial.toLocaleString()} partial ·{" "}
-      {coverage.unread.toLocaleString()} unread
+      <MorphNumber value={coverage.read} /> read · <MorphNumber value={coverage.partial} /> partial
+      · <MorphNumber value={coverage.unread} /> unread
     </>
   );
 }
@@ -809,11 +843,19 @@ function RoundCoverageSummary({
         Cumulative: <CoverageCounts coverage={coverage} />
       </p>
       <p className="muted">
-        This round: {coverage.files.toLocaleString()} {coverage.files === 1 ? "file" : "files"}{" "}
+        This round: <MorphNumber value={coverage.files} /> {coverage.files === 1 ? "file" : "files"}{" "}
         {review.mode === "explore" ? "read" : "included"}
-        {coverage.newFiles > 0 && <> · {coverage.newFiles.toLocaleString()} new</>}
+        {coverage.newFiles > 0 && (
+          <>
+            {" "}
+            · <MorphNumber value={coverage.newFiles} /> new
+          </>
+        )}
         {coverage.revisitedFiles > 0 && (
-          <> · {coverage.revisitedFiles.toLocaleString()} revisited</>
+          <>
+            {" "}
+            · <MorphNumber value={coverage.revisitedFiles} /> revisited
+          </>
         )}{" "}
         · {review.status}
         {review.validator ? ` · validation by ${review.validator.model}` : ""}

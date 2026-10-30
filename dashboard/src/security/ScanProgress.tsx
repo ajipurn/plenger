@@ -5,7 +5,7 @@ import {
   type SecurityScan,
 } from "../../../src/dashboard/contract.ts";
 import { Icon } from "../shared/icons.tsx";
-import { MorphNumber } from "../shared/MorphNumber.tsx";
+import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { phaseLabel } from "./ui.tsx";
 
 const SCAN_STEPS = [
@@ -60,7 +60,9 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
             {scan.workflow !== "static" && (
               <>
                 <span aria-hidden="true">·</span>
-                <span>Round {round}</span>
+                <span>
+                  Round <MorphNumber value={round} />
+                </span>
               </>
             )}
           </p>
@@ -68,7 +70,7 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
         </div>
         {latest && (
           <p className="security-scan-progress-tokens">
-            <MorphNumber value={latest.tokens} count /> tokens
+            <MorphNumber value={latest.tokens} /> tokens
           </p>
         )}
       </div>
@@ -82,7 +84,7 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
               aria-current={state === "current" ? "step" : undefined}
             >
               <span className="security-scan-step-number" aria-hidden="true">
-                {state === "complete" ? <Icon name="check" /> : index + 1}
+                {state === "complete" ? <Icon name="check" /> : <MorphNumber value={index + 1} />}
               </span>
               <div className="security-scan-step-body">
                 <p className="security-scan-step-title">
@@ -117,9 +119,17 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
                           data-kind={entry.kind}
                           data-arrived={arrived(entry) || undefined}
                         >
-                          <time dateTime={entry.at}>{new Date(entry.at).toLocaleTimeString()}</time>
+                          <time dateTime={entry.at}>
+                            <MorphNumber
+                              value={new Date(entry.at).toLocaleTimeString()}
+                              variant="text"
+                            />
+                          </time>
                           <span>
-                            <span className="muted">Round {entry.batch + 1} ·</span> {entry.detail}
+                            <span className="muted">
+                              Round <MorphNumber value={entry.batch + 1} /> ·
+                            </span>{" "}
+                            <NumericText>{entry.detail}</NumericText>
                           </span>
                         </li>
                       ))}
