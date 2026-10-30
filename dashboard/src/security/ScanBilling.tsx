@@ -6,17 +6,18 @@ import {
 } from "../../../src/redteam/model-pricing.ts";
 
 export function costLabel(cost: CostSummary | null | undefined): string {
-  if (!cost) return "Unavailable";
-  const amount =
-    cost.totalUsd > 0 && cost.totalUsd < 0.000001
-      ? "< $0.000001"
-      : new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: "USD",
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 6,
-        }).format(cost.totalUsd);
-  return amount;
+  return cost ? usdLabel(cost.totalUsd) : "Unavailable";
+}
+
+export function usdLabel(totalUsd: number): string {
+  return totalUsd > 0 && totalUsd < 0.000001
+    ? "< $0.000001"
+    : new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 6,
+      }).format(totalUsd);
 }
 
 export function costDescription(cost: CostSummary | null | undefined): string {

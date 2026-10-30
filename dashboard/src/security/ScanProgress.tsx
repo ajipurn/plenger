@@ -63,7 +63,7 @@ export function ScanProgress({ scan, cancelling }: { scan: SecurityScan; cancell
         </div>
         {latest && (
           <p className="security-scan-progress-tokens">
-            <MorphNumber value={latest.tokens.toLocaleString()} /> tokens
+            <MorphNumber value={latest.tokens} count /> tokens
           </p>
         )}
       </div>

@@ -6,7 +6,7 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.tsx";
-import { costLabel } from "./ScanBilling.tsx";
+import { usdLabel } from "./ScanBilling.tsx";
 import { ScansTable } from "./ScansTable.tsx";
 import { ThreatModelPanel } from "./ThreatModelPanel.tsx";
 import {
@@ -321,7 +321,7 @@ export function ProjectDetailPage({
                           "Unavailable"
                         )
                       ) : (
-                        <MorphNumber value={latest.tokens} />
+                        <MorphNumber value={latest.tokens} count />
                       )}
                     </dd>
                   </div>
@@ -329,7 +329,7 @@ export function ProjectDetailPage({
                     <dt>Estimated cost</dt>
                     <dd>
                       {latest.cost ? (
-                        <MorphNumber value={costLabel(latest.cost)} />
+                        <MorphNumber value={latest.cost.totalUsd} count format={usdLabel} />
                       ) : latest.status === "running" ? (
                         "Waiting for usage"
                       ) : (

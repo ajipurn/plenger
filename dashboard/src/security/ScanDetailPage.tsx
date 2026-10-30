@@ -21,7 +21,7 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 import { ContinueScan } from "./ContinueScan.tsx";
-import { costDescription, costLabel, ScanBilling } from "./ScanBilling.tsx";
+import { costDescription, ScanBilling, usdLabel } from "./ScanBilling.tsx";
 import { ScanProgress } from "./ScanProgress.tsx";
 import {
   closureLabel,
@@ -461,7 +461,7 @@ export function ScanDetailPage({
                     )
                   ) : (
                     <>
-                      <MorphNumber value={scan.tokens} /> tokens
+                      <MorphNumber value={scan.tokens} count /> tokens
                     </>
                   )}
                   <small>
@@ -480,7 +480,7 @@ export function ScanDetailPage({
                 <dt>Estimated cost</dt>
                 <dd>
                   {scan.cost ? (
-                    <MorphNumber value={costLabel(scan.cost)} />
+                    <MorphNumber value={scan.cost.totalUsd} count format={usdLabel} />
                   ) : running ? (
                     "Waiting for usage"
                   ) : (
