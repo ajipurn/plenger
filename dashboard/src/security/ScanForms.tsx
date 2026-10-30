@@ -21,6 +21,7 @@ import {
 } from "../../../src/dashboard/contract.ts";
 import {
   hasProviderModelCatalog,
+  modelPricingProvider,
   type SavedProvider,
 } from "../../../src/redteam/provider-config.ts";
 import { useApi } from "../app/DashboardContext.tsx";
@@ -29,6 +30,7 @@ import { errorMessage } from "../shared/async.ts";
 import { DetailDrawer } from "../shared/DetailDrawer.tsx";
 import { Icon } from "../shared/icons.tsx";
 import { Button, Checkbox, Input, Select, TextArea } from "../shared/ui.tsx";
+import { useScanModelPricing } from "./useScanModelPricing.ts";
 
 const EXPLORE_CALLS = EXPLORE_LIMITS.discovery.modelCalls + EXPLORE_LIMITS.validation.modelCalls;
 const DEPTH_COPY: Record<SelectableScanDepth, Record<ReviewMode, string>> = {
@@ -376,7 +378,10 @@ export function NewScanForm({
     clearValidatorCatalog,
     restoreValidatorCatalog,
   ]);
-  const selectedPricing = provider?.modelPricing?.find((item) => item.model === model);
+  const pricingActive = open && depth === "full" && limited;
+  const discoveryPrices = useScanModelPricing(api, provider, model, pricingActive);
+  const validationPrices = useScanModelPricing(api, validator, validatorModel, pricingActive);
+  const selectedPricing = discoveryPrices.pricing;
   const contextWindow = catalog.models.find((item) => item.id === model)?.maxInputTokens;
   const validatorContextWindow = validatorCatalog.models.find(
     (item) => item.id === validatorModel,
@@ -396,18 +401,22 @@ export function NewScanForm({
       });
     return () => controller.abort();
   }, [open, api, projectId]);
-  // A USD limit needs saved Claude prices for every model the scan uses.
-  const validatorPricing = validator?.modelPricing?.find((item) => item.model === validatorModel);
+  // A USD limit needs prices for every model the scan uses.
+  const validatorPricing = validationPrices.pricing;
+  const pricingLoading = discoveryPrices.loading || validationPrices.loading;
+  const subscription = provider?.provider === "chatgpt" || validator?.provider === "chatgpt";
   const usdPricing =
-    provider?.provider === "anthropic" &&
+    provider &&
+    modelPricingProvider(provider.provider) &&
+    !pricingLoading &&
     selectedPricing &&
-    (!validator || (validator.provider === "anthropic" && validatorPricing))
+    (!validator || (modelPricingProvider(validator.provider) && validatorPricing))
       ? {
           discovery: selectedPricing,
           validation: validatorPricing ?? selectedPricing,
         }
       : undefined;
-  const kind = usdPricing ? limitKind : "tokens";
+  const kind = limitKind;
   const mostTokens = mode === "explore" ? exploreTokenBound().total : batchTokenBound(budget).total;
   const mostUsd = usdPricing
     ? mode === "explore"
@@ -417,6 +426,10 @@ export function NewScanForm({
   const limitValue = Number(kind === "tokens" ? tokenLimit : usdLimit);
   const limitError = (() => {
     if (depth !== "full" || !limited) return "";
+    if (kind === "usd" && !usdPricing)
+      return pricingLoading
+        ? "Loading prices for the selected models…"
+        : "USD limits need prices for each selected model. Choose a priced model or refresh its prices in Settings > Providers.";
     const L = SCAN_BUDGET_LIMITS;
     if (kind === "tokens") {
       if (!Number.isSafeInteger(limitValue) || limitValue < L.minTokens || limitValue > L.maxTokens)
@@ -456,7 +469,7 @@ export function NewScanForm({
           : `Up to ${SCAN_BUDGET_LIMITS.fullBatches} rounds`,
   };
   async function submit() {
-    if (!api || !project || !provider || !model.trim()) return;
+    if (!api || !project || !provider || !model.trim() || limitError) return;
     if (validator && !validatorModel.trim()) return;
     setBusy(true);
     setError("");
@@ -672,13 +685,13 @@ export function NewScanForm({
                 <p className="muted">
                   Used for this scan only. Your provider's default stays the same.
                 </p>
-                {provider.provider === "anthropic" && (
+                {modelPricingProvider(provider.provider) && (
                   <p className="muted security-scan-note">
                     <Icon name="info" />
                     <span>
                       {selectedPricing
-                        ? "Cost estimates use saved USD prices and reported token usage."
-                        : "No saved prices for this model. Token usage is tracked; cost estimates are unavailable."}
+                        ? "Cost estimates use model prices and reported token usage."
+                        : "Model prices load automatically when the scan starts."}
                     </span>
                   </p>
                 )}
@@ -900,15 +913,19 @@ export function NewScanForm({
                   </div>
                   <p id={`${id}-limit-help`} className={limitError ? "error-message" : "muted"}>
                     {limitError ||
-                      `Each round charges at most ${
-                        kind === "tokens"
-                          ? `${mostTokens.toLocaleString()} tokens`
-                          : `USD ${mostUsd?.toFixed(2)} at saved prices`
-                      }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "round" : "rounds"}. Most rounds charge less. A round starts only when its maximum fits what remains.`}
+                      (kind === "usd" && subscription
+                        ? `Each round reserves up to USD ${mostUsd?.toFixed(2)} at standard API rates. The remaining allowance is checked before each request. Subscription output usage is checked after each response.`
+                        : `Each round charges at most ${
+                            kind === "tokens"
+                              ? `${mostTokens.toLocaleString()} tokens`
+                              : `USD ${mostUsd?.toFixed(2)} at current prices`
+                          }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "round" : "rounds"}. Most rounds charge less. A round starts only when its maximum fits what remains.`)}
                   </p>
-                  {!usdPricing && (
+                  {!usdPricing && kind === "tokens" && (
                     <p className="muted">
-                      USD limits need saved Claude prices for every model in this scan.
+                      {pricingLoading
+                        ? "Loading prices for the selected models…"
+                        : "USD limits need prices for each selected model. Choose a priced model or refresh its prices in Settings > Providers."}
                     </p>
                   )}
                 </>

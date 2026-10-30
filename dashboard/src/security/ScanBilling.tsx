@@ -1,5 +1,9 @@
 import type { SecurityReview } from "../../../src/dashboard/contract.ts";
-import { type CostSummary, PRICE_FIELDS, tokenCost } from "../../../src/redteam/model-pricing.ts";
+import {
+  BILLING_PRICE_FIELDS,
+  type CostSummary,
+  tokenCost,
+} from "../../../src/redteam/model-pricing.ts";
 
 export function costLabel(cost: CostSummary | null | undefined): string {
   if (!cost) return "Unavailable";
@@ -12,7 +16,19 @@ export function costLabel(cost: CostSummary | null | undefined): string {
           minimumFractionDigits: 2,
           maximumFractionDigits: 6,
         }).format(cost.totalUsd);
-  return cost.complete ? amount : `At least ${amount}`;
+  return amount;
+}
+
+export function costDescription(cost: CostSummary | null | undefined): string {
+  const basis =
+    cost?.basis === "api-equivalent"
+      ? "USD · Standard OpenAI API rates. Subscription billing and quota are separate."
+      : cost?.basis === "mixed"
+        ? "USD · API rates applied to reported usage. Subscription billing and quota are separate."
+        : "USD · Prices captured when the scan started.";
+  return cost?.complete === false
+    ? `${basis} Partial estimate. Some usage could not be priced.`
+    : basis;
 }
 const labels = {
   input: "Input (uncached)",
@@ -20,6 +36,7 @@ const labels = {
   cacheWrite5m: "Cache write · 5 minutes",
   cacheWrite1h: "Cache write · 1 hour",
   cacheRead: "Cache hits and refreshes",
+  cacheWrite: "Cache write · Default lifetime",
 };
 
 export function ScanBilling({ reviews }: { reviews: SecurityReview[] }) {
@@ -33,6 +50,16 @@ export function ScanBilling({ reviews }: { reviews: SecurityReview[] }) {
         exclude taxes, discounts and other service charges. Incomplete usage is never assumed to be
         zero.
       </p>
+      {reviews.some(
+        (review) =>
+          review.request.billing?.basis === "api-equivalent" ||
+          review.request.validatorBilling?.basis === "api-equivalent",
+      ) && (
+        <p className="muted">
+          Subscription estimates use standard OpenAI API prices for the reported tokens.
+          Subscription billing and quota are separate.
+        </p>
+      )}
       {reviews.map((review, index) => (
         <div key={review.id}>
           {review.request.billing && (
@@ -69,7 +96,7 @@ function BillingSection({
       <h3>{title}</h3>
       <p className="muted">
         {billing.pricing
-          ? `${costLabel(billing.cost)} estimated. ${billing.cost?.complete ? "" : "Some requests or cache write lifetimes could not be priced."}`
+          ? `Estimated cost: ${costLabel(billing.cost)}. ${billing.cost?.complete ? "" : "Some requests or token details could not be priced."}`
           : "No saved model prices. Usage is shown without a cost estimate."}
       </p>
       {!billing.usage.length && <p className="muted">No token usage was reported.</p>}
@@ -84,6 +111,7 @@ function BillingSection({
           cacheWrite5m: usage.cacheWrite5mTokens,
           cacheWrite1h: usage.cacheWrite1hTokens,
           cacheRead: usage.cacheReadTokens,
+          cacheWrite: usage.cacheWriteTokens ?? 0,
         };
         return (
           <div className="security-table-scroll" key={`${id}-${usage.request}`}>
@@ -101,7 +129,9 @@ function BillingSection({
                 </tr>
               </thead>
               <tbody>
-                {PRICE_FIELDS.map((field) => (
+                {BILLING_PRICE_FIELDS.filter(
+                  (field) => rates?.[field] !== undefined || counts[field],
+                ).map((field) => (
                   <tr key={field}>
                     <th scope="row">{labels[field]}</th>
                     <td>{counts[field]?.toLocaleString() ?? "Unknown"}</td>
@@ -110,7 +140,7 @@ function BillingSection({
                       {charge
                         ? costLabel({
                             currency: "USD",
-                            totalUsd: charge.amounts[field],
+                            totalUsd: charge.amounts[field] ?? 0,
                             complete: true,
                           })
                         : "—"}

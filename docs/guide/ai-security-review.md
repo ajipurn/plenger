@@ -29,6 +29,8 @@ read as plain text: they get no static facts, so nothing orders or excerpts
 them by function. Lockfiles, generated protobuf and minified files stay out.
 Source can change during a job. Reviews record capture time, file and
 context digests, coverage, provider, model, calls and reported token usage.
+During a scan, token totals and estimated costs update after each model response.
+Usage that the provider has not reported stays unknown.
 They also record what produced them, so results can be compared across prompt
 versions and models: `generation.promptDigest` is the SHA-256 of the discovery
 and validation instructions with their schemas, and each request's provider,
@@ -361,7 +363,7 @@ Native Claude reviews retain per-request cache usage and the model's manual
 price snapshot. Scan details show category costs and an estimated USD total.
 Missing usage or cache-write lifetimes cannot be priced. Valid usage remains
 billable even when a reply is refused, truncated or fails host validation.
-See [model pricing](dashboard.md#claude-model-pricing) for configuration and
+See [model pricing](dashboard.md#model-pricing) for configuration and
 the estimate's limits.
 
 Open a finding for its trace and validation reason. **Fix with a coding

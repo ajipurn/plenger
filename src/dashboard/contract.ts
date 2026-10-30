@@ -7,6 +7,7 @@
 import type { BudgetLimits } from "../redteam/budget.ts";
 import type { CampaignPolicy } from "../redteam/campaign.ts";
 import { REPETITION_RANGE } from "../redteam/constants.ts";
+import type { ModelPricing } from "../redteam/model-pricing.ts";
 import type { ProviderAccess } from "../redteam/provider.ts";
 import type { ProviderModel } from "../redteam/provider-models.ts";
 
@@ -90,6 +91,7 @@ export const API = {
   deleteProvider: "/api/providers/delete",
   testProvider: "/api/providers/test",
   providerModels: "/api/providers/models",
+  modelPricing: "/api/providers/pricing",
   chatgptLogin: "/api/providers/chatgpt/login",
   chatgptLoginStatus: "/api/providers/chatgpt/login/status",
   cancelChatgptLogin: "/api/providers/chatgpt/login/cancel",
@@ -172,6 +174,16 @@ export interface ProviderModelsRequest {
 }
 export interface ProviderModelsResult {
   models: ProviderModel[];
+}
+export interface ModelPricingRequest {
+  provider?: "anthropic" | "openai";
+  model: string;
+  refresh?: boolean;
+}
+export interface ModelPricingResult {
+  pricing: ModelPricing;
+  /** A failed automatic update fell back to the last successful local record. */
+  stale: boolean;
 }
 
 export interface FixPromptRequest {

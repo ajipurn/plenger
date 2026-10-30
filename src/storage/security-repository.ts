@@ -7,6 +7,7 @@ import type {
   SecurityScanSummary,
   SecurityWorkspace,
 } from "../security/model.ts";
+import { restoreReportedTokens } from "../security/usage.ts";
 import { redactReport } from "../shared/secrets.ts";
 import { parsePayload, type Storage } from "./database.ts";
 
@@ -78,7 +79,7 @@ export class SecurityRepository {
     const row = this.#storage.database
       .prepare("SELECT payload FROM security_scans WHERE id = ?")
       .get(id);
-    return row ? parsePayload<SecurityScan>(row) : null;
+    return row ? restoreReportedTokens(parsePayload<SecurityScan>(row)) : null;
   }
   saveScan(scan: SecurityScan): void {
     const safe = structuredClone(scan);
@@ -159,7 +160,7 @@ export class SecurityRepository {
             findings: _findings,
             reviews: _reviews,
             ...summary
-          } = parsePayload<SecurityScan>(row);
+          } = restoreReportedTokens(parsePayload<SecurityScan>(row));
           return summary;
         }),
       findings: this.#storage.database

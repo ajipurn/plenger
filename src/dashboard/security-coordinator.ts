@@ -6,12 +6,13 @@ import {
   exploreTokenBound,
   type ReviewSourceFile,
   reviewBudget,
+  type SecurityReview,
   type SpendingLimit,
 } from "../assessment/review-model.ts";
 import { reviewPaths } from "../assessment/review-source.ts";
 import { reviewProject } from "../assessment/security-review.ts";
 import { sumCosts } from "../redteam/model-pricing.ts";
-import { validateProviderSettings } from "../redteam/provider-config.ts";
+import { modelPricingProvider, validateProviderSettings } from "../redteam/provider-config.ts";
 import { RULES } from "../rules/index.ts";
 import { scan } from "../scan.ts";
 import { scanFindings, vanishedStaticFindings } from "../security/findings.ts";
@@ -27,8 +28,10 @@ import {
   type StartSecurityScan,
 } from "../security/model.ts";
 import { extendThreatModel, type ThreatModelContent } from "../security/threat-model.ts";
+import { reportedScanTokens } from "../security/usage.ts";
 import type { DashboardStore } from "../storage/store.ts";
 import { HttpError } from "./http.ts";
+import type { ModelPricingCatalog } from "./model-pricing.ts";
 import type { OperationSupervisor } from "./operations.ts";
 
 /** Lines the files hold that some review read, counting each line of each path once. */
@@ -48,9 +51,15 @@ export class SecurityCoordinator {
   readonly #store: DashboardStore;
   readonly #supervisor: OperationSupervisor;
   #closed = false;
-  constructor(store: DashboardStore, supervisor: OperationSupervisor) {
+  readonly #pricing: ModelPricingCatalog | undefined;
+  constructor(
+    store: DashboardStore,
+    supervisor: OperationSupervisor,
+    pricing?: ModelPricingCatalog,
+  ) {
     this.#store = store;
     this.#supervisor = supervisor;
+    this.#pricing = pricing;
     this.#importHistory();
     // Older workspaces may contain enabled monitors. All scans now require an explicit start.
     for (const project of store.security.repositories()) {
@@ -114,7 +123,9 @@ export class SecurityCoordinator {
       }
       const access = { ...resolved.access, model };
       const pricing = structuredClone(
-        resolved.saved.modelPricing?.find((item) => item.model === model),
+        this.#pricing
+          ? await this.#pricing.forScan(resolved.saved, model)
+          : resolved.saved.modelPricing?.find((item) => item.model === model),
       );
       // Validation may use another connection, another model, or both.
       const second =
@@ -134,9 +145,12 @@ export class SecurityCoordinator {
           throw new HttpError(400, "Choose a valid model for the validation provider.");
         }
       }
-      const secondPricing = second?.saved.modelPricing?.find(
-        (item) => item.model === secondAccess?.model,
-      );
+      const secondPricing =
+        second && secondAccess
+          ? this.#pricing
+            ? await this.#pricing.forScan(second.saved, secondAccess.model)
+            : second.saved.modelPricing?.find((item) => item.model === secondAccess.model)
+          : undefined;
       const validator = second &&
         secondAccess && {
           provider: { id: second.saved.id, name: second.saved.name, model: secondAccess.model },
@@ -162,13 +176,14 @@ export class SecurityCoordinator {
       };
       if (input.budget?.kind === "usd") {
         const priced =
-          resolved.access.provider === "anthropic" &&
+          modelPricingProvider(resolved.access.provider) &&
           pricing !== undefined &&
-          (!second || (second.access.provider === "anthropic" && secondPricing !== undefined));
+          (!second ||
+            (modelPricingProvider(second.access.provider) && secondPricing !== undefined));
         if (!priced || !pricing)
           throw new HttpError(
             400,
-            "A USD limit needs saved Claude prices for every model in this scan. Use a token limit, or add prices under Settings > Providers.",
+            "A USD limit needs model prices for every model in this scan. Use a token limit, or refresh prices under Settings > Providers.",
           );
         most.usd =
           mode === "explore"
@@ -304,6 +319,24 @@ export class SecurityCoordinator {
               .filter((item) => item.status === "completed")
               .flatMap((item) => item.scope.files);
             let stop: ScanCoverage["stop"] = null;
+            const updateUsage = (request?: SecurityReview["request"]) => {
+              const reports = [
+                ...job.reviews,
+                ...(request ? [{ request, validator: job.validator }] : []),
+              ];
+              const usage = reportedScanTokens(reports);
+              job.tokens = usage?.tokens ?? null;
+              if (usage) job.tokensComplete = usage.complete;
+              job.modelCalls = reports.reduce((sum, item) => sum + item.request.calls, 0);
+              const billings = reports.flatMap((item) => [
+                item.request.billing,
+                ...(item.validator ? [item.request.validatorBilling] : []),
+              ]);
+              // An unused validator's zero-cost snapshot is not reported consumption.
+              job.cost = billings.some((billing) => billing?.cost && billing.usage.length)
+                ? sumCosts(billings.map((billing) => billing?.cost))
+                : null;
+            };
             for (let batch = job.reviews.length; ; batch++) {
               controller.signal.throwIfAborted();
               const whole = new Set(
@@ -364,6 +397,17 @@ export class SecurityCoordinator {
                   job.phase = phase;
                   this.#store.security.saveScan(job);
                 },
+                onUsage: (request) => {
+                  // A timed-out provider may settle after this round or scan has ended.
+                  if (
+                    job.status !== "running" ||
+                    controller.signal.aborted ||
+                    job.reviews.length !== batch
+                  )
+                    return;
+                  updateUsage(request);
+                  this.#store.security.saveScan(job);
+                },
               });
               // Exhausted readable source after a successful batch is coverage information.
               if (
@@ -377,13 +421,7 @@ export class SecurityCoordinator {
               }
               this.#store.reviews.save(review);
               job.reviews.push(review);
-              job.cost = sumCosts(
-                job.reviews.flatMap((item) => [
-                  item.request.billing?.cost,
-                  ...(item.request.validatorBilling ? [item.request.validatorBilling.cost] : []),
-                ]),
-              );
-              job.modelCalls += review.request.calls;
+              updateUsage();
               const charged = review.request.charged;
               coverage.charged = {
                 tokens: coverage.charged.tokens + (charged?.tokens ?? 0),
@@ -423,16 +461,6 @@ export class SecurityCoordinator {
               this.#store.security.saveScan(job);
             }
             if (job.status === "running") coverage.stop = stop;
-            const usage = job.reviews.map((review) => review.request.usage);
-            job.tokens =
-              usage.length && usage.every(Boolean)
-                ? usage.reduce(
-                    (sum, item) =>
-                      sum +
-                      (item ? item.inputTokens + item.outputTokens + item.additionalTokens : 0),
-                    0,
-                  )
-                : null;
             if (job.status === "running") job.status = "completed";
             // The project keeps the model this scan extended, unless the user wrote one,
             // also while the scan ran.

@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { AnthropicResponseError } from "../redteam/anthropic-provider.ts";
-import { BudgetStoppedError, ModelBudget } from "../redteam/budget.ts";
+import { BudgetStoppedError, ModelBudget, type TokenUsage } from "../redteam/budget.ts";
 import {
-  type ClaudeTokenUsage,
+  type BillableTokenUsage,
   type ModelPricing,
   reviewBilling,
   tokenCost,
@@ -13,8 +13,10 @@ import {
   ModelProviderHttpError,
   type ModelReply,
   type ModelRequest,
+  ModelResponseError,
   type ProviderAccess,
 } from "../redteam/provider.ts";
+import { modelPricingProvider } from "../redteam/provider-config.ts";
 import type { ScanResult } from "../scan.ts";
 import { redact, redactReport } from "../shared/secrets.ts";
 import { coversAll, mergeRanges, renderSource } from "./review-excerpt.ts";
@@ -326,13 +328,16 @@ export async function reviewProject(
     onPhase?: (phase: "reading" | "discovering" | "validating") => void;
     /** Each model request and read tool call, with the tokens this review has charged. */
     onActivity?: (event: { kind: "request" | "tool"; detail: string; tokens: number }) => void;
+    /** Reported usage after each request starts or finishes, including rejected replies. */
+    onUsage?: (request: SecurityReview["request"]) => void;
   },
   dispatch: typeof fetch = fetch,
 ): Promise<SecurityReview> {
   const started = performance.now();
   const explore = options.mode === "explore";
   const validator = options.validator;
-  const usage = { discovery: [] as ClaudeTokenUsage[], validation: [] as ClaudeTokenUsage[] };
+  const usage = { discovery: [] as BillableTokenUsage[], validation: [] as BillableTokenUsage[] };
+  const reportedUsage: TokenUsage[] = [];
   const admitted = { discovery: 0, validation: 0 };
   const secrets = [options.access.apiKey, validator?.access.apiKey].filter((key): key is string =>
     Boolean(key),
@@ -400,6 +405,49 @@ export async function reviewProject(
   // USD charged against the limit: reported usage at saved prices, or a request's
   // maximum when its usage is unknown. Null once a request had no prices.
   let chargedUsd: number | null = 0;
+  const requestUsage = (): SecurityReview["request"] => {
+    const calls = admitted.discovery + admitted.validation;
+    return {
+      calls,
+      usage: null,
+      durationMs: Math.round(performance.now() - started),
+      ...(reportedUsage.length
+        ? {
+            reportedUsage: {
+              ...reportedUsage.reduce(
+                (sum, item) => ({
+                  inputTokens: sum.inputTokens + item.inputTokens,
+                  outputTokens: sum.outputTokens + item.outputTokens,
+                  additionalTokens: sum.additionalTokens + item.additionalTokens,
+                }),
+                { inputTokens: 0, outputTokens: 0, additionalTokens: 0 },
+              ),
+              complete: reportedUsage.length === calls,
+            },
+          }
+        : {}),
+      ...(modelPricingProvider(options.access.provider)
+        ? {
+            billing: reviewBilling(
+              options.pricing ?? null,
+              usage.discovery,
+              admitted.discovery,
+              options.access.provider === "chatgpt" ? "api-equivalent" : undefined,
+            ),
+          }
+        : {}),
+      ...(validator && modelPricingProvider(validator.access.provider)
+        ? {
+            validatorBilling: reviewBilling(
+              validator.pricing ?? null,
+              usage.validation,
+              admitted.validation,
+              validator.access.provider === "chatgpt" ? "api-equivalent" : undefined,
+            ),
+          }
+        : {}),
+    };
+  };
   const windows = [options.inputTokens, ...(validator ? [validator.inputTokens] : [])];
   const windowed = reviewBudget(windows);
   // An exploring review packs a smaller first set; the model reads the rest itself.
@@ -515,23 +563,34 @@ export async function reviewProject(
           `Stopped before the ${phase} request: its maximum cost does not fit what remains of the scan's USD limit.`,
         );
       }
-      const charge = (details: ClaudeTokenUsage | undefined) => {
+      const charge = (details: BillableTokenUsage | undefined) => {
         const cost = pricing && details ? tokenCost(pricing, details)?.totalUsd : undefined;
         chargedUsd = chargedUsd === null || worst === null ? null : chargedUsd + (cost ?? worst);
       };
       const reply = await budget.execute(reservation, async (allowance) => {
         admitted[account] += 1;
+        options.onUsage?.(requestUsage());
         try {
           const result = await provider.generate(request, allowance);
+          if (result.usage) reportedUsage.push(result.usage);
           if (result.tokenDetails) usage[account].push(result.tokenDetails);
           charge(result.tokenDetails);
           return result;
         } catch (error) {
-          if (error instanceof AnthropicResponseError) {
+          if (error instanceof AnthropicResponseError || error instanceof ModelResponseError) {
             usage[account].push(error.tokenDetails);
+            const details = error.tokenDetails;
+            reportedUsage.push({
+              inputTokens:
+                details.inputTokens + details.cacheReadTokens + details.cacheCreationTokens,
+              outputTokens: details.outputTokens,
+              additionalTokens: 0,
+            });
             charge(error.tokenDetails);
           } else charge(undefined);
           throw error;
+        } finally {
+          options.onUsage?.(requestUsage());
         }
       });
       options.onActivity?.({
@@ -884,6 +943,7 @@ export async function reviewProject(
   const usages = ledger.calls.map((call) => call.usage);
   const limitReached = review.request.limitReached;
   review.request = {
+    ...requestUsage(),
     calls: ledger.callsAdmitted,
     usage:
       usages.length && usages.every((usage) => usage !== null)
@@ -896,19 +956,6 @@ export async function reviewProject(
             { inputTokens: 0, outputTokens: 0, additionalTokens: 0 },
           )
         : null,
-    durationMs: Math.round(performance.now() - started),
-    ...(options.access.provider === "anthropic"
-      ? { billing: reviewBilling(options.pricing ?? null, usage.discovery, admitted.discovery) }
-      : {}),
-    ...(validator?.access.provider === "anthropic"
-      ? {
-          validatorBilling: reviewBilling(
-            validator.pricing ?? null,
-            usage.validation,
-            admitted.validation,
-          ),
-        }
-      : {}),
     charged: { tokens: ledger.accountedTokens, usd: chargedUsd },
     ...(limitReached ? { limitReached } : {}),
   };

@@ -1,7 +1,9 @@
 import { CHATGPT, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP, MODEL_STREAM_CAP } from "./constants.ts";
+import { parseOpenAIResponsesTokenUsage } from "./model-pricing.ts";
 import {
   ModelProviderHttpError,
   type ModelRequest,
+  ModelResponseError,
   normalizeTools,
   OutputLimitError,
   type ProviderAccess,
@@ -140,58 +142,66 @@ export function createChatgptProvider(access: ProviderAccess, dispatch: typeof f
         throw new ModelProviderHttpError(response.status);
       }
       const raw = await completedResponse(response);
-      if (!Array.isArray(raw.output) || raw.status !== "completed")
-        throw new Error("ChatGPT response did not complete.");
-      const texts: string[] = [],
-        calls: Record<string, unknown>[] = [];
-      for (const item of raw.output) {
-        const output = record(item);
-        if (output.type === "function_call") {
-          if (output.namespace !== undefined && output.namespace !== "plenger")
-            throw new Error("Unknown ChatGPT tool namespace.");
-          calls.push({
-            id: output.call_id,
-            type: "function",
-            function: { name: output.name, arguments: output.arguments },
-          });
-        } else if (output.type === "message") {
-          if (!Array.isArray(output.content)) throw new Error("Invalid ChatGPT content.");
-          for (const part of output.content) {
-            const content = record(part);
-            const text =
-              content.type === "output_text"
-                ? content.text
-                : content.type === "refusal"
-                  ? content.refusal
-                  : undefined;
-            if (typeof text !== "string") throw new Error("Unsupported ChatGPT content.");
-            texts.push(text);
-          }
-        } else if (output.type !== "reasoning") throw new Error("Unsupported ChatGPT output.");
-      }
-      if (!texts.length && !calls.length)
-        throw new Error("ChatGPT returned no assistant response.");
-      const usage = record(raw.usage);
-      const result = parseModelReply(
-        {
-          choices: [
-            {
-              finish_reason: calls.length ? "tool_calls" : "stop",
-              message: { content: texts.length ? texts.join("") : null, tool_calls: calls },
+      const tokenDetails =
+        raw.usage === undefined ? undefined : parseOpenAIResponsesTokenUsage(raw.usage);
+      try {
+        if (!Array.isArray(raw.output) || raw.status !== "completed")
+          throw new Error("ChatGPT response did not complete.");
+        const texts: string[] = [],
+          calls: Record<string, unknown>[] = [];
+        for (const item of raw.output) {
+          const output = record(item);
+          if (output.type === "function_call") {
+            if (output.namespace !== undefined && output.namespace !== "plenger")
+              throw new Error("Unknown ChatGPT tool namespace.");
+            calls.push({
+              id: output.call_id,
+              type: "function",
+              function: { name: output.name, arguments: output.arguments },
+            });
+          } else if (output.type === "message") {
+            if (!Array.isArray(output.content)) throw new Error("Invalid ChatGPT content.");
+            for (const part of output.content) {
+              const content = record(part);
+              const text =
+                content.type === "output_text"
+                  ? content.text
+                  : content.type === "refusal"
+                    ? content.refusal
+                    : undefined;
+              if (typeof text !== "string") throw new Error("Unsupported ChatGPT content.");
+              texts.push(text);
+            }
+          } else if (output.type !== "reasoning") throw new Error("Unsupported ChatGPT output.");
+        }
+        if (!texts.length && !calls.length)
+          throw new Error("ChatGPT returned no assistant response.");
+        const usage = record(raw.usage);
+        const result = parseModelReply(
+          {
+            choices: [
+              {
+                finish_reason: calls.length ? "tool_calls" : "stop",
+                message: { content: texts.length ? texts.join("") : null, tool_calls: calls },
+              },
+            ],
+            usage: {
+              prompt_tokens: usage.input_tokens,
+              completion_tokens: usage.output_tokens,
+              total_tokens: usage.total_tokens,
             },
-          ],
-          usage: {
-            prompt_tokens: usage.input_tokens,
-            completion_tokens: usage.output_tokens,
-            total_tokens: usage.total_tokens,
           },
-        },
-        replyToolCalls(access),
-      );
-      // Carry encrypted reasoning and exact tool-call items across the worker's next turn.
-      // Cache only successful replies, and never persist provider context in reports.
-      for (const call of result.value.toolCalls) history.set(call.id, raw.output);
-      return result;
+          replyToolCalls(access),
+        );
+        // Carry encrypted reasoning and exact tool-call items across the worker's next turn.
+        // Cache only successful replies, and never persist provider context in reports.
+        for (const call of result.value.toolCalls) history.set(call.id, raw.output);
+        return { ...result, ...(tokenDetails ? { tokenDetails } : {}) };
+      } catch (error) {
+        if (tokenDetails && error instanceof Error)
+          throw new ModelResponseError(error, tokenDetails);
+        throw error;
+      }
     },
   };
 }
@@ -232,8 +242,14 @@ async function completedResponse(response: Response): Promise<Record<string, unk
         if (
           event.type === "response.incomplete" &&
           record(record(event.response).incomplete_details).reason === "max_output_tokens"
-        )
-          throw new OutputLimitError("ChatGPT response did not complete: output limit reached.");
+        ) {
+          const error = new OutputLimitError(
+            "ChatGPT response did not complete: output limit reached.",
+          );
+          const usage = record(event.response).usage;
+          const details = usage === undefined ? undefined : parseOpenAIResponsesTokenUsage(usage);
+          throw details ? new ModelResponseError(error, details) : error;
+        }
         if (["error", "response.failed", "response.incomplete"].includes(String(event.type)))
           throw new Error(
             "ChatGPT response failed. Check access and usage limits in ChatGPT settings.",

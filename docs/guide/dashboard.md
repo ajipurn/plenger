@@ -13,14 +13,13 @@ After installing the npm package:
 ```sh
 plenger
 plenger --workspace path/to/project --port 4180
-plenger --workspace path/to/project --port 4180
 plenger --data-dir path/to/dashboard-data
 ```
 
 For a published release, npx can launch the same dashboard:
 
 ```sh
-npx plenger@latest serve --port 4180
+npx plenger@latest --port 4180
 ```
 
 See [install.md](install.md) for npm installation and local tarballs.
@@ -136,9 +135,11 @@ unsent parts.
 
 The limit counts every connection the scan uses, including a separate
 validation model. A token limit counts accounted tokens: reported usage, or a request's
-full reservation when the provider reported none. A USD limit uses saved Claude
-prices, so it needs prices for every model in the scan; it is an estimate, not
-your invoice. A round starts only when its maximum fits what remains: every
+full reservation when the provider reported none. A USD limit uses the selected
+models' automatic or saved prices, including a separate validation model.
+New Scan uses fresh cached prices immediately and loads only missing or expired
+prices for those models. It is an estimate, not your invoice. A round starts only
+when its maximum fits what remains: every
 prompt token counted at one per request byte and priced at the dearest prompt
 rate, plus the whole output allowance. Rounds usually charge far less, so a
 limit covers at least the number of rounds New Scan shows, often more. New
@@ -197,10 +198,14 @@ revision, environment snapshot and provider. Git metadata names the commit and
 branch at start; it does not freeze the files. Plenger does not read working-tree status,
 because Git would run the filter commands that a project's own Git configuration
 names. Included file digests identify what the
-model actually received. Anthropic dollar estimates use the selected model's
-saved manual prices. **Token usage and cost details** shows each request's
-uncached input, output, cache writes and cache hits. Missing prices or usage are
-unavailable. Partial totals are labeled **At least**.
+model actually received. Anthropic and OpenAI dollar estimates use the selected
+models' captured prices. **Token usage and cost details** shows each request's
+uncached input, output, cache writes and cache hits. Reported token totals remain
+visible when another response lacks usage. Scan details explain incomplete totals.
+Older scans can recover totals from their saved billing details without a new scan.
+Budget reservations never replace missing usage. Missing prices or all missing usage
+remain unavailable. ChatGPT subscription scans estimate USD using standard API rates.
+The breakdown records the pricing basis and completeness for each pass.
 
 **Export scan** downloads the redacted job, its findings and review records.
 It is distinct from the static engine's versioned JSON report. Dismissed model
@@ -284,37 +289,55 @@ limit metadata use the operation allowance. Existing explicit generation setting
 remain supported; saving an Anthropic or OpenAI connection in the editor resets them
 to automatic settings.
 
-### Claude model pricing
+### Model pricing
 
-The Anthropic Models API provides model metadata without unit prices. Its
-[Usage and Cost API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api)
-reports historical organization usage and charges, and requires an Admin API key.
-It is not a model price catalog.
+Anthropic and OpenAI API connections load standard API prices from
+[Models.dev](https://models.dev). Plenger reads full model records from its
+public repository to retain cache-write rates and long-context tiers. These
+requests send no API key or project source. Missing prices are not guessed.
 
-In the provider editor, open **Model pricing**, choose a **Model** and enable
-**Set prices for this model**. **Connection** holds the API key, default model
-and advanced endpoint settings. Switching tabs keeps unsaved edits. **Save
-provider** and **Cancel** stay in the footer. Saving incomplete prices opens the
-affected model and focuses its first invalid field.
+ChatGPT connections use the same read-only OpenAI price catalog. Their reported
+input, cached input and output tokens produce a USD estimate, with reasoning
+included in output once. This compares the scan with standard API pricing. It is
+not a subscription bill or a measure of credits or remaining quota. Missing cache
+details leave the estimate incomplete or unavailable. Subscription providers accept
+token limits and USD limits based on standard API rates. These limits compare
+estimated usage, not subscription charges or credits. Requests reserve an allowance
+before dispatch; subscription output usage is checked after each response.
+See [ChatGPT pricing](https://learn.chatgpt.com/docs/pricing).
 
-Enter USD per million tokens for uncached input, output, 5-minute cache writes,
-1-hour cache writes and cache hits. Each model has its own price table. All five
-fields are required; enter zero explicitly for a free category. An optional
-long-prompt tier has its own threshold and all five prices. Use your effective
-rates from the [Claude pricing documentation](https://platform.claude.com/docs/en/about-claude/pricing).
-Plenger does not infer prices from model names.
+Open **Model pricing** for a read-only list of prices. Expand **Pricing details**
+to inspect cache writes, context tiers, the source and the last update time.
+Pricing loads when this tab is selected. Opening **Connection** does not load it.
+The tab's badge reads locally cached prices when the drawer opens, including after
+a page reload. It does not fetch individual model prices to populate the count.
+Reopening pricing reuses fresh results in the dashboard session. Unavailable models
+wait five minutes before an automatic retry; **Refresh pricing** retries immediately.
+There are no manual price inputs. **Refresh pricing** fetches the latest records.
+Successful records are cached locally for 24 hours and survive restarts. A failed
+automatic update can use the last cached record, with a notice. A failed explicit
+refresh keeps the current prices.
 
-Estimates sum each token category once per request. Long-prompt tiers compare
-the request's total input, including cache reads and writes, with the saved
-threshold. The higher tier applies only above that threshold. Usage without
-cache-write lifetimes cannot be priced reliably. Changing a provider's prices
-affects future scans; earlier scans keep their original price snapshot.
+Each scan checks pricing for its selected models at startup, including a separate
+validation model. Missing or expired records load automatically. Earlier manual
+rates are a fallback if the catalog cannot be loaded. Each scan keeps its original
+price snapshot. Older scans without a billing breakdown are not repriced.
 
-Setting cache prices does not enable prompt caching. Current scan requests do
-not set cache-control breakpoints. Reported cache usage is still accounted for
-when present. Estimates exclude taxes, discounts and other service charges.
-They are not invoices. See [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
-for Anthropic's token accounting rules.
+Estimates sum each token category once per request. Long-context tiers compare
+all input tokens, including cache reads and writes, with the saved threshold.
+OpenAI cache reads and writes are subtracted from prompt totals before charging
+uncached input. Reasoning tokens are included in completion totals and are not
+charged twice. Missing usage, unknown cache lifetimes and nonstandard OpenAI
+service tiers cannot be priced as standard requests.
+
+The catalog is community maintained. Estimates use standard global API list
+prices and exclude discounts, taxes, regional premiums and other service charges.
+They are not invoices. Loading prices does not enable prompt caching. See the
+[OpenAI pricing documentation](https://developers.openai.com/api/docs/pricing)
+and [Claude pricing documentation](https://platform.claude.com/docs/en/about-claude/pricing).
+
+**Connection** holds the API key, default model and advanced endpoint settings.
+Save the provider to apply connection changes.
 
 API keys are encrypted with AES-256-GCM in SQLite. The 32-byte `provider-key`
 file in the same directory has owner-only permissions. This is local encryption

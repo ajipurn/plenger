@@ -14,7 +14,7 @@ import {
   MODEL_TOOL_CALL_LIMIT,
   type ProviderId,
 } from "./constants.ts";
-import type { ClaudeTokenUsage } from "./model-pricing.ts";
+import { type BillableTokenUsage, parseOpenAITokenUsage } from "./model-pricing.ts";
 import { PROVIDER_URLS, providerBaseUrl, validateProviderSettings } from "./provider-config.ts";
 
 export interface ModelRequest {
@@ -41,7 +41,7 @@ export interface RunProvider {
   generate(
     request: ModelRequest,
     allowance: { signal: AbortSignal; maxOutputTokens: number },
-  ): Promise<{ value: ModelReply; usage?: TokenUsage; tokenDetails?: ClaudeTokenUsage }>;
+  ): Promise<{ value: ModelReply; usage?: TokenUsage; tokenDetails?: BillableTokenUsage }>;
 }
 export interface ProviderAccess {
   provider: ProviderId;
@@ -197,7 +197,20 @@ export function createRunProvider(
         throw new ModelProviderHttpError(response.status);
       }
       const raw = await readModelJson(response);
-      const parsed = parseModelReply(raw, replyToolCalls(access));
+      const details =
+        access.provider === "openai" &&
+        isRecord(raw) &&
+        raw.usage !== undefined &&
+        (raw.service_tier === undefined || raw.service_tier === "default")
+          ? parseOpenAITokenUsage(raw.usage)
+          : undefined;
+      let parsed: ReturnType<typeof parseModelReply>;
+      try {
+        parsed = parseModelReply(raw, replyToolCalls(access));
+      } catch (error) {
+        if (details && error instanceof Error) throw new ModelResponseError(error, details);
+        throw error;
+      }
       if (access.provider === "gemini") {
         const value = record(raw);
         const calls = record(record((value.choices as unknown[])[0]).message).tool_calls;
@@ -207,7 +220,7 @@ export function createRunProvider(
             if (call.extra_content !== undefined) metadata.set(String(call.id), call.extra_content);
           }
       }
-      return parsed;
+      return { ...parsed, ...(details ? { tokenDetails: details } : {}) };
     },
   };
 }
@@ -270,6 +283,17 @@ export class OutputLimitError extends Error {
   readonly outputLimit = true;
 }
 
+/** Unusable OpenAI replies still retain the provider's billable token breakdown. */
+export class ModelResponseError extends Error {
+  readonly tokenDetails: BillableTokenUsage;
+  readonly outputLimit: boolean;
+  constructor(error: Error, tokenDetails: BillableTokenUsage) {
+    super(error.message, { cause: error });
+    this.tokenDetails = tokenDetails;
+    this.outputLimit = reachedOutputLimit(error);
+  }
+}
+
 /** Whether a provider error is a reply cut at its output allowance, on any transport. */
 export function reachedOutputLimit(error: unknown): boolean {
   return (
@@ -319,6 +343,8 @@ export function parseModelReply(
   const result: { value: ModelReply; usage?: TokenUsage } = {
     value: { content: message.content as string | null, toolCalls },
   };
+  if (typeof message.refusal === "string" && message.refusal)
+    result.value.refusal = message.refusal;
   if (value.usage !== undefined) {
     const usage = record(value.usage);
     if (

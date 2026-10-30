@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { type ChatgptSession, refreshChatgpt } from "../redteam/chatgpt-auth.ts";
-import { CHATGPT } from "../redteam/constants.ts";
+import { CHATGPT, MODEL_PRICING_LIMITS } from "../redteam/constants.ts";
+import { type ModelPricing, validateModelPricing } from "../redteam/model-pricing.ts";
 import type { ProviderAccess } from "../redteam/provider.ts";
 import {
   accessFromProviderConfig,
   hasProviderModelCatalog,
+  modelPricingProvider,
   type ProviderInput,
   type ProviderSettings,
   type SavedProvider,
@@ -76,7 +78,7 @@ export class ProviderRepository {
    * Every connection, the default first then by name. `keyPreviews` adds the masked
    * display hint, which unseals each key; only the provider list for the page asks for it.
    */
-  readProviders(options: { keyPreviews?: boolean } = {}): SavedProvider[] {
+  readProviders(options: { keyPreviews?: boolean; pricingCache?: boolean } = {}): SavedProvider[] {
     return this.#storage.database
       .prepare(
         "SELECT id, is_default, payload, credential FROM model_providers ORDER BY is_default DESC, name",
@@ -89,8 +91,26 @@ export class ProviderRepository {
           payload.provider !== "chatgpt" && typeof row.credential === "string"
             ? row.credential
             : null;
+        const pricingProvider = modelPricingProvider(payload.provider);
+        const cachedModelPricing =
+          options.pricingCache && pricingProvider
+            ? this.readCachedModelPricing(
+                pricingProvider,
+                payload.model,
+                payload.provider === "chatgpt"
+                  ? [
+                      ...new Set([
+                        payload.model,
+                        ...(payload.chatgptModels ?? []).map((item) => item.id),
+                        ...(payload.modelPricing ?? []).map((item) => item.model),
+                      ]),
+                    ]
+                  : undefined,
+              )
+            : [];
         return {
           ...payload,
+          ...(cachedModelPricing.length ? { cachedModelPricing } : {}),
           // Rows written before masking still hold the full address.
           ...(payload.chatgptAccount
             ? { chatgptAccount: maskAccount(payload.chatgptAccount) }
@@ -206,6 +226,47 @@ export class ProviderRepository {
         "INSERT INTO provider_model_catalogs (connection_id, payload) VALUES (?, ?) ON CONFLICT(connection_id) DO UPDATE SET payload = excluded.payload",
       )
       .run(providerModelCacheKey(this.#key, connection), JSON.stringify(catalog));
+  }
+
+  readModelPricing(
+    model: string,
+    provider: "anthropic" | "openai" = "anthropic",
+  ): ModelPricing | null {
+    const row = this.#storage.database
+      .prepare("SELECT payload FROM model_pricing_catalog WHERE model = ?")
+      .get(provider === "anthropic" ? model : `${provider}:${model}`);
+    return row ? (validateModelPricing([parsePayload(row)])[0] ?? null) : null;
+  }
+
+  /** Public cache only. Reading it never contacts a provider or changes connection settings. */
+  readCachedModelPricing(
+    provider: "anthropic" | "openai",
+    defaultModel: string,
+    models?: string[],
+  ): ModelPricing[] {
+    const rows = this.#storage.database
+      .prepare(
+        `SELECT payload FROM model_pricing_catalog WHERE (model LIKE 'openai:%') = ?${models?.length ? ` AND json_extract(payload, '$.model') IN (${models.map(() => "?").join(",")})` : ""} ORDER BY model = ? DESC, model LIMIT ?`,
+      )
+      .all(
+        provider === "openai" ? 1 : 0,
+        ...(models ?? []),
+        provider === "openai" ? `openai:${defaultModel}` : defaultModel,
+        MODEL_PRICING_LIMITS.models,
+      );
+    return validateModelPricing(rows.map((row) => parsePayload(row)));
+  }
+
+  saveModelPricing(pricing: ModelPricing, provider: "anthropic" | "openai" = "anthropic"): void {
+    const [validated] = validateModelPricing([pricing]);
+    this.#storage.database
+      .prepare(
+        "INSERT INTO model_pricing_catalog (model, payload) VALUES (?, ?) ON CONFLICT(model) DO UPDATE SET payload = excluded.payload",
+      )
+      .run(
+        provider === "anthropic" ? pricing.model : `${provider}:${pricing.model}`,
+        JSON.stringify(validated),
+      );
   }
 
   /** The connection plus its unsealed key, for the engine only; never for API responses. */

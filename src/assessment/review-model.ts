@@ -433,10 +433,12 @@ export interface SecurityReview extends Omit<ReviewDiscovery, "status" | "findin
   request: {
     calls: number;
     usage: TokenUsage | null;
+    /** Known usage, including unusable responses. Complete is false when any call lacks usage. */
+    reportedUsage?: TokenUsage & { complete: boolean };
     durationMs: number;
-    /** Claude usage and cost of the discovery connection, and of the second review without a validator. */
+    /** Usage and cost of discovery, and of the second review without a validator. */
     billing?: ReviewBilling;
-    /** Claude usage and cost of a separate second-review connection. */
+    /** Usage and cost of a separate second-review connection. */
     validatorBilling?: ReviewBilling;
     /**
      * What this batch charged against the scan's limit: accounted tokens, which keep the

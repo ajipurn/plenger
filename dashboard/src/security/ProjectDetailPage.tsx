@@ -307,9 +307,19 @@ export function ProjectDetailPage({
                   </div>
                   <div>
                     <dt>Tokens used</dt>
-                    <dd>
+                    <dd
+                      title={
+                        latest.tokensComplete === false
+                          ? "Partial token total. Some responses did not report usage."
+                          : undefined
+                      }
+                    >
                       {latest.tokens === null ? (
-                        "Unavailable"
+                        latest.status === "running" ? (
+                          "Waiting for usage"
+                        ) : (
+                          "Unavailable"
+                        )
                       ) : (
                         <MorphNumber value={latest.tokens} />
                       )}
@@ -318,7 +328,13 @@ export function ProjectDetailPage({
                   <div>
                     <dt>Estimated cost</dt>
                     <dd>
-                      {latest.cost ? <MorphNumber value={costLabel(latest.cost)} /> : "Unavailable"}
+                      {latest.cost ? (
+                        <MorphNumber value={costLabel(latest.cost)} />
+                      ) : latest.status === "running" ? (
+                        "Waiting for usage"
+                      ) : (
+                        "Unavailable"
+                      )}
                     </dd>
                   </div>
                 </dl>

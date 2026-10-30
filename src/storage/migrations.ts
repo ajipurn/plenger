@@ -112,6 +112,14 @@ export const MIGRATIONS: ((database: DatabaseSync) => void)[] = [
       payload TEXT NOT NULL
     ) STRICT;
   `),
+  // 9 -> 10: public Models.dev price records, independent of credentials and connections.
+  (database) =>
+    database.exec(`
+    CREATE TABLE IF NOT EXISTS model_pricing_catalog (
+      model TEXT PRIMARY KEY,
+      payload TEXT NOT NULL
+    ) STRICT;
+  `),
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

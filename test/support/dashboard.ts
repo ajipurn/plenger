@@ -46,6 +46,11 @@ export async function startTestDashboard(options: TestDashboardOptions): Promise
     ...rest,
     assets,
     dataDir: dataDirOverride ?? join(root, "data"),
+    pricingLoader:
+      rest.pricingLoader ??
+      (async () => {
+        throw new Error("No public pricing in this offline test.");
+      }),
   });
   const session = (await (
     await fetch(`${dashboard.url}${API.session}`)

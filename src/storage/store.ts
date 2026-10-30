@@ -123,7 +123,7 @@ export class DashboardStore {
     return this.redteam.readRunProfile(project);
   }
 
-  readProviders(options: { keyPreviews?: boolean } = {}): SavedProvider[] {
+  readProviders(options: { keyPreviews?: boolean; pricingCache?: boolean } = {}): SavedProvider[] {
     return this.providers.readProviders(options);
   }
   saveProvider(value: ProviderInput): SavedProvider {

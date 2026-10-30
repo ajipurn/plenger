@@ -7,8 +7,10 @@ import {
   CHATGPT,
   MAX_OUTPUT_TOKENS,
 } from "../../../src/redteam/constants.ts";
+import type { ModelPricing } from "../../../src/redteam/model-pricing.ts";
 import {
   hasProviderModelCatalog,
+  modelPricingProvider,
   PROVIDER_URLS,
   type SavedProvider,
 } from "../../../src/redteam/provider-config.ts";
@@ -16,11 +18,11 @@ import { DetailDrawer } from "../shared/DetailDrawer.tsx";
 import { Icon } from "../shared/icons.tsx";
 import { PROVIDER_OPTIONS, type ProviderKind } from "../shared/providers.ts";
 import { Button, Checkbox, Input, Select } from "../shared/ui.tsx";
-import { ModelPricingEditor, type PricingDraft, pricingValues } from "./ModelPricingEditor.tsx";
+import { ModelPricingEditor } from "./ModelPricingEditor.tsx";
 import type { useProviderModels } from "./useProviderModels.ts";
 
 export interface ProviderForm {
-  modelPricing: PricingDraft[];
+  modelPricing: ModelPricing[];
   name: string;
   provider: ProviderKind;
   model: string;
@@ -96,12 +98,11 @@ export function ProviderEditor({
   onLoadModels: () => void;
 }) {
   const [tab, setTab] = useState("connection");
-  const [pricingModel, setPricingModel] = useState("");
   const [validationError, setValidationError] = useState("");
+  const [pricingLoading, setPricingLoading] = useState(false);
   useEffect(() => {
     if (open) {
       setTab("connection");
-      setPricingModel("");
       setValidationError("");
     }
   }, [open]);
@@ -112,6 +113,7 @@ export function ProviderEditor({
   const keySaved =
     selected?.hasApiKey && selected.provider === form.provider && selected.baseUrl === form.baseUrl;
   const hasCatalog = hasProviderModelCatalog(form.provider);
+  const pricingProvider = modelPricingProvider(form.provider);
   // A sign-in in this editor lists models; a saved connection keeps its last list.
   const chatgptModels = login?.models.length
     ? login.models
@@ -150,7 +152,7 @@ export function ProviderEditor({
     modelItems.unshift({ value: form.model, label: form.model });
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (disabled || catalog.loading) return;
+    if (disabled || catalog.loading || pricingLoading) return;
     setValidationError("");
     const invalidConnection = event.currentTarget.querySelector<HTMLInputElement>(
       '[data-provider-panel="connection"] input:invalid',
@@ -174,27 +176,6 @@ export function ProviderEditor({
       });
       return;
     }
-    if (form.provider === "anthropic") {
-      for (const draft of form.modelPricing) {
-        try {
-          pricingValues([draft]);
-        } catch {
-          setTab("pricing");
-          setPricingModel(draft.model);
-          setValidationError(
-            `Complete the prices for ${draft.model}. Enter 0 for a free category.`,
-          );
-          requestAnimationFrame(() => {
-            const invalid = document
-              .getElementById(`${id}-form`)
-              ?.querySelector<HTMLInputElement>('[data-provider-panel="pricing"] input:invalid');
-            invalid?.focus();
-            invalid?.reportValidity();
-          });
-          return;
-        }
-      }
-    }
     onSubmit();
   }
   return (
@@ -208,7 +189,7 @@ export function ProviderEditor({
       eyebrow="Settings · Providers"
       title={selected ? "Edit provider" : "Add provider"}
       description={
-        form.provider === "anthropic"
+        pricingProvider
           ? "Manage your model connection and scan cost estimates."
           : "Manage your model connection for scans and fix prompts."
       }
@@ -226,7 +207,13 @@ export function ProviderEditor({
           )}
           {notice && open && <p role="status">{notice}</p>}
           <div className="provider-footer-actions">
-            <p className="muted">{busy ? "Please wait…" : "Changes apply when you save."}</p>
+            <p className="muted">
+              {busy
+                ? "Please wait…"
+                : tab === "pricing"
+                  ? "Prices update automatically."
+                  : "Changes apply when you save."}
+            </p>
             <div className="provider-actions">
               <Button
                 className="button button-secondary"
@@ -239,7 +226,7 @@ export function ProviderEditor({
                 type="submit"
                 form={`${id}-form`}
                 className="button button-primary"
-                disabled={disabled || catalog.loading}
+                disabled={disabled || catalog.loading || pricingLoading}
               >
                 {signingIn
                   ? "Waiting for ChatGPT…"
@@ -260,19 +247,19 @@ export function ProviderEditor({
       >
         <fieldset disabled={busy || signingIn || !apiAvailable} className="provider-fields">
           <Tabs
-            selectedKey={form.provider === "anthropic" ? tab : "connection"}
+            selectedKey={pricingProvider ? tab : "connection"}
             onSelectionChange={(key) => setTab(String(key))}
             className="provider-tabs"
           >
             <TabList
               aria-label="Provider settings"
-              className={`provider-editor-tabs${form.provider === "anthropic" ? "" : " provider-only-connection"}`}
+              className={`provider-editor-tabs${pricingProvider ? "" : " provider-only-connection"}`}
             >
               <Tab id="connection" className="provider-editor-tab">
                 <Icon name="providers" />
                 Connection
               </Tab>
-              {form.provider === "anthropic" && (
+              {pricingProvider && (
                 <Tab id="pricing" className="provider-editor-tab">
                   <Icon name="models" />
                   Model pricing
@@ -561,7 +548,7 @@ export function ProviderEditor({
                 </div>
               )}
             </TabPanel>
-            {form.provider === "anthropic" && (
+            {pricingProvider && (
               <TabPanel
                 id="pricing"
                 shouldForceMount
@@ -569,13 +556,15 @@ export function ProviderEditor({
                 data-provider-panel="pricing"
               >
                 <ModelPricingEditor
-                  models={catalog.models}
+                  provider={pricingProvider}
+                  apiEquivalent={form.provider === "chatgpt"}
+                  models={form.provider === "chatgpt" ? chatgptModels : catalog.models}
                   defaultModel={form.model}
                   value={form.modelPricing}
                   onChange={(modelPricing) => onChange({ modelPricing })}
                   disabled={disabled}
-                  selectedModel={pricingModel}
-                  onSelectModel={setPricingModel}
+                  active={open && tab === "pricing"}
+                  onLoadingChange={setPricingLoading}
                 />
               </TabPanel>
             )}

@@ -1,107 +1,132 @@
-import { useId } from "react";
-import { MODEL_PRICING_LIMITS } from "../../../src/redteam/constants.ts";
-import {
-  type ModelPricing,
-  PRICE_FIELDS,
-  type TokenRates,
-  validateModelPricing,
-} from "../../../src/redteam/model-pricing.ts";
-import { Checkbox, Input, Select } from "../shared/ui.tsx";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { MODEL_PRICING_LIMITS, MODELS_DEV_PRICING } from "../../../src/redteam/constants.ts";
+import type { ModelPricing, TokenRates } from "../../../src/redteam/model-pricing.ts";
+import type { PricingProvider } from "../../../src/redteam/models-dev-pricing.ts";
+import { useApi } from "../app/DashboardContext.tsx";
+import { errorMessage } from "../shared/async.ts";
+import { Button } from "../shared/ui.tsx";
 
-type RateDraft = Record<(typeof PRICE_FIELDS)[number], string>;
-export interface PricingDraft {
-  model: string;
-  rates: RateDraft;
-  longContext?: { threshold: string; rates: RateDraft };
-}
-const labels = {
-  input: "Input (uncached)",
-  output: "Output",
-  cacheWrite5m: "Cache write · 5 minutes",
-  cacheWrite1h: "Cache write · 1 hour",
-  cacheRead: "Cache hits and refreshes",
-};
-const blankRates = (): RateDraft => ({
-  input: "",
-  output: "",
-  cacheWrite5m: "",
-  cacheWrite1h: "",
-  cacheRead: "",
-});
-const draftRates = (rates: TokenRates): RateDraft =>
-  Object.fromEntries(PRICE_FIELDS.map((field) => [field, String(rates[field])])) as RateDraft;
-export function pricingDrafts(pricing: ModelPricing[]): PricingDraft[] {
-  return pricing.map((item) => ({
-    model: item.model,
-    rates: draftRates(item.rates),
-    ...(item.longContext
-      ? {
-          longContext: {
-            threshold: String(item.longContext.threshold),
-            rates: draftRates(item.longContext.rates),
-          },
-        }
-      : {}),
-  }));
-}
-export function pricingValues(drafts: PricingDraft[]): ModelPricing[] {
-  const number = (value: string, model: string): number => {
-    if (!value.trim() || !Number.isFinite(Number(value)))
-      throw new Error(`Complete all pricing fields for ${model}, or turn off its custom pricing.`);
-    return Number(value);
-  };
-  const rates = (value: RateDraft, model: string) =>
-    Object.fromEntries(PRICE_FIELDS.map((field) => [field, number(value[field], model)]));
-  return validateModelPricing(
-    drafts.map((item) => ({
-      model: item.model,
-      rates: rates(item.rates, item.model),
-      ...(item.longContext
-        ? {
-            longContext: {
-              threshold: number(item.longContext.threshold, item.model),
-              rates: rates(item.longContext.rates, item.model),
-            },
-          }
-        : {}),
-    })),
-  );
-}
+const price = (value: number | undefined) =>
+  value === undefined
+    ? "—"
+    : new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 6,
+      }).format(value);
 
+/** Read-only catalog shared by provider settings and automatic scan price snapshots. */
 export function ModelPricingEditor({
+  provider,
+  apiEquivalent = false,
   models,
   defaultModel,
   value,
   onChange,
   disabled,
-  selectedModel,
-  onSelectModel,
+  active,
+  onLoadingChange,
 }: {
+  provider: PricingProvider;
+  apiEquivalent?: boolean;
   models: { id: string; name: string }[];
   defaultModel: string;
-  value: PricingDraft[];
-  onChange: (value: PricingDraft[]) => void;
+  value: ModelPricing[];
+  onChange: (value: ModelPricing[]) => void;
   disabled: boolean;
-  selectedModel: string;
-  onSelectModel: (model: string) => void;
+  active: boolean;
+  onLoadingChange: (loading: boolean) => void;
 }) {
   const id = useId();
-  const options = new Map(models.map((item) => [item.id, item.name]));
-  for (const item of value) if (!options.has(item.model)) options.set(item.model, item.model);
-  if (defaultModel && !options.has(defaultModel)) options.set(defaultModel, defaultModel);
-  const model = options.has(selectedModel)
-    ? selectedModel
-    : defaultModel || options.keys().next().value || "";
-  const draft = value.find((item) => item.model === model);
-  function update(next: PricingDraft) {
-    onChange([...value.filter((item) => item.model !== model), next]);
-  }
+  const api = useApi();
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [stale, setStale] = useState<string[]>([]);
+  const request = useRef<AbortController | null>(null);
+  const current = useRef({ value, onChange });
+  current.current = { value, onChange };
+  const names = new Map(models.map((item) => [item.id, item.name]));
+  const allModels = [
+    ...new Set([defaultModel, ...value.map((item) => item.model), ...names.keys()].filter(Boolean)),
+  ].sort((a, b) => (a === defaultModel ? -1 : b === defaultModel ? 1 : a.localeCompare(b)));
+  const modelKey = allModels.slice(0, MODEL_PRICING_LIMITS.models).join("\n");
+  const ids = modelKey ? modelKey.split("\n") : [];
+  const load = useCallback(
+    async (key: string, refresh: boolean) => {
+      if (!api) return;
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      setLoading(true);
+      onLoadingChange(true);
+      setErrors({});
+      setStale([]);
+      const queue = key.split("\n").filter(Boolean);
+      try {
+        await Promise.all(
+          Array.from({ length: Math.min(4, queue.length) }, async () => {
+            while (queue.length && !controller.signal.aborted) {
+              const model = queue.shift();
+              if (!model) break;
+              const existing = current.current.value.find((item) => item.model === model);
+              if (
+                !refresh &&
+                existing?.source &&
+                Date.now() - Date.parse(existing.source.fetchedAt) < MODELS_DEV_PRICING.cacheMs
+              )
+                continue;
+              if (!existing && current.current.value.length >= MODEL_PRICING_LIMITS.models)
+                continue;
+              try {
+                const result = await api.modelPricing(
+                  { provider, model, refresh },
+                  controller.signal,
+                );
+                if (controller.signal.aborted) return;
+                const next = [
+                  ...current.current.value.filter((item) => item.model !== model),
+                  result.pricing,
+                ];
+                current.current = { ...current.current, value: next };
+                current.current.onChange(next);
+                if (result.stale) setStale((previous) => [...previous, model]);
+              } catch (failure) {
+                if (!controller.signal.aborted)
+                  setErrors((previous) => ({
+                    ...previous,
+                    [model]: errorMessage(failure, "Unable to load pricing. Retry the refresh."),
+                  }));
+              }
+            }
+          }),
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          onLoadingChange(false);
+        }
+      }
+    },
+    [api, provider, onLoadingChange],
+  );
+  useEffect(() => {
+    if (active && modelKey) void load(modelKey, false);
+    return () => {
+      request.current?.abort();
+      setLoading(false);
+      onLoadingChange(false);
+    };
+  }, [active, modelKey, load, onLoadingChange]);
   return (
     <section className="provider-pricing" aria-labelledby={`${id}-heading`}>
       <div className="provider-pricing-heading">
         <h3 id={`${id}-heading`}>Model pricing</h3>
         <a
-          href="https://platform.claude.com/docs/en/about-claude/pricing"
+          href={
+            provider === "openai"
+              ? "https://developers.openai.com/api/docs/pricing"
+              : "https://platform.claude.com/docs/en/about-claude/pricing"
+          }
           target="_blank"
           rel="noreferrer"
         >
@@ -109,170 +134,143 @@ export function ModelPricingEditor({
         </a>
       </div>
       <p className="muted">
-        Set your rates to estimate scan costs. All prices are in USD per 1 million tokens.
+        Standard API prices from{" "}
+        <a href="https://models.dev" target="_blank" rel="noreferrer">
+          Models.dev
+        </a>
+        , in USD per 1 million tokens.
       </p>
-      <div className="provider-pricing-model">
-        <label htmlFor={`${id}-model`}>Model</label>
-        <Select
-          id={`${id}-model`}
-          label="Pricing model"
-          value={model}
-          items={[...options].map(([key, name]) => ({
-            value: key,
-            label: `${name}${value.some((item) => item.model === key) ? " · Custom prices" : ""}`,
-          }))}
-          onValueChange={onSelectModel}
-          disabled={disabled || !options.size}
-          placeholder="Load models first"
-        />
-        {model ? (
-          <code className="provider-model-id muted">{model}</code>
-        ) : (
-          <p className="muted">Choose a default model or load models in Connection first.</p>
-        )}
-      </div>
-      {model && (
-        <Checkbox
-          isSelected={!!draft}
-          isDisabled={disabled || (!draft && value.length >= MODEL_PRICING_LIMITS.models)}
-          onChange={(checked) =>
-            checked
-              ? update({ model, rates: blankRates() })
-              : onChange(value.filter((item) => item.model !== model))
-          }
+      {apiEquivalent && (
+        <p className="muted">
+          Subscription estimates use standard OpenAI API prices for the reported tokens.
+          Subscription billing and quota are separate.
+        </p>
+      )}
+      <div className="provider-actions">
+        <Button
+          className="button button-secondary"
+          disabled={disabled || loading || !ids.length}
+          onClick={() => void load(modelKey, true)}
         >
-          Set prices for this model
-        </Checkbox>
-      )}
-      {draft && (
-        <>
-          <RateFields
-            rates={draft.rates}
-            prefix={`${id}-standard`}
-            title="Token prices"
-            onChange={(rates) => update({ ...draft, rates })}
-          />
-          <Checkbox
-            isSelected={!!draft.longContext}
-            isDisabled={disabled}
-            onChange={(checked) => {
-              const { longContext: _previous, ...base } = draft;
-              update(
-                checked ? { ...base, longContext: { threshold: "", rates: blankRates() } } : base,
+          {loading ? "Loading pricing…" : "Refresh pricing"}
+        </Button>
+      </div>
+      <p className="muted" role="status">
+        {loading
+          ? "Loading model prices…"
+          : stale.length
+            ? "Some prices could not be updated. Showing the last saved rates."
+            : Object.keys(errors).length
+              ? "Some prices are unavailable. Refresh to try again; existing prices are kept."
+              : ""}
+      </p>
+      {!ids.length ? (
+        <p className="muted">Choose a default model or load models in Connection to see prices.</p>
+      ) : (
+        <section className="security-table-scroll provider-pricing-list" aria-label="Model prices">
+          <table className="security-table">
+            <caption className="sr-only">
+              {provider === "openai" ? "OpenAI" : "Anthropic"} API model prices in USD per million
+              tokens
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Model</th>
+                <th scope="col">Input</th>
+                <th scope="col">Output</th>
+                <th scope="col">Cache read</th>
+              </tr>
+            </thead>
+            {ids.map((model) => {
+              const pricing = value.find((item) => item.model === model);
+              return (
+                <tbody key={model}>
+                  <tr>
+                    <th scope="row">
+                      <span>{names.get(model) ?? model}</span>
+                      {model === defaultModel && <span className="tag">Default</span>}
+                      {names.get(model) && names.get(model) !== model && (
+                        <code className="provider-model-id muted">{model}</code>
+                      )}
+                    </th>
+                    <td>
+                      {pricing ? price(pricing.rates.input) : loading ? "Loading…" : "Unavailable"}
+                    </td>
+                    <td>{price(pricing?.rates.output)}</td>
+                    <td>{price(pricing?.rates.cacheRead)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={4}>
+                      {pricing && (
+                        <details className="provider-price-details">
+                          <summary>Pricing details</summary>
+                          <p className="muted">
+                            {pricing.source ? (
+                              <>
+                                Source: Models.dev · Updated{" "}
+                                <time dateTime={pricing.source.fetchedAt}>
+                                  {new Date(pricing.source.fetchedAt).toLocaleString()}
+                                </time>
+                              </>
+                            ) : (
+                              "Previously saved rates. Refresh pricing to use the Models.dev catalog."
+                            )}
+                          </p>
+                          <CacheRates rates={pricing.rates} provider={provider} />
+                          {pricing.longContext && (
+                            <>
+                              <p>
+                                Long context: above {pricing.longContext.threshold.toLocaleString()}{" "}
+                                input tokens, including cache.
+                              </p>
+                              <p>
+                                Input {price(pricing.longContext.rates.input)} · Output{" "}
+                                {price(pricing.longContext.rates.output)} · Cache read{" "}
+                                {price(pricing.longContext.rates.cacheRead)}
+                              </p>
+                              <CacheRates rates={pricing.longContext.rates} provider={provider} />
+                            </>
+                          )}
+                        </details>
+                      )}
+                      {errors[model] && (
+                        <p className="muted">
+                          {pricing ? "Update failed. Showing saved prices." : errors[model]}
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
               );
-            }}
-          >
-            Add a long context price tier
-          </Checkbox>
-          {draft.longContext && (
-            <fieldset className="provider-long-context">
-              <legend>Long context tier</legend>
-              <label htmlFor={`${id}-threshold`}>Prompt length threshold (tokens)</label>
-              <Input
-                id={`${id}-threshold`}
-                type="number"
-                min={1}
-                step={1}
-                required
-                value={draft.longContext.threshold}
-                onChange={(event) =>
-                  update({
-                    ...draft,
-                    longContext: {
-                      rates: draft.longContext?.rates ?? blankRates(),
-                      threshold: event.target.value,
-                    },
-                  })
-                }
-              />
-              <p className="muted">
-                Applies to the entire request above this input length, including cached tokens.
-              </p>
-              <RateFields
-                prefix={`${id}-long`}
-                title="Long context prices"
-                rates={draft.longContext.rates}
-                onChange={(rates) =>
-                  update({
-                    ...draft,
-                    longContext: { threshold: draft.longContext?.threshold ?? "", rates },
-                  })
-                }
-              />
-            </fieldset>
-          )}
-        </>
+            })}
+          </table>
+        </section>
       )}
-      {!draft && model && (
-        <div className="provider-pricing-empty">
-          <p>No prices set for this model</p>
-          <p className="muted">
-            Enable pricing above to add rates. Until then, scan costs show as unavailable.
-          </p>
-        </div>
-      )}
-      {value.length > 0 && (
-        <p className="muted provider-pricing-count">
-          {value.length === 1
-            ? "1 model has custom prices."
-            : `${value.length} models have custom prices.`}{" "}
-          Switch models to edit another.
-        </p>
-      )}
-      <details className="provider-pricing-help">
-        <summary>How cost estimates work</summary>
+      {allModels.length > ids.length && (
         <p className="muted">
-          Each scan keeps a snapshot of these rates. Costs use reported token usage and exclude
-          taxes, discounts and other service charges. Enter 0 for a free category.
+          Showing {ids.length} models, including the default and saved prices.
         </p>
-        <p className="muted">
-          Setting cache prices does not enable prompt caching. Rates are entered manually and are
-          not updated from Claude automatically.
-        </p>
-      </details>
+      )}
+      <p className="muted">
+        Prices refresh after 24 hours and are checked when a scan starts. Each scan keeps its
+        original price snapshot. Estimates exclude discounts, taxes and other service charges.
+      </p>
     </section>
   );
 }
 
-function RateFields({
-  rates,
-  prefix,
-  onChange,
-  title,
-}: {
-  rates: RateDraft;
-  prefix: string;
-  onChange: (rates: RateDraft) => void;
-  title: string;
-}) {
+function CacheRates({ rates, provider }: { rates: TokenRates; provider: PricingProvider }) {
   return (
-    <fieldset className="provider-rate-table">
-      <legend className="sr-only">{title}</legend>
-      <div className="provider-rate-heading" aria-hidden="true">
-        <span>{title}</span>
-        <span>USD / 1M tokens</span>
-      </div>
-      {PRICE_FIELDS.map((field) => (
-        <label key={field} htmlFor={`${prefix}-${field}`} className="provider-rate-row">
-          <span>{labels[field]}</span>
-          <span className="provider-rate-input">
-            <span aria-hidden="true">$</span>
-            <Input
-              id={`${prefix}-${field}`}
-              type="number"
-              inputMode="decimal"
-              min={0}
-              max={MODEL_PRICING_LIMITS.perMillion}
-              step="any"
-              value={rates[field]}
-              aria-label={`${labels[field]} (USD per 1 million tokens)`}
-              placeholder="0.00"
-              required
-              onChange={(event) => onChange({ ...rates, [field]: event.target.value })}
-            />
-          </span>
-        </label>
-      ))}
-    </fieldset>
+    <p className="muted">
+      {provider === "anthropic" ? (
+        <>
+          Cache write · 5 minutes: {price(rates.cacheWrite5m)} · 1 hour: {price(rates.cacheWrite1h)}
+        </>
+      ) : rates.cacheWrite === undefined ? (
+        "No separate cache-write price listed."
+      ) : (
+        <>Cache write · Default lifetime: {price(rates.cacheWrite)}</>
+      )}
+    </p>
   );
 }

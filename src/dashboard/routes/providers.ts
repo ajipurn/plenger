@@ -1,3 +1,4 @@
+import { isPricingModel } from "../../redteam/models-dev-pricing.ts";
 import { testProviderConnection } from "../../redteam/provider.ts";
 import {
   hasProviderModelCatalog,
@@ -12,6 +13,7 @@ import { StoreValidationError } from "../../storage/store.ts";
 import {
   API,
   type DeleteResult,
+  type ModelPricingResult,
   PROVIDER_SETTINGS_BYTES,
   type ProviderModelsResult,
   type ProviderTestResult,
@@ -21,7 +23,7 @@ import type { Route } from "../router.ts";
 import type { Services } from "../services.ts";
 
 /** Saved model connections. Keys go in; they never come back out through these routes. */
-export function providerRoutes({ store, chatgptLogin }: Services): Route[] {
+export function providerRoutes({ store, chatgptLogin, pricing }: Services): Route[] {
   async function selectedId(request: Parameters<typeof jsonRequest>[0]): Promise<string> {
     const body = await jsonRequest(request);
     const message = "Choose a saved provider.";
@@ -29,6 +31,38 @@ export function providerRoutes({ store, chatgptLogin }: Services): Route[] {
     return requireString(body.id, message);
   }
   return [
+    {
+      method: "POST",
+      path: API.modelPricing,
+      handler: async ({ request, response }) => {
+        const body = await jsonRequest(request);
+        const message = "Choose an Anthropic or OpenAI model for automatic pricing.";
+        expectKeys(body, ["provider", "model", "refresh"], message);
+        const provider = body.provider ?? "anthropic";
+        if (
+          !hasProviderModelCatalog(provider) ||
+          !isPricingModel(body.model, provider) ||
+          (body.refresh !== undefined && typeof body.refresh !== "boolean")
+        )
+          throw new HttpError(400, message);
+        const controller = new AbortController();
+        const disconnect = () => controller.abort();
+        response.once("close", disconnect);
+        try {
+          const result: ModelPricingResult = await pricing.load(
+            provider,
+            body.model,
+            body.refresh as boolean | undefined,
+            controller.signal,
+          );
+          return { status: 200, body: result };
+        } catch (error) {
+          throw new HttpError(400, errorMessage(error));
+        } finally {
+          response.off("close", disconnect);
+        }
+      },
+    },
     {
       method: "GET",
       path: API.providerModels,
@@ -125,7 +159,10 @@ export function providerRoutes({ store, chatgptLogin }: Services): Route[] {
     {
       method: "GET",
       path: API.providers,
-      handler: () => ({ status: 200, body: store.readProviders({ keyPreviews: true }) }),
+      handler: () => ({
+        status: 200,
+        body: store.readProviders({ keyPreviews: true, pricingCache: true }),
+      }),
     },
     {
       method: "POST",

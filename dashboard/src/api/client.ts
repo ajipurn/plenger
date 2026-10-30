@@ -14,6 +14,8 @@ import {
   type FixPromptResult,
   type ImportedReaEvidence,
   type LocalRepository,
+  type ModelPricingRequest,
+  type ModelPricingResult,
   type ProviderModelsRequest,
   type ProviderModelsResult,
   type ProviderTestResult,
@@ -29,6 +31,7 @@ import {
   type UpdateRepositoryRequest,
 } from "../../../src/dashboard/contract.ts";
 import type { ProviderInput, SavedProvider } from "../../../src/redteam/provider-config.ts";
+import { cacheModelPricing } from "./model-pricing-cache.ts";
 
 export interface DashboardApi {
   session: DashboardSession;
@@ -56,6 +59,7 @@ export interface DashboardApi {
   testProvider(id: string): Promise<ProviderTestResult>;
   providerModels(input: ProviderModelsRequest, signal?: AbortSignal): Promise<ProviderModelsResult>;
   cachedProviderModels(id: string, signal?: AbortSignal): Promise<ProviderModelsResult | null>;
+  modelPricing(input: ModelPricingRequest, signal?: AbortSignal): Promise<ModelPricingResult>;
   startChatgptLogin(input: ProviderInput): Promise<ChatgptLoginResult>;
   chatgptLoginStatus(id: string): Promise<ChatgptLoginResult>;
   cancelChatgptLogin(id: string): Promise<ChatgptLoginResult>;
@@ -132,6 +136,9 @@ export async function connect(): Promise<DashboardApi> {
     testProvider: (id) => request<ProviderTestResult>(API.testProvider, { id }),
     providerModels: (input, signal) =>
       request<ProviderModelsResult>(API.providerModels, input, signal),
+    modelPricing: cacheModelPricing((input, signal) =>
+      request<ModelPricingResult>(API.modelPricing, input, signal),
+    ),
     cachedProviderModels: (id, signal) =>
       request<ProviderModelsResult | null>(
         `${API.providerModels}?id=${encodeURIComponent(id)}`,

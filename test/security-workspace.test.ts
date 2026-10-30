@@ -300,7 +300,31 @@ describe("local project security workspace", () => {
       cache_creation: { ephemeral_5m_input_tokens: 200, ephemeral_1h_input_tokens: 100 },
     };
     const repo = await repository();
-    const result = await finished((await start(repo.id, { model: chosenModel })).id);
+    let validating = false;
+    const validationGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    hold = async () => {
+      if (bodies.length === 2) {
+        validating = true;
+        await validationGate;
+      }
+    };
+    const job = await start(repo.id, { model: chosenModel });
+    try {
+      await vi.waitFor(() => expect(validating).toBe(true));
+      const pending = (await (
+        await dashboard.request(pathFor(API.securityScan, job.id))
+      ).json()) as SecurityScan;
+      expect(pending.status).toBe("running");
+      expect(pending.tokens).toBe(650);
+      expect(pending.cost?.totalUsd).toBeCloseTo(0.00162, 12);
+      expect(pending.reviews).toHaveLength(0);
+    } finally {
+      release?.();
+      hold = undefined;
+    }
+    const result = await finished(job.id);
     expect(result.status).toBe("completed");
     expect(result.provider?.model).toBe(chosenModel);
     expect(bodies.map((body) => body.model)).toEqual([chosenModel, chosenModel]);
@@ -578,7 +602,12 @@ describe("local project security workspace", () => {
       });
     const job = await start(repo.id);
     await entered;
-    expect((await workspace()).scans[0]?.status).toBe("running");
+    expect((await workspace()).scans[0]).toMatchObject({
+      status: "running",
+      tokens: null,
+      cost: null,
+      modelCalls: 1,
+    });
     expect(
       (
         await dashboard.request(API.securityScans, {
@@ -592,7 +621,12 @@ describe("local project security workspace", () => {
     expect((await dashboard.request(API.clear, {})).status).toBe(409);
     expect((await dashboard.request(pathFor(API.deleteRepository, repo.id), {})).status).toBe(409);
     expect((await dashboard.request(pathFor(API.cancelSecurityScan, job.id), {})).status).toBe(200);
-    expect((await finished(job.id)).status).toBe("cancelled");
+    expect(await finished(job.id)).toMatchObject({
+      status: "cancelled",
+      tokens: null,
+      cost: null,
+      modelCalls: 1,
+    });
     release?.();
     hold = undefined;
     expect(bodies).toHaveLength(1);
@@ -789,7 +823,7 @@ describe("local project security workspace", () => {
     ).toBe(400);
   });
 
-  it("limits Full coverage in USD only with saved prices for every model", async () => {
+  it("limits Full coverage in USD only when every selected model has prices", async () => {
     for (let i = 0; i < 50; i++)
       await writeFile(join(project, `module-${i}.ts`), `export const value${i} = ${i};\n`);
     const repo = await repository();
@@ -800,7 +834,7 @@ describe("local project security workspace", () => {
       budget: { kind: "usd", usd: 5 },
     });
     expect(unpriced.status).toBe(400);
-    expect(await unpriced.text()).toContain("saved Claude prices");
+    expect(await unpriced.text()).toContain("model prices");
     const pricing = {
       model: provider.model,
       rates: { input: 2, output: 10, cacheWrite5m: 2.5, cacheWrite1h: 4, cacheRead: 0.1 },

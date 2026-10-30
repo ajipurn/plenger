@@ -144,6 +144,8 @@ export interface SecurityScanSummary {
   findingCount: number;
   modelCalls: number;
   tokens: number | null;
+  /** False when the total includes only responses with reported usage. Absent on older scans. */
+  tokensComplete?: boolean;
   /** Absent on older scans. Estimates use the prices captured when the scan started. */
   cost?: CostSummary | null;
   /** The spending limit chosen at the start; absent on older scans and scans without one. */

@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { UNSAFE_PortalProvider } from "react-aria/PortalProvider";
 import { CHATGPT_LOGIN_POLL_MS, type ChatgptLoginResult } from "../../../src/dashboard/contract.ts";
+import { MODEL_PRICING_LIMITS } from "../../../src/redteam/constants.ts";
 import {
   hasProviderModelCatalog,
+  modelPricingProvider,
   PROVIDER_URLS,
   type SavedProvider,
 } from "../../../src/redteam/provider-config.ts";
@@ -12,7 +14,6 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 import { DeleteProviderDialog } from "./DeleteProviderDialog.tsx";
-import { pricingDrafts, pricingValues } from "./ModelPricingEditor.tsx";
 import { ProviderEditor, type ProviderForm, savedGeneration } from "./ProviderEditor.tsx";
 import { ProviderTable } from "./ProviderTable.tsx";
 import { useProviderModels } from "./useProviderModels.ts";
@@ -56,6 +57,15 @@ export function ProvidersView({
     const connectionChanged =
       patch.provider !== undefined || patch.baseUrl !== undefined || patch.apiKey !== undefined;
     if (connectionChanged) catalog.clear();
+    const modelPricing = patch.modelPricing;
+    if (modelPricing && selected?.provider === form.provider)
+      onChange(
+        providers.map((provider) =>
+          provider.id === selected.id
+            ? { ...provider, cachedModelPricing: structuredClone(modelPricing) }
+            : provider,
+        ),
+      );
     setForm((current) => ({
       ...current,
       ...(patch.provider !== undefined || patch.baseUrl !== undefined ? { modelPricing: [] } : {}),
@@ -71,8 +81,26 @@ export function ProvidersView({
     returnFocus.current = trigger ?? addButton.current;
     setEditorOpen(true);
     setSelected(value);
+    const modelPricing = value
+      ? [
+          ...new Map(
+            [...(value.modelPricing ?? []), ...(value.cachedModelPricing ?? [])].map((item) => [
+              item.model,
+              item,
+            ]),
+          ).values(),
+        ]
+          .sort((a, b) =>
+            a.model === value.model
+              ? -1
+              : b.model === value.model
+                ? 1
+                : a.model.localeCompare(b.model),
+          )
+          .slice(0, MODEL_PRICING_LIMITS.models)
+      : [];
     setForm({
-      modelPricing: pricingDrafts(value?.modelPricing ?? []),
+      modelPricing: structuredClone(modelPricing),
       name: value?.name ?? "",
       provider: value?.provider ?? "ollama",
       model: value?.model ?? "",
@@ -99,9 +127,7 @@ export function ProvidersView({
     const kept = form.keepGeneration ? savedGeneration(selected, form.provider) : null;
     void run(async () => {
       const saved = await api.saveProvider({
-        ...(form.provider === "anthropic"
-          ? { modelPricing: pricingValues(form.modelPricing) }
-          : {}),
+        ...(modelPricingProvider(form.provider) ? { modelPricing: form.modelPricing } : {}),
         name: form.name,
         provider: form.provider,
         model: form.model,

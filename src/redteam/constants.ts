@@ -173,3 +173,12 @@ export const VERCEL_ISOLATION_CHECKS: readonly string[] = [
   "private-temporary-files",
 ];
 export const MODEL_PRICING_LIMITS = { models: 100, perMillion: 1_000_000 } as const;
+/** Full Models.dev records retain Claude's separate cache lifetimes, unlike api.json. */
+export const MODELS_DEV_PRICING = {
+  source: "models.dev",
+  baseUrl: "https://raw.githubusercontent.com/anomalyco/models.dev/dev/providers/",
+  timeoutMs: 15_000,
+  bytes: 128 * 1024,
+  cacheMs: 24 * 60 * 60 * 1000,
+  retryMs: 5 * 60 * 1000,
+} as const;

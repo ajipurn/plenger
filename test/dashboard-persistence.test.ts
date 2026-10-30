@@ -116,6 +116,7 @@ describe("SQLite dashboard persistence", () => {
         .all()
         .map((row) => row.name);
       expect(tables).toEqual([
+        "model_pricing_catalog",
         "model_providers",
         "preferences",
         "projects",

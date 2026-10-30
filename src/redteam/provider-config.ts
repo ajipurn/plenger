@@ -31,6 +31,8 @@ export interface ProviderSettings {
 }
 export interface SavedProvider extends ProviderSettings {
   modelPricing?: ModelPricing[];
+  /** Read-only public pricing cache for the settings UI. Not saved connection settings. */
+  cachedModelPricing?: ModelPricing[];
   id: string;
   isDefault: boolean;
   hasApiKey: boolean;
@@ -90,6 +92,22 @@ export function isProviderId(value: unknown): value is ProviderId {
 
 export function hasProviderModelCatalog(value: unknown): value is "openai" | "anthropic" {
   return value === "openai" || value === "anthropic";
+}
+
+/** Subscription scans use OpenAI prices only as an API-equivalent reference. */
+export function modelPricingProvider(value: unknown): "openai" | "anthropic" | undefined {
+  return value === "chatgpt" ? "openai" : hasProviderModelCatalog(value) ? value : undefined;
+}
+
+/** Automatic public prices take precedence over earlier saved provider rates. */
+export function providerModelPricing(
+  provider: Pick<SavedProvider, "cachedModelPricing" | "modelPricing">,
+  model: string,
+): ModelPricing | undefined {
+  return (
+    provider.cachedModelPricing?.find((item) => item.model === model) ??
+    provider.modelPricing?.find((item) => item.model === model)
+  );
 }
 
 function isModelId(value: unknown): value is string {
@@ -199,8 +217,8 @@ export function validateProviderInput(value: unknown): ProviderInput {
   });
   const modelPricing =
     input.modelPricing === undefined ? undefined : validateModelPricing(input.modelPricing);
-  if (modelPricing?.length && input.provider !== "anthropic")
-    throw new Error("Model pricing currently supports native Anthropic connections.");
+  if (modelPricing?.length && !modelPricingProvider(input.provider))
+    throw new Error("Model pricing supports Anthropic, OpenAI API and ChatGPT connections.");
   return {
     name: input.name.trim(),
     provider: input.provider as ProviderId,

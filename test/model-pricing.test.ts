@@ -3,12 +3,15 @@ import { MODEL_PRICING_LIMITS } from "../src/redteam/constants.ts";
 import {
   type ModelPricing,
   parseClaudeTokenUsage,
+  parseOpenAIResponsesTokenUsage,
+  parseOpenAITokenUsage,
   reviewBilling,
   sumCosts,
   tokenCost,
   validateModelPricing,
   worstCaseCost,
 } from "../src/redteam/model-pricing.ts";
+import { providerModelPricing } from "../src/redteam/provider-config.ts";
 
 const pricing: ModelPricing = {
   model: "synthetic-priced-model",
@@ -23,6 +26,113 @@ const usage = {
 };
 
 describe("model token pricing", () => {
+  it("resolves the selected model from automatic cache before legacy provider prices", () => {
+    const manual = { ...pricing, rates: { ...pricing.rates, input: 99 } };
+    expect(
+      providerModelPricing(
+        { cachedModelPricing: [pricing], modelPricing: [manual] },
+        pricing.model,
+      ),
+    ).toEqual(pricing);
+    expect(providerModelPricing({ cachedModelPricing: [pricing] }, pricing.model)).toEqual(pricing);
+    expect(providerModelPricing({ modelPricing: [manual] }, pricing.model)).toEqual(manual);
+    expect(
+      providerModelPricing(
+        { cachedModelPricing: [pricing], modelPricing: [manual] },
+        "another-model",
+      ),
+    ).toBeUndefined();
+  });
+  it("prices Responses usage without counting cached input or reasoning twice", () => {
+    const raw = {
+      input_tokens: 1000,
+      output_tokens: 100,
+      total_tokens: 1100,
+      input_tokens_details: { cached_tokens: 600, cache_write_tokens: 100 },
+      output_tokens_details: { reasoning_tokens: 70 },
+    };
+    expect(parseOpenAIResponsesTokenUsage(raw)).toMatchObject({
+      inputTokens: 300,
+      cacheReadTokens: 600,
+      cacheWriteTokens: 100,
+      outputTokens: 100,
+    });
+    expect(parseOpenAIResponsesTokenUsage({ ...raw, input_tokens_details: {} })).toBeUndefined();
+    expect(
+      parseOpenAIResponsesTokenUsage({ ...raw, input_tokens_details: undefined }),
+    ).toBeUndefined();
+    expect(() =>
+      parseOpenAIResponsesTokenUsage({ ...raw, input_tokens_details: { cached_tokens: 1100 } }),
+    ).toThrow();
+    expect(() =>
+      parseOpenAIResponsesTokenUsage({ ...raw, output_tokens_details: { reasoning_tokens: 101 } }),
+    ).toThrow();
+  });
+
+  it("preserves equivalent and mixed cost bases across aggregation, including partial totals", () => {
+    const known = parseClaudeTokenUsage({ input_tokens: 1000, output_tokens: 100 });
+    const equivalent = reviewBilling(pricing, [known], 1, "api-equivalent");
+    const api = reviewBilling(pricing, [known], 1);
+    expect(equivalent.basis).toBe("api-equivalent");
+    expect(sumCosts([equivalent.cost, equivalent.cost])).toMatchObject({
+      basis: "api-equivalent",
+      complete: true,
+    });
+    expect(sumCosts([api.cost, equivalent.cost])).toMatchObject({ basis: "mixed", complete: true });
+    expect(sumCosts([api.cost, sumCosts([api.cost, equivalent.cost])])).toMatchObject({
+      basis: "mixed",
+    });
+    expect(sumCosts([equivalent.cost, null])).toMatchObject({
+      basis: "api-equivalent",
+      complete: false,
+    });
+    expect(api).not.toHaveProperty("basis");
+    expect(api.cost).not.toHaveProperty("basis");
+  });
+  it("prices OpenAI cache hits and writes once, with reasoning included in completion tokens", () => {
+    const details = parseOpenAITokenUsage({
+      prompt_tokens: 1000,
+      completion_tokens: 100,
+      total_tokens: 1100,
+      prompt_tokens_details: { cached_tokens: 600, cache_write_tokens: 100 },
+      completion_tokens_details: { reasoning_tokens: 70 },
+    });
+    expect(details).toMatchObject({
+      inputTokens: 300,
+      outputTokens: 100,
+      cacheReadTokens: 600,
+      cacheCreationTokens: 100,
+      cacheWriteTokens: 100,
+    });
+    if (!details) throw new Error("Missing usage.");
+    const rates = {
+      input: 2,
+      output: 10,
+      cacheRead: 0.2,
+      cacheWrite5m: 0,
+      cacheWrite1h: 0,
+      cacheWrite: 2.5,
+    };
+    expect(tokenCost({ model: "gpt-test", rates }, details)?.totalUsd).toBeCloseTo(0.00197, 12);
+    const { cacheWrite: _write, ...withoutWrites } = rates;
+    expect(tokenCost({ model: "gpt-test", rates: withoutWrites }, details)).toBeNull();
+    expect(
+      parseOpenAITokenUsage({ prompt_tokens: 1000, completion_tokens: 100, total_tokens: 1100 }),
+    ).toBeUndefined();
+    for (const patch of [
+      { cached_tokens: -1 },
+      { cached_tokens: 1100 },
+      { cache_write_tokens: 600, cached_tokens: 600 },
+    ])
+      expect(() =>
+        parseOpenAITokenUsage({
+          prompt_tokens: 1000,
+          completion_tokens: 100,
+          total_tokens: 1100,
+          prompt_tokens_details: patch,
+        }),
+      ).toThrow("Invalid OpenAI token usage");
+  });
   it("charges disjoint input, output, cache writes and cache hits exactly once", () => {
     const details = parseClaudeTokenUsage(usage);
     expect(details).toMatchObject({

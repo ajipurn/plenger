@@ -1222,62 +1222,27 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .provider-pricing-heading a {
   @apply text-[12px] text-muted underline underline-offset-4;
 }
-.provider-pricing-model {
-  @apply grid gap-2 min-w-0;
+.provider-pricing-list table {
+  min-width: 440px;
 }
-.provider-pricing-model > label,
-.provider-long-context > label {
-  @apply text-[13px] font-medium;
+.provider-pricing-list th:first-child {
+  min-width: 160px;
+  white-space: normal;
 }
-.provider-rate-table {
-  @apply min-w-0 p-0 border border-line rounded-ui overflow-hidden;
+.provider-pricing-list td {
+  font-variant-numeric: tabular-nums;
 }
-.provider-rate-heading {
-  @apply bg-raised text-[12px] text-muted py-2.5;
+.provider-pricing-list .tag {
+  margin-inline-start: 8px;
 }
-.provider-rate-heading,
-.provider-rate-row {
-  @apply grid items-center gap-3 px-3;
-  grid-template-columns: minmax(0, 1fr) minmax(110px, 37%);
+.provider-price-details {
+  white-space: normal;
 }
-.provider-rate-row {
-  @apply py-2 border-t border-line cursor-pointer;
+.provider-price-details summary {
+  cursor: pointer;
 }
-.provider-rate-row > span:first-child {
-  @apply min-w-0;
-}
-.provider-rate-input {
-  @apply relative block min-w-0;
-}
-.provider-rate-input > span {
-  @apply absolute left-3 top-1/2 -translate-y-1/2 text-muted;
-}
-.provider-rate-input input {
-  @apply w-full pl-7 tabular-nums;
-}
-.provider-pricing-empty {
-  @apply p-4 rounded-ui bg-raised grid gap-1;
-}
-.provider-pricing-empty > p:first-child {
-  @apply font-medium;
-}
-.provider-pricing-count {
-  @apply text-[12px];
-}
-.provider-pricing-help {
-  @apply text-[12px] text-muted;
-}
-.provider-pricing-help summary {
-  @apply cursor-pointer;
-}
-.provider-pricing-help p {
-  @apply mt-2;
-}
-.provider-long-context {
-  @apply grid gap-3 border border-line rounded-ui p-4 min-w-0;
-}
-.provider-long-context legend {
-  @apply text-[13px] font-medium px-1;
+.provider-price-details p {
+  margin-block-start: 8px;
 }
 .settings-clear-data {
   @apply flex flex-wrap items-start justify-between gap-5 rounded-ui border border-line p-5;

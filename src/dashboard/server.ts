@@ -1,10 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { executeCampaign } from "../redteam/campaign.ts";
+import type { fetchModelPricing } from "../redteam/models-dev-pricing.ts";
 import { executeRun } from "../redteam/run.ts";
 import { DashboardStore } from "../storage/store.ts";
 import { ChatgptLogin } from "./chatgpt-login.ts";
 import { chooseNativeFolder, type FolderPicker } from "./folder-picker.ts";
 import { HttpError, INTERNAL_ERROR_MESSAGE, json, requireMethod } from "./http.ts";
+import { ModelPricingCatalog } from "./model-pricing.ts";
 import { OperationSupervisor } from "./operations.ts";
 import { matchRoute, type Route } from "./router.ts";
 import { dashboardRoutes } from "./routes/index.ts";
@@ -29,6 +31,7 @@ export interface DashboardOptions {
   folderPicker?: FolderPicker;
   runExecutor?: typeof executeRun;
   campaignExecutor?: typeof executeCampaign;
+  pricingLoader?: typeof fetchModelPricing;
 }
 
 export interface Dashboard {
@@ -49,12 +52,14 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
   const store = await DashboardStore.open(options.dataDir);
   const token = newSessionToken();
   const supervisor = new OperationSupervisor();
-  const security = new SecurityCoordinator(store, supervisor);
+  const pricing = new ModelPricingCatalog(store.providers, options.pricingLoader);
+  const security = new SecurityCoordinator(store, supervisor, pricing);
   const chatgptLogin = new ChatgptLogin(store.providers);
   const services: Services = {
     workspace,
     token,
     store,
+    pricing,
     supervisor,
     security,
     chatgptLogin,

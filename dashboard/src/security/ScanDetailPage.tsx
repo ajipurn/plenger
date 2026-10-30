@@ -21,7 +21,7 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button } from "../shared/ui.tsx";
 import { ContinueScan } from "./ContinueScan.tsx";
-import { costLabel, ScanBilling } from "./ScanBilling.tsx";
+import { costDescription, costLabel, ScanBilling } from "./ScanBilling.tsx";
 import { ScanProgress } from "./ScanProgress.tsx";
 import {
   closureLabel,
@@ -466,10 +466,11 @@ export function ScanDetailPage({
                   )}
                   <small>
                     {running ? (
-                      "Reported usage updates when a round finishes."
+                      "Reported usage updates after each model response."
                     ) : (
                       <>
                         <MorphNumber value={scan.modelCalls} /> model calls
+                        {scan.tokensComplete === false && " · Some responses did not report usage."}
                       </>
                     )}
                   </small>
@@ -478,12 +479,16 @@ export function ScanDetailPage({
               <div>
                 <dt>Estimated cost</dt>
                 <dd>
-                  {scan.cost ? <MorphNumber value={costLabel(scan.cost)} /> : "Unavailable"}
+                  {scan.cost ? (
+                    <MorphNumber value={costLabel(scan.cost)} />
+                  ) : running ? (
+                    "Waiting for usage"
+                  ) : (
+                    "Unavailable"
+                  )}
                   <small>
                     {scan.cost
-                      ? scan.cost.complete
-                        ? "USD · Saved model prices"
-                        : "Partial estimate. Usage is missing or could not be priced."
+                      ? costDescription(scan.cost)
                       : "Requires saved model prices and complete token usage."}
                   </small>
                 </dd>

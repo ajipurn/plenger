@@ -959,7 +959,7 @@ main:focus-visible {
   @apply inline-flex items-center gap-2 min-h-11 py-3 border-b-2 border-transparent text-label text-muted cursor-pointer;
 }
 .provider-editor-tab[data-selected] {
-  @apply text-ink border-ink font-medium;
+  @apply text-ink border-ink;
 }
 .provider-editor-tab[data-focus-visible] {
   outline: 2px solid var(--color-focus);

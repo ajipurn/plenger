@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import type { SecurityScanSummary } from "../../../src/dashboard/contract.ts";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
-import { costLabel } from "./ScanBilling.tsx";
+import { costDescription, costLabel } from "./ScanBilling.tsx";
 import { date, ScanDuration, ScanStatus } from "./ui.tsx";
 
 export function ScansTable({
@@ -45,10 +45,33 @@ export function ScansTable({
               <td>
                 <ScanDuration scan={scan} />
               </td>
-              <td className="security-number">
-                {scan.tokens === null ? "Unavailable" : <MorphNumber value={scan.tokens} />}
+              <td
+                className="security-number"
+                title={
+                  scan.tokensComplete === false
+                    ? "Partial token total. Some responses did not report usage."
+                    : undefined
+                }
+              >
+                {scan.tokens === null ? (
+                  scan.status === "running" ? (
+                    "Waiting for usage"
+                  ) : (
+                    "Unavailable"
+                  )
+                ) : (
+                  <MorphNumber value={scan.tokens} />
+                )}
               </td>
-              <td>{scan.cost ? <MorphNumber value={costLabel(scan.cost)} /> : "Unavailable"}</td>
+              <td title={scan.cost ? costDescription(scan.cost) : undefined}>
+                {scan.cost ? (
+                  <MorphNumber value={costLabel(scan.cost)} />
+                ) : scan.status === "running" ? (
+                  "Waiting for usage"
+                ) : (
+                  "Unavailable"
+                )}
+              </td>
               <td>
                 <ScanStatus scan={scan} />
               </td>

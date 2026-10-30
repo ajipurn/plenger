@@ -3,6 +3,7 @@ import type { executeRun } from "../redteam/run.ts";
 import type { DashboardStore } from "../storage/store.ts";
 import type { ChatgptLogin } from "./chatgpt-login.ts";
 import type { FolderPicker } from "./folder-picker.ts";
+import type { ModelPricingCatalog } from "./model-pricing.ts";
 import type { OperationSupervisor } from "./operations.ts";
 import type { SecurityCoordinator } from "./security-coordinator.ts";
 
@@ -13,6 +14,7 @@ export interface Services {
   /** The per-process session token the page must send back. */
   token: string;
   store: DashboardStore;
+  pricing: ModelPricingCatalog;
   supervisor: OperationSupervisor;
   security: SecurityCoordinator;
   chatgptLogin: ChatgptLogin;
