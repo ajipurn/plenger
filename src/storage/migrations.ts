@@ -120,6 +120,14 @@ export const MIGRATIONS: ((database: DatabaseSync) => void)[] = [
       payload TEXT NOT NULL
     ) STRICT;
   `),
+  // 10 -> 11: public Models.dev input windows, keyed by Models.dev provider and model.
+  (database) =>
+    database.exec(`
+    CREATE TABLE IF NOT EXISTS model_window_catalog (
+      model TEXT PRIMARY KEY,
+      payload TEXT NOT NULL
+    ) STRICT;
+  `),
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

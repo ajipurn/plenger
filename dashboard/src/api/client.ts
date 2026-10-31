@@ -16,6 +16,8 @@ import {
   type LocalRepository,
   type ModelPricingRequest,
   type ModelPricingResult,
+  type ModelWindowRequest,
+  type ModelWindowResult,
   type ProviderModelsRequest,
   type ProviderModelsResult,
   type ProviderTestResult,
@@ -74,6 +76,7 @@ export interface DashboardApi {
   providerModels(input: ProviderModelsRequest, signal?: AbortSignal): Promise<ProviderModelsResult>;
   cachedProviderModels(id: string, signal?: AbortSignal): Promise<ProviderModelsResult | null>;
   modelPricing(input: ModelPricingRequest, signal?: AbortSignal): Promise<ModelPricingResult>;
+  modelWindow(input: ModelWindowRequest, signal?: AbortSignal): Promise<ModelWindowResult>;
   startChatgptLogin(input: ProviderInput): Promise<ChatgptLoginResult>;
   chatgptLoginStatus(id: string): Promise<ChatgptLoginResult>;
   cancelChatgptLogin(id: string): Promise<ChatgptLoginResult>;
@@ -192,6 +195,7 @@ export async function connect(): Promise<DashboardApi> {
     modelPricing: cacheModelPricing((input, signal) =>
       request<ModelPricingResult>(API.modelPricing, input, signal),
     ),
+    modelWindow: (input, signal) => request<ModelWindowResult>(API.modelWindow, input, signal),
     cachedProviderModels: (id, signal) =>
       request<ProviderModelsResult | null>(
         `${API.providerModels}?id=${encodeURIComponent(id)}`,

@@ -104,6 +104,7 @@ export const API = {
   testProvider: "/api/providers/test",
   providerModels: "/api/providers/models",
   modelPricing: "/api/providers/pricing",
+  modelWindow: "/api/providers/window",
   chatgptLogin: "/api/providers/chatgpt/login",
   chatgptLoginStatus: "/api/providers/chatgpt/login/status",
   cancelChatgptLogin: "/api/providers/chatgpt/login/cancel",
@@ -198,6 +199,15 @@ export interface ModelPricingResult {
   pricing: ModelPricing;
   /** A failed automatic update fell back to the last successful local record. */
   stale: boolean;
+}
+/** A saved connection's model, whose input window sizes a scan's rounds. */
+export interface ModelWindowRequest {
+  id: string;
+  model: string;
+}
+export interface ModelWindowResult {
+  /** The window a scan with this model uses; null keeps the default round size. */
+  inputTokens: number | null;
 }
 
 export interface FixPromptRequest {

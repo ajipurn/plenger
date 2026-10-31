@@ -14,6 +14,7 @@ import {
   API,
   type DeleteResult,
   type ModelPricingResult,
+  type ModelWindowResult,
   PROVIDER_SETTINGS_BYTES,
   type ProviderModelsResult,
   type ProviderTestResult,
@@ -23,7 +24,7 @@ import type { Route } from "../router.ts";
 import type { Services } from "../services.ts";
 
 /** Saved model connections. Keys go in; they never come back out through these routes. */
-export function providerRoutes({ store, chatgptLogin, pricing }: Services): Route[] {
+export function providerRoutes({ store, chatgptLogin, pricing, windows }: Services): Route[] {
   async function selectedId(request: Parameters<typeof jsonRequest>[0]): Promise<string> {
     const body = await jsonRequest(request);
     const message = "Choose a saved provider.";
@@ -61,6 +62,29 @@ export function providerRoutes({ store, chatgptLogin, pricing }: Services): Rout
         } finally {
           response.off("close", disconnect);
         }
+      },
+    },
+    {
+      method: "POST",
+      path: API.modelWindow,
+      handler: async ({ request }) => {
+        const body = await jsonRequest(request);
+        const message = "Choose a saved provider and model.";
+        expectKeys(body, ["id", "model"], message);
+        const id = requireString(body.id, message);
+        const model = requireString(body.model, message);
+        const saved = store.readProviders().find((item) => item.id === id);
+        if (!saved) throw new HttpError(404, "Provider not found.");
+        const { access } = store.resolveProvider(id);
+        try {
+          validateProviderSettings({ ...access, model });
+        } catch {
+          throw new HttpError(400, "Choose a valid model for this provider.");
+        }
+        const result: ModelWindowResult = {
+          inputTokens: await windows.forScan(saved, access.apiKey, model),
+        };
+        return { status: 200, body: result };
       },
     },
     {

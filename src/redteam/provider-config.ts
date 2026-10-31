@@ -94,6 +94,30 @@ export function hasProviderModelCatalog(value: unknown): value is "openai" | "an
   return value === "openai" || value === "anthropic";
 }
 
+/**
+ * The Models.dev provider whose records give a connection's input window. A local Ollama
+ * model runs with the context its server sets, so a published window would overstate it.
+ */
+const MODEL_WINDOW_PROVIDERS: Record<ProviderId, string | null> = {
+  anthropic: "anthropic",
+  openai: "openai",
+  chatgpt: "openai",
+  gemini: "google",
+  ollama: null,
+};
+
+/**
+ * Only the provider's own endpoint serves its published windows. Another base URL may run
+ * a model of the same name with a smaller context.
+ */
+export function modelWindowProvider(
+  saved: Pick<SavedProvider, "provider" | "baseUrl">,
+): string | null {
+  return saved.baseUrl === PROVIDER_URLS[saved.provider]
+    ? MODEL_WINDOW_PROVIDERS[saved.provider]
+    : null;
+}
+
 /** Subscription scans use OpenAI prices only as an API-equivalent reference. */
 export function modelPricingProvider(value: unknown): "openai" | "anthropic" | undefined {
   return value === "chatgpt" ? "openai" : hasProviderModelCatalog(value) ? value : undefined;

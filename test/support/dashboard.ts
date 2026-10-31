@@ -51,6 +51,11 @@ export async function startTestDashboard(options: TestDashboardOptions): Promise
       (async () => {
         throw new Error("No public pricing in this offline test.");
       }),
+    windowLoader:
+      rest.windowLoader ??
+      (async () => {
+        throw new Error("No public model windows in this offline test.");
+      }),
   });
   const session = (await (
     await fetch(`${dashboard.url}${API.session}`)

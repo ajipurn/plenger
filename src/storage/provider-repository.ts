@@ -3,6 +3,7 @@ import { setTimeout } from "node:timers/promises";
 import { type ChatgptSession, refreshChatgpt } from "../redteam/chatgpt-auth.ts";
 import { CHATGPT, MODEL_PRICING_LIMITS } from "../redteam/constants.ts";
 import { type ModelPricing, validateModelPricing } from "../redteam/model-pricing.ts";
+import { type ModelWindow, validateModelWindow } from "../redteam/models-dev-window.ts";
 import type { ProviderAccess } from "../redteam/provider.ts";
 import {
   accessFromProviderConfig,
@@ -267,6 +268,24 @@ export class ProviderRepository {
         provider === "anthropic" ? pricing.model : `${provider}:${pricing.model}`,
         JSON.stringify(validated),
       );
+  }
+
+  /** A cached public input window, keyed by Models.dev provider and model. */
+  readModelWindow(provider: string, model: string): ModelWindow | null {
+    const row = this.#storage.database
+      .prepare("SELECT payload FROM model_window_catalog WHERE model = ?")
+      .get(`${provider}:${model}`);
+    return row ? validateModelWindow(parsePayload(row)) : null;
+  }
+
+  saveModelWindow(provider: string, model: string, window: ModelWindow): void {
+    const validated = validateModelWindow(window);
+    if (!validated) throw new StoreValidationError("Invalid model window.");
+    this.#storage.database
+      .prepare(
+        "INSERT INTO model_window_catalog (model, payload) VALUES (?, ?) ON CONFLICT(model) DO UPDATE SET payload = excluded.payload",
+      )
+      .run(`${provider}:${model}`, JSON.stringify(validated));
   }
 
   /** The connection plus its unsealed key, for the engine only; never for API responses. */

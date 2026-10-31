@@ -4,6 +4,7 @@ import type { DashboardStore } from "../storage/store.ts";
 import type { ChatgptLogin } from "./chatgpt-login.ts";
 import type { FolderPicker } from "./folder-picker.ts";
 import type { ModelPricingCatalog } from "./model-pricing.ts";
+import type { ModelWindowCatalog } from "./model-windows.ts";
 import type { OperationSupervisor } from "./operations.ts";
 import type { SecurityCoordinator } from "./security-coordinator.ts";
 
@@ -15,6 +16,7 @@ export interface Services {
   token: string;
   store: DashboardStore;
   pricing: ModelPricingCatalog;
+  windows: ModelWindowCatalog;
   supervisor: OperationSupervisor;
   security: SecurityCoordinator;
   chatgptLogin: ChatgptLogin;

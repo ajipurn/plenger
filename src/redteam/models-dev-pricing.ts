@@ -27,40 +27,56 @@ export async function fetchModelPricing(
   if (!isPricingModel(model, provider))
     throw new Error("Choose a supported model for automatic pricing.");
   try {
-    const response = await dispatch(
+    const record = await fetchModelsDevRecord(
       `${MODELS_DEV_PRICING.baseUrl}${provider}/models/${model}.toml`,
-      {
-        redirect: "error",
-        signal: signal
-          ? AbortSignal.any([signal, AbortSignal.timeout(MODELS_DEV_PRICING.timeoutMs)])
-          : AbortSignal.timeout(MODELS_DEV_PRICING.timeoutMs),
-      },
+      signal,
+      dispatch,
     );
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw new Error("Pricing unavailable.");
-    }
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("Empty pricing record.");
-    const chunks: Uint8Array[] = [];
-    let bytes = 0;
-    try {
-      for (;;) {
-        const next = await reader.read();
-        if (next.done) break;
-        bytes += next.value.byteLength;
-        if (bytes > MODELS_DEV_PRICING.bytes) throw new Error("Pricing record too large.");
-        chunks.push(next.value);
-      }
-    } finally {
-      await reader.cancel();
-    }
-    return parseModelPricing(model, parse(Buffer.concat(chunks).toString("utf8")), provider);
+    if (record === null) throw new Error("Pricing unavailable.");
+    return parseModelPricing(model, record, provider);
   } catch {
     throw new Error(
       "Unable to load complete pricing from Models.dev. Refresh pricing to try again.",
     );
   }
+}
+
+/**
+ * One public Models.dev record, parsed and bounded in time and size; null when Models.dev
+ * has no such record. Other failures throw.
+ */
+export async function fetchModelsDevRecord(
+  url: string,
+  signal?: AbortSignal,
+  dispatch: typeof fetch = fetch,
+): Promise<unknown> {
+  const response = await dispatch(url, {
+    redirect: "error",
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(MODELS_DEV_PRICING.timeoutMs)])
+      : AbortSignal.timeout(MODELS_DEV_PRICING.timeoutMs),
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    if (response.status === 404) return null;
+    throw new Error("Models.dev record unavailable.");
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Empty Models.dev record.");
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      bytes += next.value.byteLength;
+      if (bytes > MODELS_DEV_PRICING.bytes) throw new Error("Models.dev record too large.");
+      chunks.push(next.value);
+    }
+  } finally {
+    await reader.cancel();
+  }
+  return parse(Buffer.concat(chunks).toString("utf8"));
 }
 
 /** Import only the text token rates the engine can represent without losing a price tier. */

@@ -35,6 +35,7 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { Button, Checkbox, Input, Select, TextArea } from "../shared/ui.tsx";
 import { useScanModelPricing } from "./useScanModelPricing.ts";
+import { useScanModelWindow } from "./useScanModelWindow.ts";
 
 const EXPLORE_CALLS = EXPLORE_LIMITS.discovery.modelCalls + EXPLORE_LIMITS.validation.modelCalls;
 const DEPTH_COPY: Record<SelectableScanDepth, Record<ReviewMode, string>> = {
@@ -391,10 +392,14 @@ export function NewScanForm({
   const discoveryPrices = useScanModelPricing(api, provider, model, pricingActive);
   const validationPrices = useScanModelPricing(api, validator, validatorModel, pricingActive);
   const selectedPricing = discoveryPrices.pricing;
-  const contextWindow = catalog.models.find((item) => item.id === model)?.maxInputTokens;
-  const validatorContextWindow = validatorCatalog.models.find(
-    (item) => item.id === validatorModel,
-  )?.maxInputTokens;
+  // A loaded catalog answers at once; the host also knows Models.dev windows.
+  const discoveryWindow = useScanModelWindow(api, provider, model, open && !staticOnly);
+  const validationWindow = useScanModelWindow(api, validator, validatorModel, open && !staticOnly);
+  const contextWindow =
+    catalog.models.find((item) => item.id === model)?.maxInputTokens ?? discoveryWindow;
+  const validatorContextWindow =
+    validatorCatalog.models.find((item) => item.id === validatorModel)?.maxInputTokens ??
+    validationWindow;
   const budget = reviewBudget([contextWindow, ...(validator ? [validatorContextWindow] : [])]);
   const [notes, setNotes] = useState(project?.environment.notes ?? "");
   const projectId = project?.id;

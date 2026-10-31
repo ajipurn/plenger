@@ -118,6 +118,7 @@ describe("SQLite dashboard persistence", () => {
       expect(tables).toEqual([
         "model_pricing_catalog",
         "model_providers",
+        "model_window_catalog",
         "preferences",
         "projects",
         "provider_model_catalogs",

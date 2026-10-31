@@ -13,6 +13,7 @@
 import { writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { EXPLORE_LIMITS, SECURITY_REVIEW_LIMITS } from "../src/assessment/review-model.ts";
+import { ModelWindowCatalog } from "../src/dashboard/model-windows.ts";
 import { ProviderRepository } from "../src/storage/provider-repository.ts";
 import {
   type AiConnection,
@@ -67,7 +68,9 @@ if (names.length) {
   }
   const store = await ProviderRepository.open(values["data-dir"]);
   try {
-    const connection = (name: string): AiConnection => {
+    // Rounds are sized as a dashboard scan sizes them.
+    const windows = new ModelWindowCatalog(store.providers);
+    const connection = async (name: string): Promise<AiConnection> => {
       const saved = store.providers
         .readProviders()
         .find((item) => item.id === name || item.name === name);
@@ -78,14 +81,14 @@ if (names.length) {
         provider: { id: saved.id, name: saved.name, model: saved.model },
         access,
         ...(pricing ? { pricing } : {}),
-        inputTokens: store.providers.modelInputTokens(saved, access.apiKey, saved.model),
+        inputTokens: await windows.forScan(saved, access.apiKey, saved.model),
       };
     };
-    const validator = values.validator ? connection(values.validator) : undefined;
+    const validator = values.validator ? await connection(values.validator) : undefined;
     for (const name of names) {
       evaluations.push(
         await evaluateAi(cases, {
-          connection: connection(name),
+          connection: await connection(name),
           ...(validator ? { validator } : {}),
           runs,
           mode,

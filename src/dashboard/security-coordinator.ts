@@ -12,7 +12,11 @@ import {
 import { reviewPaths } from "../assessment/review-source.ts";
 import { reviewProject } from "../assessment/security-review.ts";
 import { sumCosts } from "../redteam/model-pricing.ts";
-import { modelPricingProvider, validateProviderSettings } from "../redteam/provider-config.ts";
+import {
+  modelPricingProvider,
+  type SavedProvider,
+  validateProviderSettings,
+} from "../redteam/provider-config.ts";
 import { RULES } from "../rules/index.ts";
 import { type ScanResult, scan } from "../scan.ts";
 import { scanFindings, vanishedStaticFindings } from "../security/findings.ts";
@@ -37,6 +41,7 @@ import type { DashboardStore } from "../storage/store.ts";
 import type { SecurityEvent } from "./contract.ts";
 import { HttpError } from "./http.ts";
 import type { ModelPricingCatalog } from "./model-pricing.ts";
+import type { ModelWindowCatalog } from "./model-windows.ts";
 import type { OperationSupervisor } from "./operations.ts";
 
 /** Lines the files hold that some review read, counting each line of each path once. */
@@ -64,14 +69,17 @@ export class SecurityCoordinator {
   readonly #replies = new Map<string, ScanReply>();
   readonly #replyTimers = new Map<string, ReturnType<typeof setTimeout>>();
   readonly #pricing: ModelPricingCatalog | undefined;
+  readonly #windows: ModelWindowCatalog | undefined;
   constructor(
     store: DashboardStore,
     supervisor: OperationSupervisor,
     pricing?: ModelPricingCatalog,
+    windows?: ModelWindowCatalog,
   ) {
     this.#store = store;
     this.#supervisor = supervisor;
     this.#pricing = pricing;
+    this.#windows = windows;
     this.#importHistory();
     // Older workspaces may contain enabled monitors. All scans now require an explicit start.
     for (const project of store.security.repositories()) {
@@ -109,6 +117,17 @@ export class SecurityCoordinator {
   #saveScan(job: SecurityScan): void {
     this.#store.security.saveScan(job);
     this.#emit({ type: "scan", id: job.id });
+  }
+
+  /** The model's input window, which sizes each round; null keeps the default round size. */
+  async #inputTokens(
+    saved: SavedProvider,
+    apiKey: string | undefined,
+    model: string,
+  ): Promise<number | null> {
+    return this.#windows
+      ? this.#windows.forScan(saved, apiKey, model)
+      : this.#store.providers.modelInputTokens(saved, apiKey, model);
   }
 
   /** Hold a scan's reply and send it on: the first update at once, then the latest each interval. */
@@ -336,17 +355,13 @@ export class SecurityCoordinator {
           provider: { id: second.saved.id, name: second.saved.name, model: secondAccess.model },
           access: secondAccess,
           ...(secondPricing ? { pricing: structuredClone(secondPricing) } : {}),
-          inputTokens: this.#store.providers.modelInputTokens(
+          inputTokens: await this.#inputTokens(
             second.saved,
             second.access.apiKey,
             secondAccess.model,
           ),
         };
-      const inputTokens = this.#store.providers.modelInputTokens(
-        resolved.saved,
-        resolved.access.apiKey,
-        model,
-      );
+      const inputTokens = await this.#inputTokens(resolved.saved, resolved.access.apiKey, model);
       const mode = input.mode ?? "batch";
       // The most one batch, or one exploring review, can charge, for the limit checks.
       const sizes = reviewBudget([inputTokens, ...(validator ? [validator.inputTokens] : [])]);

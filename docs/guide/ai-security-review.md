@@ -55,7 +55,11 @@ everything else in the same order.
 In Batch mode each round sends by default at most 24 files, 16 KiB of source
 per file and 20 KiB of serialized source context. When the selected model's
 input window is known, the round's source grows with it. Claude catalogs report the window; press **Load
-models** once to save it. The cost ceiling does not change: each round stays
+models** once to save it. Otherwise the dashboard reads the window from the
+model's public Models.dev record and keeps it for a day. This covers Claude,
+OpenAI, ChatGPT and Gemini models on their providers' own endpoints. Ollama
+models and connections with another base URL keep the defaults, because their
+server sets the context. The cost ceiling does not change: each round stays
 within two requests and 400,000 accounted tokens. The larger, second request
 (instructions, candidates, round source and related files) is sized to fit half that
 ceiling and the smallest window of the models in use, counting one token per
@@ -296,7 +300,7 @@ schema as it does for a Batch mode answer; the host checks them in every case. T
 discovery message holds a repository map (up to 24 KiB), hints from the static
 scan (entry points, tools, their effects and the calls the trace could not
 follow), the environment notes and a first set of files packed as in Batch mode, up
-to 48 KiB. The first validation message holds the candidates and their cited
+to 48 KiB, or 20 KiB when the model's window is unknown. The first validation message holds the candidates and their cited
 lines, a small file whole and a larger one as its cited ranges with 20 lines of
 context, up to 32 KiB. Static findings join this validation message only; discovery
 never receives them.

@@ -20,9 +20,10 @@ import {
   type SecurityWorkspace,
   TOKEN_HEADER,
 } from "../src/dashboard/contract.ts";
+import { ModelWindowCatalog } from "../src/dashboard/model-windows.ts";
 import { OperationSupervisor } from "../src/dashboard/operations.ts";
 import { SecurityCoordinator } from "../src/dashboard/security-coordinator.ts";
-import type { SavedProvider } from "../src/redteam/provider-config.ts";
+import { PROVIDER_URLS, type SavedProvider } from "../src/redteam/provider-config.ts";
 import { DashboardStore } from "../src/storage/store.ts";
 import { startTestDashboard, type TestDashboard } from "./support/dashboard.ts";
 import {
@@ -1016,6 +1017,59 @@ describe("local project security workspace", () => {
         inputTokens: 200_000,
       });
     } finally {
+      supervisor.abortAll();
+      await coordinator.close();
+      await supervisor.settled();
+      store.close();
+    }
+  });
+
+  it("sizes the batch from the Models.dev window when the provider lists none", async () => {
+    const repo = await repository();
+    await dashboard.close();
+    const address = model.address();
+    if (!address || typeof address === "string") throw new Error("No model server.");
+    // The connection keeps Anthropic's own endpoint; its requests reach the local model.
+    const actualFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit) =>
+      actualFetch(
+        String(input).replace(PROVIDER_URLS.anthropic, `http://127.0.0.1:${address.port}/v1`),
+        init,
+      ),
+    );
+    const store = await DashboardStore.open(join(root, "data"));
+    const supervisor = new OperationSupervisor();
+    const loads: string[] = [];
+    const windows = new ModelWindowCatalog(store.providers, async (name, id) => {
+      loads.push(`${name}/${id}`);
+      return { inputTokens: 200_000, fetchedAt: new Date().toISOString() };
+    });
+    const coordinator = new SecurityCoordinator(store, supervisor, undefined, windows);
+    try {
+      const claude = store.providers.saveProvider({
+        name: "Claude API",
+        provider: "anthropic",
+        model: "claude-test",
+        apiKey: key,
+        baseUrl: PROVIDER_URLS.anthropic,
+        maxOutputTokens: 8192,
+        temperature: null,
+      });
+      const started = await coordinator.start({
+        repositoryId: repo.id,
+        providerId: claude.id,
+        depth: "quick",
+      });
+      await supervisor.settled();
+      expect(loads).toEqual(["anthropic/claude-test"]);
+      const scan = store.security.scan(started.id);
+      expect(scan?.status).toBe("completed");
+      expect(scan?.reviews[0]?.scope.budget).toMatchObject({
+        contextBytes: 105_593,
+        inputTokens: 200_000,
+      });
+    } finally {
+      vi.unstubAllGlobals();
       supervisor.abortAll();
       await coordinator.close();
       await supervisor.settled();
