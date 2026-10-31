@@ -24,24 +24,27 @@
   size-adjust: 104.3%;
 }
 
-/* Tokens follow the dashboard palette: Spinel Stone navy, Lynx White and Beets,
- * taken one step darker so the particle field can carry the light. */
+/* Tokens follow the dashboard's dark palette: Oceanic Noir, Arctic Powder and Mystic
+ * Mint, with Forsythia as the accent and Deep Saffron as the signal. `--app-*` colors
+ * belong to the dashboard mock. */
 :root {
   color-scheme: dark;
-  --bg: #0b0c12;
-  --bg-raise: #12141d;
-  --ink: #ece9f2;
-  --ink-soft: #c9c6d3;
-  --muted: #8f8da0;
+  --bg: #172b36;
+  --bg-raise: #1b333f;
+  --ink: #f1f6f4;
+  --ink-soft: #d9e8e3;
+  --muted: #8aa5a4;
   /* Inactive list items; the lightest tone that keeps 4.5:1 on --bg. */
-  --ink-dim: rgb(236 233 242 / 0.56);
-  --line: rgb(236 233 242 / 0.1);
-  --line-strong: rgb(236 233 242 / 0.22);
-  --accent: #c6b8d9;
-  --accent-deep: #736a86;
-  --signal: #f5a66b;
-  --critical: #f2a39c;
-  --medium: #e6cf86;
+  --ink-dim: rgb(241 246 244 / 0.5);
+  --line: rgb(241 246 244 / 0.1);
+  --line-strong: rgb(241 246 244 / 0.22);
+  --accent: #ffc801;
+  --accent-deep: #ff9932;
+  --app-accent: #71cfd9;
+  --signal: #ff9932;
+  --critical: #ff847c;
+  --high: #ff9932;
+  --medium: #ffc801;
   --success: #8fd3b4;
 
   /* Local faces stay active until every web font is ready behind the loading screen. */
@@ -280,8 +283,8 @@ em {
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgb(115 106 134 / 0.22),
-    rgb(115 106 134 / 0.06) 38%,
+    rgb(47 125 144 / 0.22),
+    rgb(47 125 144 / 0.06) 38%,
     transparent 62%
   );
   mix-blend-mode: screen;
@@ -301,7 +304,7 @@ em {
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: radial-gradient(ellipse at center, transparent 45%, rgb(11 12 18 / 0.75) 100%);
+  background: radial-gradient(ellipse at center, transparent 45%, rgb(23 43 54 / 0.75) 100%);
   pointer-events: none;
 }
 
@@ -376,7 +379,7 @@ main,
 }
 
 .nav.is-scrolled {
-  background: linear-gradient(to bottom, rgb(11 12 18 / 0.8), rgb(11 12 18 / 0));
+  background: linear-gradient(to bottom, rgb(23 43 54 / 0.8), rgb(23 43 54 / 0));
 }
 
 .brand {
@@ -405,7 +408,7 @@ main,
   padding: 4px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgb(18 20 29 / 0.55);
+  background: rgb(27 51 63 / 0.55);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
@@ -434,7 +437,7 @@ main,
 }
 
 .nav-links a.is-current {
-  background: rgb(236 233 242 / 0.08);
+  background: rgb(241 246 244 / 0.08);
 }
 
 /* Hover rolls the label up and a copy in from below. */
@@ -539,7 +542,7 @@ main,
   width: 26px;
   height: 26px;
   margin: -13px 0 0 -13px;
-  border: 1px solid rgb(236 233 242 / 0.45);
+  border: 1px solid rgb(241 246 244 / 0.45);
   border-radius: 50%;
   font-family: var(--font-mono);
   font-size: 10px;
@@ -563,8 +566,8 @@ main,
   width: 44px;
   height: 44px;
   margin: -22px 0 0 -22px;
-  border-color: rgb(198 184 217 / 0.7);
-  background: rgb(198 184 217 / 0.12);
+  border-color: rgb(255 200 1 / 0.7);
+  background: rgb(255 200 1 / 0.12);
 }
 
 .cursor.has-label .cursor-ring {
@@ -590,7 +593,7 @@ main,
     grid-template-columns: 1fr auto;
     column-gap: 12px;
     padding-block: calc(10px + env(safe-area-inset-top, 0px)) 10px;
-    background: rgb(11 12 18 / 0.96);
+    background: rgb(23 43 54 / 0.96);
   }
 
   .nav-links,

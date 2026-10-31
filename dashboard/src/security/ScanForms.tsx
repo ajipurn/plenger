@@ -231,6 +231,7 @@ export function ProjectForm({
   );
 }
 
+/** A model picker with its catalog action; the caller labels it. */
 function ScanModelField({
   id,
   label,
@@ -262,26 +263,7 @@ function ScanModelField({
       label: `${provider.model} (default)`,
     });
   return (
-    <div className="security-scan-field">
-      <div className="security-scan-field-label">
-        <label htmlFor={id}>{label}</label>
-        {hasProviderModelCatalog(provider.provider) && (
-          <Button
-            className="button button-quiet"
-            disabled={busy || catalog.loading}
-            onClick={() =>
-              void catalog.load({
-                id: provider.id,
-                provider: provider.provider as "anthropic" | "openai",
-                baseUrl: provider.baseUrl,
-                refresh: true,
-              })
-            }
-          >
-            {catalog.loading ? "Loading models…" : catalog.loaded ? "Reload models" : "Load models"}
-          </Button>
-        )}
-      </div>
+    <div className="security-scan-inline">
       {choosesModel ? (
         <Select
           label={label}
@@ -300,6 +282,22 @@ function ScanModelField({
           onChange={(event) => onChange(event.target.value)}
           disabled={busy}
         />
+      )}
+      {hasProviderModelCatalog(provider.provider) && (
+        <Button
+          className="button button-quiet"
+          disabled={busy || catalog.loading}
+          onClick={() =>
+            void catalog.load({
+              id: provider.id,
+              provider: provider.provider as "anthropic" | "openai",
+              baseUrl: provider.baseUrl,
+              refresh: true,
+            })
+          }
+        >
+          {catalog.loading ? "Loading models…" : catalog.loaded ? "Reload models" : "Load models"}
+        </Button>
       )}
     </div>
   );
@@ -605,135 +603,141 @@ export function NewScanForm({
           void submit();
         }}
       >
-        {!staticScan && (
-          <section className="security-scan-section" aria-labelledby={`${id}-steps-heading`}>
+        <div className="security-scan-group">
+          <div className="security-scan-row">
+            {project ? (
+              <label htmlFor={`${id}-project`} className="security-scan-row-label">
+                Project
+              </label>
+            ) : (
+              <span className="security-scan-row-label">Project</span>
+            )}
+            <div className="security-scan-row-control">
+              {project ? (
+                <>
+                  <div className="security-scan-inline">
+                    <Select
+                      label="Project"
+                      id={`${id}-project`}
+                      value={project.id}
+                      items={repositories.map((item) => ({
+                        value: item.id,
+                        label: item.name,
+                      }))}
+                      onValueChange={(value) => {
+                        setSelected(value);
+                        setNotes(
+                          repositories.find((item) => item.id === value)?.environment.notes ?? "",
+                        );
+                      }}
+                      disabled={busy || Boolean(staticScan)}
+                    />
+                    {!staticScan && (
+                      <Button
+                        className="button button-secondary"
+                        onClick={onAddProject}
+                        disabled={busy}
+                      >
+                        <Icon name="plus" /> Add project
+                      </Button>
+                    )}
+                  </div>
+                  <div className="security-scan-source">
+                    <span className="security-scan-source-path">
+                      <Icon name="folder" />
+                      <code>{project.path}</code>
+                    </span>
+                    {source && (
+                      <span className="security-scan-source-size">
+                        <MorphNumber value={source.files} />
+                        {source.truncated ? "+" : ""} reviewable{" "}
+                        {source.files === 1 ? "file" : "files"} ·{" "}
+                        <MorphNumber value={sizeText(source.bytes)} />
+                      </span>
+                    )}
+                  </div>
+                  <details className="security-scan-notes">
+                    <summary>
+                      <Icon name="chevron" />
+                      <span>Review context</span>
+                      <span className="security-scan-notes-status">
+                        {notes.trim() ? (
+                          <>
+                            <Icon name="check" /> Included
+                          </>
+                        ) : (
+                          "Optional"
+                        )}
+                      </span>
+                    </summary>
+                    <div className="security-scan-notes-body">
+                      <label htmlFor={`${id}-notes`} className="sr-only">
+                        Review context
+                      </label>
+                      <TextArea
+                        id={`${id}-notes`}
+                        value={notes}
+                        onChange={(event) => setNotes(event.target.value)}
+                        maxLength={WORKSPACE_LIMITS.contextCharacters}
+                        rows={4}
+                        placeholder="Authentication, tenant boundaries, and assets to protect."
+                        disabled={busy}
+                      />
+                      <p className="muted">
+                        Saved with this project and included in its source review.
+                      </p>
+                    </div>
+                  </details>
+                </>
+              ) : (
+                <div className="security-scan-inline">
+                  <p className="muted">Add a local project to start a scan.</p>
+                  <Button
+                    className="button button-secondary"
+                    onClick={onAddProject}
+                    disabled={busy}
+                  >
+                    <Icon name="plus" /> Add project
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+          {!staticScan && (
             <RadioGroup
-              className="security-scan-field"
+              className="security-scan-row"
               name="workflow"
+              orientation="horizontal"
               value={workflow}
               onChange={(value) => setWorkflow(value as ScanWorkflow)}
               isDisabled={busy}
             >
-              <Label id={`${id}-steps-heading`}>Steps to run</Label>
-              <div className="security-scan-choices">
-                {(Object.keys(SCAN_WORKFLOWS) as ScanWorkflow[]).map((value) => (
-                  <Radio
-                    key={value}
-                    value={value}
-                    className="security-scan-choice"
-                    aria-labelledby={`${id}-workflow-${value}`}
-                    aria-describedby={`${id}-workflow-${value}-help`}
-                  >
-                    <span className="security-scan-choice-head">
-                      <span id={`${id}-workflow-${value}`} className="security-scan-choice-name">
-                        {SCAN_WORKFLOWS[value].label}
-                      </span>
-                      <span className="security-scan-choice-indicator" aria-hidden="true" />
-                    </span>
-                    <span id={`${id}-workflow-${value}-help`}>
-                      {SCAN_WORKFLOWS[value].description}
-                    </span>
-                  </Radio>
-                ))}
+              <Label className="security-scan-row-label">Steps to run</Label>
+              <div className="security-scan-row-control">
+                <div className="security-scan-segmented">
+                  {(Object.keys(SCAN_WORKFLOWS) as ScanWorkflow[]).map((value) => (
+                    <Radio key={value} value={value} className="security-scan-segment">
+                      {SCAN_WORKFLOWS[value].label}
+                    </Radio>
+                  ))}
+                </div>
+                <Text slot="description" elementType="p" className="security-scan-row-help">
+                  {SCAN_WORKFLOWS[workflow].description}
+                </Text>
               </div>
             </RadioGroup>
-          </section>
-        )}
-        <section className="security-scan-section" aria-labelledby={`${id}-project-heading`}>
-          <div className="security-scan-section-heading">
-            <h3 id={`${id}-project-heading`}>Project</h3>
-            <Button
-              className="button button-quiet"
-              onClick={onAddProject}
-              disabled={busy || Boolean(staticScan)}
-            >
-              <Icon name="plus" /> Add project
-            </Button>
-          </div>
-          {project ? (
-            <>
-              <div className="security-scan-field">
-                <Select
-                  label="Project"
-                  id={`${id}-project`}
-                  value={project.id}
-                  items={repositories.map((item) => ({
-                    value: item.id,
-                    label: item.name,
-                  }))}
-                  onValueChange={(value) => {
-                    setSelected(value);
-                    setNotes(
-                      repositories.find((item) => item.id === value)?.environment.notes ?? "",
-                    );
-                  }}
-                  disabled={busy || Boolean(staticScan)}
-                />
-                <div className="security-scan-source">
-                  <span className="security-scan-source-path">
-                    <Icon name="folder" />
-                    <code>{project.path}</code>
-                  </span>
-                  {source && (
-                    <span className="security-scan-source-size">
-                      <MorphNumber value={source.files} />
-                      {source.truncated ? "+" : ""} reviewable{" "}
-                      {source.files === 1 ? "file" : "files"} ·{" "}
-                      <MorphNumber value={sizeText(source.bytes)} />
-                    </span>
-                  )}
-                </div>
-              </div>
-              <details className="security-scan-notes">
-                <summary>
-                  <Icon name="chevron" />
-                  <span>Review context</span>
-                  <span className="security-scan-notes-status">
-                    {notes.trim() ? (
-                      <>
-                        <Icon name="check" /> Included
-                      </>
-                    ) : (
-                      "Optional"
-                    )}
-                  </span>
-                </summary>
-                <div className="security-scan-notes-body">
-                  <label htmlFor={`${id}-notes`} className="sr-only">
-                    Review context
-                  </label>
-                  <TextArea
-                    id={`${id}-notes`}
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    maxLength={WORKSPACE_LIMITS.contextCharacters}
-                    rows={4}
-                    placeholder="Authentication, tenant boundaries, and assets to protect."
-                    disabled={busy}
-                  />
-                  <p className="muted">
-                    Saved with this project and included in its source review.
-                  </p>
-                </div>
-              </details>
-            </>
-          ) : (
-            <p className="muted">Add a local project to start a scan.</p>
           )}
-        </section>
+        </div>
         {!staticOnly && (
           <>
-            <section className="security-scan-section" aria-labelledby={`${id}-model-heading`}>
-              <div className="security-scan-section-heading">
-                <h3 id={`${id}-model-heading`}>Model</h3>
-              </div>
+            <div className="security-scan-group">
               {provider ? (
                 <>
-                  <div className="security-scan-fields">
-                    <div className="security-scan-field">
-                      <div className="security-scan-field-label">
-                        <label htmlFor={`${id}-provider`}>Provider</label>
-                      </div>
+                  <div className="security-scan-row">
+                    <label htmlFor={`${id}-provider`} className="security-scan-row-label">
+                      Provider
+                    </label>
+                    <div className="security-scan-row-control">
                       <Select
                         label="Provider"
                         id={`${id}-provider`}
@@ -751,291 +755,278 @@ export function NewScanForm({
                         disabled={busy}
                       />
                     </div>
-                    <ScanModelField
-                      id={`${id}-model`}
-                      label="Model"
-                      provider={provider}
-                      model={model}
-                      onChange={setModel}
-                      catalog={catalog}
-                      busy={busy}
-                    />
                   </div>
-                  <div className="security-scan-hints">
-                    <p className="muted">
-                      Used for this scan only. Your provider's default stays the same.
-                    </p>
-                    {modelPricingProvider(provider.provider) && (
-                      <p className="muted security-scan-note">
-                        <Icon name="info" />
-                        <span>
-                          {selectedPricing
-                            ? "Cost estimates use model prices and reported token usage."
-                            : "Model prices load automatically when the scan starts."}
-                        </span>
+                  <div className="security-scan-row">
+                    <label htmlFor={`${id}-model`} className="security-scan-row-label">
+                      Model
+                    </label>
+                    <div className="security-scan-row-control">
+                      <ScanModelField
+                        id={`${id}-model`}
+                        label="Model"
+                        provider={provider}
+                        model={model}
+                        onChange={setModel}
+                        catalog={catalog}
+                        busy={busy}
+                      />
+                      <p className="security-scan-row-help">
+                        For this scan only. Your provider's default stays the same.
+                        {modelPricingProvider(provider.provider) &&
+                          (selectedPricing
+                            ? " Cost estimates use model prices and reported token usage."
+                            : " Model prices load automatically when the scan starts.")}
                       </p>
-                    )}
-                    {catalog.error && (
-                      <p className="error-message" role="alert">
-                        {catalog.error}
-                      </p>
-                    )}
-                  </div>
-                  <div className="security-scan-field">
-                    <Checkbox
-                      isSelected={differentValidator}
-                      onChange={(next) => {
-                        setDifferentValidator(next);
-                        if (next && !validatorId) {
-                          setValidatorId(provider.id);
-                          setValidatorModel(model);
-                        }
-                      }}
-                      isDisabled={busy}
-                      aria-describedby={`${id}-validator-help`}
-                    >
-                      Use a different validation model
-                    </Checkbox>
-                    <p id={`${id}-validator-help`} className="muted">
-                      Validation checks each candidate for counterevidence. Uses the same provider
-                      and model unless you choose a different one.
-                    </p>
-                  </div>
-                  {validator && (
-                    <>
-                      <div className="security-scan-fields">
-                        <div className="security-scan-field">
-                          <div className="security-scan-field-label">
-                            <label htmlFor={`${id}-validator-provider`}>Validation provider</label>
-                          </div>
-                          <Select
-                            label="Validation provider"
-                            id={`${id}-validator-provider`}
-                            value={validator.id}
-                            items={providers.map((item) => ({
-                              value: item.id,
-                              label: item.name,
-                            }))}
-                            onValueChange={(value) => {
-                              setValidatorId(value);
-                              setValidatorModel(
-                                providers.find((item) => item.id === value)?.model ?? "",
-                              );
-                            }}
-                            disabled={busy}
-                          />
-                        </div>
-                        <ScanModelField
-                          id={`${id}-validator-model`}
-                          label="Validation model"
-                          provider={validator}
-                          model={validatorModel}
-                          onChange={setValidatorModel}
-                          catalog={validatorCatalog}
-                          busy={busy}
-                        />
-                      </div>
-                      {validatorCatalog.error && (
+                      {catalog.error && (
                         <p className="error-message" role="alert">
-                          {validatorCatalog.error}
+                          {catalog.error}
                         </p>
                       )}
-                    </>
-                  )}
+                    </div>
+                  </div>
+                  <div className="security-scan-row" data-align="text">
+                    <span className="security-scan-row-label">Validation</span>
+                    <div className="security-scan-row-control">
+                      <Checkbox
+                        isSelected={differentValidator}
+                        onChange={(next) => {
+                          setDifferentValidator(next);
+                          if (next && !validatorId) {
+                            setValidatorId(provider.id);
+                            setValidatorModel(model);
+                          }
+                        }}
+                        isDisabled={busy}
+                        aria-describedby={`${id}-validator-help`}
+                      >
+                        Use a different validation model
+                      </Checkbox>
+                      <p id={`${id}-validator-help`} className="security-scan-row-help">
+                        Validation checks each candidate for counterevidence, with the model above
+                        unless you choose another.
+                      </p>
+                      {validator && (
+                        <div className="security-scan-subfields">
+                          <div className="security-scan-field">
+                            <label htmlFor={`${id}-validator-provider`}>Validation provider</label>
+                            <Select
+                              label="Validation provider"
+                              id={`${id}-validator-provider`}
+                              value={validator.id}
+                              items={providers.map((item) => ({
+                                value: item.id,
+                                label: item.name,
+                              }))}
+                              onValueChange={(value) => {
+                                setValidatorId(value);
+                                setValidatorModel(
+                                  providers.find((item) => item.id === value)?.model ?? "",
+                                );
+                              }}
+                              disabled={busy}
+                            />
+                          </div>
+                          <div className="security-scan-field">
+                            <label htmlFor={`${id}-validator-model`}>Validation model</label>
+                            <ScanModelField
+                              id={`${id}-validator-model`}
+                              label="Validation model"
+                              provider={validator}
+                              model={validatorModel}
+                              onChange={setValidatorModel}
+                              catalog={validatorCatalog}
+                              busy={busy}
+                            />
+                          </div>
+                          {validatorCatalog.error && (
+                            <p className="error-message" role="alert">
+                              {validatorCatalog.error}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </>
               ) : (
-                <p className="muted">
-                  Save a model connection to review source.{" "}
-                  <Link className="security-row-link" to="/settings/providers" onClick={onClose}>
-                    Configure a provider
-                  </Link>
-                </p>
+                <div className="security-scan-row" data-align="text">
+                  <span className="security-scan-row-label">Model</span>
+                  <p className="security-scan-row-control muted">
+                    Save a model connection to review source.{" "}
+                    <Link className="security-row-link" to="/settings/providers" onClick={onClose}>
+                      Configure a provider
+                    </Link>
+                  </p>
+                </div>
               )}
-            </section>
-            <section className="security-scan-section" aria-labelledby={`${id}-review-heading`}>
-              <div className="security-scan-section-heading">
-                <h3 id={`${id}-review-heading`}>Review</h3>
-              </div>
+            </div>
+            <div className="security-scan-group">
               <RadioGroup
-                className="security-scan-field"
+                className="security-scan-row"
                 name="mode"
+                orientation="horizontal"
                 value={mode}
                 onChange={(value) => setMode(value as ReviewMode)}
                 isDisabled={busy}
               >
-                <div className="security-scan-field-label">
-                  <Label>Mode</Label>
-                </div>
-                <div className="security-scan-choices">
-                  {(["batch", "explore"] as const).map((value) => (
-                    <Radio
-                      key={value}
-                      value={value}
-                      className="security-scan-choice"
-                      aria-labelledby={`${id}-mode-${value}-label`}
-                      aria-describedby={`${id}-mode-${value}-description ${id}-mode-${value}-calls`}
-                    >
-                      <span className="security-scan-choice-head">
-                        <span
-                          id={`${id}-mode-${value}-label`}
-                          className="security-scan-choice-name"
-                        >
-                          {MODE_COPY[value].label}
-                        </span>
-                        <span className="security-scan-choice-indicator" aria-hidden="true" />
-                      </span>
-                      <span id={`${id}-mode-${value}-description`}>
-                        {MODE_COPY[value].description}
-                      </span>
-                      <span id={`${id}-mode-${value}-calls`} className="security-scan-choice-meta">
-                        <NumericText>{MODE_COPY[value].calls}</NumericText>
-                      </span>
-                    </Radio>
-                  ))}
-                </div>
-                {provider && (
-                  <Text slot="description" elementType="p" className="muted">
-                    <NumericText>
-                      {mode === "explore"
-                        ? `Explore starts from up to ${Math.round(Math.min(budget.contextBytes, EXPLORE_LIMITS.firstBytes) / 1024)} KiB of source and reads the rest through tools.`
-                        : budget.inputTokens === null
-                          ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per round.${hasProviderModelCatalog(provider.provider) ? " Load models to size it to this model's context window." : ""}`
-                          : `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per round for this model's ${budget.inputTokens.toLocaleString()}-token window.`}
-                    </NumericText>
-                    {validator && mode === "batch"
-                      ? " A validation model with a smaller or unknown window lowers it."
-                      : ""}
+                <Label className="security-scan-row-label">Mode</Label>
+                <div className="security-scan-row-control">
+                  <div className="security-scan-segmented">
+                    {(["batch", "explore"] as const).map((value) => (
+                      <Radio key={value} value={value} className="security-scan-segment">
+                        {MODE_COPY[value].label}
+                      </Radio>
+                    ))}
+                  </div>
+                  <Text slot="description" elementType="div" className="security-scan-row-help">
+                    <p>{MODE_COPY[mode].description}</p>
+                    <p className="security-scan-row-meta">
+                      <NumericText>{MODE_COPY[mode].calls}</NumericText>
+                    </p>
+                    {provider && (
+                      <p>
+                        <NumericText>
+                          {mode === "explore"
+                            ? `Explore starts from up to ${Math.round(Math.min(budget.contextBytes, EXPLORE_LIMITS.firstBytes) / 1024)} KiB of source and reads the rest through tools.`
+                            : budget.inputTokens === null
+                              ? `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per round.${hasProviderModelCatalog(provider.provider) ? " Load models to size it to this model's context window." : ""}`
+                              : `Up to ${Math.round(budget.contextBytes / 1024)} KiB of source per round for this model's ${budget.inputTokens.toLocaleString()}-token window.`}
+                        </NumericText>
+                        {validator && mode === "batch"
+                          ? " A validation model with a smaller or unknown window lowers it."
+                          : ""}
+                      </p>
+                    )}
                   </Text>
-                )}
+                </div>
               </RadioGroup>
               <RadioGroup
-                className="security-scan-field"
+                className="security-scan-row"
                 name="depth"
+                orientation="horizontal"
                 value={depth}
                 onChange={(value) => setDepth(value as SelectableScanDepth)}
                 isDisabled={busy}
               >
-                <div className="security-scan-field-label">
-                  <Label>Depth</Label>
-                </div>
-                <div className="security-scan-choices">
-                  {(["quick", "full"] as const).map((value) => (
-                    <Radio
-                      key={value}
-                      value={value}
-                      className="security-scan-choice"
-                      aria-labelledby={`${id}-${value}-label`}
-                      aria-describedby={`${id}-${value}-description ${id}-${value}-calls`}
-                    >
-                      <span className="security-scan-choice-head">
-                        <span id={`${id}-${value}-label`} className="security-scan-choice-name">
-                          {SCAN_DEPTHS[value].label}
-                        </span>
-                        <span className="security-scan-choice-indicator" aria-hidden="true" />
-                      </span>
-                      <span id={`${id}-${value}-description`}>
-                        {value === "full" && !limited
-                          ? UNLIMITED_COPY[mode]
-                          : DEPTH_COPY[value][mode]}
-                      </span>
-                      <span id={`${id}-${value}-calls`} className="security-scan-choice-meta">
-                        <NumericText>{depthCalls[value]}</NumericText>
-                      </span>
-                    </Radio>
-                  ))}
+                <Label className="security-scan-row-label">Depth</Label>
+                <div className="security-scan-row-control">
+                  <div className="security-scan-segmented">
+                    {(["quick", "full"] as const).map((value) => (
+                      <Radio key={value} value={value} className="security-scan-segment">
+                        {SCAN_DEPTHS[value].label}
+                      </Radio>
+                    ))}
+                  </div>
+                  <Text slot="description" elementType="div" className="security-scan-row-help">
+                    <p>
+                      {depth === "full" && !limited
+                        ? UNLIMITED_COPY[mode]
+                        : DEPTH_COPY[depth][mode]}
+                    </p>
+                    <p className="security-scan-row-meta">
+                      <NumericText>{depthCalls[depth]}</NumericText>
+                    </p>
+                  </Text>
                 </div>
               </RadioGroup>
               {depth === "full" && (
-                <div className="security-scan-limit">
-                  <div className="security-scan-limit-heading">
-                    <Checkbox isSelected={limited} onChange={setLimited} isDisabled={busy}>
-                      Set a spending limit
-                    </Checkbox>
-                    {limited && (
-                      <RadioGroup
-                        className="security-scan-segmented"
-                        aria-label="Limit unit"
-                        orientation="horizontal"
-                        value={kind}
-                        onChange={(value) => setLimitKind(value as ScanBudget["kind"])}
-                        isDisabled={busy}
-                      >
-                        <Radio value="tokens" className="security-scan-segment">
-                          Tokens
-                        </Radio>
-                        <Radio
-                          value="usd"
-                          className="security-scan-segment"
-                          isDisabled={!usdPricing}
+                <div className="security-scan-row security-scan-limit">
+                  <span className="security-scan-row-label">Limit</span>
+                  <div className="security-scan-row-control">
+                    <div className="security-scan-limit-heading">
+                      <Checkbox isSelected={limited} onChange={setLimited} isDisabled={busy}>
+                        Set a spending limit
+                      </Checkbox>
+                      {limited && (
+                        <RadioGroup
+                          className="security-scan-segmented"
+                          data-size="small"
+                          aria-label="Limit unit"
+                          orientation="horizontal"
+                          value={kind}
+                          onChange={(value) => setLimitKind(value as ScanBudget["kind"])}
+                          isDisabled={busy}
                         >
-                          USD
-                        </Radio>
-                      </RadioGroup>
+                          <Radio value="tokens" className="security-scan-segment">
+                            Tokens
+                          </Radio>
+                          <Radio
+                            value="usd"
+                            className="security-scan-segment"
+                            isDisabled={!usdPricing}
+                          >
+                            USD
+                          </Radio>
+                        </RadioGroup>
+                      )}
+                    </div>
+                    {limited ? (
+                      <>
+                        <label htmlFor={`${id}-limit`} className="sr-only">
+                          {kind === "tokens" ? "Token limit" : "USD limit"}
+                        </label>
+                        <div className="security-scan-limit-input">
+                          <Input
+                            id={`${id}-limit`}
+                            type="number"
+                            inputMode={kind === "tokens" ? "numeric" : "decimal"}
+                            min={
+                              kind === "tokens"
+                                ? SCAN_BUDGET_LIMITS.minTokens
+                                : SCAN_BUDGET_LIMITS.minUsd
+                            }
+                            max={
+                              kind === "tokens"
+                                ? SCAN_BUDGET_LIMITS.maxTokens
+                                : SCAN_BUDGET_LIMITS.maxUsd
+                            }
+                            step={kind === "tokens" ? 1000 : 0.01}
+                            value={kind === "tokens" ? tokenLimit : usdLimit}
+                            onChange={(event) =>
+                              kind === "tokens"
+                                ? setTokenLimit(event.target.value)
+                                : setUsdLimit(event.target.value)
+                            }
+                            aria-invalid={Boolean(limitError)}
+                            aria-describedby={`${id}-limit-help`}
+                            disabled={busy}
+                          />
+                          <span className="security-scan-limit-unit" aria-hidden="true">
+                            {kind === "tokens" ? "tokens" : "USD"}
+                          </span>
+                        </div>
+                        <p
+                          id={`${id}-limit-help`}
+                          className={limitError ? "error-message" : "security-scan-row-help"}
+                        >
+                          <NumericText>
+                            {limitError ||
+                              (kind === "usd" && subscription
+                                ? `Each round reserves up to USD ${mostUsd?.toFixed(2)} at standard API rates. The remaining allowance is checked before each request. Subscription output usage is checked after each response.`
+                                : `Each round charges at most ${
+                                    kind === "tokens"
+                                      ? `${mostTokens.toLocaleString()} tokens`
+                                      : `USD ${mostUsd?.toFixed(2)} at current prices`
+                                  }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "round" : "rounds"}. Most rounds charge less. A round starts only when its maximum fits what remains.`)}
+                          </NumericText>
+                        </p>
+                        {!usdPricing && kind === "tokens" && (
+                          <p className="security-scan-row-help">
+                            {pricingLoading
+                              ? "Loading prices for the selected models…"
+                              : "USD limits need prices for each selected model. Choose a priced model or refresh its prices in Settings > Providers."}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="security-scan-row-help">
+                        <NumericText>{`No limit: the scan stops after ${SCAN_BUDGET_LIMITS.fullBatches} rounds at most. Each round charges up to ${mostTokens.toLocaleString()} tokens.`}</NumericText>
+                      </p>
                     )}
                   </div>
-                  {limited ? (
-                    <>
-                      <label htmlFor={`${id}-limit`} className="sr-only">
-                        {kind === "tokens" ? "Token limit" : "USD limit"}
-                      </label>
-                      <div className="security-scan-limit-input">
-                        <Input
-                          id={`${id}-limit`}
-                          type="number"
-                          inputMode={kind === "tokens" ? "numeric" : "decimal"}
-                          min={
-                            kind === "tokens"
-                              ? SCAN_BUDGET_LIMITS.minTokens
-                              : SCAN_BUDGET_LIMITS.minUsd
-                          }
-                          max={
-                            kind === "tokens"
-                              ? SCAN_BUDGET_LIMITS.maxTokens
-                              : SCAN_BUDGET_LIMITS.maxUsd
-                          }
-                          step={kind === "tokens" ? 1000 : 0.01}
-                          value={kind === "tokens" ? tokenLimit : usdLimit}
-                          onChange={(event) =>
-                            kind === "tokens"
-                              ? setTokenLimit(event.target.value)
-                              : setUsdLimit(event.target.value)
-                          }
-                          aria-invalid={Boolean(limitError)}
-                          aria-describedby={`${id}-limit-help`}
-                          disabled={busy}
-                        />
-                        <span className="security-scan-limit-unit" aria-hidden="true">
-                          {kind === "tokens" ? "tokens" : "USD"}
-                        </span>
-                      </div>
-                      <p id={`${id}-limit-help`} className={limitError ? "error-message" : "muted"}>
-                        <NumericText>
-                          {limitError ||
-                            (kind === "usd" && subscription
-                              ? `Each round reserves up to USD ${mostUsd?.toFixed(2)} at standard API rates. The remaining allowance is checked before each request. Subscription output usage is checked after each response.`
-                              : `Each round charges at most ${
-                                  kind === "tokens"
-                                    ? `${mostTokens.toLocaleString()} tokens`
-                                    : `USD ${mostUsd?.toFixed(2)} at current prices`
-                                }, so this limit covers at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "round" : "rounds"}. Most rounds charge less. A round starts only when its maximum fits what remains.`)}
-                        </NumericText>
-                      </p>
-                      {!usdPricing && kind === "tokens" && (
-                        <p className="muted">
-                          {pricingLoading
-                            ? "Loading prices for the selected models…"
-                            : "USD limits need prices for each selected model. Choose a priced model or refresh its prices in Settings > Providers."}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="muted">
-                      <NumericText>{`No limit: the scan stops after ${SCAN_BUDGET_LIMITS.fullBatches} rounds at most. Each round charges up to ${mostTokens.toLocaleString()} tokens.`}</NumericText>
-                    </p>
-                  )}
                 </div>
               )}
-            </section>
+            </div>
           </>
         )}
         {error && (

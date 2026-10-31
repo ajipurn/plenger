@@ -96,15 +96,15 @@ pre,
 }
 input:not(:where([type="checkbox"], [type="radio"])),
 select {
-  @apply bg-field text-ink border border-line-strong rounded-ui min-w-0;
+  @apply bg-field text-ink border border-line-control rounded-ui min-w-0;
   min-height: var(--control-height);
   padding: var(--control-padding-block) var(--control-padding-inline);
   font-size: var(--control-font-size);
   line-height: var(--control-line-height);
-  box-shadow: inset 0 1px 1px #0000000a;
+  box-shadow: var(--shadow-field);
 }
 input:hover:not(:disabled, :focus) {
-  @apply border-subtle;
+  @apply border-line-strong;
 }
 input:focus-visible,
 select:focus-visible {
@@ -170,6 +170,10 @@ main:focus-visible {
   font-size: var(--control-font-size);
   line-height: var(--control-line-height);
   border: 1px solid transparent;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 .button .icon,
 .icon-button .icon {
@@ -177,26 +181,27 @@ main:focus-visible {
   height: var(--control-icon-size);
 }
 .button-primary {
-  background: var(--primary-bg);
+  background-color: var(--primary-bg);
+  background-image: var(--primary-sheen);
   color: var(--primary-fg);
   border-color: var(--primary-border);
   box-shadow: var(--primary-shadow);
 }
 .button-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background-color: var(--primary-hover);
 }
 .button-secondary {
-  @apply bg-surface border-line-strong text-ink;
-  box-shadow:
-    var(--highlight),
-    0 1px 2px #0000000f;
+  @apply bg-surface border-line-control text-ink;
+  background-image: var(--sheen);
+  box-shadow: var(--shadow-control);
 }
 .button-secondary:hover:not(:disabled) {
-  @apply bg-paper border-subtle;
+  @apply bg-paper border-line-strong;
 }
 .button-danger {
   @apply bg-critical-soft text-critical;
   border-color: color-mix(in oklab, var(--critical) 35%, transparent);
+  box-shadow: var(--shadow-control);
 }
 .button-danger:hover:not(:disabled) {
   @apply border-critical;
@@ -212,6 +217,15 @@ main:focus-visible {
   width: var(--control-height);
   height: var(--control-height);
   padding: 0;
+  box-shadow: var(--shadow-control);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+/* Pressing flattens a raised control; it does not move. */
+:is(.button-primary, .button-secondary, .button-danger, .icon-button):active:not(:disabled) {
+  box-shadow: var(--shadow-pressed);
 }
 .icon-button:hover:not(:disabled) {
   @apply text-ink bg-hover border-line-strong;
@@ -220,16 +234,16 @@ main:focus-visible {
   @apply inline-flex min-w-0;
 }
 .ui-select-trigger {
-  @apply inline-flex items-center justify-between gap-2 bg-field text-ink border border-line-strong rounded-ui min-w-0 w-full text-start font-medium;
+  @apply inline-flex items-center justify-between gap-2 bg-field text-ink border border-line-control rounded-ui min-w-0 w-full text-start font-medium;
   min-height: var(--control-height);
   padding: var(--control-padding-block) var(--control-padding-inline);
   font-size: var(--control-font-size);
   line-height: var(--control-line-height);
-  box-shadow: inset 0 1px 1px #0000000a;
+  box-shadow: var(--shadow-field);
 }
 .ui-select-trigger:hover:not(:disabled),
 .ui-select-trigger[data-pressed] {
-  @apply border-subtle;
+  @apply border-line-strong;
 }
 .ui-select-value {
   @apply min-w-0 truncate;
@@ -329,15 +343,18 @@ main:focus-visible {
   min-height: var(--control-height);
 }
 .ui-checkbox-indicator {
-  @apply inline-grid place-items-center size-4 rounded-[4px] border border-line-strong shrink-0;
+  @apply inline-grid place-items-center size-4 rounded-[4px] border border-line-strong shrink-0 bg-field;
+  box-shadow: var(--shadow-field);
 }
 .ui-checkbox-indicator .icon {
   @apply size-3 invisible;
 }
 .ui-checkbox[data-selected] .ui-checkbox-indicator {
-  background: var(--primary-bg);
-  border-color: var(--primary-border);
-  color: var(--primary-fg);
+  background-color: var(--checked);
+  background-image: var(--primary-sheen);
+  border-color: var(--checked);
+  color: var(--checked-fg);
+  box-shadow: var(--shadow-control);
 }
 .ui-checkbox[data-selected] .ui-checkbox-indicator .icon {
   @apply visible;
@@ -443,13 +460,13 @@ main:focus-visible {
   @apply flex flex-col gap-2 text-label font-medium min-w-0;
 }
 .search-field {
-  @apply flex items-center gap-2 rounded-ui border border-line-strong bg-field;
+  @apply flex items-center gap-2 rounded-ui border border-line-control bg-field;
   min-height: var(--control-height);
   padding-inline: var(--control-padding-inline);
-  box-shadow: inset 0 1px 1px #0000000a;
+  box-shadow: var(--shadow-field);
 }
 .search-field:hover:not(:focus-within) {
-  @apply border-subtle;
+  @apply border-line-strong;
 }
 .search-field > .icon {
   @apply text-subtle size-[15px];
@@ -565,6 +582,7 @@ main:focus-visible {
 }
 .rea-evidence-panel {
   @apply bg-surface border border-line rounded-panel mb-4 min-w-0;
+  box-shadow: var(--shadow-card);
 }
 .rea-evidence-panel > summary {
   @apply px-5 py-4 cursor-pointer text-ui font-medium;
@@ -638,7 +656,7 @@ main:focus-visible {
   backdrop-filter: blur(2px);
 }
 .inventory-detail-panel {
-  @apply fixed end-0 inset-y-0 z-50 flex flex-col bg-raised text-ink w-full max-w-[480px] h-dvh border-s border-line-strong;
+  @apply fixed end-0 inset-y-0 z-50 flex flex-col bg-raised text-ink w-full max-w-[480px] h-dvh border-s border-line;
   box-shadow: var(--shadow-drawer);
 }
 .inventory-detail-panel[data-vaul-drawer] {

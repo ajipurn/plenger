@@ -38,7 +38,7 @@ export type ParticleScene = {
   pointer(x: number, y: number): void;
 };
 
-const BACKGROUND = "#0b0c12";
+const BACKGROUND = "#172b36";
 
 /** Shader colours are used as written; the output is not colour managed. */
 function rgb(hex: string): Vector3 {
@@ -87,9 +87,9 @@ export function createParticleScene(canvas: HTMLCanvasElement, monoFont: string)
     uAspect: { value: 1 },
     uMouse: { value: new Vector2(9, 9) },
     uSegments: { value: segmentValues },
-    uInk: { value: rgb("#ece9f2") },
-    uAccent: { value: rgb("#c6b8d9") },
-    uSignal: { value: rgb("#f5a66b") },
+    uInk: { value: rgb("#f1f6f4") },
+    uAccent: { value: rgb("#ffc801") },
+    uSignal: { value: rgb("#ff9932") },
   };
 
   const material = new ShaderMaterial({

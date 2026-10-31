@@ -109,8 +109,9 @@ project.
 
 ## Start a scan
 
-1. Press **New Scan** and choose **Run all** or **Static only** under **Steps to run**.
-2. Choose a local project and check its folder path.
+1. Press **New Scan**, choose a local project and check its folder path.
+   Optionally edit **Review context**, which is saved for subsequent scans.
+2. Choose **Run all** or **Static only** under **Steps to run**.
 3. For **Run all**, choose a saved provider, model, review mode and **Quick** or
    **Full coverage**. Save a connection in **Settings > Providers** first if needed.
    **Batch** sends each round the files the scan picks. **Explore**, selected for
@@ -119,8 +120,7 @@ project.
    or USD limit, or clear it to run without one. Choosing another model applies to
    this scan only. **Load models** refreshes the saved catalog. Optionally choose
    a different validation model.
-4. Optionally edit **Review context**, which is saved for subsequent scans.
-5. Press **Start Scan** for the whole workflow, or **Run static scan** for local
+4. Press **Start Scan** for the whole workflow, or **Run static scan** for local
    rules only. Run all sends redacted source and context to the selected providers
    and consumes model usage.
 

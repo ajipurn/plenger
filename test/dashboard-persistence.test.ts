@@ -54,7 +54,7 @@ describe("SQLite dashboard persistence", () => {
       expect(html).toContain('data-theme="light"');
       expect(html).not.toContain('data-theme="dark"');
       expect(html).toContain('name="color-scheme" content="light"');
-      expect(html).toContain('name="theme-color" content="#f7f7f7"');
+      expect(html).toContain('name="theme-color" content="#f1f6f4"');
       expect(response.headers.get("content-security-policy")).toContain("script-src 'self';");
     }
     await request("/api/theme", { theme: "dark" });

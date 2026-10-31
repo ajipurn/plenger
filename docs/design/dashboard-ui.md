@@ -37,13 +37,21 @@ the default and SQLite preserves the selected appearance before page scripts
 load. Use bundled Geist Sans for interface text and Geist Mono for source,
 paths and identifiers. Counts use tabular numbers.
 
-Dark appearance starts with Spinel Stone Black (`#272A3B`), Lynx White
-(`#F7F7F7`) text and Crater Crawler (`#C8CED6`) secondary text. Light appearance
-uses Lynx White and Cold Morning (`#E6E5E4`) surfaces with navy text.
-Primary actions and selected controls use Beets (`#736A86`) with white labels.
-Links and navigation use lighter purple in dark mode and deeper purple in light
-mode. Dark focus rings use Crushed Almond (`#D4CAC5`). Derive surface layers
-and borders from this palette, with readable contrast in both appearances.
+Light appearance uses the palette as given: Arctic Powder (`#F1F6F4`) canvas
+and fields, white cards, Mystic Mint (`#D9E8E3`) secondary surfaces and Oceanic
+Noir (`#172B36`) text. Primary actions use Forsythia (`#FFC801`) with Oceanic
+Noir labels. Links, selection and checked controls use Nocturnal Expedition
+(`#114C5A`). Deep Saffron (`#FF9932`) marks the current page and tab. Both warm
+colors also tint medium and high severity. Dark appearance is derived
+from the same colors: an Oceanic Noir canvas with surfaces lifting toward
+Nocturnal Expedition, Arctic Powder text, a lighter Nocturnal Expedition for
+links and selection, the same Forsythia actions and Deep Saffron marks, and
+Forsythia and Deep Saffron at full strength for medium and high severity. Dark focus rings use Mystic Mint. Derive surface layers and
+borders from this palette, with readable contrast in both appearances.
+Controls have depth: buttons and selected segments are raised, with a light top
+edge and a short shadow, and flatten slightly when pressed. Inputs, selects and
+segment tracks are recessed. Cards lift a little further and floating layers
+most. The depth comes from shadow tokens in `styles/tokens.css`.
 Reserve severity colors for finding severity and chart ribbons. Green indicates completed jobs.
 Workflow status and security severity are separate concepts. Keep actual source
 paths, review limitations and unknown values explicit.
@@ -125,10 +133,16 @@ scan. Do not invent account credits, hosted environments or remote integrations.
 Use a right drawer up to 760px wide and full width on phones. Keep its title
 and close action above the scrolling form. Cancel and Start Scan stay in a
 fixed footer, alongside a visible source-dispatch and API-usage disclosure.
-The form selects a saved local project, provider, model and scan depth. Start
-with the provider's default model. A scan's model choice does not change that
-default. Show the selected folder path. Keep optional review context in a disclosure.
-Use a simple vertical form without environment or scan-scope selectors.
+The form selects a saved local project, the steps to run, provider, model,
+review mode and scan depth, in that order. Labels sit left of their controls and
+stack above them on phones. Hairlines group the project and steps, the models,
+and the review settings. Binary choices are pill segmented controls whose raised thumb
+slides to the selected option. They describe only the selected option and its
+model calls. Selected segments, checkboxes and
+switches use the selection color. Start with the
+provider's default model. A scan's model choice does not change that default.
+Show the selected folder path. Keep optional review context in a disclosure
+under the project. Do not add environment or scan-scope selectors.
 Validation uses the same provider and model by default. A checkbox reveals
 separate validation provider and model choices. These apply only to this scan.
 Quick and Full coverage describe actual review coverage. Full coverage offers

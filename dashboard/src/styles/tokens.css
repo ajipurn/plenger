@@ -1,65 +1,83 @@
-/* Design tokens: Spinel Stone Black, Lynx White and Beets, with cool gray layers.
- * Dark is the default; light overrides the same names. Components read only these
- * tokens, so both appearances share layout, type and spacing.
+/* Design tokens. Light is the palette as given: Arctic Powder and Mystic Mint surfaces,
+ * Oceanic Noir text, Nocturnal Expedition for links and selection, Forsythia for primary
+ * actions and Deep Saffron for the active navigation mark. Dark is derived from it: Oceanic Noir
+ * surfaces lifting toward Nocturnal Expedition. Dark is the default; light overrides the
+ * same names. Components read only these tokens, so both appearances share layout, type
+ * and spacing.
  */
 :root {
   color-scheme: dark;
 
-  /* Navy surfaces, from the page canvas up to floating layers. */
-  --canvas: #272a3b;
-  --chrome: #232637;
-  --sidebar: #252839;
-  --surface: #2d3043;
-  --paper: #34374b;
-  --raised: #3b3e52;
-  --field: #292c3e;
-  --hover: #c8ced60d;
-  --line: #c8ced62b;
-  --line-strong: #888b9d;
+  /* Oceanic Noir surfaces, from the page canvas up to floating layers. */
+  --canvas: #172b36;
+  --chrome: #112530;
+  --sidebar: #142833;
+  --surface: #1b333f;
+  --paper: #1e3c47;
+  --raised: #21434e;
+  --field: #132731;
+  --hover: #d9e8e30d;
+  --line: #d9e8e32b;
+  /* Field, track and secondary button edges: lighter than --line-strong, since fill and
+   * shadow already set them apart. */
+  --line-control: #d9e8e33d;
+  --line-strong: #69868d;
 
-  /* Text. */
-  --ink: #f7f7f7;
+  /* Text: Arctic Powder, then Mystic Mint toned down. */
+  --ink: #f1f6f4;
   --ink-hover: #ffffff;
-  --muted: #c8ced6;
-  --subtle: #a5abb8;
+  --muted: #b8cdc5;
+  --subtle: #99b4b2;
 
-  /* Beets is lightened for links; Crushed Almond keeps focus distinct. */
-  --accent: #c6b8d9;
-  --accent-soft: #736a8633;
-  --navigation-accent: var(--accent);
-  --focus: #d4cac5;
+  /* Nocturnal Expedition is lightened for links and selection; Mystic Mint keeps focus distinct. */
+  --accent: #71cfd9;
+  --accent-soft: #71cfd924;
+  /* Deep Saffron marks the current page and tab in both appearances. */
+  --navigation-accent: #ff9932;
+  --focus: #d9e8e3;
+  /* Checked boxes and switches use the selection color. */
+  --checked: var(--accent);
+  --checked-fg: var(--canvas);
+  /* The raised thumb of a segmented control, tinted with the selection color in dark. */
+  --segment-thumb: #2c5761;
 
-  /* Semantic colors carry severity and outcome only. */
-  --critical: oklch(0.8 0.11 24);
-  --critical-soft: oklch(0.74 0.14 24 / 0.11);
-  --high: oklch(0.81 0.12 55);
-  --high-soft: oklch(0.78 0.12 55 / 0.11);
-  --medium: oklch(0.85 0.1 92);
-  --medium-soft: oklch(0.85 0.1 92 / 0.1);
-  --low: #c8ced6;
-  --low-soft: #c8ced614;
+  /* Semantic colors carry severity and outcome only. High and medium are Deep Saffron
+   * and Forsythia. */
+  --critical: #ff847c;
+  --critical-soft: #ff847c1f;
+  --high: #ff9932;
+  --high-soft: #ff99321f;
+  --medium: #ffc801;
+  --medium-soft: #ffc8011a;
+  --low: #b8cdc5;
+  --low-soft: #b8cdc514;
   --success: oklch(0.8 0.11 162);
   --success-soft: oklch(0.78 0.11 162 / 0.11);
 
-  --code-bg: #222536;
-  --code-fg: #e6e5e4;
-  --scrollbar: #c8ced640;
-  --scrollbar-hover: #c8ced673;
-  --surface-overlay: #171a2bb3;
+  --code-bg: #0e222d;
+  --code-fg: #d9e8e3;
+  --scrollbar: #d9e8e340;
+  --scrollbar-hover: #d9e8e373;
+  --surface-overlay: #0a1820b3;
 
-  /* Beets primary actions use Lynx White labels in both appearances. */
-  --primary-bg: #736a86;
-  --primary-fg: #f7f7f7;
-  --primary-hover: #675e78;
-  --primary-border: #9385a7;
-  /* Shadows stay inside or below the box so primary and secondary sizes match. */
-  --primary-shadow: inset 0 1px 0 #f7f7f714, 0 1px 2px #171a2b40;
+  /* Forsythia primary actions with Oceanic Noir labels (9.4:1) in both appearances. */
+  --primary-bg: #ffc801;
+  --primary-fg: #172b36;
+  --primary-hover: #f2bb00;
+  --primary-border: #e4ae00;
 
-  /* Depth: a hairline top highlight on cards, soft lift for floating layers. */
-  --highlight: inset 0 1px 0 #f7f7f708;
-  --shadow-card: var(--highlight), 0 1px 2px #171a2b66;
-  --shadow-popover: 0 0 0 1px #c8ced62b, 0 16px 40px -12px #171a2bcc, 0 4px 12px #171a2b66;
-  --shadow-drawer: -24px 0 64px #171a2b99;
+  /* Depth. Raised controls catch light on their top edge and cast a short shadow; fields
+   * are recessed; cards lift a little further; floating layers most. */
+  --highlight: inset 0 1px 0 #f1f6f40f;
+  --sheen: linear-gradient(to bottom, #f1f6f40d, #f1f6f400);
+  --primary-sheen: linear-gradient(to bottom, #ffffff40, #ffffff00);
+  --shadow-control: inset 0 1px 0 #f1f6f414, 0 1px 2px #0a182080, 0 2px 6px -2px #0a182066;
+  --shadow-pressed: inset 0 1px 1px #0a182040;
+  --primary-shadow: inset 0 1px 0 #ffffff66, 0 1px 2px #0a1820a6, 0 4px 10px -4px #0a1820b3;
+  --shadow-field: inset 0 1px 2px #0a182099, 0 1px 0 #f1f6f40a;
+  --shadow-card: var(--highlight), 0 1px 2px #0a182066, 0 8px 20px -10px #0a1820b3;
+  --shadow-popover: 0 0 0 1px #d9e8e32b, 0 16px 40px -12px #0a1820cc, 0 4px 12px #0a182066;
+  --shadow-drawer: -24px 0 64px #0a182099;
   --glow: none;
 
   /* Shape and rhythm. */
@@ -88,44 +106,49 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --canvas: #f7f7f7;
-  --chrome: #f7f7f7;
-  --sidebar: #e6e5e4;
+  --canvas: #f1f6f4;
+  --chrome: #f1f6f4;
+  --sidebar: #d9e8e3;
   --surface: #ffffff;
-  --paper: #e6e5e4;
+  --paper: #d9e8e3;
   --raised: #ffffff;
-  --field: #f7f7f7;
-  --hover: #736a860a;
-  --line: #c8ced6;
-  --line-strong: #807c8c;
-  --ink: #272a3b;
-  --ink-hover: #1f2232;
-  --muted: #5e6472;
-  --subtle: #656170;
-  --accent: #655b75;
-  --accent-soft: #736a8614;
+  --field: #f1f6f4;
+  --hover: #114c5a0d;
+  --line: #c5d5cf;
+  --line-control: #b0c4bd;
+  --line-strong: #6c858a;
+  --ink: #172b36;
+  --ink-hover: #0d1c24;
+  --muted: #446067;
+  --subtle: #4d6667;
+  --accent: #114c5a;
+  --accent-soft: #114c5a14;
   --focus: var(--accent);
-  --critical: oklch(0.5 0.17 24);
-  --critical-soft: oklch(0.6 0.17 24 / 0.08);
-  --high: oklch(0.5 0.13 50);
-  --high-soft: oklch(0.65 0.13 55 / 0.1);
-  --medium: oklch(0.5 0.1 85);
-  --medium-soft: oklch(0.8 0.12 90 / 0.16);
-  --low: #5e6472;
-  --low-soft: #c8ced633;
+  --segment-thumb: #ffffff;
+  --critical: #b02a2f;
+  --critical-soft: #e5484d14;
+  --high: #9b4805;
+  --high-soft: #ff993229;
+  --medium: #735603;
+  --medium-soft: #ffc80138;
+  --low: #446067;
+  --low-soft: #c5d5cf66;
   --success: oklch(0.47 0.1 162);
   --success-soft: oklch(0.6 0.1 162 / 0.1);
-  --code-bg: #ecebed;
-  --code-fg: #272a3b;
-  --scrollbar: #736a8640;
-  --scrollbar-hover: #736a8673;
-  --surface-overlay: #272a3b52;
-  --primary-border: #736a86;
-  --primary-shadow: inset 0 1px 0 #f7f7f71a, 0 1px 2px #272a3b26;
+  --code-bg: #e4eeea;
+  --code-fg: #172b36;
+  --scrollbar: #114c5a40;
+  --scrollbar-hover: #114c5a73;
+  --surface-overlay: #172b3652;
   --highlight: inset 0 1px 0 #ffffff;
-  --shadow-card: 0 0 0 0 transparent, 0 1px 2px #272a3b0a, 0 1px 3px #272a3b0a;
-  --shadow-popover: 0 0 0 1px #736a861f, 0 16px 40px -12px #272a3b2e, 0 4px 10px #272a3b0f;
-  --shadow-drawer: -16px 0 48px #272a3b24;
+  --sheen: linear-gradient(to bottom, #ffffff00, #172b3608);
+  --shadow-control: inset 0 1px 0 #ffffff, 0 1px 2px #172b361f, 0 2px 4px -2px #172b361a;
+  --shadow-pressed: inset 0 1px 1px #172b360f;
+  --primary-shadow: inset 0 1px 0 #ffffff73, 0 1px 2px #172b3633, 0 3px 8px -3px #9b6a0059;
+  --shadow-field: inset 0 1px 2px #172b3614;
+  --shadow-card: var(--highlight), 0 1px 2px #172b360d, 0 6px 16px -8px #172b3624;
+  --shadow-popover: 0 0 0 1px #114c5a1f, 0 16px 40px -12px #172b362e, 0 4px 10px #172b360f;
+  --shadow-drawer: -16px 0 48px #172b3624;
   --glow: none;
 }
 
@@ -142,6 +165,7 @@
   --color-muted: var(--muted);
   --color-subtle: var(--subtle);
   --color-line: var(--line);
+  --color-line-control: var(--line-control);
   --color-line-strong: var(--line-strong);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
