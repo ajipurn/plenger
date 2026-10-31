@@ -10,6 +10,7 @@ import {
 } from "../redteam/model-pricing.ts";
 import {
   createRunProvider,
+  ModelProviderConnectionError,
   ModelProviderFailureError,
   ModelProviderHttpError,
   type ModelReply,
@@ -489,11 +490,13 @@ export async function reviewProject(
             ? `The provider returned HTTP ${error.status}. Check its model and access settings.`
             : error instanceof ModelProviderFailureError
               ? error.message
-              : error instanceof ReviewResponseError || error instanceof AnthropicResponseError
-                ? `${phase === "validation" ? "Validation" : "Discovery"} response rejected. ${error.message}`
-                : error instanceof ReviewSourceError
-                  ? error.message
-                  : "Unable to complete the source review. Check source coverage, provider settings, and structured response support.";
+              : error instanceof ModelProviderConnectionError
+                ? `${error.message} Check the network connection and try again.`
+                : error instanceof ReviewResponseError || error instanceof AnthropicResponseError
+                  ? `${phase === "validation" ? "Validation" : "Discovery"} response rejected. ${error.message}`
+                  : error instanceof ReviewSourceError
+                    ? error.message
+                    : "Unable to complete the source review. Check source coverage, provider settings, and structured response support.";
   };
   try {
     options.onPhase?.("reading");

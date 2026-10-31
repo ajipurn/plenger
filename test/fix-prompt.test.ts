@@ -169,4 +169,20 @@ describe("coding agent fix prompt generation", () => {
       "ChatGPT usage limit reached (subscription_sharing_usage_limit_exceeded). Try again after it resets.",
     );
   });
+
+  it("names a failed provider connection", async () => {
+    const chatgpt: ProviderAccess = {
+      provider: "chatgpt",
+      model: "gpt-fix-test",
+      maxOutputTokens: 4096,
+      accessToken: async () => "test-access",
+    };
+    await expect(
+      generateFixPrompt(context, chatgpt, {}, async () => {
+        throw new TypeError("fetch failed");
+      }),
+    ).rejects.toThrow(
+      "ChatGPT connection failed or was interrupted. Check the network connection and try again.",
+    );
+  });
 });

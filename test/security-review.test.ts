@@ -317,6 +317,54 @@ describe("source-based AI security review", () => {
     );
   });
 
+  it.each([
+    {
+      broken: "a failed connection",
+      reason: "ChatGPT connection failed or was interrupted.",
+      dispatch: async (): Promise<Response> => {
+        throw new TypeError("fetch failed: private-transport-detail");
+      },
+    },
+    {
+      broken: "a reply stream that breaks off",
+      reason: "ChatGPT stream ended before completion.",
+      dispatch: async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: {"type":"response.created"}\n\n'));
+            },
+            pull(controller) {
+              controller.error(new TypeError("terminated: private-transport-detail"));
+            },
+          }),
+        ),
+    },
+    {
+      broken: "a reply stream that ends early",
+      reason: "ChatGPT stream ended before completion.",
+      dispatch: async () => new Response('data: {"type":"response.created"}\n\n'),
+    },
+  ])("names $broken as the review's reason", async ({ reason, dispatch }) => {
+    const snapshot = await scan(await writeReviewProject(await temporaryDir()));
+    const review = await reviewProject(
+      snapshot,
+      {
+        scanId: "scan",
+        provider,
+        access: {
+          provider: "chatgpt",
+          model: "gpt-review-test",
+          maxOutputTokens: 8192,
+          accessToken: async () => "test-access",
+        },
+      },
+      dispatch,
+    );
+    expect(review.status).toBe("failed");
+    expect(review.reason).toBe(`${reason} Check the network connection and try again.`);
+  });
+
   it("identifies the failed stage and field without accepting unknown files or echoing provider text", async () => {
     const snapshot = await scan(await writeReviewProject(await temporaryDir()));
     const invalid = reviewDiscovery();

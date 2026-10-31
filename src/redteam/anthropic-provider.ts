@@ -4,6 +4,7 @@ import { ANTHROPIC, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP } from "./constants.ts
 import { type ClaudeTokenUsage, parseClaudeTokenUsage } from "./model-pricing.ts";
 import {
   eventStream,
+  ModelProviderConnectionError,
   ModelProviderHttpError,
   type ModelReply,
   type ModelRequest,
@@ -150,7 +151,7 @@ export function createAnthropicProvider(
           body: encoded,
         });
       } catch {
-        throw new Error("Claude connection failed or was interrupted.");
+        throw new ModelProviderConnectionError("Claude", "request");
       }
       if (!response.ok) {
         await response.body?.cancel();
@@ -317,7 +318,7 @@ async function streamedMessage(
         message.usage = { ...record(message.usage ?? {}), ...record(event.usage) };
     } else if (event.type === "message_stop") stopped = true;
   }
-  if (!message || !stopped) throw new Error("Claude stream ended before completion.");
+  if (!message || !stopped) throw new ModelProviderConnectionError("Claude", "stream");
   message.content = blocks;
   if (Buffer.byteLength(JSON.stringify(message)) > MODEL_RESPONSE_CAP)
     throw new Error("Model response exceeds the size limit.");

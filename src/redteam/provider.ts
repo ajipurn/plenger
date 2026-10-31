@@ -124,6 +124,20 @@ export class ModelProviderFailureError extends Error {
 }
 
 /**
+ * A request's connection failed, or its reply stream broke off before the reply completed.
+ * Only the provider's label is surfaced; the transport's own error may hold request data.
+ */
+export class ModelProviderConnectionError extends Error {
+  constructor(label: string, stage: "request" | "stream") {
+    super(
+      stage === "request"
+        ? `${label} connection failed or was interrupted.`
+        : `${label} stream ended before completion.`,
+    );
+  }
+}
+
+/**
  * Tool definitions as chat-completions function tools. Workers forward what the
  * framework hands its model class: the Vercel worker sends `{type: "function",
  * function: {...}}`, llmfy 0.11 sends the flat `{name, description, parameters,
@@ -227,7 +241,7 @@ export function createRunProvider(
           body: JSON.stringify(requestBody(request, maxOutputTokens)),
         });
       } catch {
-        throw new Error("Model connection failed or was interrupted.");
+        throw new ModelProviderConnectionError("Model", "request");
       }
       if (!response.ok) {
         await response.body?.cancel();
@@ -454,7 +468,9 @@ export async function* serverEvents(
     bytes = 0;
   try {
     for (;;) {
-      const chunk = await reader.read();
+      const chunk = await reader.read().catch(() => {
+        throw new ModelProviderConnectionError(label, "stream");
+      });
       if (chunk.done) break;
       bytes += chunk.value.byteLength;
       if (bytes > byteCap) throw new Error(`${label} stream exceeds the size limit.`);
@@ -480,7 +496,8 @@ export async function* serverEvents(
       }
     }
   } finally {
-    await reader.cancel();
+    // Cancelling a broken stream rejects with its transport error, which would replace ours.
+    await reader.cancel().catch(() => {});
   }
 }
 

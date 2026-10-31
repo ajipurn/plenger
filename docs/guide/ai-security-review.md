@@ -128,7 +128,9 @@ Rejected replies identify Discovery or Validation and a JSON field location,
 such as `$.findings[0].evidence[0].path`. Diagnostics do not echo rejected model
 values or credentials. A provider that fails a request inside its reply, such
 as a ChatGPT stream that reports a reached usage limit, is named with its error
-code only, never its message. A failed AI review leaves completed static findings
+code only, never its message. A connection that fails, or a reply stream that
+breaks off before it completes, is named as such with the provider's name only.
+A failed AI review leaves completed static findings
 available. No automatic repair or provider retry occurs. Raw provider replies
 are not persisted. Earlier failed records can only show their original generic
 message; a new scan uses the updated contract and diagnostics.

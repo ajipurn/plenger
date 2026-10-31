@@ -2,6 +2,7 @@ import { isRecord } from "../shared/guards.ts";
 import { CHATGPT, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP } from "./constants.ts";
 import { parseOpenAIResponsesTokenUsage } from "./model-pricing.ts";
 import {
+  ModelProviderConnectionError,
   ModelProviderFailureError,
   ModelProviderHttpError,
   type ModelRequest,
@@ -139,7 +140,7 @@ export function createChatgptProvider(access: ProviderAccess, dispatch: typeof f
           body: encoded,
         });
       } catch {
-        throw new Error("ChatGPT connection failed or was interrupted.");
+        throw new ModelProviderConnectionError("ChatGPT", "request");
       }
       if (!response.ok) {
         await response.body?.cancel();
@@ -280,5 +281,5 @@ async function completedResponse(
       return result;
     }
   }
-  throw new Error("ChatGPT stream ended before completion.");
+  throw new ModelProviderConnectionError("ChatGPT", "stream");
 }
