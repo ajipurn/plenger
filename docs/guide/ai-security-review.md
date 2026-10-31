@@ -337,7 +337,9 @@ checked against the scan's token or USD limit before it is sent. Every turn
 resends the conversation, so an Explore round uses more tokens than a Batch round.
 On Claude each turn asks the API to cache its prefix, so the next turn reads
 the earlier conversation at the cache-read price; usage reports cache reads
-and writes, and the cost estimate prices them.
+and writes, and the cost estimate prices them. On the OpenAI API each session
+sends one `prompt_cache_key`, so its turns reach the same prompt cache. ChatGPT,
+Gemini and Ollama cache prefixes on their own.
 
 **Quick** runs one round. **Full coverage** runs rounds
 until every readable file was read and its static candidates were attempted,

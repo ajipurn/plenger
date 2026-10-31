@@ -587,6 +587,12 @@ describe("exploring AI review", () => {
       expect(body.cache_control).toBeUndefined();
       expect(body.max_completion_tokens).toBe(EXPLORE_LIMITS.outputTokens);
     }
+    // A session's turns share one prompt cache key; the validation session has its own.
+    const [first, second, validation] = bodies.map((body) => body.prompt_cache_key);
+    expect(first).toEqual(expect.any(String));
+    expect(second).toBe(first);
+    expect(validation).toEqual(expect.any(String));
+    expect(validation).not.toBe(first);
   });
 
   it("tells a later exploring review what earlier reviews read and reported", async () => {

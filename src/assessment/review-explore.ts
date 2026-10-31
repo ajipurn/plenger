@@ -6,6 +6,7 @@
  * read, so citations can be checked against it. Nothing here executes project code.
  */
 
+import { randomUUID } from "node:crypto";
 import { type ModelReply, type ModelRequest, reachedOutputLimit } from "../redteam/provider.ts";
 import type { ScanResult } from "../scan.ts";
 import { redact } from "../shared/secrets.ts";
@@ -463,6 +464,8 @@ export async function exploreSession<T>(options: {
     { role: "system", content: options.instructions },
     { role: "user", content: JSON.stringify(options.first) },
   ];
+  // Every turn resends the conversation, so its turns share one prompt cache.
+  const conversation = randomUUID();
   let corrections = 0;
   let nudges = 0;
   let closingSent = false;
@@ -499,7 +502,7 @@ export async function exploreSession<T>(options: {
       try {
         // Every turn offers the same tools, so earlier tool use stays valid; the host
         // answers anything but the submit tool after the closing notice.
-        reply = await options.send({ messages, tools: all, cache: true });
+        reply = await options.send({ messages, tools: all, cache: conversation });
       } catch (error) {
         if (error instanceof ExploreLimitError) return finish(error.stop, null);
         // A reply cut at its output allowance is incomplete and is discarded. The

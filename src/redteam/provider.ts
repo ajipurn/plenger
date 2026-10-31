@@ -24,10 +24,11 @@ export interface ModelRequest {
   /** Host-owned structured output schema. Currently used by native Claude reviews. */
   outputSchema?: Record<string, unknown>;
   /**
-   * A conversation whose next turn resends this one: Claude caches the prefix up to the
-   * last block. Other transports cache prefixes on their own and ignore it.
+   * The id of a conversation whose next turn resends this one: Claude caches the prefix
+   * up to the last block, and the OpenAI API routes the conversation's turns to one
+   * prompt cache. Other transports cache prefixes on their own and ignore it.
    */
-  cache?: boolean;
+  cache?: string;
 }
 export interface ModelReply {
   content: string | null;
@@ -209,6 +210,7 @@ export function createRunProvider(
     ...(access.provider === "openai"
       ? { max_completion_tokens: maxOutputTokens, store: false }
       : { max_tokens: maxOutputTokens }),
+    ...(access.provider === "openai" && request.cache ? { prompt_cache_key: request.cache } : {}),
   });
   return {
     name: access.provider,
