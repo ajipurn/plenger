@@ -1,6 +1,8 @@
+import { isRecord } from "../shared/guards.ts";
 import { CHATGPT, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP } from "./constants.ts";
 import { parseOpenAIResponsesTokenUsage } from "./model-pricing.ts";
 import {
+  ModelProviderFailureError,
   ModelProviderHttpError,
   type ModelRequest,
   ModelResponseError,
@@ -217,6 +219,17 @@ const DELTAS = new Set([
   "response.reasoning_text.delta",
 ]);
 
+/** The code a failed stream names: on its error event, its failed response or why it stopped. */
+function failureCode(event: Record<string, unknown>): unknown {
+  const field = (value: unknown, key: string) => (isRecord(value) ? value[key] : undefined);
+  return (
+    event.code ??
+    field(event.error, "code") ??
+    field(field(event.response, "error"), "code") ??
+    field(field(event.response, "incomplete_details"), "reason")
+  );
+}
+
 async function completedResponse(
   response: Response,
   progress: ReturnType<typeof replyProgress>,
@@ -244,9 +257,7 @@ async function completedResponse(
       throw details ? new ModelResponseError(error, details) : error;
     }
     if (["error", "response.failed", "response.incomplete"].includes(String(event.type)))
-      throw new Error(
-        "ChatGPT response failed. Check access and usage limits in ChatGPT settings.",
-      );
+      throw new ModelProviderFailureError("ChatGPT", failureCode(event));
     if (event.type === "response.output_item.done") {
       if (!Number.isSafeInteger(event.output_index) || (event.output_index as number) < 0)
         throw new Error("Invalid ChatGPT output index.");

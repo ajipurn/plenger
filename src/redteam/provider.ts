@@ -107,6 +107,23 @@ export class ModelProviderHttpError extends Error {
 }
 
 /**
+ * A provider failed a request inside an accepted response, such as a stream's error event.
+ * Only a short error code is surfaced; provider messages may echo request data.
+ */
+export class ModelProviderFailureError extends Error {
+  readonly code: string | null;
+  constructor(provider: string, code: unknown) {
+    const known = typeof code === "string" && /^[\w.-]{1,64}$/.test(code) ? code : null;
+    super(
+      known && /usage_limit|quota|rate_limit/.test(known)
+        ? `${provider} usage limit reached (${known}). Try again after it resets.`
+        : `${provider} response failed${known ? ` (${known})` : ""}. Check access and usage limits in ${provider} settings.`,
+    );
+    this.code = known;
+  }
+}
+
+/**
  * Tool definitions as chat-completions function tools. Workers forward what the
  * framework hands its model class: the Vercel worker sends `{type: "function",
  * function: {...}}`, llmfy 0.11 sends the flat `{name, description, parameters,

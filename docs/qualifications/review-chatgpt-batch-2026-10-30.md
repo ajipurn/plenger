@@ -96,4 +96,5 @@ candidate validation run on this transport, not their detection rates. At run
 time the report did not count static findings; the rescored rows come from its
 JSON outcomes. After this run the evaluation counts kept static findings and
 reports discovery alone, and the duplicate check compares the CWE family and the
-marked sinks. Neither change has a live run yet.
+marked sinks. The [run after both changes](review-chatgpt-batch-2026-10-30-duplicates.md)
+measures them.

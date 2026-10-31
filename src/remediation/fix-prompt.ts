@@ -3,6 +3,7 @@ import type { ReaObject } from "../evidence/rea-model.ts";
 import { BudgetStoppedError, ModelBudget } from "../redteam/budget.ts";
 import {
   createRunProvider,
+  ModelProviderFailureError,
   ModelProviderHttpError,
   type ModelRequest,
   type ProviderAccess,
@@ -114,6 +115,8 @@ export async function generateFixPrompt(
     };
   } catch (error) {
     if (error instanceof FixPromptError) throw error;
+    if (error instanceof ModelProviderFailureError)
+      throw new FixPromptError(error.message, { cause: error });
     if (error instanceof ModelProviderHttpError)
       throw new FixPromptError(
         `The provider returned HTTP ${error.status}. Check the saved provider's model and access.`,

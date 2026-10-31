@@ -291,6 +291,32 @@ describe("source-based AI security review", () => {
     expect(await readFile(join(root, "server.ts"), "utf8")).toBe(before);
   });
 
+  it("reports a provider's usage limit as the review's reason", async () => {
+    const snapshot = await scan(await writeReviewProject(await temporaryDir()));
+    const event = {
+      type: "error",
+      error: { code: "subscription_sharing_usage_limit_exceeded", message: "private-error" },
+    };
+    const review = await reviewProject(
+      snapshot,
+      {
+        scanId: "scan",
+        provider,
+        access: {
+          provider: "chatgpt",
+          model: "gpt-review-test",
+          maxOutputTokens: 8192,
+          accessToken: async () => "test-access",
+        },
+      },
+      async () => new Response(`data: ${JSON.stringify(event)}\n\n`),
+    );
+    expect(review.status).toBe("failed");
+    expect(review.reason).toBe(
+      "ChatGPT usage limit reached (subscription_sharing_usage_limit_exceeded). Try again after it resets.",
+    );
+  });
+
   it("identifies the failed stage and field without accepting unknown files or echoing provider text", async () => {
     const snapshot = await scan(await writeReviewProject(await temporaryDir()));
     const invalid = reviewDiscovery();

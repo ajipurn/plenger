@@ -146,4 +146,27 @@ describe("coding agent fix prompt generation", () => {
     expect(signal?.aborted).toBe(true);
     expect(dispatch).toHaveBeenCalledTimes(2);
   });
+
+  it("names a provider's usage limit", async () => {
+    const event = {
+      type: "error",
+      error: { code: "subscription_sharing_usage_limit_exceeded", message: "private-error" },
+    };
+    const chatgpt: ProviderAccess = {
+      provider: "chatgpt",
+      model: "gpt-fix-test",
+      maxOutputTokens: 4096,
+      accessToken: async () => "test-access",
+    };
+    await expect(
+      generateFixPrompt(
+        context,
+        chatgpt,
+        {},
+        async () => new Response(`data: ${JSON.stringify(event)}\n\n`),
+      ),
+    ).rejects.toThrow(
+      "ChatGPT usage limit reached (subscription_sharing_usage_limit_exceeded). Try again after it resets.",
+    );
+  });
 });

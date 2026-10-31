@@ -8,6 +8,7 @@ import { chatgptModels } from "../src/redteam/chatgpt-auth.ts";
 import { CHATGPT, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP } from "../src/redteam/constants.ts";
 import {
   createRunProvider,
+  ModelProviderFailureError,
   type ModelRequest,
   type ReplyProgress,
   reachedOutputLimit,
@@ -552,6 +553,41 @@ describe("ChatGPT streaming provider", () => {
     await expect(
       provider(async () => new Response(body)).generate(request, allowance()),
     ).rejects.toThrow();
+  });
+
+  it("names a usage limit and other failure codes, never the provider's message", async () => {
+    const failure = (event: Record<string, unknown>) =>
+      provider(async () => new Response(`data: ${JSON.stringify(event)}\n\n`))
+        .generate(request, allowance())
+        .catch((error: unknown) => error);
+    const limit = await failure({
+      type: "error",
+      error: {
+        type: "invalid_request_error",
+        code: "subscription_sharing_usage_limit_exceeded",
+        message: "private-error",
+      },
+    });
+    expect(limit).toBeInstanceOf(ModelProviderFailureError);
+    expect(String(limit)).toContain(
+      "ChatGPT usage limit reached (subscription_sharing_usage_limit_exceeded). Try again after it resets.",
+    );
+    const failed = await failure({
+      type: "response.failed",
+      response: { error: { code: "server_error", message: "private-error" } },
+    });
+    expect(String(failed)).toContain(
+      "ChatGPT response failed (server_error). Check access and usage limits in ChatGPT settings.",
+    );
+    // A code that is not a short identifier is left out.
+    const unnamed = await failure({
+      type: "response.failed",
+      response: { error: { code: "private error text" } },
+    });
+    expect(String(unnamed)).toContain(
+      "ChatGPT response failed. Check access and usage limits in ChatGPT settings.",
+    );
+    for (const error of [limit, failed, unnamed]) expect(String(error)).not.toContain("private");
   });
 
   it("reports reasoning, written characters and the composed tool, never the text", async () => {
