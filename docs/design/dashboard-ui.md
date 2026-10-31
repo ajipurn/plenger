@@ -24,8 +24,11 @@ settings routes. Header, tabs and content share a 1280px container with
 second outer gutter. Do not restore the old
 Overview, Inventory or campaign sidebar in this shell. The workspace has no footer.
 The header rows are 56px and 40px tall. Tables and drawers use compact padding.
-Settings includes Appearance, Providers and Data. The Dark mode switch lives in
-Appearance and saves changes immediately.
+Settings includes Appearance, Providers and Data. Appearance holds the Theme
+choice: Dark, System or Light, as radio cards that each preview the dashboard
+in their appearance. System shows light and dark side by side. The Density
+choice, Comfortable or Compact, uses the same cards with a findings table that
+shows more rows when compact. A choice saves immediately.
 
 The navbar uses the existing `/mark.svg` brand asset, shared with the favicon.
 Keep this logo when changing navigation or menu icons.
@@ -34,8 +37,11 @@ Read colors, radii and typography from `styles/tokens.css`. Layout rules for
 this shell live in `styles/security.css`; shared controls remain in
 `styles/styles.css`. Light and dark appearances share structure. Dark remains
 the default and SQLite preserves the selected appearance before page scripts
-load. Use bundled Geist Sans for interface text and Geist Mono for source,
-paths and identifiers. Counts use tabular numbers.
+load. System follows the device setting in CSS, so it also applies before
+scripts run and changes with the device. Any element with `data-theme` takes
+that appearance's tokens, which is how the previews show both. Use bundled
+Geist Sans for interface text and Geist Mono for source, paths and identifiers.
+Counts use tabular numbers.
 
 Light appearance uses the palette as given: Arctic Powder (`#F1F6F4`) canvas
 and fields, white cards, Mystic Mint (`#D9E8E3`) secondary surfaces and Oceanic
@@ -188,6 +194,11 @@ radius. Use shared control tokens for padding and icon size. On small screens
 controls are 40px with 16px type; coarse pointers use 44px controls. Multiline fields and selection indicators
 keep their appropriate shapes. Primary and secondary buttons have the same
 geometry. Do not add individual size overrides in page styles.
+
+Density changes spacing, never control size. Table, round and coverage rows,
+panel padding and the gaps between panels read `--row-padding-block`,
+`--panel-padding` and `--section-gap`. Compact sets them to 6px, 16px and 12px
+from 12px, 20px and 20px. Use these tokens for new repeated rows and panels.
 
 The navigation always has its own header row. Below 480px the four tabs use
 equal columns with icons above their labels. All labels stay visible.

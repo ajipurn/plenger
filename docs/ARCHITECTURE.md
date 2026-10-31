@@ -240,8 +240,8 @@ imports only types from `run.ts`, `campaign.ts` and `plan.ts`.
 `src/storage/` owns the SQLite database used by the dashboard, including saved
 provider connections. `database.ts` opens the file and
 applies `migrations.ts` (an ordered list keyed by `user_version`).
-`scan-repository.ts` keeps projects, scans, plans, the selected workspace and the
-theme; `redteam-repository.ts` keeps runs, campaigns and run profiles and
+`scan-repository.ts` keeps projects, scans, plans, the selected workspace, the
+theme and the density; `redteam-repository.ts` keeps runs, campaigns and run profiles and
 recovers interrupted ones on open; `provider-repository.ts` keeps provider
 connections and their sealed keys (`provider-secrets.ts`), including the sealed
 ChatGPT OAuth session and the lease that serialises its refresh across
@@ -279,7 +279,7 @@ The service in `src/dashboard/` binds `127.0.0.1`, issues a per-process token an
 serves the built page from `dashboard/dist` in the npm package or checkout.
 `server.ts` listens and dispatches through the explicit route table in
 `routes/index.ts`; each file under `routes/` handles one area (session, state,
-scan, history, folders, providers, security workspace, red-team, theme). `http.ts` holds the request
+scan, history, folders, providers, security workspace, red-team, appearance). `http.ts` holds the request
 validators and `HttpError`, `security.ts` the headers and CSP, `operations.ts` the
 supervisor that serialises long operations and cancellation, `static-assets.ts`
 the asset serving, and `chatgpt-login.ts` the one browser sign-in a dashboard

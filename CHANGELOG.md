@@ -68,6 +68,14 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- **Settings > Appearance** has a **Theme** choice of Dark, System or Light,
+  replacing the Dark mode switch. Each option previews the dashboard. System
+  follows the device setting, applies before scripts load and changes with the
+  device. The saved theme is kept when the database upgrades.
+- **Settings > Appearance** also has a **Density** choice. Compact tightens
+  table and round rows, panel padding and the gaps between panels, so more
+  findings fit on screen. Buttons and fields keep their size. Comfortable stays
+  the default.
 - Delete a project from **Projects** or its detail page after confirming in a
   dialog. Its scans, findings, reviews, imported evidence, threat model and
   red-team results are deleted with it; the folder stays unchanged. Deletion

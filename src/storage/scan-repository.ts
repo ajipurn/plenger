@@ -1,6 +1,13 @@
 import type { ProjectPlan } from "../redteam/plan.ts";
 import { parsePayload, type Storage, textColumn } from "./database.ts";
-import type { DashboardScan, DashboardScanSummary, DashboardTheme } from "./records.ts";
+import {
+  type DashboardDensity,
+  type DashboardScan,
+  type DashboardScanSummary,
+  type DashboardTheme,
+  isDashboardDensity,
+  isDashboardTheme,
+} from "./records.ts";
 
 /** Projects, scan snapshots, target plans, the selected workspace and the theme. */
 export class ScanRepository {
@@ -60,8 +67,10 @@ export class ScanRepository {
   }
 
   readTheme(): DashboardTheme {
-    const row = this.#storage.database.prepare("SELECT theme FROM preferences WHERE id = 1").get();
-    return row?.theme === "light" ? "light" : "dark";
+    const theme = this.#storage.database
+      .prepare("SELECT theme FROM preferences WHERE id = 1")
+      .get()?.theme;
+    return isDashboardTheme(theme) ? theme : "dark";
   }
 
   saveTheme(theme: DashboardTheme): void {
@@ -70,6 +79,21 @@ export class ScanRepository {
         "INSERT INTO preferences (id, theme) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET theme = excluded.theme",
       )
       .run(theme);
+  }
+
+  readDensity(): DashboardDensity {
+    const density = this.#storage.database
+      .prepare("SELECT density FROM preferences WHERE id = 1")
+      .get()?.density;
+    return isDashboardDensity(density) ? density : "comfortable";
+  }
+
+  saveDensity(density: DashboardDensity): void {
+    this.#storage.database
+      .prepare(
+        "INSERT INTO preferences (id, theme, density) VALUES (1, 'dark', ?) ON CONFLICT (id) DO UPDATE SET density = excluded.density",
+      )
+      .run(density);
   }
 
   selectProject(project: string): void {

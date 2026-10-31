@@ -76,6 +76,7 @@ export const API = {
   state: "/api/state",
   clear: "/api/state/clear",
   theme: "/api/theme",
+  density: "/api/density",
   openScan: "/api/history/open",
   folders: "/api/folders",
   chooseFolder: "/api/folders/choose",
@@ -125,13 +126,26 @@ export const SELECT_SEARCH_MIN_OPTIONS = 10;
 // --- Shared models ----------------------------------------------------------------
 
 export type {
+  DashboardAppearance,
+  DashboardDensity,
   DashboardScan,
   DashboardScanSummary,
   DashboardTheme,
   SavedRunProfile,
 } from "../storage/records.ts";
+export {
+  DASHBOARD_DENSITIES,
+  DASHBOARD_THEMES,
+  isDashboardDensity,
+  isDashboardTheme,
+} from "../storage/records.ts";
 
-import type { DashboardTheme, WorkspaceSnapshot } from "../storage/records.ts";
+import type {
+  DashboardAppearance,
+  DashboardDensity,
+  DashboardTheme,
+  WorkspaceSnapshot,
+} from "../storage/records.ts";
 
 /** The response of `GET /api/state`. */
 export type DashboardState = WorkspaceSnapshot;
@@ -140,6 +154,7 @@ export interface DashboardSession {
   workspace: string;
   token: string;
   theme: DashboardTheme;
+  density: DashboardDensity;
 }
 
 export interface FolderListing {
@@ -162,6 +177,9 @@ export interface PlanRequest extends ProjectRequest {
 }
 export interface ThemeResult {
   theme: DashboardTheme;
+}
+export interface DensityResult {
+  density: DashboardDensity;
 }
 export interface ChooseFolderResult {
   /** `null` when the person cancelled the system dialog. */
@@ -328,27 +346,51 @@ export const CAMPAIGN_LIMITS = {
 
 // --- Theme ------------------------------------------------------------------------
 
-/** Browser chrome colours matching each theme's page background. */
-export const THEME_COLORS: Record<DashboardTheme, string> = {
+/** Browser chrome colours matching each appearance's page background. */
+export const THEME_COLORS = {
   dark: "#172b36",
   light: "#f1f6f4",
-};
+} as const satisfies Record<Exclude<DashboardTheme, "system">, string>;
+
+/** The `color-scheme` value for a theme; System lets the browser follow the device. */
+export function themeColorScheme(theme: DashboardTheme): string {
+  return theme === "system" ? "light dark" : theme;
+}
+
+/** The `theme-color` metas for a theme. System has one per device setting. */
+export function themeColorMetas(theme: DashboardTheme): { media?: string; content: string }[] {
+  return theme === "system"
+    ? [
+        { media: "(prefers-color-scheme: dark)", content: THEME_COLORS.dark },
+        { media: "(prefers-color-scheme: light)", content: THEME_COLORS.light },
+      ]
+    : [{ content: THEME_COLORS[theme] }];
+}
 
 /**
- * Rewrite the shell's `<html data-theme>`, `color-scheme` and `theme-color` so the
- * saved theme applies before any script runs. The service does this for every HTML
- * response; the Vite dev server does it for its transformed index.
+ * Rewrite the shell's `<html data-theme data-density>`, `color-scheme` and `theme-color`
+ * so the saved appearance applies before any script runs. The service does this for
+ * every HTML response; the Vite dev server does it for its transformed index.
  */
-export function applyThemeToHtml(html: string, theme: DashboardTheme): string {
+export function applyAppearanceToHtml(
+  html: string,
+  { theme, density }: DashboardAppearance,
+): string {
+  const colors = themeColorMetas(theme)
+    .map(
+      ({ media, content }) =>
+        `<meta name="theme-color"${media ? ` media="${media}"` : ""} content="${content}" />`,
+    )
+    .join("");
   return html
     .replace(
       /<html\b([^>]*)>/i,
       (_match, attributes: string) =>
-        `<html${attributes.replace(/\sdata-theme="[^"]*"/i, "")} data-theme="${theme}">`,
+        `<html${attributes.replace(/\sdata-(theme|density)="[^"]*"/gi, "")} data-theme="${theme}" data-density="${density}">`,
     )
-    .replace(/name="color-scheme" content="[^"]*"/, `name="color-scheme" content="${theme}"`)
     .replace(
-      /name="theme-color" content="[^"]*"/,
-      `name="theme-color" content="${THEME_COLORS[theme]}"`,
-    );
+      /name="color-scheme" content="[^"]*"/,
+      `name="color-scheme" content="${themeColorScheme(theme)}"`,
+    )
+    .replace(/<meta name="theme-color"[^>]*>/, colors);
 }

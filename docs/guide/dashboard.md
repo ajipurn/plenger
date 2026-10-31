@@ -52,8 +52,10 @@ row. Header, navigation and main content share the same centered width.
 The main tabs are **Findings**, **Projects**, **Scans** and **Settings**.
 Each tab has an icon. Settings sits beside Scans and opens the provider
 connection settings. **New Scan** is available in the header
-and beside each project. Open **Settings > Appearance** to switch Dark mode on or off.
-The theme is saved in SQLite and applied before scripts load.
+and beside each project. Open **Settings > Appearance** to choose the Dark, System
+or Light theme. System follows your device setting and changes with it.
+Choose **Compact** density there to fit more rows on screen.
+The theme and density are saved in SQLite and applied before scripts load.
 
 Routes are `/findings`, `/projects`, `/projects/:id`, `/scans`, `/scans/:id`,
 `/findings/:id`, `/settings/appearance`, `/settings/providers` and `/settings/data`.

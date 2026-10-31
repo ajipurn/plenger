@@ -1,10 +1,15 @@
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
-import { API, applyThemeToHtml } from "../src/dashboard/contract.ts";
+import {
+  API,
+  applyAppearanceToHtml,
+  isDashboardDensity,
+  isDashboardTheme,
+} from "../src/dashboard/contract.ts";
 
 const apiTarget = process.env.PLENGER_DASHBOARD_API_TARGET;
 
-/** In development the service still owns the saved theme; apply it to Vite's index too. */
+/** In development the service still owns the saved appearance; apply it to Vite's index too. */
 function savedThemePlugin(target: string) {
   return {
     name: "plenger-saved-theme",
@@ -14,10 +19,12 @@ function savedThemePlugin(target: string) {
         try {
           const sessionResponse = await fetch(`${target}${API.session}`, { cache: "no-store" });
           if (!sessionResponse.ok) return html;
-          const session = (await sessionResponse.json()) as { theme?: unknown };
-          const theme = session.theme;
-          if (theme !== "dark" && theme !== "light") return html;
-          return applyThemeToHtml(html, theme);
+          const { theme, density } = (await sessionResponse.json()) as {
+            theme?: unknown;
+            density?: unknown;
+          };
+          if (!isDashboardTheme(theme) || !isDashboardDensity(density)) return html;
+          return applyAppearanceToHtml(html, { theme, density });
         } catch {
           // The service may still be starting; the page falls back to its default theme.
           return html;

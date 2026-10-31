@@ -4,6 +4,7 @@ import {
   type CostSummary,
   tokenCost,
 } from "../../../src/redteam/model-pricing.ts";
+import { Icon } from "../shared/icons.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 
 export function costLabel(cost: CostSummary | null | undefined): string {
@@ -51,40 +52,45 @@ export function ScanBilling({ reviews }: { reviews: SecurityReview[] }) {
     return null;
   return (
     <details className="security-billing">
-      <summary>Token usage and cost details</summary>
-      <p className="muted">
-        USD estimates use the prices captured when this scan started. They are not an invoice and
-        exclude taxes, discounts and other service charges. Incomplete usage is never assumed to be
-        zero.
-      </p>
-      {reviews.some(
-        (review) =>
-          review.request.billing?.basis === "api-equivalent" ||
-          review.request.validatorBilling?.basis === "api-equivalent",
-      ) && (
+      <summary>
+        <Icon name="chevron" />
+        <span>Token usage and cost details</span>
+      </summary>
+      <div className="security-billing-body">
         <p className="muted">
-          Subscription estimates use standard OpenAI API prices for the reported tokens.
-          Subscription billing and quota are separate.
+          USD estimates use the prices captured when this scan started. They are not an invoice and
+          exclude taxes, discounts and other service charges. Incomplete usage is never assumed to
+          be zero.
         </p>
-      )}
-      {reviews.map((review, index) => (
-        <div key={review.id}>
-          {review.request.billing && (
-            <BillingSection
-              id={`${review.id}-discovery`}
-              title={`Round ${index + 1} · discovery · ${review.provider.model}`}
-              billing={review.request.billing}
-            />
-          )}
-          {review.validator && review.request.validatorBilling && (
-            <BillingSection
-              id={`${review.id}-validator`}
-              title={`Round ${index + 1} · validation · ${review.validator.model}`}
-              billing={review.request.validatorBilling}
-            />
-          )}
-        </div>
-      ))}
+        {reviews.some(
+          (review) =>
+            review.request.billing?.basis === "api-equivalent" ||
+            review.request.validatorBilling?.basis === "api-equivalent",
+        ) && (
+          <p className="muted">
+            Subscription estimates use standard OpenAI API prices for the reported tokens.
+            Subscription billing and quota are separate.
+          </p>
+        )}
+        {reviews.map((review, index) => (
+          <div key={review.id}>
+            {review.request.billing && (
+              <BillingSection
+                id={`${review.id}-discovery`}
+                title={`Round ${index + 1} · discovery · ${review.provider.model}`}
+                billing={review.request.billing}
+              />
+            )}
+            {review.validator && review.request.validatorBilling && (
+              <BillingSection
+                id={`${review.id}-validator`}
+                title={`Round ${index + 1} · validation · ${review.validator.model}`}
+                billing={review.request.validatorBilling}
+              />
+            )}
+          </div>
+        ))}
+      </div>
     </details>
   );
 }

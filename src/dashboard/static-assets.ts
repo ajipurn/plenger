@@ -2,7 +2,7 @@ import { lstat, readFile, realpath } from "node:fs/promises";
 import type { ServerResponse } from "node:http";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { applyThemeToHtml, type DashboardTheme } from "./contract.ts";
+import { applyAppearanceToHtml, type DashboardAppearance } from "./contract.ts";
 import { HttpError } from "./http.ts";
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -45,7 +45,7 @@ export async function staticFile(
   assets: string,
   rawUrl: string,
   styleNonce: string,
-  theme: DashboardTheme,
+  appearance: DashboardAppearance,
 ): Promise<void> {
   let path: string;
   try {
@@ -76,25 +76,25 @@ export async function staticFile(
     const info = await lstat(candidate);
     if (!within(resolved) || !info.isFile() || info.isSymbolicLink())
       throw new Error("invalid asset");
-    sendAsset(response, candidate, await readFile(resolved), styleNonce, theme);
+    sendAsset(response, candidate, await readFile(resolved), styleNonce, appearance);
   } catch (error) {
     // Whatever went wrong (missing, escaped the root, unreadable), the answer is the same 404.
     throw new HttpError(404, "Dashboard page not found.", { cause: error });
   }
 }
 
-/** HTML gets the saved theme and this response's stylesheet nonce before it is sent. */
+/** HTML gets the saved appearance and this response's stylesheet nonce before it is sent. */
 export function sendAsset(
   response: ServerResponse,
   name: string,
   bytes: Buffer,
   styleNonce: string,
-  theme: DashboardTheme,
+  appearance: DashboardAppearance,
 ): void {
   let content = bytes;
   if (extname(name) === ".html") {
     const meta = `<meta property="csp-nonce" name="plenger-style-nonce" content="${styleNonce}">`;
-    const html = applyThemeToHtml(content.toString("utf8"), theme);
+    const html = applyAppearanceToHtml(content.toString("utf8"), appearance);
     content = Buffer.from(
       html.includes("</head>") ? html.replace("</head>", `${meta}</head>`) : `${meta}${html}`,
     );

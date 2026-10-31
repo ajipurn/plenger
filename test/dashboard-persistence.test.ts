@@ -165,7 +165,7 @@ describe("SQLite dashboard persistence", () => {
       null,
       [],
       {},
-      { theme: "system" },
+      { theme: "auto" },
       { theme: 2 },
       { theme: "dark", extra: true },
     ])
@@ -174,6 +174,81 @@ describe("SQLite dashboard persistence", () => {
       (await request("/api/theme", { theme: "dark" }, { "Content-Type": "text/plain" })).status,
     ).toBe(415);
     expect((await state()).theme).toBe("light");
+  });
+
+  it("serves the system theme with a colour scheme and theme colour for each device setting", async () => {
+    expect(await (await request("/api/theme", { theme: "system" })).json()).toEqual({
+      theme: "system",
+    });
+    await dashboard.close();
+    await start();
+    expect((await state()).theme).toBe("system");
+    const html = await (await fetch(dashboard.url)).text();
+    expect(html).toContain('data-theme="system"');
+    expect(html).toContain('name="color-scheme" content="light dark"');
+    expect(html).toContain(
+      '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#172b36" />',
+    );
+    expect(html).toContain(
+      '<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f1f6f4" />',
+    );
+  });
+
+  it("persists the density and serves it before JavaScript loads", async () => {
+    expect((await state()).density).toBe("comfortable");
+    expect(await (await request("/api/density", { density: "compact" })).json()).toEqual({
+      density: "compact",
+    });
+    for (const body of [{}, { density: "dense" }, { density: "compact", extra: true }])
+      expect((await request("/api/density", body)).status).toBe(400);
+    await dashboard.close();
+    await start();
+    expect((await state()).density).toBe("compact");
+    const session = await (await fetch(`${dashboard.url}/api/session`)).json();
+    expect(session).toMatchObject({ density: "compact" });
+    expect(await (await fetch(dashboard.url)).text()).toContain('data-density="compact"');
+  });
+
+  it("adds the density to an existing preferences row without changing its theme", async () => {
+    await request("/api/theme", { theme: "system" });
+    await dashboard.close();
+    const { DatabaseSync } = await import("node:sqlite");
+    const database = new DatabaseSync(join(dataDir, "dashboard.sqlite"));
+    database.exec(`
+      DROP TABLE preferences;
+      CREATE TABLE preferences (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        theme TEXT NOT NULL CHECK (theme IN ('dark', 'system', 'light'))
+      ) STRICT;
+      INSERT INTO preferences (id, theme) VALUES (1, 'system');
+      PRAGMA user_version = 12;
+    `);
+    database.close();
+    await start();
+    expect(await state()).toMatchObject({ theme: "system", density: "comfortable" });
+    expect((await request("/api/density", { density: "compact" })).status).toBe(200);
+    expect((await state()).density).toBe("compact");
+  });
+
+  it("keeps the saved theme when the preferences table learns the system theme", async () => {
+    await request("/api/theme", { theme: "light" });
+    await dashboard.close();
+    const { DatabaseSync } = await import("node:sqlite");
+    const database = new DatabaseSync(join(dataDir, "dashboard.sqlite"));
+    database.exec(`
+      DROP TABLE preferences;
+      CREATE TABLE preferences (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        theme TEXT NOT NULL CHECK (theme IN ('dark', 'light'))
+      ) STRICT;
+      INSERT INTO preferences (id, theme) VALUES (1, 'light');
+      PRAGMA user_version = 11;
+    `);
+    database.close();
+    await start();
+    expect((await state()).theme).toBe("light");
+    expect((await request("/api/theme", { theme: "system" })).status).toBe(200);
+    expect((await state()).theme).toBe("system");
   });
 
   it("restores scan snapshots, selected history, project selection and target plans after restart", async () => {

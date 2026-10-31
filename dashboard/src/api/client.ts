@@ -4,10 +4,12 @@ import {
   type CancelResult,
   type ChatgptLoginResult,
   type ChooseFolderResult,
+  type DashboardDensity,
   type DashboardSession,
   type DashboardState,
   type DashboardTheme,
   type DeleteResult,
+  type DensityResult,
   type ErrorResponse,
   type FindingStatus,
   type FixPromptRequest,
@@ -69,6 +71,7 @@ export interface DashboardApi {
   deleteReaEvidence(scanId: string, id: string): Promise<DeleteResult>;
   clear(): Promise<DashboardState>;
   setTheme(theme: DashboardTheme): Promise<ThemeResult>;
+  setDensity(density: DashboardDensity): Promise<DensityResult>;
   providers(): Promise<SavedProvider[]>;
   saveProvider(input: ProviderInput): Promise<SavedProvider>;
   deleteProvider(id: string): Promise<DeleteResult>;
@@ -186,6 +189,7 @@ export async function connect(): Promise<DashboardApi> {
     deleteReaEvidence: (scanId, id) => request<DeleteResult>(API.deleteReaEvidence, { scanId, id }),
     clear: () => request<DashboardState>(API.clear, {}),
     setTheme: (theme) => request<ThemeResult>(API.theme, { theme }),
+    setDensity: (density) => request<DensityResult>(API.density, { density }),
     providers: () => request<SavedProvider[]>(API.providers),
     saveProvider: (input) => request<SavedProvider>(API.providers, input),
     deleteProvider: (id) => request<DeleteResult>(API.deleteProvider, { id }),

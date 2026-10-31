@@ -65,6 +65,7 @@ describe("local dashboard transport", () => {
       "/api/state",
       "/api/state/clear",
       "/api/theme",
+      "/api/density",
       "/api/project",
       "/api/history/open",
       "/",

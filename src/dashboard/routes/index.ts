@@ -1,5 +1,6 @@
 import type { Route } from "../router.ts";
 import type { Services } from "../services.ts";
+import { appearanceRoutes } from "./appearance.ts";
 import { evidenceRoutes } from "./evidence.ts";
 import { fixPromptRoutes } from "./fix-prompt.ts";
 import { folderRoutes } from "./folders.ts";
@@ -11,14 +12,13 @@ import { securityReviewRoutes } from "./security-review.ts";
 import { securityWorkspaceRoutes } from "./security-workspace.ts";
 import { sessionRoutes } from "./session.ts";
 import { stateRoutes } from "./state.ts";
-import { themeRoutes } from "./theme.ts";
 
 /** The complete `/api/*` table; `matchRoute` walks it in this order. */
 export function dashboardRoutes(services: Services): Route[] {
   return [
     ...sessionRoutes(services),
     ...stateRoutes(services),
-    ...themeRoutes(services),
+    ...appearanceRoutes(services),
     ...historyRoutes(services),
     ...scanRoutes(services),
     ...securityReviewRoutes(services),

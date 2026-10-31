@@ -1,41 +1,34 @@
-import { useLayoutEffect, useState } from "react";
 import type { DashboardTheme } from "../../../src/dashboard/contract.ts";
 import type { DashboardApi } from "../api/client.ts";
-import { THEME_COLORS } from "./theme.ts";
+import { isDashboardTheme, THEME_LABELS, themeColorMetas, themeColorScheme } from "./appearance.ts";
+import { usePreference } from "./usePreference.ts";
 
 /** Mirror the theme into the document and persist changes through the service. */
 export function useTheme(api: DashboardApi | null, announce: (message: string) => void) {
-  const [theme, setTheme] = useState<DashboardTheme>(() =>
-    document.documentElement.dataset.theme === "light" ? "light" : "dark",
-  );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const preference = usePreference<DashboardTheme>({
+    initial: () => {
+      const saved = document.documentElement.dataset.theme;
+      return isDashboardTheme(saved) ? saved : "dark";
+    },
+    apply: applyTheme,
+    save: api && ((next) => api.setTheme(next)),
+    announce: (next) => announce(`Theme set to ${THEME_LABELS[next]}.`),
+    failure: "Could not save your theme. Try again.",
+  });
+  return { ...preference, theme: preference.value, setTheme: preference.setValue };
+}
 
-  useLayoutEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    const color = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    if (color) color.content = THEME_COLORS[theme];
-    const scheme = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
-    if (scheme) scheme.content = theme;
-  }, [theme]);
-
-  async function toggle() {
-    if (!api || saving) return;
-    const previous = theme;
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    setSaving(true);
-    setError("");
-    try {
-      await api.setTheme(next);
-      announce(`${next === "dark" ? "Dark" : "Light"} mode enabled.`);
-    } catch {
-      setTheme(previous);
-      setError("Could not save your theme. Try switching again.");
-    } finally {
-      setSaving(false);
-    }
+function applyTheme(theme: DashboardTheme): void {
+  document.documentElement.dataset.theme = theme;
+  // System has one theme-color per device setting, so the metas are replaced, not edited.
+  for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.remove();
+  for (const { media, content } of themeColorMetas(theme)) {
+    const meta = document.createElement("meta");
+    meta.name = "theme-color";
+    if (media) meta.media = media;
+    meta.content = content;
+    document.head.append(meta);
   }
-
-  return { theme, setTheme, saving, error, toggle };
+  const scheme = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
+  if (scheme) scheme.content = themeColorScheme(theme);
 }

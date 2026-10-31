@@ -128,6 +128,29 @@ export const MIGRATIONS: ((database: DatabaseSync) => void)[] = [
       payload TEXT NOT NULL
     ) STRICT;
   `),
+  // 11 -> 12: the theme may follow the system. SQLite cannot change a CHECK constraint,
+  // so the one-row preferences table is rebuilt with its saved theme.
+  (database) =>
+    database.exec(`
+    DROP TABLE IF EXISTS preferences_next;
+    CREATE TABLE preferences_next (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      theme TEXT NOT NULL CHECK (theme IN ('dark', 'system', 'light'))
+    ) STRICT;
+    INSERT INTO preferences_next (id, theme) SELECT id, theme FROM preferences;
+    DROP TABLE preferences;
+    ALTER TABLE preferences_next RENAME TO preferences;
+  `),
+  // 12 -> 13: row and panel density, comfortable by default. ADD COLUMN has no
+  // IF NOT EXISTS, so a repaired database that has the column skips it.
+  (database) => {
+    const columns = database.prepare("PRAGMA table_info(preferences)").all();
+    if (columns.some((column) => column.name === "density")) return;
+    database.exec(`
+    ALTER TABLE preferences ADD COLUMN density TEXT NOT NULL DEFAULT 'comfortable'
+      CHECK (density IN ('comfortable', 'compact'));
+  `);
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

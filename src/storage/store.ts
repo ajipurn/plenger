@@ -7,6 +7,8 @@ import { EvidenceRepository } from "./evidence-repository.ts";
 import { ProviderRepository, type ResolvedProvider } from "./provider-repository.ts";
 import { providerEncryptionKey } from "./provider-secrets.ts";
 import type {
+  DashboardAppearance,
+  DashboardDensity,
   DashboardScan,
   DashboardTheme,
   SavedRunProfile,
@@ -69,6 +71,7 @@ export class DashboardStore {
     const project = this.scans.selectedProject(fallbackProject);
     return {
       theme: this.scans.readTheme(),
+      density: this.scans.readDensity(),
       project,
       report: this.scans.readReport(project),
       plan: this.scans.readPlan(project),
@@ -84,6 +87,15 @@ export class DashboardStore {
   }
   saveTheme(theme: DashboardTheme): void {
     this.scans.saveTheme(theme);
+  }
+  readDensity(): DashboardDensity {
+    return this.scans.readDensity();
+  }
+  saveDensity(density: DashboardDensity): void {
+    this.scans.saveDensity(density);
+  }
+  readAppearance(): DashboardAppearance {
+    return { theme: this.readTheme(), density: this.readDensity() };
   }
   selectProject(project: string): void {
     this.scans.selectProject(project);

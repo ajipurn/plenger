@@ -150,9 +150,7 @@ summary {
 .brand-mark {
   @apply size-7 flex-none rounded-[8px];
   box-shadow: 0 0 0 1px var(--line-strong);
-}
-:root[data-theme="light"] .brand-mark {
-  filter: invert(1);
+  filter: var(--brand-mark-filter);
 }
 main {
   @apply w-full flex-1 mx-auto pt-7 px-8 pb-6;

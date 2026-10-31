@@ -5,7 +5,23 @@
  * same names. Components read only these tokens, so both appearances share layout, type
  * and spacing.
  */
-:root {
+
+/* Light applies when it is chosen, and under System when the device is set to light. */
+@custom-variant light {
+  &:where([data-theme="light"]) {
+    @slot;
+  }
+  @media (prefers-color-scheme: light) {
+    &:where([data-theme="system"]) {
+      @slot;
+    }
+  }
+}
+
+/* The palette. Any element with data-theme takes its own, so a theme preview can show
+ * an appearance the page is not using. */
+:root,
+[data-theme] {
   color-scheme: dark;
 
   /* Oceanic Noir surfaces, from the page canvas up to floating layers. */
@@ -82,8 +98,63 @@
   --shadow-popover: 0 0 0 1px #d9e8e32b, 0 16px 40px -12px #0a1820cc, 0 4px 12px #0a182066;
   --shadow-drawer: -24px 0 64px #0a182099;
   --glow: none;
+  --brand-mark-filter: none;
+}
 
-  /* Shape and rhythm. */
+:root,
+[data-theme] {
+  @variant light {
+    color-scheme: light;
+    --canvas: #f1f6f4;
+    --chrome: #f1f6f4;
+    --sidebar: #d9e8e3;
+    --surface: #ffffff;
+    --paper: #d9e8e3;
+    --raised: #ffffff;
+    --field: #f1f6f4;
+    --hover: #114c5a0d;
+    --line: #c5d5cf;
+    --line-control: #b0c4bd;
+    --line-strong: #6c858a;
+    --ink: #172b36;
+    --ink-hover: #0d1c24;
+    --muted: #446067;
+    --subtle: #4d6667;
+    --accent: #114c5a;
+    --accent-soft: #114c5a14;
+    --focus: var(--accent);
+    --segment-thumb: #ffffff;
+    --critical: #b02a2f;
+    --critical-soft: #e5484d14;
+    --high: #9b4805;
+    --high-soft: #ff993229;
+    --medium: #735603;
+    --medium-soft: #ffc80138;
+    --low: #446067;
+    --low-soft: #c5d5cf66;
+    --success: oklch(0.47 0.1 162);
+    --success-soft: oklch(0.6 0.1 162 / 0.1);
+    --code-bg: #e4eeea;
+    --code-fg: #172b36;
+    --scrollbar: #114c5a40;
+    --scrollbar-hover: #114c5a73;
+    --surface-overlay: #172b3652;
+    --highlight: inset 0 1px 0 #ffffff;
+    --sheen: linear-gradient(to bottom, #ffffff00, #172b3608);
+    --shadow-control: inset 0 1px 0 #ffffff, 0 1px 2px #172b361f, 0 2px 4px -2px #172b361a;
+    --shadow-pressed: inset 0 1px 1px #172b360f;
+    --primary-shadow: inset 0 1px 0 #ffffff73, 0 1px 2px #172b3633, 0 3px 8px -3px #9b6a0059;
+    --shadow-field: inset 0 1px 2px #172b3614;
+    --shadow-card: var(--highlight), 0 1px 2px #172b360d, 0 6px 16px -8px #172b3624;
+    --shadow-popover: 0 0 0 1px #114c5a1f, 0 16px 40px -12px #172b362e, 0 4px 10px #172b360f;
+    --shadow-drawer: -16px 0 48px #172b3624;
+    --glow: none;
+    --brand-mark-filter: invert(1);
+  }
+}
+
+/* Shape, rhythm and type are the same in every appearance. */
+:root {
   --ui-radius: 8px;
   --control-height: 32px;
   --control-font-size: 13px;
@@ -105,54 +176,18 @@
   --text-heading-lg: 24px;
   --leading-heading-lg: 1.25;
   --tracking-heading-lg: -0.025em;
+
+  /* Density. Compact tightens repeated rows, panels and the gaps between them;
+   * controls keep their size. Smaller panels use the panel padding less 4px. */
+  --row-padding-block: 12px;
+  --panel-padding: 20px;
+  --section-gap: 20px;
 }
 
-:root[data-theme="light"] {
-  color-scheme: light;
-  --canvas: #f1f6f4;
-  --chrome: #f1f6f4;
-  --sidebar: #d9e8e3;
-  --surface: #ffffff;
-  --paper: #d9e8e3;
-  --raised: #ffffff;
-  --field: #f1f6f4;
-  --hover: #114c5a0d;
-  --line: #c5d5cf;
-  --line-control: #b0c4bd;
-  --line-strong: #6c858a;
-  --ink: #172b36;
-  --ink-hover: #0d1c24;
-  --muted: #446067;
-  --subtle: #4d6667;
-  --accent: #114c5a;
-  --accent-soft: #114c5a14;
-  --focus: var(--accent);
-  --segment-thumb: #ffffff;
-  --critical: #b02a2f;
-  --critical-soft: #e5484d14;
-  --high: #9b4805;
-  --high-soft: #ff993229;
-  --medium: #735603;
-  --medium-soft: #ffc80138;
-  --low: #446067;
-  --low-soft: #c5d5cf66;
-  --success: oklch(0.47 0.1 162);
-  --success-soft: oklch(0.6 0.1 162 / 0.1);
-  --code-bg: #e4eeea;
-  --code-fg: #172b36;
-  --scrollbar: #114c5a40;
-  --scrollbar-hover: #114c5a73;
-  --surface-overlay: #172b3652;
-  --highlight: inset 0 1px 0 #ffffff;
-  --sheen: linear-gradient(to bottom, #ffffff00, #172b3608);
-  --shadow-control: inset 0 1px 0 #ffffff, 0 1px 2px #172b361f, 0 2px 4px -2px #172b361a;
-  --shadow-pressed: inset 0 1px 1px #172b360f;
-  --primary-shadow: inset 0 1px 0 #ffffff73, 0 1px 2px #172b3633, 0 3px 8px -3px #9b6a0059;
-  --shadow-field: inset 0 1px 2px #172b3614;
-  --shadow-card: var(--highlight), 0 1px 2px #172b360d, 0 6px 16px -8px #172b3624;
-  --shadow-popover: 0 0 0 1px #114c5a1f, 0 16px 40px -12px #172b362e, 0 4px 10px #172b360f;
-  --shadow-drawer: -16px 0 48px #172b3624;
-  --glow: none;
+:root[data-density="compact"] {
+  --row-padding-block: 6px;
+  --panel-padding: 16px;
+  --section-gap: 12px;
 }
 
 @theme inline {

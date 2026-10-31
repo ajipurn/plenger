@@ -85,7 +85,7 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
       return;
     }
     requireMethod(request, "GET");
-    await staticFile(response, assets, request.url ?? "/", styleNonce, store.readTheme());
+    await staticFile(response, assets, request.url ?? "/", styleNonce, store.readAppearance());
   }
 
   const requests = new Set<Promise<void>>();

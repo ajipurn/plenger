@@ -5,6 +5,7 @@ import { SECURITY_POLL_MS } from "../../../src/dashboard/contract.ts";
 import type { SavedProvider } from "../../../src/redteam/provider-config.ts";
 import { connect, type DashboardApi } from "../api/client.ts";
 import { DashboardProvider } from "../app/DashboardContext.tsx";
+import { useDensity } from "../app/useDensity.ts";
 import { useTheme } from "../app/useTheme.ts";
 import { errorMessage } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
@@ -95,7 +96,9 @@ export function SecurityApp() {
   const newReturnFocus = useRef<HTMLElement | null>(null);
   const addTrigger = useRef<HTMLElement | null>(null);
   const theme = useTheme(api, setAnnouncement);
+  const density = useDensity(api, setAnnouncement);
   const { setTheme } = theme;
+  const { setDensity } = density;
   const active = data.scans.some((scan) => scan.status === "running");
   const detailPage = /^\/(findings|scans|projects)\//.test(location.pathname);
   useEffect(() => {
@@ -111,6 +114,7 @@ export function SecurityApp() {
           setData(workspace);
           setProviders(saved);
           setTheme(client.initialState.theme);
+          setDensity(client.initialState.density);
           setLoading(false);
         }
       })
@@ -123,7 +127,7 @@ export function SecurityApp() {
     return () => {
       stopped = true;
     };
-  }, [setTheme]);
+  }, [setTheme, setDensity]);
   const refresh = useCallback(async () => {
     if (!api) return;
     const next = await api.securityWorkspace();
@@ -323,14 +327,7 @@ export function SecurityApp() {
                   <Route index element={<Navigate to="providers" replace />} />
                   <Route
                     path="appearance"
-                    element={
-                      <AppearanceSettings
-                        theme={theme.theme}
-                        disabled={!api || theme.saving}
-                        error={theme.error}
-                        onToggle={() => void theme.toggle()}
-                      />
-                    }
+                    element={<AppearanceSettings disabled={!api} theme={theme} density={density} />}
                   />
                   <Route
                     path="providers"

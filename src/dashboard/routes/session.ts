@@ -10,7 +10,12 @@ export function sessionRoutes({ workspace, token, store }: Services): Route[] {
       path: API.session,
       public: true,
       handler: () => {
-        const session: DashboardSession = { workspace, token, theme: store.readTheme() };
+        const session: DashboardSession = {
+          workspace,
+          token,
+          theme: store.readTheme(),
+          density: store.readDensity(),
+        };
         return { status: 200, body: session };
       },
     },

@@ -62,7 +62,8 @@
   outline: none;
 }
 .security-page-heading {
-  @apply flex items-start justify-between gap-4 mb-5;
+  @apply flex items-start justify-between gap-4;
+  margin-bottom: var(--section-gap);
 }
 .security-page-heading h1 {
   @apply flex items-center gap-2 text-[21px] font-semibold;
@@ -124,7 +125,9 @@
   @apply flex items-center gap-2 text-[13px];
 }
 .security-flow {
-  @apply border border-line rounded-panel p-5 mb-5 bg-surface;
+  @apply border border-line rounded-panel bg-surface;
+  padding: var(--panel-padding);
+  margin-bottom: var(--section-gap);
 }
 .security-flow > h2 {
   @apply text-[14px] font-medium mb-2;
@@ -190,10 +193,12 @@
   min-width: 780px;
 }
 .security-table th {
-  @apply text-start text-[12px] font-medium text-muted py-2.5 px-4 border-b border-line bg-hover;
+  @apply text-start text-[12px] font-medium text-muted px-4 border-b border-line bg-hover;
+  padding-block: calc(var(--row-padding-block) - 2px);
 }
 .security-table td {
-  @apply py-3 px-4 border-b border-line align-middle;
+  @apply px-4 border-b border-line align-middle;
+  padding-block: var(--row-padding-block);
 }
 .security-table th:first-child,
 .security-table td:first-child {
@@ -563,7 +568,10 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   @apply mx-6 mb-6 -mt-2;
 }
 @media (prefers-reduced-motion: reduce) {
-  .security-scan-segmented::before {
+  .security-scan-segmented::before,
+  .settings-choice-option,
+  .settings-choice-radio::after,
+  .settings-choice-preview {
     transition: none;
   }
   .security-scan-limit {
@@ -586,12 +594,14 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   .security-coverage,
   .security-scan-result-empty,
   .security-output-batch,
-  .security-continue-scan
+  .security-continue-scan,
+  .security-billing
 ) {
   box-shadow: var(--shadow-card);
 }
 .security-detail-actions {
-  @apply mb-5 flex flex-wrap items-center justify-between gap-3 text-[13px];
+  @apply flex flex-wrap items-center justify-between gap-3 text-[13px];
+  margin-bottom: var(--section-gap);
 }
 .security-detail-actions > div {
   @apply flex flex-wrap items-center gap-2;
@@ -610,7 +620,8 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   @apply text-[16px];
 }
 .security-subnav {
-  @apply flex items-center gap-6 my-5 border-b border-line;
+  @apply flex items-center gap-6 border-b border-line;
+  margin-block: var(--section-gap);
 }
 .security-subnav a {
   @apply inline-flex items-center gap-2 text-muted text-[13px] py-3 border-b-2 border-transparent font-medium;
@@ -634,7 +645,8 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   @apply border border-line rounded-panel;
 }
 .security-detail-meta {
-  @apply min-w-0 p-4 border border-line rounded-panel bg-surface;
+  @apply min-w-0 border border-line rounded-panel bg-surface;
+  padding: calc(var(--panel-padding) - 4px);
 }
 .security-detail-meta dl {
   @apply m-0 grid gap-5;
@@ -751,13 +763,34 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   display: table-cell;
 }
 .security-billing {
-  @apply border border-line rounded-ui p-4 mb-5 text-[13px];
+  @apply border border-line rounded-panel bg-surface text-[13px];
+  margin-bottom: var(--section-gap);
 }
 .security-billing > summary {
-  @apply cursor-pointer font-medium;
+  @apply flex items-center gap-2 min-h-12 px-5 list-none rounded-panel font-medium cursor-pointer;
+  transition: background-color 150ms ease;
+}
+.security-billing > summary::-webkit-details-marker {
+  display: none;
+}
+.security-billing > summary:hover {
+  @apply bg-hover;
+}
+.security-billing > summary > .icon {
+  @apply size-3.5 shrink-0 text-subtle;
+  transition: rotate 150ms ease;
+}
+.security-billing[open] > summary > .icon {
+  rotate: 90deg;
+}
+.security-billing-body {
+  @apply px-5 pb-5;
 }
 .security-billing p {
   @apply my-3 leading-relaxed;
+}
+.security-billing-body > p:first-child {
+  @apply mt-0;
 }
 .security-billing section {
   @apply mt-5;
@@ -778,10 +811,12 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   @apply whitespace-nowrap;
 }
 .security-scan-summary {
-  @apply grid grid-cols-3 rounded-panel border border-line bg-surface m-0 mb-5;
+  @apply grid grid-cols-3 rounded-panel border border-line bg-surface m-0;
+  margin-bottom: var(--section-gap);
 }
 .security-scan-summary > div {
-  @apply min-w-0 px-4 py-3;
+  @apply min-w-0 px-4;
+  padding-block: var(--row-padding-block);
 }
 .security-scan-summary > div + div {
   @apply border-s border-line;
@@ -800,10 +835,11 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   gap: 24px;
 }
 .security-scan-layout .security-subnav {
-  @apply mt-0 mb-5;
+  @apply mt-0;
+  margin-bottom: var(--section-gap);
 }
 .security-scan-meta {
-  @apply p-4;
+  padding: calc(var(--panel-padding) - 4px);
 }
 .security-scan-meta > section + section {
   @apply border-t border-line pt-5 mt-5;
@@ -849,7 +885,9 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   @apply mt-2 leading-relaxed whitespace-pre-wrap wrap-anywhere;
 }
 .security-scan-progress {
-  @apply border border-line rounded-panel bg-surface p-5;
+  @apply border border-line rounded-panel bg-surface;
+  padding: var(--panel-padding);
+  margin-bottom: var(--section-gap);
   container-type: inline-size;
 }
 .security-scan-progress-heading {
@@ -893,7 +931,9 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   grid-template-columns: minmax(0, 1fr);
 }
 .security-coverage {
-  @apply grid gap-3 rounded-panel border border-line bg-surface p-5 mb-5;
+  @apply grid gap-3 rounded-panel border border-line bg-surface;
+  padding: var(--panel-padding);
+  margin-bottom: var(--section-gap);
 }
 .security-coverage-heading {
   @apply flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-[13px];
@@ -1032,7 +1072,8 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   @apply border-b border-line text-[13px];
 }
 .security-round-row {
-  @apply grid items-baseline gap-x-3 py-2.5;
+  @apply grid items-baseline gap-x-3;
+  padding-block: calc(var(--row-padding-block) - 2px);
   grid-template-columns: 5.5rem minmax(0, 1fr) 6.5rem 4.5rem 6.5rem;
 }
 summary.security-round-row {
@@ -1075,7 +1116,8 @@ summary.security-round-row:hover {
   grid-template-columns: minmax(0, 1fr) minmax(6rem, 12rem) auto;
 }
 .security-folder-coverage li {
-  @apply grid items-center py-2 border-b border-line text-[13px];
+  @apply grid items-center border-b border-line text-[13px];
+  padding-block: calc(var(--row-padding-block) - 4px);
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
 }
@@ -1286,10 +1328,12 @@ summary.security-round-row:hover {
   @apply text-[12px] font-mono whitespace-pre-wrap wrap-anywhere;
 }
 .security-outputs {
-  @apply grid gap-5;
+  @apply grid;
+  gap: var(--section-gap);
 }
 .security-output-batch {
-  @apply grid gap-3 min-w-0 p-4 border border-line rounded-panel bg-surface;
+  @apply grid gap-3 min-w-0 border border-line rounded-panel bg-surface;
+  padding: calc(var(--panel-padding) - 4px);
 }
 .security-output-batch h2 {
   @apply text-[17px];
@@ -1395,50 +1439,229 @@ summary.security-round-row:hover {
 .settings-data-hint {
   @apply mt-3 text-label;
 }
-.settings-theme-switch {
-  @apply flex items-center justify-between gap-5 min-h-11 rounded-ui border border-line p-5 cursor-pointer;
+/* Appearance settings. Each choice is a group of radio cards whose pictures show what
+ * the option does; the selected picture takes the selection ring. Theme and Density
+ * share three columns, so their cards line up. */
+.settings-appearance {
+  @apply grid rounded-ui border border-line;
 }
-.settings-theme-switch-copy {
-  @apply grid gap-1 min-w-0 text-label;
+.settings-choice {
+  @apply grid gap-5 p-5;
 }
-.settings-theme-switch-copy > span:first-child {
-  @apply font-medium;
+.settings-choice + .settings-choice {
+  @apply border-t border-line;
 }
-.settings-theme-switch-track {
-  @apply inline-flex items-center shrink-0 w-9 h-5 p-px rounded-full border border-line-strong bg-field;
-  box-shadow: var(--shadow-field);
+.settings-choice-heading {
+  @apply grid gap-1 text-label;
 }
-.settings-theme-switch-track > span {
-  @apply size-4 rounded-full bg-muted;
-  box-shadow: var(--shadow-control);
+.settings-choice-heading > label {
+  @apply text-[14px] font-semibold leading-[1.45] text-ink;
 }
-.settings-theme-switch[data-selected] .settings-theme-switch-track {
-  @apply justify-end;
-  background: var(--checked);
-  border-color: var(--checked);
+.settings-choice-options {
+  @apply grid grid-cols-3 gap-4 max-w-[36rem];
 }
-.settings-theme-switch[data-selected] .settings-theme-switch-track > span {
-  background: var(--checked-fg);
+.settings-choice-option {
+  @apply grid gap-2.5 min-w-0 cursor-pointer text-label font-medium text-muted;
+  transition: color 150ms ease;
 }
-.settings-theme-switch[data-hovered] {
-  @apply bg-hover;
+.settings-choice-option:is([data-hovered], [data-selected]) {
+  @apply text-ink;
 }
-.settings-theme-switch[data-focus-visible] .settings-theme-switch-track {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-.settings-theme-switch[data-disabled] {
+.settings-choice-option[data-disabled] {
   @apply opacity-50 cursor-not-allowed;
 }
+.settings-choice-label {
+  @apply inline-flex items-center gap-2 min-w-0;
+}
+.settings-choice-radio {
+  @apply inline-grid place-items-center size-4 shrink-0 rounded-full border border-line-strong bg-field;
+  box-shadow: var(--shadow-field);
+}
+.settings-choice-radio::after {
+  content: "";
+  @apply size-1.5 rounded-full;
+  background: var(--checked-fg);
+  scale: 0;
+  transition: scale 150ms ease;
+}
+.settings-choice-option[data-selected] .settings-choice-radio {
+  background-color: var(--checked);
+  background-image: var(--primary-sheen);
+  border-color: var(--checked);
+  box-shadow: var(--shadow-control);
+}
+.settings-choice-option[data-selected] .settings-choice-radio::after {
+  scale: 1;
+}
+/* Sizes inside a preview follow its width, so the picture keeps its proportions. */
+.settings-choice-preview {
+  @apply relative block overflow-hidden rounded-ui;
+  aspect-ratio: 16 / 10;
+  container-type: inline-size;
+  box-shadow: 0 0 0 1px var(--line-control);
+  transition: box-shadow 150ms ease;
+}
+.settings-choice-option[data-hovered] .settings-choice-preview {
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.settings-choice-option[data-selected] .settings-choice-preview {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.settings-choice-option[data-focus-visible] .settings-choice-preview {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+/* The card runs off the bottom edge, as a page that continues below. */
+.theme-preview-screen {
+  @apply absolute inset-0 grid bg-canvas;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 5cqw;
+  padding: 6cqw 7cqw 0;
+}
+.theme-preview-screen + .theme-preview-screen {
+  clip-path: inset(0 0 0 50%);
+}
+.theme-preview-bar {
+  @apply flex items-center;
+  gap: 3.5cqw;
+}
+.theme-preview-mark {
+  @apply bg-ink;
+  width: 4.5cqw;
+  height: 4.5cqw;
+  border-radius: 1.2cqw;
+}
+.theme-preview-tab {
+  @apply rounded-full bg-line-strong;
+  width: 9cqw;
+  height: 1.8cqw;
+}
+.theme-preview-tab[data-current] {
+  @apply bg-navigation-accent;
+}
+.theme-preview-action {
+  @apply ms-auto;
+  width: 13cqw;
+  height: 4.5cqw;
+  border-radius: 1.2cqw;
+  background: var(--primary-bg);
+}
+.theme-preview-title {
+  @apply rounded-full bg-ink;
+  width: 26cqw;
+  height: 2.4cqw;
+}
+.theme-preview-card {
+  @apply grid content-start border border-b-0 border-line bg-surface;
+  gap: 3.5cqw;
+  padding: 4.5cqw 5cqw;
+  border-radius: 2.5cqw 2.5cqw 0 0;
+  box-shadow: var(--shadow-card);
+}
+.theme-preview-row {
+  @apply grid items-center;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3cqw;
+}
+.theme-preview-row > span:first-child {
+  @apply rounded-full;
+  width: 2.8cqw;
+  height: 2.8cqw;
+}
+.theme-preview-row > span:last-child {
+  @apply rounded-full bg-line-strong;
+  height: 1.8cqw;
+}
+.theme-preview-row[data-severity="critical"] > span:first-child {
+  @apply bg-critical;
+}
+.theme-preview-row[data-severity="high"] > span:first-child {
+  @apply bg-high;
+}
+.theme-preview-row[data-severity="medium"] > span:first-child {
+  @apply bg-medium;
+}
+.theme-preview-row:nth-child(1) > span:last-child {
+  width: 78%;
+}
+.theme-preview-row:nth-child(2) > span:last-child {
+  width: 58%;
+}
+.theme-preview-row:nth-child(3) > span:last-child {
+  width: 68%;
+}
+/* The density picture is one findings table on the page's canvas. Compact rows are
+ * half as tall, so the frame shows more of them. */
+.density-preview {
+  @apply bg-canvas;
+}
+/* cqw on the frame itself would measure an outer container, so the inset lives here. */
+.density-preview-table {
+  @apply absolute grid content-start overflow-hidden border border-b-0 border-line bg-surface;
+  inset: 7cqw 8cqw 0;
+  border-radius: 2.5cqw 2.5cqw 0 0;
+  box-shadow: var(--shadow-card);
+}
+.density-preview-row {
+  @apply grid items-center border-b border-line;
+  grid-template-columns: auto minmax(0, 1fr) 12cqw;
+  gap: 3cqw;
+  padding: 3.6cqw 5cqw;
+}
+.density-preview[data-density="compact"] .density-preview-row {
+  padding-block: 1.5cqw;
+}
+.density-preview-row > span {
+  @apply rounded-full bg-line-strong;
+  height: 1.6cqw;
+}
+.density-preview-row > span:first-child {
+  width: 2.6cqw;
+  height: 2.6cqw;
+}
+.density-preview-row > span:last-child {
+  @apply bg-line;
+}
+.density-preview-row[data-head] {
+  @apply bg-hover;
+}
+.density-preview-row[data-head] > span:first-child {
+  @apply bg-transparent;
+}
+.density-preview-row[data-severity="critical"] > span:first-child {
+  @apply bg-critical;
+}
+.density-preview-row[data-severity="high"] > span:first-child {
+  @apply bg-high;
+}
+.density-preview-row[data-severity="medium"] > span:first-child {
+  @apply bg-medium;
+}
+.density-preview-row[data-severity="low"] > span:first-child {
+  @apply bg-low;
+}
+.density-preview-row:nth-child(odd) > span:nth-child(2) {
+  width: 72%;
+}
+.density-preview-row:nth-child(even) > span:nth-child(2) {
+  width: 54%;
+}
+/* After the alternating widths, which would otherwise match the header too. */
+.density-preview-row[data-head] > span:nth-child(2) {
+  width: 22%;
+}
 @media (forced-colors: active) {
-  .settings-theme-switch[data-selected] .settings-theme-switch-track {
+  .settings-choice-preview {
+    outline: 1px solid CanvasText;
+  }
+  .settings-choice-option[data-selected] .settings-choice-preview {
+    outline: 3px solid Highlight;
+  }
+  .settings-choice-option[data-selected] .settings-choice-radio {
     background: Highlight;
     border-color: Highlight;
   }
-  .settings-theme-switch-track > span {
-    background: ButtonText;
-  }
-  .settings-theme-switch[data-selected] .settings-theme-switch-track > span {
+  .settings-choice-option[data-selected] .settings-choice-radio::after {
     background: HighlightText;
   }
 }
@@ -1468,15 +1691,12 @@ summary.security-round-row:hover {
   .security-content {
     @apply py-6;
   }
-  .security-page-heading {
-    @apply mb-5;
-  }
   .security-toolbar > .ui-select {
     @apply flex-1;
     flex-basis: 160px;
   }
   .security-flow {
-    @apply p-4;
+    padding: calc(var(--panel-padding) - 4px);
   }
   .security-detail-layout,
   .security-finding-layout {
@@ -1497,11 +1717,12 @@ summary.security-round-row:hover {
     @apply w-full;
   }
   .security-scan-summary > div {
-    @apply px-3 py-4;
+    @apply px-3;
+    padding-block: calc(var(--row-padding-block) + 4px);
   }
   .security-scan-progress,
   .security-coverage {
-    @apply p-4;
+    padding: calc(var(--panel-padding) - 4px);
   }
   .security-round-row {
     grid-template-columns: 5rem minmax(0, 1fr) auto;
@@ -1577,7 +1798,9 @@ summary.security-round-row:hover {
   @apply text-critical;
 }
 .security-continue-scan {
-  @apply border border-line rounded-panel bg-surface p-5 mb-5 text-[13px];
+  @apply border border-line rounded-panel bg-surface text-[13px];
+  padding: var(--panel-padding);
+  margin-bottom: var(--section-gap);
 }
 .security-continue-scan h2 {
   @apply font-semibold mb-2;
