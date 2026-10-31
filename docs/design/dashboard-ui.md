@@ -134,7 +134,10 @@ Use a right drawer up to 760px wide and full width on phones. Keep its title
 and close action above the scrolling form. Cancel and Start Scan stay in a
 fixed footer, alongside a visible source-dispatch and API-usage disclosure.
 The form selects a saved local project, the steps to run, provider, model,
-review mode and scan depth, in that order. Labels sit left of their controls and
+review mode and scan depth, in that order. Production always runs all steps;
+only development builds show the steps choice. Development-only UI sits inside a
+construction-tape frame with a "Development only" note and never reaches a
+production build. Labels sit left of their controls and
 stack above them on phones. Hairlines group the project and steps, the models,
 and the review settings. Binary choices are pill segmented controls whose raised thumb
 slides to the selected option. They describe only the selected option and its

@@ -18,8 +18,8 @@ join AI candidates only for the second source review. See
 4. Press **Start Scan**. The job first captures an offline scan, then sends
    redacted source and context to that provider and consumes model usage.
 
-The static engine remains offline. **Static only** runs it and stops without a
-provider. A completed static scan offers **Continue with AI**, which creates a
+The static engine remains offline. **Static only**, offered in development
+builds, runs it and stops without a provider. A completed static scan offers **Continue with AI**, which creates a
 linked review from the saved result after checking that the local source is
 unchanged. See [scan workflow choices](dashboard.md#start-a-scan).
 

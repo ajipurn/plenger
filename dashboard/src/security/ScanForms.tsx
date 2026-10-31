@@ -67,6 +67,8 @@ const MODE_COPY: Record<ReviewMode, { label: string; description: string; calls:
 };
 /** Rendered source is larger than file bytes: line numbers and JSON escaping. */
 const RENDER_OVERHEAD = 1.2;
+/** Static only is a development aid; production builds hide the choice and run all steps. */
+const CHOOSES_WORKFLOW = import.meta.env.DEV;
 
 function sizeText(bytes: number): string {
   return bytes >= 1024 * 1024
@@ -703,29 +705,35 @@ export function NewScanForm({
               )}
             </div>
           </div>
-          {!staticScan && (
-            <RadioGroup
-              className="security-scan-row"
-              name="workflow"
-              orientation="horizontal"
-              value={workflow}
-              onChange={(value) => setWorkflow(value as ScanWorkflow)}
-              isDisabled={busy}
-            >
-              <Label className="security-scan-row-label">Steps to run</Label>
-              <div className="security-scan-row-control">
-                <div className="security-scan-segmented">
-                  {(Object.keys(SCAN_WORKFLOWS) as ScanWorkflow[]).map((value) => (
-                    <Radio key={value} value={value} className="security-scan-segment">
-                      {SCAN_WORKFLOWS[value].label}
-                    </Radio>
-                  ))}
+          {CHOOSES_WORKFLOW && !staticScan && (
+            <div className="dev-only">
+              <RadioGroup
+                className="security-scan-row"
+                name="workflow"
+                orientation="horizontal"
+                value={workflow}
+                onChange={(value) => setWorkflow(value as ScanWorkflow)}
+                isDisabled={busy}
+              >
+                <Label className="security-scan-row-label">Steps to run</Label>
+                <div className="security-scan-row-control">
+                  <div className="security-scan-segmented">
+                    {(Object.keys(SCAN_WORKFLOWS) as ScanWorkflow[]).map((value) => (
+                      <Radio key={value} value={value} className="security-scan-segment">
+                        {SCAN_WORKFLOWS[value].label}
+                      </Radio>
+                    ))}
+                  </div>
+                  <Text slot="description" elementType="p" className="security-scan-row-help">
+                    {SCAN_WORKFLOWS[workflow].description}
+                  </Text>
                 </div>
-                <Text slot="description" elementType="p" className="security-scan-row-help">
-                  {SCAN_WORKFLOWS[workflow].description}
-                </Text>
-              </div>
-            </RadioGroup>
+              </RadioGroup>
+              <p className="dev-only-note">
+                <span className="dev-only-badge">Development only</span>
+                Production builds hide this choice and always run all steps.
+              </p>
+            </div>
           )}
         </div>
         {!staticOnly && (

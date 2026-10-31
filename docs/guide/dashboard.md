@@ -111,7 +111,8 @@ project.
 
 1. Press **New Scan**, choose a local project and check its folder path.
    Optionally edit **Review context**, which is saved for subsequent scans.
-2. Choose **Run all** or **Static only** under **Steps to run**.
+2. New Scan runs all steps. Development builds (`pnpm dashboard`) also offer
+   **Static only** under **Steps to run**, inside a striped development-only frame.
 3. For **Run all**, choose a saved provider, model, review mode and **Quick** or
    **Full coverage**. Save a connection in **Settings > Providers** first if needed.
    **Batch** sends each round the files the scan picks. **Explore**, selected for
@@ -121,10 +122,10 @@ project.
    this scan only. **Load models** refreshes the saved catalog. Optionally choose
    a different validation model.
 4. Press **Start Scan** for the whole workflow, or **Run static scan** for local
-   rules only. Run all sends redacted source and context to the selected providers
+   rules only in a development build. Run all sends redacted source and context to the selected providers
    and consumes model usage.
 
-**Static only** needs no provider, model or AI budget. It runs local rules and
+**Static only** is a development aid. It needs no provider, model or AI budget. It runs local rules and
 stops with a completed static result, zero model calls and no model usage cost.
 Its candidates are **Unvalidated**. AI discovery, STRIDE and validation are marked
 as not run. The result and triage survive navigation and service restarts.
