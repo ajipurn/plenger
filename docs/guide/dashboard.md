@@ -172,7 +172,8 @@ static candidates and may retry ones left Unvalidated before this continuation.
 The scan keeps its first limit and lists each continuation with its limit.
 
 A paused scan shows **Scan paused** in its details. **Continue scan** runs the
-remaining rounds, starting again with the round that was running. The limit field
+remaining rounds. A scan paused by stopping the service starts again with the
+round that was running. The limit field
 holds what is left of the limit the scan ran under; change it if needed. A scan
 that ran without a limit continues without one.
 
@@ -195,9 +196,12 @@ latest step, such as a file an Explore round reads. The details column appears
 when the scan finishes.
 
 A Full coverage AI scan shows **Pause scan** and **Stop scan** while it runs; other
-scans show **Stop scan** only. Both end the current request at once. Rounds that
-finished are kept with their findings. The round that was running stays in the
-list as not completed, with the tokens it charged. A paused scan can continue
+scans show **Stop scan** only. **Pause scan** waits for the running round to
+finish, so no tokens are spent on a request that is cut off. Meanwhile the button
+reads **Pausing after this round…** and **Stop scan** still works. **Stop scan**
+ends the current request at once. Rounds that finished are kept with their
+findings. A round that a stop cut off stays in the list as not completed, with
+the tokens it charged. A paused scan can continue
 later with **Continue scan** in the scan header, under what is left of its limit; a
 scan with a limit can also set another one in the paused card first. **Stop scan**
 also ends a paused scan for good, keeping its findings. A stopped scan shows

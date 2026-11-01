@@ -145,7 +145,9 @@ percentage. Cancel acknowledges the pending request. Export snapshot identifies
 incomplete records; finished jobs use Export JSON. The header holds the scan's
 actions in the same places: a running scan has Pause scan, Stop scan and Export
 snapshot; a paused one has Continue scan, Stop scan and Export snapshot, with
-Continue where Pause was. Header Continue keeps what is left of the limit; the
+Continue where Pause was. Pause waits for the round to end, so the button reads
+Pausing after this round and stays disabled while Stop stays available; the
+progress card keeps moving until then. Header Continue keeps what is left of the limit; the
 paused card can set another limit first. Scan again opens the local scan form
 after a job ends, never while it is paused. Empty failed runs are incomplete, never clean results.
 

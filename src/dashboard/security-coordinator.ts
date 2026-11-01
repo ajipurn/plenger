@@ -63,7 +63,7 @@ export class SecurityCoordinator {
   readonly #store: DashboardStore;
   readonly #supervisor: OperationSupervisor;
   #closed = false;
-  // Pause and Stop both abort a run; scans named here end paused instead of stopped.
+  // Scans named here pause before their next round; one that aborts meanwhile ends paused too.
   readonly #pausing = new Set<string>();
   readonly #listeners = new Set<(event: SecurityEvent) => void>();
   // Replies stream too fast to save; they live here until their request ends.
@@ -104,6 +104,11 @@ export class SecurityCoordinator {
   /** The reply a running scan is receiving, if a request is under way. */
   reply(id: string): ScanReply | undefined {
     return this.#replies.get(id);
+  }
+
+  /** Whether a running scan will pause once its current round ends. */
+  pausing(id: string): boolean {
+    return this.#pausing.has(id);
   }
 
   #emit(event: SecurityEvent): void {
@@ -189,31 +194,30 @@ export class SecurityCoordinator {
   }
 
   /**
-   * Pause a running Full coverage scan. It stops now like Stop; its finished rounds stay,
-   * and Continue runs the rest, starting again with the round that was running.
+   * Pause a running Full coverage scan once its current round ends, so that round's tokens
+   * are not lost. Its rounds and findings stay, and Continue runs the rest.
    */
   pause(id: string): void {
     const scan = this.#store.security.scan(id);
     if (!scan) throw new HttpError(404, "Scan not found.");
     if (scan.status !== "running" || scan.depth !== "full")
       throw new HttpError(409, "Only a running Full coverage scan can pause.");
+    this.#supervisor.assertActive(id);
+    if (this.#pausing.has(id)) return;
     this.#pausing.add(id);
-    try {
-      this.#supervisor.cancel(id);
-    } catch (error) {
-      this.#pausing.delete(id);
-      throw error;
-    }
+    this.#emit({ type: "scan", id });
   }
 
   /**
-   * Stop a scan. A running one aborts now. A paused one saved its rounds and findings when
-   * it paused, so it is only marked stopped and can no longer continue.
+   * Stop a scan. A running one aborts now, also while it waits to pause. A paused one saved
+   * its rounds and findings when it paused, so it is only marked stopped and can no longer
+   * continue.
    */
   stop(id: string | null): void {
     const scan = id === null ? undefined : this.#store.security.scan(id);
     if (scan?.status !== "paused") {
       this.#supervisor.cancel(id);
+      if (id !== null) this.#pausing.delete(id);
       return;
     }
     scan.status = "cancelled";
@@ -385,9 +389,9 @@ export class SecurityCoordinator {
         }
       };
       const controller = new AbortController();
-      // Stop, Pause and closing the service abort the run. The round that was running stays
-      // as a record of what it charged; a paused scan runs that round again when it continues.
-      // Closing pauses a Full coverage scan too, so it can continue after a restart.
+      // Stop and closing the service abort the run. The round that was running stays as a
+      // record of what it charged; a paused scan runs that round again when it continues.
+      // Closing pauses a Full coverage scan, so it can continue after a restart.
       const stopped = () => {
         const asked = this.#pausing.has(job.id);
         const paused = input.depth === "full" && (asked || this.#closed);
@@ -503,6 +507,12 @@ export class SecurityCoordinator {
               });
               if (limit && !fitsLimit(limit, most)) {
                 stop = "budget";
+                break;
+              }
+              // Pause waits for this point, so no round is cut off.
+              if (this.#pausing.has(job.id)) {
+                job.status = "paused";
+                job.error = null;
                 break;
               }
               this.#store.reviews.assertCapacity(result.id);

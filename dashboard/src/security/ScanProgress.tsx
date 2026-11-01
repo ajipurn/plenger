@@ -40,11 +40,11 @@ export function ScanProgress({
 }: {
   scan: SecurityScan;
   coverage: SourceCoverage;
-  /** Pause or Stop was requested and the current request is ending. */
+  /** Pause waits for the current round to end; Stop ends the current request now. */
   stopping: "pause" | "stop" | null;
   roundsPath: string;
 }) {
-  const ending = stopping !== null;
+  const ending = stopping === "stop";
   const ai = scan.workflow !== "static";
   const limit = SCAN_DEPTHS[scan.depth].batches;
   const round = Math.min(scan.reviews.length + 1, limit);
@@ -81,13 +81,7 @@ export function ScanProgress({
           <p className="security-scan-progress-kicker">
             {ai ? `${SCAN_DEPTHS[scan.depth].label} scan` : "Static scan"}
           </p>
-          <h2>
-            {stopping === "pause"
-              ? "Pausing scan"
-              : stopping === "stop"
-                ? "Stopping scan"
-                : phaseLabel[scan.phase]}
-          </h2>
+          <h2>{ending ? "Stopping scan" : phaseLabel[scan.phase]}</h2>
         </div>
       </div>
       <ol className="security-scan-stages" aria-label="Analysis stages">
@@ -109,13 +103,15 @@ export function ScanProgress({
       <p className="security-scan-stage-note muted">
         {ending
           ? "Waiting for the current request to end. Finished rounds and static results are kept."
-          : scan.phase === "reading" && scan.parentScanId
-            ? "Loading the saved static result and preparing source for AI review."
-            : scan.phase === "finished"
-              ? "Saving the results."
-              : STAGES[scan.phase].description}
+          : stopping === "pause"
+            ? "The scan pauses before its next round. Finished rounds and static results are kept."
+            : scan.phase === "reading" && scan.parentScanId
+              ? "Loading the saved static result and preparing source for AI review."
+              : scan.phase === "finished"
+                ? "Saving the results."
+                : STAGES[scan.phase].description}
         {ai &&
-          !ending &&
+          !stopping &&
           (limit > 1
             ? " Each round discovers, then validates when it has candidates."
             : " Validation runs when the round has candidates.")}

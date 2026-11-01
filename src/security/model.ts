@@ -270,6 +270,8 @@ export interface SecurityScan extends SecurityScanSummary {
   activity?: ScanActivity[];
   /** The reply a running scan is receiving. The service holds it in memory and never saves it. */
   reply?: ScanReply;
+  /** True while a running scan waits for its round to end before it pauses. Held in memory. */
+  pausing?: boolean;
 }
 /** A running scan's model reply while it streams, in the round it belongs to. */
 export interface ScanReply extends ReviewReply {

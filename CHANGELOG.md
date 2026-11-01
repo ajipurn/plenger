@@ -9,6 +9,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- **Pause scan** waits for the running round to finish before the scan pauses,
+  so the round's tokens are not lost and it no longer counts as a cancelled
+  round. Until then the button reads **Pausing after this round…** and
+  **Stop scan** still ends the scan at once.
 - A running scan's actions differ by colour: **Stop scan**, which cannot be undone,
   is a danger button, **Pause scan** a warning one, and **Export snapshot** stays
   neutral.

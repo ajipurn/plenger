@@ -48,11 +48,16 @@ export class OperationSupervisor {
     this.#active = active;
   }
 
+  /** 409 unless `id` names the active operation. */
+  assertActive(id: string | null): void {
+    if (id === null || this.#active?.id !== id)
+      throw new HttpError(409, "This run is no longer active.");
+  }
+
   /** Abort the active operation if `id` names it; 409 otherwise. */
   cancel(id: string | null): void {
-    if (id === null || !this.#active || this.#active.id !== id)
-      throw new HttpError(409, "This run is no longer active.");
-    this.#active.controller.abort();
+    this.assertActive(id);
+    this.#active?.controller.abort();
   }
 
   /** Open the one native dialog; the signal fires when the dashboard shuts down. */

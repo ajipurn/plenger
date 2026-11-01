@@ -936,18 +936,29 @@ describe("local project security workspace", () => {
     return job;
   }
 
-  it("pauses a Full coverage scan and continues it without a limit from the round that was running", async () => {
+  /** Asks a held scan to pause, then lets its round finish so the pause takes effect. */
+  async function pauseAfterRound(id: string): Promise<SecurityScan> {
+    expect((await dashboard.request(pathFor(API.pauseSecurityScan, id), {})).status).toBe(200);
+    const waiting = (await (
+      await dashboard.request(pathFor(API.securityScan, id))
+    ).json()) as SecurityScan;
+    expect(waiting).toMatchObject({ status: "running", pausing: true });
+    hold = undefined;
+    release?.();
+    return finished(id);
+  }
+
+  it("pauses a Full coverage scan after its round and continues it without a limit", async () => {
     const job = await heldInSecondRound();
     expect((await dashboard.request(pathFor(API.pauseSecurityScan, "missing"), {})).status).toBe(
       404,
     );
-    expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(200);
-    const paused = await finished(job.id);
-    release?.();
-    hold = undefined;
+    const paused = await pauseAfterRound(job.id);
     expect(paused).toMatchObject({ status: "paused", error: null });
-    // The round that was running stays as a record of what it charged.
-    expect(paused.reviews.map((review) => review.status)).toEqual(["completed", "cancelled"]);
+    expect(paused.pausing).toBeUndefined();
+    // The round that was running finishes, so no tokens are spent on a cut-off request.
+    expect(paused.reviews.map((review) => review.status)).toEqual(["completed", "completed"]);
+    expect(paused.coverage?.stop).toBeNull();
     expect(paused.findings.length).toBeGreaterThan(0);
     expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(409);
     // A paused scan holds no lock, so another scan can run meanwhile.
@@ -960,7 +971,6 @@ describe("local project security workspace", () => {
     expect(continued.coverage).toMatchObject({ stop: "complete", sentFiles: 52 });
     expect(continued.reviews.map((review) => review.status)).toEqual([
       "completed",
-      "cancelled",
       "completed",
       "completed",
     ]);
@@ -969,12 +979,25 @@ describe("local project security workspace", () => {
     ]);
   });
 
-  it("stops a paused scan for good, keeping its findings", async () => {
+  it("stops a scan at once while it waits to pause", async () => {
     const job = await heldInSecondRound();
     expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(200);
-    const paused = await finished(job.id);
-    release?.();
+    // Asking again changes nothing.
+    expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(200);
+    expect((await dashboard.request(pathFor(API.cancelSecurityScan, job.id), {})).status).toBe(200);
+    const stopped = await finished(job.id);
     hold = undefined;
+    release?.();
+    expect(stopped).toMatchObject({ status: "cancelled", error: null });
+    expect(stopped.reviews.map((review) => review.status)).toEqual(["completed", "cancelled"]);
+    expect((await dashboard.request(pathFor(API.continueSecurityScan, job.id), {})).status).toBe(
+      400,
+    );
+  });
+
+  it("stops a paused scan for good, keeping its findings", async () => {
+    const job = await heldInSecondRound();
+    const paused = await pauseAfterRound(job.id);
     expect(paused.status).toBe("paused");
     expect((await dashboard.request(pathFor(API.cancelSecurityScan, job.id), {})).status).toBe(200);
     const stopped = await finished(job.id);
@@ -990,10 +1013,7 @@ describe("local project security workspace", () => {
 
   it("continues a paused scan under what is left of its limit", async () => {
     const job = await heldInSecondRound({ budget: FULL.budget });
-    expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(200);
-    const paused = await finished(job.id);
-    release?.();
-    hold = undefined;
+    const paused = await pauseAfterRound(job.id);
     const charged = paused.coverage?.charged.tokens ?? 0;
     expect(charged).toBeGreaterThan(0);
     const left = remainingBudget(paused);

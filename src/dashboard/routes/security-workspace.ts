@@ -233,7 +233,11 @@ export function securityWorkspaceRoutes({
         const scan = store.security.scan(params.id ?? "");
         if (!scan) throw new HttpError(404, "Scan not found.");
         const reply = security.reply(scan.id);
-        return { status: 200, body: reply ? { ...scan, reply } : scan };
+        const pausing = security.pausing(scan.id);
+        return {
+          status: 200,
+          body: { ...scan, ...(reply ? { reply } : {}), ...(pausing ? { pausing } : {}) },
+        };
       },
     },
     {

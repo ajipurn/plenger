@@ -122,6 +122,8 @@ export function ScanDetailPage({
   const running = scan.status === "running";
   // A paused scan can continue or be stopped for good; it is not finished yet.
   const paused = scan.status === "paused";
+  // Pause waits for the running round to end; Stop still ends the scan at once meanwhile.
+  const pausing = running && (scan.pausing === true || stopping === "pause");
   // One scan runs at a time, so this one or another blocks starting a scan here.
   const anyRunning = data.scans.some((item) => item.status === "running");
   const projectContext = params.get("project") === scan.repositoryId;
@@ -148,15 +150,18 @@ export function ScanDetailPage({
       setContinuing(false);
     }
   }
-  // Pause and Stop both end the run; only a paused scan can continue. Stop also ends a
-  // paused scan, which then can no longer continue.
+  // Pause ends the run after its round and Stop at once; only a paused scan can continue.
+  // Stop also ends a paused scan, which then can no longer continue.
   async function stop(kind: "pause" | "stop") {
     if (!api || stopping || !(running || (kind === "stop" && paused))) return;
     setStopping(kind);
     try {
-      await (kind === "pause"
-        ? api.pauseSecurityScan(scan?.id ?? "")
-        : api.cancelSecurityScan(scan?.id ?? ""));
+      if (kind === "pause") {
+        await api.pauseSecurityScan(scan?.id ?? "");
+        // The scan keeps running until its round ends, so Stop must stay available.
+        setScan((current) => current && { ...current, pausing: true });
+        setStopping(null);
+      } else await api.cancelSecurityScan(scan?.id ?? "");
       await onRefresh();
     } catch (failure) {
       setError(
@@ -226,10 +231,10 @@ export function ScanDetailPage({
           {running && scan.depth === "full" && (
             <Button
               className="button button-warning"
-              disabled={stopping !== null}
+              disabled={stopping !== null || pausing}
               onClick={() => void stop("pause")}
             >
-              <Icon name="pause" /> {stopping === "pause" ? "Pausing…" : "Pause scan"}
+              <Icon name="pause" /> {pausing ? "Pausing after this round…" : "Pause scan"}
             </Button>
           )}
           {(running || paused) && (
@@ -295,7 +300,7 @@ export function ScanDetailPage({
             <ScanProgress
               scan={scan}
               coverage={sourceCoverage}
-              stopping={stopping}
+              stopping={stopping === "stop" ? "stop" : pausing ? "pause" : null}
               roundsPath={coveragePath}
             />
           )}
