@@ -18,6 +18,7 @@ import {
   useTableSort,
 } from "../shared/table-sort.tsx";
 import { Button } from "../shared/ui.tsx";
+import { scanElapsedMs } from "./coverage.ts";
 
 export const statusLabel: Record<FindingStatus, string> = {
   new: "New",
@@ -90,7 +91,7 @@ export function ScanDuration({ scan }: { scan: SecurityScanSummary }) {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [running]);
-  const ms = running ? now - new Date(scan.startedAt).getTime() : scan.durationMs;
+  const ms = scanElapsedMs(scan, now);
   const total = Number.isFinite(ms) ? Math.max(0, Math.round(ms / 1000)) : 0;
   return (
     <span className="tabular-nums whitespace-nowrap">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   folderCoverage,
+  scanElapsedMs,
   scanPace,
   scanSourceCoverage,
 } from "../dashboard/src/security/coverage.ts";
@@ -235,5 +236,32 @@ describe("folder coverage", () => {
       read: true,
     }));
     expect(folderCoverage(files)).toEqual([{ folder: "src", read: 13, partial: 0, unread: 0 }]);
+  });
+});
+
+describe("scan elapsed time", () => {
+  const start = Date.parse("2026-11-01T09:00:00Z");
+  const scan = {
+    status: "running",
+    startedAt: new Date(start).toISOString(),
+    durationMs: 0,
+  } as SecurityScan;
+  it("counts a first run from its start", () => {
+    expect(scanElapsedMs(scan, start + 90_000)).toBe(90_000);
+  });
+  it("leaves out the time a continued scan spent paused", () => {
+    // It ran 6 minutes, sat paused for 5, then resumed 2 minutes ago.
+    const resumed = start + 11 * 60_000;
+    const continued = {
+      ...scan,
+      durationMs: 6 * 60_000,
+      continuations: [{ at: new Date(resumed).toISOString() }],
+    } as SecurityScan;
+    expect(scanElapsedMs(continued, resumed + 2 * 60_000)).toBe(8 * 60_000);
+  });
+  it("shows the saved duration once a scan is paused or finished", () => {
+    expect(scanElapsedMs({ ...scan, status: "paused", durationMs: 360_000 }, start + 1e9)).toBe(
+      360_000,
+    );
   });
 });

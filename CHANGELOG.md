@@ -71,6 +71,8 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- A continued scan's timer no longer counts the time it spent paused. Its running
+  time and the duration shown once it pauses or finishes now agree.
 - Opening dashboard pages blocked the browser while every number and date set up
   its digit animation, which measured each glyph. Scans took up to 400 ms, and a
   scan with hundreds of model requests froze for several seconds. Values now

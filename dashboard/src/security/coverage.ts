@@ -1,5 +1,9 @@
 import { coversAll, mergeRanges } from "../../../src/assessment/review-excerpt.ts";
-import { SCAN_DEPTHS, type SecurityScan } from "../../../src/dashboard/contract.ts";
+import {
+  SCAN_DEPTHS,
+  type SecurityScan,
+  type SecurityScanSummary,
+} from "../../../src/dashboard/contract.ts";
 
 interface FileCounts {
   total: number;
@@ -189,4 +193,14 @@ export function folderCoverage(
   }
   const total = (counts: FolderCounts) => counts.read + counts.partial + counts.unread;
   return groups.sort((a, b) => total(b) - total(a) || a.folder.localeCompare(b.folder));
+}
+
+/**
+ * How long a scan has run. A continued scan adds the time since it resumed to the time it
+ * ran before, so the time it spent paused is never counted.
+ */
+export function scanElapsedMs(scan: SecurityScanSummary, now: number): number {
+  if (scan.status !== "running") return scan.durationMs;
+  const resumed = scan.continuations?.at(-1)?.at;
+  return resumed ? scan.durationMs + (now - Date.parse(resumed)) : now - Date.parse(scan.startedAt);
 }

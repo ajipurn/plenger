@@ -34,10 +34,14 @@ export function ScanRounds({
   const latest = steps.at(-1);
   const reply = scan.reply?.batch === current ? scan.reply : undefined;
   // The round began when the previous one finished; the first round, with its first reply.
-  const began =
+  // A continued scan's round never began before it resumed, so a pause is not counted.
+  const finished =
     activity.filter((entry) => entry.batch === current - 1 && entry.kind === "batch").at(-1)?.at ??
     steps[0]?.at ??
     reply?.startedAt;
+  const resumed = scan.continuations?.at(-1)?.at;
+  const began =
+    finished && resumed && Date.parse(resumed) > Date.parse(finished) ? resumed : finished;
   const live = scan.status === "running" && scan.workflow !== "static" && scan.phase !== "reading";
   const rounds = scan.reviews
     .map((review, index) => ({ review, index }))

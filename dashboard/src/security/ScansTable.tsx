@@ -7,22 +7,19 @@ import {
   type TableSort,
   useTableSort,
 } from "../shared/table-sort.tsx";
+import { scanElapsedMs } from "./coverage.ts";
 import { costDescription, usdCounterLabel } from "./ScanBilling.tsx";
 import { date, legacyScanLabel, ScanDuration, ScanStatus, scanStatusLabel } from "./ui.tsx";
 
 export type ScanSortKey = "started" | "source" | "duration" | "tokens" | "cost" | "status";
-/** Scan columns. A scan that has not finished sorts by the time it has run so far. */
+/** Scan columns. A running scan sorts by the time it has run so far, pauses left out. */
 export function scanSortColumns(
   names: Map<string, string>,
 ): SortColumns<SecurityScanSummary, ScanSortKey> {
   return {
     started: { value: (scan) => Date.parse(scan.startedAt), first: "descending" },
     source: { value: (scan) => names.get(scan.repositoryId) ?? "" },
-    duration: {
-      value: (scan) =>
-        scan.finishedAt ? scan.durationMs : Date.now() - Date.parse(scan.startedAt),
-      first: "descending",
-    },
+    duration: { value: (scan) => scanElapsedMs(scan, Date.now()), first: "descending" },
     tokens: { value: (scan) => scan.tokens, first: "descending" },
     cost: { value: (scan) => scan.cost?.totalUsd ?? null, first: "descending" },
     status: { value: (scan) => Object.keys(scanStatusLabel).indexOf(scan.status) },
