@@ -27,7 +27,14 @@ Overview, Inventory or campaign sidebar in this shell. The workspace has no foot
 The header rows are 56px and 40px tall. Tables and drawers use compact padding.
 Data tables sit in a recessed tray that carries the sentence case column labels.
 The rows form a card inset 3px inside it, with quieter lines between rows than
-at its edge. The sorted column's label reads in ink. Search and filters sit
+at its edge. Every data column sorts from its header button; Actions columns do
+not. The first click puts dates, counts and severity largest first and text from
+A, and a second click reverses it. The sorted column's label reads in ink with
+its arrow; other headers show a faint arrow on hover or focus. The sort lives
+in the `sort` search parameter, so it survives opening a row and coming back,
+and paginated lists sort before they are sliced. Rows without a value, such as
+an unscanned project, stay last. Providers keep their saved order, the default
+first, until a column is chosen. Search and filters sit
 above the tray, apart from the table. Tables have no footer. Search keeps a
 fixed 320px width at the start of the toolbar, with filters beside it. A page
 action such as Add project sits at the far end. Phones give search a full row.
@@ -81,7 +88,8 @@ and mixed-status results. Its minimum readable width can scroll inside its
 container on phones. It never uses demonstration counts in the product.
 
 The table shows severity, finding, project, origin, status and detection
-time. Sort by severity and paginate at 30 findings. Selecting a row opens a
+time. Sort by severity, most severe first, until another column is chosen, and
+paginate at 30 findings. Selecting a row opens a
 full page report with Summary, Root cause, Attack path, Validation, Remediation
 and captured evidence. The metadata column holds severity, editable workflow
 status, observed revision, project, detection time and affected locations.

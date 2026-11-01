@@ -11,6 +11,12 @@ import {
 } from "../../../src/dashboard/contract.ts";
 import { SEVERITIES } from "../../../src/rules/model.ts";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
+import {
+  type SortColumns,
+  SortHeader,
+  type TableSort,
+  useTableSort,
+} from "../shared/table-sort.tsx";
 import { Button } from "../shared/ui.tsx";
 
 export const statusLabel: Record<FindingStatus, string> = {
@@ -119,6 +125,24 @@ export function Empty({
     </div>
   );
 }
+export type FindingSortKey = "severity" | "finding" | "validation" | "status" | "detected";
+/** Severity ranks the most severe highest, so its default descending order puts it first. */
+export const FINDING_SORT: SortColumns<SecurityFinding, FindingSortKey> = {
+  severity: {
+    value: (finding) => SEVERITIES.length - SEVERITIES.indexOf(finding.severity),
+    first: "descending",
+  },
+  finding: { value: (finding) => finding.title },
+  validation: {
+    value: (finding) => Object.keys(validationLabel).indexOf(findingValidation(finding)),
+  },
+  status: { value: (finding) => Object.keys(statusLabel).indexOf(finding.status) },
+  detected: { value: (finding) => Date.parse(finding.detectedAt), first: "descending" },
+};
+export const FINDING_DEFAULT_SORT: TableSort<FindingSortKey> = {
+  key: "severity",
+  direction: "descending",
+};
 export function FindingsTable({
   findings,
   names,
@@ -134,56 +158,64 @@ export function FindingsTable({
     ...(scanId ? { scan: scanId } : {}),
     ...(projectId ? { project: projectId } : {}),
   }).toString();
+  // Paginated pages sort the whole list first; this keeps an unpaginated list in order.
+  const { sort, toggle, apply } = useTableSort(FINDING_SORT, FINDING_DEFAULT_SORT);
   return (
     <div className="security-table-scroll">
       <table className="security-table">
         <caption className="sr-only">Security findings</caption>
         <thead>
           <tr>
-            <th scope="col" aria-sort="descending">
-              Severity <span aria-hidden="true">↓</span>
-            </th>
-            <th scope="col">Finding</th>
-            <th scope="col">Validation</th>
-            <th scope="col">Status</th>
-            <th scope="col">Detected</th>
+            <SortHeader column="severity" sort={sort} onSort={toggle}>
+              Severity
+            </SortHeader>
+            <SortHeader column="finding" sort={sort} onSort={toggle}>
+              Finding
+            </SortHeader>
+            <SortHeader column="validation" sort={sort} onSort={toggle}>
+              Validation
+            </SortHeader>
+            <SortHeader column="status" sort={sort} onSort={toggle}>
+              Status
+            </SortHeader>
+            <SortHeader column="detected" sort={sort} onSort={toggle}>
+              Detected
+            </SortHeader>
           </tr>
         </thead>
         <tbody>
-          {findings
-            .toSorted((a, b) => SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity))
-            .map((finding) => (
-              <tr key={finding.id}>
-                <td>
-                  <span className={`badge ${finding.severity}`}>{finding.severity}</span>
-                </td>
-                <td>
-                  <Link
-                    className="security-row-link"
-                    to={`/findings/${encodeURIComponent(finding.id)}${context ? `?${context}` : ""}`}
-                  >
-                    {finding.title}
-                  </Link>
-                  <span className="security-cell-caption">
-                    {names.get(finding.repositoryId) ?? "Project"} <span aria-hidden="true">·</span>{" "}
-                    {originLabel(finding)}
-                  </span>
-                </td>
-                <td>
-                  <span className="security-status">
-                    {validationLabel[findingValidation(finding)]}
-                  </span>
-                </td>
-                <td>
-                  <span className={`security-status finding-${finding.status}`}>
-                    {statusLabel[finding.status]}
-                  </span>
-                </td>
-                <td className="muted security-date">
-                  <MorphNumber value={date(finding.detectedAt)} variant="text" />
-                </td>
-              </tr>
-            ))}
+          {apply(findings).map((finding) => (
+            <tr key={finding.id}>
+              <td>
+                <span className={`badge ${finding.severity}`}>{finding.severity}</span>
+              </td>
+              <td>
+                <Link
+                  className="security-row-link"
+                  to={`/findings/${encodeURIComponent(finding.id)}${context ? `?${context}` : ""}`}
+                >
+                  {finding.title}
+                </Link>
+                <span className="security-cell-caption">
+                  {names.get(finding.repositoryId) ?? "Project"} <span aria-hidden="true">·</span>{" "}
+                  {originLabel(finding)}
+                </span>
+              </td>
+              <td>
+                <span className="security-status">
+                  {validationLabel[findingValidation(finding)]}
+                </span>
+              </td>
+              <td>
+                <span className={`security-status finding-${finding.status}`}>
+                  {statusLabel[finding.status]}
+                </span>
+              </td>
+              <td className="muted security-date">
+                <MorphNumber value={date(finding.detectedAt)} variant="text" />
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

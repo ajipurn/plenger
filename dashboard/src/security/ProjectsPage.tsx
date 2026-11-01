@@ -8,10 +8,13 @@ import type {
 import { findingValidation } from "../../../src/dashboard/contract.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
+import { type SortColumns, SortHeader, useTableSort } from "../shared/table-sort.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.tsx";
 import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { date, Empty, isOpenStatus, ScanStatus } from "./ui.tsx";
+
+type ProjectSortKey = "project" | "scanned" | "open";
 
 export function ProjectsPage({
   projects,
@@ -38,8 +41,31 @@ export function ProjectsPage({
   for (const finding of findings)
     if (isOpenStatus(finding.status) && findingValidation(finding) !== "dismissed")
       openFindings.set(finding.repositoryId, (openFindings.get(finding.repositoryId) ?? 0) + 1);
-  const filtered = projects.filter((item) =>
-    `${item.name} ${item.path}`.toLowerCase().includes(query.toLowerCase()),
+  const latestScan = (project: LocalRepository) =>
+    scans.find((scan) => scan.repositoryId === project.id);
+  // Unscanned projects have no last scan or open count, so they sort last.
+  const columns: SortColumns<LocalRepository, ProjectSortKey> = {
+    project: { value: (project) => project.name },
+    scanned: {
+      value: (project) => {
+        const latest = latestScan(project);
+        return latest ? Date.parse(latest.startedAt) : null;
+      },
+      first: "descending",
+    },
+    open: {
+      value: (project) => (latestScan(project) ? (openFindings.get(project.id) ?? 0) : null),
+      first: "descending",
+    },
+  };
+  const { sort, toggle, apply } = useTableSort<LocalRepository, ProjectSortKey>(columns, {
+    key: "scanned",
+    direction: "descending",
+  });
+  const filtered = apply(
+    projects.filter((item) =>
+      `${item.name} ${item.path}`.toLowerCase().includes(query.toLowerCase()),
+    ),
   );
   return (
     <>
@@ -82,9 +108,15 @@ export function ProjectsPage({
             <caption className="sr-only">Local projects</caption>
             <thead>
               <tr>
-                <th scope="col">Project</th>
-                <th scope="col">Last scan</th>
-                <th scope="col">Open findings</th>
+                <SortHeader column="project" sort={sort} onSort={toggle}>
+                  Project
+                </SortHeader>
+                <SortHeader column="scanned" sort={sort} onSort={toggle}>
+                  Last scan
+                </SortHeader>
+                <SortHeader column="open" sort={sort} onSort={toggle}>
+                  Open findings
+                </SortHeader>
                 <th scope="col">
                   <span className="sr-only">Actions</span>
                 </th>
@@ -92,7 +124,7 @@ export function ProjectsPage({
             </thead>
             <tbody>
               {filtered.map((project) => {
-                const latest = scans.find((scan) => scan.repositoryId === project.id);
+                const latest = latestScan(project);
                 return (
                   <tr key={project.id}>
                     <td>

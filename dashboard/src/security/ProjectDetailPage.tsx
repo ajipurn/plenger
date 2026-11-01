@@ -5,18 +5,20 @@ import {
   type SecurityWorkspace,
   WORKSPACE_LIMITS,
 } from "../../../src/dashboard/contract.ts";
-import { SEVERITIES } from "../../../src/rules/model.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
+import { useSortReset, useTableSort } from "../shared/table-sort.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.tsx";
 import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { usdCounterLabel } from "./ScanBilling.tsx";
-import { ScansTable } from "./ScansTable.tsx";
+import { SCAN_DEFAULT_SORT, ScansTable, scanSortColumns } from "./ScansTable.tsx";
 import { ThreatModelPanel } from "./ThreatModelPanel.tsx";
 import {
   date,
   Empty,
+  FINDING_DEFAULT_SORT,
+  FINDING_SORT,
   FindingsTable,
   isOpenStatus,
   Pagination,
@@ -38,6 +40,13 @@ export function ProjectDetailPage({
   const [params] = useSearchParams();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
+  // Both lists sort before they are sliced into pages; a new sort starts on page one.
+  const findingSort = useTableSort(FINDING_SORT, FINDING_DEFAULT_SORT);
+  const scanSort = useTableSort(
+    scanSortColumns(new Map(data.repositories.map((item) => [item.id, item.name]))),
+    SCAN_DEFAULT_SORT,
+  );
+  useSortReset(params.get("tab") === "scans" ? scanSort.sort : findingSort.sort, () => setPage(0));
   const navigate = useNavigate();
   // Leave the page first so it never renders the deleted project as missing.
   const deletion = useProjectDeletion(async () => {
@@ -66,11 +75,11 @@ export function ProjectDetailPage({
   const open = findings.filter(
     (finding) => isOpenStatus(finding.status) && findingValidation(finding) !== "dismissed",
   ).length;
-  const matches = findings
-    .filter((finding) =>
+  const matches = findingSort.apply(
+    findings.filter((finding) =>
       `${finding.title} ${finding.rootCause}`.toLowerCase().includes(query.toLowerCase()),
-    )
-    .sort((a, b) => SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity));
+    ),
+  );
   const scansView = params.get("tab") === "scans";
   const total = scansView ? scans.length : matches.length;
   const pageSize = WORKSPACE_LIMITS.pageSize;
@@ -182,7 +191,9 @@ export function ProjectDetailPage({
           ) : scansView ? (
             <>
               <ScansTable
-                scans={scans.slice(current * pageSize, current * pageSize + pageSize)}
+                scans={scanSort
+                  .apply(scans)
+                  .slice(current * pageSize, current * pageSize + pageSize)}
                 names={names}
                 projectId={project.id}
               />

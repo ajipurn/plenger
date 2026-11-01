@@ -109,6 +109,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- Every data column in Findings, Projects, Scans and Settings > Providers sorts
+  from its header, and a second click reverses it. The sort stays in the address,
+  so it survives opening a row and coming back. Findings still start by severity
+  and scans by start time.
 - A running scan has **Pause scan** and **Stop scan** instead of **Cancel scan**.
   Pause, for Full coverage AI scans, ends the current request and keeps the
   finished rounds and their findings. **Continue scan** later runs the remaining

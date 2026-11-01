@@ -2,8 +2,9 @@ import { useId, useState } from "react";
 import { type SecurityWorkspace, WORKSPACE_LIMITS } from "../../../src/dashboard/contract.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
+import { useSortReset, useTableSort } from "../shared/table-sort.tsx";
 import { Input, Select } from "../shared/ui.tsx";
-import { ScansTable } from "./ScansTable.tsx";
+import { SCAN_DEFAULT_SORT, ScansTable, scanSortColumns } from "./ScansTable.tsx";
 import { Empty, Pagination, scanStatusLabel } from "./ui.tsx";
 
 export function ScansPage({ data }: { data: SecurityWorkspace }) {
@@ -19,6 +20,9 @@ export function ScansPage({ data }: { data: SecurityWorkspace }) {
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
+  const scanSort = useTableSort(scanSortColumns(names), SCAN_DEFAULT_SORT);
+  useSortReset(scanSort.sort, () => setPage(0));
+  const sorted = scanSort.apply(filtered);
   const pageSize = WORKSPACE_LIMITS.pageSize;
   const current = Math.min(page, Math.max(0, Math.ceil(filtered.length / pageSize) - 1));
   return (
@@ -71,7 +75,7 @@ export function ScansPage({ data }: { data: SecurityWorkspace }) {
       {filtered.length ? (
         <>
           <ScansTable
-            scans={filtered.slice(current * pageSize, current * pageSize + pageSize)}
+            scans={sorted.slice(current * pageSize, current * pageSize + pageSize)}
             names={names}
           />
           <Pagination page={current} count={pageSize} total={filtered.length} onChange={setPage} />

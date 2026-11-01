@@ -222,8 +222,9 @@ diagram. The initial view includes New, Triaged and In progress candidates that 
 has not dismissed. Origin and validation have separate labels. Static indications
 without a completed source review show as Unvalidated, including historical data.
 Use the validation filter to see dismissed static candidates.
-Open a row to see its summary, root cause, attack path, validation, remediation,
-affected source locations and captured evidence.
+Select a column header to sort by it, and again to reverse it; this works in every
+table. Open a row to see its summary, root cause, attack path, validation,
+remediation, affected source locations and captured evidence.
 
 The status selector saves **New**, **Triaged**, **In progress**, **Resolved** or
 **Dismissed**. A finding reported again keeps its status and first detection

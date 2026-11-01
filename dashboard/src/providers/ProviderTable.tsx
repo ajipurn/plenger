@@ -5,6 +5,7 @@ import { EmptyState } from "../shared/EmptyState.tsx";
 import { Icon } from "../shared/icons.tsx";
 import { PROVIDER_LABELS } from "../shared/providers.ts";
 import { SearchField } from "../shared/SearchField.tsx";
+import { type SortColumns, SortHeader, useTableSort } from "../shared/table-sort.tsx";
 import { Button } from "../shared/ui.tsx";
 
 /** The saved key as the editor shows it; screen readers hear the kept characters instead. */
@@ -17,6 +18,13 @@ function SavedKey({ preview }: { preview: string }) {
     </>
   );
 }
+
+/** Providers keep their saved order, the default first, until a column is chosen. */
+const PROVIDER_SORT: SortColumns<SavedProvider, "name" | "provider" | "endpoint"> = {
+  name: { value: (item) => item.name },
+  provider: { value: (item) => `${PROVIDER_LABELS[item.provider]} ${item.model}` },
+  endpoint: { value: (item) => item.baseUrl },
+};
 
 export function ProviderTable({
   id,
@@ -39,11 +47,14 @@ export function ProviderTable({
   onMakeDefault: (provider: SavedProvider) => void;
   onDelete: (provider: SavedProvider) => void;
 }) {
-  const visibleProviders = providers.filter((item) =>
-    [item.name, item.provider, item.model, item.baseUrl]
-      .join(" ")
-      .toLowerCase()
-      .includes(query.trim().toLowerCase()),
+  const { sort, toggle, apply } = useTableSort(PROVIDER_SORT, null);
+  const visibleProviders = apply(
+    providers.filter((item) =>
+      [item.name, item.provider, item.model, item.baseUrl]
+        .join(" ")
+        .toLowerCase()
+        .includes(query.trim().toLowerCase()),
+    ),
   );
   return (
     <>
@@ -67,9 +78,15 @@ export function ProviderTable({
           </colgroup>
           <thead>
             <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Provider / model</th>
-              <th scope="col">Endpoint</th>
+              <SortHeader column="name" sort={sort} onSort={toggle}>
+                Name
+              </SortHeader>
+              <SortHeader column="provider" sort={sort} onSort={toggle}>
+                Provider / model
+              </SortHeader>
+              <SortHeader column="endpoint" sort={sort} onSort={toggle}>
+                Endpoint
+              </SortHeader>
               <th scope="col" className="provider-actions-cell">
                 Actions
               </th>

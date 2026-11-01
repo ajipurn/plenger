@@ -546,6 +546,31 @@ main:focus-visible {
 :is(.security-table, .providers-table) thead th[aria-sort] {
   @apply text-ink;
 }
+/* A sortable header is a button. The sorted column shows its arrow; the others show a
+ * faint one on hover or focus, so the header row stays quiet. */
+.table-sort {
+  @apply inline-flex items-center gap-1 -mx-1 px-1 py-0 rounded-[4px] border-0 bg-transparent text-start cursor-pointer;
+  font: inherit;
+  color: inherit;
+  transition: color 150ms ease;
+}
+.table-sort:hover {
+  @apply text-ink;
+}
+.table-sort:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.table-sort-icon {
+  @apply w-2.5 text-[11px] leading-none opacity-0;
+  transition: opacity 150ms ease;
+}
+.table-sort:is(:hover, :focus-visible) .table-sort-icon {
+  opacity: 0.6;
+}
+th[aria-sort] .table-sort-icon {
+  opacity: 1;
+}
 :is(.security-table, .providers-table) tbody th {
   @apply text-start font-medium;
 }

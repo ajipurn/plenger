@@ -10,10 +10,19 @@ import {
 } from "../../../src/dashboard/contract.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
+import { useSortReset, useTableSort } from "../shared/table-sort.tsx";
 import { Button, Checkbox, Input, Select } from "../shared/ui.tsx";
 import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { SeverityFlow } from "./SeverityFlow.tsx";
-import { Empty, FindingsTable, Pagination, statusLabel, validationLabel } from "./ui.tsx";
+import {
+  Empty,
+  FINDING_DEFAULT_SORT,
+  FINDING_SORT,
+  FindingsTable,
+  Pagination,
+  statusLabel,
+  validationLabel,
+} from "./ui.tsx";
 
 export function FindingsPage({
   data,
@@ -37,27 +46,24 @@ export function FindingsPage({
   );
   const filtered = useMemo(
     () =>
-      data.findings
-        .filter(
-          (item) =>
-            statuses.includes(item.status) &&
-            (validation === "all" ||
-              (validation === "active"
-                ? findingValidation(item) !== "dismissed"
-                : findingValidation(item) === validation)) &&
-            (severity === "all" || item.severity === severity) &&
-            (repository === "all" || item.repositoryId === repository) &&
-            `${item.title} ${names.get(item.repositoryId) ?? ""} ${item.rootCause}`
-              .toLowerCase()
-              .includes(query.toLowerCase()),
-        )
-        .sort(
-          (a, b) =>
-            ["critical", "high", "medium", "low"].indexOf(a.severity) -
-            ["critical", "high", "medium", "low"].indexOf(b.severity),
-        ),
+      data.findings.filter(
+        (item) =>
+          statuses.includes(item.status) &&
+          (validation === "all" ||
+            (validation === "active"
+              ? findingValidation(item) !== "dismissed"
+              : findingValidation(item) === validation)) &&
+          (severity === "all" || item.severity === severity) &&
+          (repository === "all" || item.repositoryId === repository) &&
+          `${item.title} ${names.get(item.repositoryId) ?? ""} ${item.rootCause}`
+            .toLowerCase()
+            .includes(query.toLowerCase()),
+      ),
     [data.findings, statuses, severity, validation, repository, query, names],
   );
+  const findingSort = useTableSort(FINDING_SORT, FINDING_DEFAULT_SORT);
+  useSortReset(findingSort.sort, () => setPage(0));
+  const sorted = findingSort.apply(filtered);
   const change = (next: FindingStatus[]) => {
     setStatuses(next);
     setPage(0);
@@ -251,7 +257,7 @@ export function FindingsPage({
       {filtered.length ? (
         <>
           <FindingsTable
-            findings={filtered.slice(currentPage * pageSize, currentPage * pageSize + pageSize)}
+            findings={sorted.slice(currentPage * pageSize, currentPage * pageSize + pageSize)}
             names={names}
           />
           <Pagination
