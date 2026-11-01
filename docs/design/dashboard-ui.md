@@ -31,7 +31,9 @@ choice, Comfortable or Compact, uses the same cards with a findings table that
 shows more rows when compact. A choice saves immediately.
 
 The navbar uses the existing `/mark.svg` brand asset, shared with the favicon.
-Keep this logo when changing navigation or menu icons.
+Keep this logo when changing navigation or menu icons. The header wordmark reads
+PLENGER in bundled Bytesized at 32px. Its glyphs sit on 8 units per em, so keep
+the size a multiple of 8 for sharp pixels.
 
 Read colors, radii and typography from `styles/tokens.css`. Layout rules for
 this shell live in `styles/security.css`; shared controls remain in

@@ -9,6 +9,8 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- The wordmark on the dashboard header, the landing page and the docs reads
+  PLENGER in the bundled Bytesized pixel font instead of Sacramento.
 - The dashboard calls each AI review cycle a **round** in both modes and on
   every page, instead of batch, source batch, review or exploring review. Each
   round runs discovery, then **validation**, the former second review. The New

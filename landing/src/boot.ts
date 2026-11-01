@@ -8,7 +8,7 @@ const FONT_FACES = [
   '400 1em "Kode Mono Variable"',
   '400 1em "Geist Variable"',
   '400 1em "Geist Mono Variable"',
-  '400 1em "Sacramento"',
+  '400 1em "Bytesized"',
 ];
 
 /** Reveal one stable set of fonts. A timed-out visit keeps its local fallbacks. */

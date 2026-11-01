@@ -528,7 +528,8 @@ h2 {
   align-items: center;
   gap: 8px;
   font-family: var(--font-brand);
-  font-size: 24px;
+  font-size: 16px;
+  text-transform: uppercase;
 }
 
 .app-brand img {
@@ -891,11 +892,12 @@ h2 {
   transition: transform 0.5s var(--ease-out);
 }
 
-/* background-clip: text paints only inside the box, so pad it around the swashes. */
+/* background-clip: text paints only inside the box, so the box keeps a little room. */
 .footer-word {
   margin: 0;
-  padding: 0.16em 0.1em 0.42em;
+  padding: 0.08em 0 0.16em;
   font-family: var(--font-brand);
+  text-transform: uppercase;
   font-size: clamp(5rem, 18vw, 16rem);
   line-height: 1;
   text-align: center;

@@ -48,7 +48,7 @@ importers:
       '@fontsource-variable/geist-mono':
         specifier: 5.3.0
         version: 5.3.0
-      '@fontsource/sacramento':
+      '@fontsource/bytesized':
         specifier: 5.3.0
         version: 5.3.0
       '@gravity-ui/icons':
@@ -112,7 +112,7 @@ importers:
       '@fontsource-variable/geist-mono':
         specifier: 5.3.0
         version: 5.3.0
-      '@fontsource/sacramento':
+      '@fontsource/bytesized':
         specifier: 5.3.0
         version: 5.3.0
       fumadocs-core:
@@ -170,6 +170,9 @@ importers:
       '@fontsource-variable/kode-mono':
         specifier: 5.3.0
         version: 5.3.0
+      '@fontsource/bytesized':
+        specifier: 5.3.0
+        version: 5.3.0
       '@fontsource/redaction':
         specifier: 5.3.0
         version: 5.3.0
@@ -180,9 +183,6 @@ importers:
         specifier: 5.3.0
         version: 5.3.0
       '@fontsource/redaction-70':
-        specifier: 5.3.0
-        version: 5.3.0
-      '@fontsource/sacramento':
         specifier: 5.3.0
         version: 5.3.0
       astro:
@@ -629,6 +629,9 @@ packages:
   '@fontsource-variable/kode-mono@5.3.0':
     resolution: {integrity: sha512-U5nNDAkv9c5jgMnom649alsS3CxlSsPM5SKSfpnWuUNDV65keYVCIZWnxf9/mFJZg6SWussoHQ6D4t//l9grQw==}
 
+  '@fontsource/bytesized@5.3.0':
+    resolution: {integrity: sha512-u6M+bupfT49uJu3F+vOrcmmQRSsb9pXKL5Do5lo5fiED8ukJzQxdGfZMHp/TTWvIJ92BaZvVpGiG/3x71KV4Rw==}
+
   '@fontsource/redaction-100@5.3.0':
     resolution: {integrity: sha512-BaoypxfTL+hL8M6L2iuM1jkowGsG/n7Vcy1mhL16VtRmzKtT6WoPOnfnko06WDmDVG0fh+WOtiptcEG0cA9aAA==}
 
@@ -640,9 +643,6 @@ packages:
 
   '@fontsource/redaction@5.3.0':
     resolution: {integrity: sha512-mlVA74kHfyjLPjX2j+93w/0leZAQ4aouFbx6LR8fbfqpaDRFidQnpFbpb+0wVY/MS/k3IbTjQgPjdVI8ymllzw==}
-
-  '@fontsource/sacramento@5.3.0':
-    resolution: {integrity: sha512-KkqN52aTsJ0pSBva/NREqFljs0M1TwMIpNcqdSQc2EKR/mVU1CvM2dazf9eG19rHMTIssjbia83nGG705SlD1w==}
 
   '@fuma-translate/react@1.0.2':
     resolution: {integrity: sha512-uOiOtBx3nRXR8Nu1GzBf1tApgF1FErDBTHxRIAQeyQdyOoZbrNRN6H4kDCWObY4qyGeGbHydG0DHzgeUgFDMIw==}
@@ -4194,6 +4194,8 @@ snapshots:
 
   '@fontsource-variable/kode-mono@5.3.0': {}
 
+  '@fontsource/bytesized@5.3.0': {}
+
   '@fontsource/redaction-100@5.3.0': {}
 
   '@fontsource/redaction-35@5.3.0': {}
@@ -4201,8 +4203,6 @@ snapshots:
   '@fontsource/redaction-70@5.3.0': {}
 
   '@fontsource/redaction@5.3.0': {}
-
-  '@fontsource/sacramento@5.3.0': {}
 
   '@fuma-translate/react@1.0.2(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:

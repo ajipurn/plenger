@@ -25,8 +25,9 @@
 .security-workspace-identity {
   @apply flex items-center gap-4 min-w-0;
 }
+/* Bytesized draws on 8 units per em, so a size divisible by 8 keeps its pixels sharp. */
 .security-brand {
-  @apply inline-flex items-center gap-2.5 font-brand text-[28px] font-normal leading-none tracking-normal shrink-0;
+  @apply inline-flex items-center gap-2.5 font-brand text-[32px] font-normal leading-none tracking-normal uppercase shrink-0;
 }
 .security-primary-nav {
   @apply flex items-stretch gap-6 min-h-10;

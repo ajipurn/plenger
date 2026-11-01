@@ -8,7 +8,7 @@ import { legacyHashTarget } from "./app/routes.ts";
 import { verticalScrollbars } from "./shared/scrollbars.ts";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
-import "@fontsource/sacramento/latin-400.css";
+import "@fontsource/bytesized/latin-400.css";
 import "./styles/styles.css";
 import "./styles/scrollbars.css";
 

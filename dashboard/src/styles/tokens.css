@@ -225,7 +225,7 @@
   --color-code-fg: var(--code-fg);
   --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono Variable", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --font-brand: "Sacramento", cursive;
+  --font-brand: "Bytesized", monospace;
   --radius-ui: var(--ui-radius);
   --radius-panel: var(--panel-radius);
   --text-ui: var(--text-body);

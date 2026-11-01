@@ -55,7 +55,7 @@
   --font-redact-35: var(--font-display);
   --font-redact-70: var(--font-display);
   --font-redact-100: var(--font-display);
-  --font-brand: cursive;
+  --font-brand: ui-monospace, monospace;
 
   --gutter: clamp(20px, 5vw, 64px);
   /* Content sits in one centred column; `--inset` pads full-width blocks to it. */
@@ -80,7 +80,7 @@
   --font-redact-35: "Redaction 35", var(--font-display);
   --font-redact-70: "Redaction 70", var(--font-display);
   --font-redact-100: "Redaction 100", var(--font-display);
-  --font-brand: "Sacramento", cursive;
+  --font-brand: "Bytesized", ui-monospace, monospace;
 }
 
 *,
@@ -395,11 +395,12 @@ main,
   border-radius: 7px;
 }
 
+/* Bytesized draws on 8 units per em; sizes divisible by 8 keep its pixels sharp. */
 .brand-word {
   font-family: var(--font-brand);
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1;
-  transform: translateY(2px);
+  text-transform: uppercase;
 }
 
 .nav-links {

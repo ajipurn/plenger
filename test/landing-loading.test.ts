@@ -82,10 +82,10 @@ describe("landing page initial loading", () => {
         '400 1em "Kode Mono Variable"',
         '400 1em "Geist Variable"',
         '400 1em "Geist Mono Variable"',
-        '400 1em "Sacramento"',
+        '400 1em "Bytesized"',
       ]),
     );
-    const last = page.fonts.get('400 1em "Sacramento"');
+    const last = page.fonts.get('400 1em "Bytesized"');
     expect(last).toBeDefined();
     for (const download of page.fonts.values()) {
       if (download !== last) download.resolve([{}]);

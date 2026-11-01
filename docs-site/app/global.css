@@ -1,6 +1,6 @@
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
-@import "@fontsource/sacramento";
+@import "@fontsource/bytesized";
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
@@ -43,10 +43,12 @@ body {
   overflow-wrap: break-word;
 }
 
+/* Bytesized draws on 8 units per em, so 2rem keeps its pixels sharp. */
 .docs-wordmark {
-  font-family: "Sacramento", cursive;
+  font-family: "Bytesized", ui-monospace, monospace;
   font-size: 2rem;
   line-height: 1;
+  text-transform: uppercase;
 }
 
 .docs-skip-link {
