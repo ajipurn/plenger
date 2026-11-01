@@ -108,21 +108,35 @@
   padding-block: 0;
   line-height: var(--control-line-height);
 }
+/* Filters float like the other popups: raised, with the popover shadow as their only
+ * edge. Hairlines split the sections; checkbox rows highlight like menu items. */
 .security-filter-body {
-  @apply bg-surface border border-line-strong rounded-panel p-4 w-60;
+  @apply w-64 rounded-panel bg-raised text-ink;
   box-shadow: var(--shadow-popover);
 }
 .security-filter-body [role="dialog"] {
-  @apply grid gap-3 outline-none;
+  @apply grid outline-none;
 }
-.security-filter-body fieldset {
-  @apply grid gap-2 border-0 p-0 m-0;
+.security-filter-section {
+  @apply grid gap-1.5 min-w-0 m-0 border-0 px-4 py-3;
 }
-.security-filter-body legend {
-  @apply mb-2 font-medium;
+.security-filter-section + .security-filter-section {
+  @apply border-t border-line;
 }
-.security-filter-body label {
-  @apply flex items-center gap-2 text-[13px];
+.security-filter-title {
+  @apply p-0 text-[12px] font-medium text-muted;
+}
+/* A floated legend leaves the fieldset border and joins the grid like the other titles. */
+legend.security-filter-title {
+  @apply float-left w-full;
+}
+.security-filter-section .ui-checkbox {
+  @apply -mx-2 px-2 rounded-ui;
+  min-height: calc(var(--control-height) - 4px);
+  transition: background-color 150ms ease;
+}
+.security-filter-section .ui-checkbox[data-hovered] {
+  @apply bg-hover;
 }
 .security-flow {
   @apply border border-line rounded-panel bg-surface;

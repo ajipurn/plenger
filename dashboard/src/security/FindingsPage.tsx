@@ -154,8 +154,8 @@ export function FindingsPage({
               <Heading slot="title" className="sr-only">
                 Finding filters
               </Heading>
-              <fieldset>
-                <legend>Status</legend>
+              <fieldset className="security-filter-section">
+                <legend className="security-filter-title">Status</legend>
                 {FINDING_STATUSES.map((status) => (
                   <Checkbox
                     key={status}
@@ -172,38 +172,46 @@ export function FindingsPage({
                   </Checkbox>
                 ))}
               </fieldset>
-              <label htmlFor={`${id}-validation`}>Validation</label>
-              <Select
-                label="Validation filter"
-                id={`${id}-validation`}
-                value={validation}
-                items={[
-                  { value: "active", label: "Non-dismissed candidates" },
-                  { value: "all", label: "All validation outcomes" },
-                  ...Object.entries(validationLabel).map(([value, label]) => ({ value, label })),
-                ]}
-                onValueChange={(value) => {
-                  setValidation(value);
-                  setPage(0);
-                }}
-              />
-              <label htmlFor={`${id}-severity`}>Severity</label>
-              <Select
-                label="Severity"
-                id={`${id}-severity`}
-                value={severity}
-                items={["all", "critical", "high", "medium", "low"].map((value) => ({
-                  value,
-                  label:
-                    value === "all"
-                      ? "All severities"
-                      : `${value[0]?.toUpperCase()}${value.slice(1)}`,
-                }))}
-                onValueChange={(value) => {
-                  setSeverity(value);
-                  setPage(0);
-                }}
-              />
+              <div className="security-filter-section">
+                <label htmlFor={`${id}-validation`} className="security-filter-title">
+                  Validation
+                </label>
+                <Select
+                  label="Validation filter"
+                  id={`${id}-validation`}
+                  value={validation}
+                  items={[
+                    { value: "active", label: "Non-dismissed candidates" },
+                    { value: "all", label: "All validation outcomes" },
+                    ...Object.entries(validationLabel).map(([value, label]) => ({ value, label })),
+                  ]}
+                  onValueChange={(value) => {
+                    setValidation(value);
+                    setPage(0);
+                  }}
+                />
+              </div>
+              <div className="security-filter-section">
+                <label htmlFor={`${id}-severity`} className="security-filter-title">
+                  Severity
+                </label>
+                <Select
+                  label="Severity"
+                  id={`${id}-severity`}
+                  value={severity}
+                  items={["all", "critical", "high", "medium", "low"].map((value) => ({
+                    value,
+                    label:
+                      value === "all"
+                        ? "All severities"
+                        : `${value[0]?.toUpperCase()}${value.slice(1)}`,
+                  }))}
+                  onValueChange={(value) => {
+                    setSeverity(value);
+                    setPage(0);
+                  }}
+                />
+              </div>
             </Dialog>
           </Popover>
         </DialogTrigger>
