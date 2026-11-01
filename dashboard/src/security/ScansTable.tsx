@@ -2,7 +2,7 @@ import { Link } from "react-router";
 import type { SecurityScanSummary } from "../../../src/dashboard/contract.ts";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { costDescription, usdCounterLabel } from "./ScanBilling.tsx";
-import { date, ScanDuration, ScanStatus } from "./ui.tsx";
+import { date, legacyScanLabel, ScanDuration, ScanStatus } from "./ui.tsx";
 
 export function ScansTable({
   scans,
@@ -41,12 +41,9 @@ export function ScansTable({
                   {names.get(scan.repositoryId) ?? "Project"}
                 </Link>
                 <span className="security-cell-caption">
-                  {scan.workflow === "static"
-                    ? "Static only"
-                    : scan.parentScanId
-                      ? "AI review"
-                      : "Run all"}{" "}
-                  · {scan.revision.commit?.slice(0, 7) ?? "Local files"}
+                  {[legacyScanLabel(scan), scan.revision.commit?.slice(0, 7) ?? "Local files"]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               </td>
               <td>

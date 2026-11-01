@@ -10,8 +10,8 @@ join AI candidates only for the second source review. See
 
 1. Add a local folder under **Projects**.
 2. Save a model connection under **Settings > Providers**.
-3. Press **New Scan**, choose **Run all**, then the project, provider, model,
-   review mode and depth. The review runs in rounds: each round runs discovery, then validation
+3. Press **New Scan**, then choose the project, provider, model, review mode
+   and depth. The review runs in rounds: each round runs discovery, then validation
    of static and AI candidates. **Batch** sends each round the files the scan picks.
    **Explore** lets the model read the project through read-only tools; see
    [Explore mode](#explore-mode).

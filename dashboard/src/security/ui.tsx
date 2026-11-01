@@ -57,6 +57,14 @@ export const scanStatusLabel: Record<SecurityScanSummary["status"], string> = {
   // The person ended the scan; the saved value predates Stop.
   cancelled: "Stopped",
 };
+/**
+ * Every scan now runs static analysis, discovery and validation, so only scans saved by the
+ * removed Static only and Continue with AI choices are named.
+ */
+export function legacyScanLabel(scan: SecurityScanSummary): string | null {
+  if (scan.workflow === "static") return "Static only";
+  return scan.parentScanId ? "AI review" : null;
+}
 export const phaseLabel = {
   reading: "Reading source",
   discovering: "Threat modeling and discovery",

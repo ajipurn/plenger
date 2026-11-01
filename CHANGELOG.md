@@ -9,6 +9,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- Scans and scan details no longer label each scan Run all, since every scan runs
+  the whole workflow. Scans saved by the removed choices keep **Static only** or
+  **AI review**.
 - New Scan groups its fields under Source, Model and Review. Mode and depth are
   cards that show both options with their model calls or rounds. Provider and
   model share a row, **Validate with** replaces the validation checkbox, and

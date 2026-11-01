@@ -35,6 +35,7 @@ import {
   date,
   dismissalLabel,
   FindingsTable,
+  legacyScanLabel,
   ScanDuration,
   ScanStatus,
 } from "./ui.tsx";
@@ -162,13 +163,7 @@ export function ScanDetailPage({
           </div>
           {/* The details panel waits for the scan to finish, so a running scan names its source here. */}
           <p className="muted security-scan-facts">
-            <span>
-              {scan.workflow === "static"
-                ? "Static only"
-                : scan.parentScanId
-                  ? "AI review"
-                  : "Run all"}
-            </span>
+            {legacyScanLabel(scan) && <span>{legacyScanLabel(scan)}</span>}
             {scan.workflow !== "static" && (
               <span>
                 {SCAN_DEPTHS[scan.depth].label}
