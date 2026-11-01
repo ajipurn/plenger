@@ -707,8 +707,7 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   .security-coverage,
   .security-scan-result-empty,
   .security-output-batch,
-  .security-continue-scan,
-  .security-billing
+  .security-continue-scan
 ) {
   box-shadow: var(--shadow-card);
 }
@@ -755,21 +754,13 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   @apply pe-4 hidden;
 }
 /* With the last column hidden, the one before it closes the card. */
-.security-detail-main .security-table:not(.security-billing-table) tbody > tr > :nth-last-child(2) {
+.security-detail-main .security-table tbody > tr > :nth-last-child(2) {
   border-inline-end: 1px solid var(--line);
 }
-.security-detail-main
-  .security-table:not(.security-billing-table)
-  tbody:first-of-type
-  > tr:first-child
-  > :nth-last-child(2) {
+.security-detail-main .security-table tbody:first-of-type > tr:first-child > :nth-last-child(2) {
   border-start-end-radius: var(--table-card-radius);
 }
-.security-detail-main
-  .security-table:not(.security-billing-table)
-  tbody:last-of-type
-  > tr:last-child
-  > :nth-last-child(2) {
+.security-detail-main .security-table tbody:last-of-type > tr:last-child > :nth-last-child(2) {
   border-end-end-radius: var(--table-card-radius);
 }
 .security-detail-meta {
@@ -890,47 +881,46 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-detail-main .security-scans-table :is(th, td):last-child {
   display: table-cell;
 }
+/* Token usage opens from the details panel; the drawer body lists rounds, then requests. */
+.security-meta-action {
+  @apply mt-5 inline-flex items-center gap-1.5 p-0 border-0 bg-transparent text-[13px] font-medium text-accent cursor-pointer;
+  min-height: 0;
+}
+.security-meta-action .icon {
+  @apply size-3.5;
+  transition: translate 150ms ease;
+}
+.security-meta-action[data-hovered] {
+  @apply underline underline-offset-4;
+}
+.security-meta-action[data-hovered] .icon {
+  translate: 2px 0;
+}
 .security-billing {
-  @apply border border-line rounded-panel bg-surface text-[13px];
-  margin-bottom: var(--section-gap);
-}
-.security-billing > summary {
-  @apply flex items-center gap-2 min-h-12 px-5 list-none rounded-panel font-medium cursor-pointer;
-  transition: background-color 150ms ease;
-}
-.security-billing > summary::-webkit-details-marker {
-  display: none;
-}
-.security-billing > summary:hover {
-  @apply bg-hover;
-}
-.security-billing > summary > .icon {
-  @apply size-3.5 shrink-0 text-subtle;
-  transition: rotate 150ms ease;
-}
-.security-billing[open] > summary > .icon {
-  rotate: 90deg;
-}
-.security-billing-body {
-  @apply px-5 pb-5;
+  @apply p-5 text-[13px];
 }
 .security-billing p {
   @apply my-3 leading-relaxed;
 }
-.security-billing-body > p:first-child {
+.security-billing > p:first-child {
   @apply mt-0;
 }
-.security-billing section {
-  @apply mt-5;
+.security-billing section + section,
+.security-billing > div + div > section:first-child {
+  @apply mt-6 pt-5 border-t border-line;
+}
+.security-billing h3 {
+  @apply text-[14px] font-semibold;
 }
 .security-billing .security-table-scroll {
   @apply mt-3;
 }
+/* Four columns fit the drawer; narrower screens scroll the table. */
+.security-billing .security-billing-table {
+  min-width: 520px;
+}
 .security-billing-table caption {
   @apply text-start px-4 py-3 font-medium;
-}
-.security-detail-main .security-billing-table :is(th, td):last-child {
-  display: table-cell;
 }
 .security-scan-actions {
   @apply flex flex-wrap items-center gap-2;

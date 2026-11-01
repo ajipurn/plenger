@@ -260,8 +260,9 @@ branch at start; it does not freeze the files. Plenger does not read working-tre
 because Git would run the filter commands that a project's own Git configuration
 names. Included file digests identify what the
 model actually received. Anthropic and OpenAI dollar estimates use the selected
-models' captured prices. **Token usage and cost details** shows each request's
-uncached input, output, cache writes and cache hits. Reported token totals remain
+models' captured prices. **Usage by request**, under Model & usage in the right
+column, opens a drawer with each request's uncached input, output, cache writes
+and cache hits, by round. Reported token totals remain
 visible when another response lacks usage. Scan details explain incomplete totals.
 Older scans can recover totals from their saved billing details without a new scan.
 Budget reservations never replace missing usage. Missing prices or all missing usage

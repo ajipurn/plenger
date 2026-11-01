@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import {
   canContinue,
@@ -28,7 +28,7 @@ import { ContinueScan } from "./ContinueScan.tsx";
 import { CoverageOverview, FolderCoverage } from "./CoverageOverview.tsx";
 import { scanSourceCoverage } from "./coverage.ts";
 import { RUNNING_SCAN_REASON } from "./running-scan.ts";
-import { costDescription, ScanBilling, usdCounterLabel } from "./ScanBilling.tsx";
+import { costDescription, hasBilling, ScanBilling, usdCounterLabel } from "./ScanBilling.tsx";
 import { ScanProgress } from "./ScanProgress.tsx";
 import { ScanRounds } from "./ScanRounds.tsx";
 import {
@@ -65,6 +65,8 @@ export function ScanDetailPage({
     if (scanStatus !== "running") setStopping(null);
   }, [scanStatus]);
   const [rea, setRea] = useState<ImportedReaEvidence[]>([]);
+  const [billing, setBilling] = useState(false);
+  const billingTrigger = useRef<HTMLButtonElement>(null);
   // Bumped to load the scan again: the service saved it, or the page restarted it.
   const [version, setVersion] = useState(0);
   const live = useSecurityEvents(api, scan?.status === "running", (event) => {
@@ -377,7 +379,6 @@ export function ScanDetailPage({
               <NumericText>{error}</NumericText>
             </p>
           )}
-          <ScanBilling reviews={scan.reviews} />
           {outputs ? (
             <div className="security-outputs">
               {scan.reviews.length ? (
@@ -670,6 +671,15 @@ export function ScanDetailPage({
                   </dd>
                 </div>
               </dl>
+              {hasBilling(scan.reviews) && (
+                <Button
+                  ref={billingTrigger}
+                  className="security-meta-action"
+                  onClick={() => setBilling(true)}
+                >
+                  Usage by request <Icon name="arrow-right" />
+                </Button>
+              )}
             </section>
             <section>
               <h2>
@@ -696,6 +706,12 @@ export function ScanDetailPage({
           </aside>
         )}
       </div>
+      <ScanBilling
+        reviews={scan.reviews}
+        open={billing}
+        onOpenChange={setBilling}
+        returnFocus={() => billingTrigger.current}
+      />
     </div>
   );
 }

@@ -1,11 +1,10 @@
-import { useState } from "react";
 import type { SecurityReview } from "../../../src/dashboard/contract.ts";
 import {
   BILLING_PRICE_FIELDS,
   type CostSummary,
   tokenCost,
 } from "../../../src/redteam/model-pricing.ts";
-import { Icon } from "../shared/icons.tsx";
+import { DetailDrawer } from "../shared/DetailDrawer.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 
 export function costLabel(cost: CostSummary | null | undefined): string {
@@ -48,19 +47,42 @@ const labels = {
   cacheWrite: "Cache write · Default lifetime",
 };
 
-export function ScanBilling({ reviews }: { reviews: SecurityReview[] }) {
-  // A long scan reports hundreds of requests, so the tables are built only while open.
-  const [open, setOpen] = useState(false);
-  if (!reviews.some((review) => review.request.billing || review.request.validatorBilling))
-    return null;
+/** Whether any round saved usage to break down. */
+export function hasBilling(reviews: SecurityReview[]): boolean {
+  return reviews.some((review) => review.request.billing || review.request.validatorBilling);
+}
+
+/**
+ * Each round's reported requests with their tokens and prices, in a drawer opened from the
+ * scan's usage totals. A long scan reports hundreds of requests, so the tables are built
+ * only while the drawer is open.
+ */
+export function ScanBilling({
+  reviews,
+  open,
+  onOpenChange,
+  returnFocus,
+}: {
+  reviews: SecurityReview[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  returnFocus: () => HTMLElement | null | undefined;
+}) {
   return (
-    <details className="security-billing" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>
-        <Icon name="chevron" />
-        <span>Token usage and cost details</span>
-      </summary>
+    <DetailDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      className="inventory-detail-panel security-drawer"
+      headingClassName="findings-drawer-heading security-drawer-heading"
+      eyebrow="Model & usage"
+      title="Token usage and cost"
+      description="Tokens each request reported, by round, with their estimated cost."
+      descriptionClassName="muted"
+      closeLabel="Close token usage"
+      returnFocus={returnFocus}
+    >
       {open && (
-        <div className="security-billing-body">
+        <div className="security-billing">
           <p className="muted">
             USD estimates use the prices captured when this scan started. They are not an invoice
             and exclude taxes, discounts and other service charges. Incomplete usage is never
@@ -96,7 +118,7 @@ export function ScanBilling({ reviews }: { reviews: SecurityReview[] }) {
           ))}
         </div>
       )}
-    </details>
+    </DetailDrawer>
   );
 }
 

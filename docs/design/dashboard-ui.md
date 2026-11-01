@@ -139,7 +139,8 @@ card counts the files read and shows no target bar.
 
 Scan details place the project, status and actions in one header. A compact
 summary shows elapsed time, saved findings and scan depth. Metadata groups source,
-model usage and timing. Long folder paths wrap within the panel. While a scan
+model usage and timing. Per-request token usage opens in a drawer from Model &
+usage, so the main column starts with its tab content. Long folder paths wrap within the panel. While a scan
 runs, show its actual read, review and validation stages without estimating a
 percentage. Cancel acknowledges the pending request. Export snapshot identifies
 incomplete records; finished jobs use Export JSON. The header holds the scan's

@@ -9,6 +9,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- Token usage and cost details moved out of the scan's main column. **Usage by
+  request**, under Model & usage in the details panel, opens them in a drawer,
+  so findings, coverage and outputs start right below the tabs.
 - **Pause scan** waits for the running round to finish before the scan pauses,
   so the round's tokens are not lost and it no longer counts as a cancelled
   round. Until then the button reads **Pausing after this round…** and
