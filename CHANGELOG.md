@@ -25,7 +25,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - Dashboard tables sit in a recessed tray that carries the column labels, with
   the rows on a card inset in it. Provider labels are sentence case like the
   other tables. Provider search sits above the table, and the provider count
-  footer is gone.
+  footer is gone. Search fields keep a 320px width with filters beside them
+  instead of filling the row, and Add project moves to the far end. The
+  provider table shows the masked API key, as the provider editor does, instead
+  of "API key saved". Its actions menu button matches **Edit** beside it.
 - The dashboard calls each AI review cycle a **round** in both modes and on
   every page, instead of batch, source batch, review or exploring review. Each
   round runs discovery, then **validation**, the former second review. The New

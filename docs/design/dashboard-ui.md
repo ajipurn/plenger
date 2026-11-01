@@ -28,7 +28,9 @@ The header rows are 56px and 40px tall. Tables and drawers use compact padding.
 Data tables sit in a recessed tray that carries the sentence case column labels.
 The rows form a card inset 3px inside it, with quieter lines between rows than
 at its edge. The sorted column's label reads in ink. Search and filters sit
-above the tray, apart from the table. Tables have no footer.
+above the tray, apart from the table. Tables have no footer. Search keeps a
+fixed 320px width at the start of the toolbar, with filters beside it. A page
+action such as Add project sits at the far end. Phones give search a full row.
 Settings includes Appearance, Providers and Data. Appearance holds the Theme
 choice: Dark, System or Light, as radio cards that each preview the dashboard
 in their appearance. System shows light and dark side by side. The Density
@@ -236,7 +238,10 @@ The browser receives only a masked preview with at most the last four characters
 of a stored API key. Keys shorter than 12 characters stay fully masked. Derive the
 preview locally without persisting it. Keep the replacement input empty and show
 the preview as its placeholder only while the provider and endpoint match.
-ChatGPT sign-in credentials have no key preview. Editors continue using the shared
+The provider table shows the same preview under the endpoint, and screen readers
+hear the kept characters. ChatGPT sign-in credentials have no key preview. Row
+actions are secondary buttons; the actions menu is a square one with a dots icon.
+Editors continue using the shared
 drawer and popup primitives.
 
 Claude editors split Connection and Model pricing into keyboard-accessible tabs.

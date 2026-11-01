@@ -1,10 +1,22 @@
 import { Menu, MenuItem, MenuTrigger, Popover } from "react-aria-components";
+import { API_KEY_PREVIEW } from "../../../src/redteam/constants.ts";
 import type { SavedProvider } from "../../../src/redteam/provider-config.ts";
 import { EmptyState } from "../shared/EmptyState.tsx";
 import { Icon } from "../shared/icons.tsx";
 import { PROVIDER_LABELS } from "../shared/providers.ts";
 import { SearchField } from "../shared/SearchField.tsx";
 import { Button } from "../shared/ui.tsx";
+
+/** The saved key as the editor shows it; screen readers hear the kept characters instead. */
+function SavedKey({ preview }: { preview: string }) {
+  const suffix = preview.slice(API_KEY_PREVIEW.mask.length);
+  return (
+    <>
+      <span aria-hidden="true">{preview}</span>
+      <span className="sr-only">{suffix ? `API key ending in ${suffix}` : "API key saved"}</span>
+    </>
+  );
+}
 
 export function ProviderTable({
   id,
@@ -86,15 +98,19 @@ export function ProviderTable({
                 <td className="provider-endpoint-cell">
                   <span title={item.baseUrl}>{item.baseUrl}</span>
                   <span className="muted">
-                    {item.provider === "chatgpt"
-                      ? item.chatgptAccount
-                        ? `ChatGPT: ${item.chatgptAccount}`
-                        : "ChatGPT sign-in needed"
-                      : item.hasApiKey
-                        ? "API key saved"
-                        : item.provider === "ollama"
-                          ? "No API key"
-                          : "API key missing"}
+                    {item.provider === "chatgpt" ? (
+                      item.chatgptAccount ? (
+                        `ChatGPT: ${item.chatgptAccount}`
+                      ) : (
+                        "ChatGPT sign-in needed"
+                      )
+                    ) : item.hasApiKey ? (
+                      <SavedKey preview={item.apiKeyPreview ?? API_KEY_PREVIEW.mask} />
+                    ) : item.provider === "ollama" ? (
+                      "No API key"
+                    ) : (
+                      "API key missing"
+                    )}
                   </span>
                 </td>
                 <td className="provider-actions-cell">
@@ -109,11 +125,11 @@ export function ProviderTable({
                     </Button>
                     <MenuTrigger>
                       <Button
-                        className="icon-button"
+                        className="button button-secondary button-square"
                         disabled={busy}
                         aria-label={`Actions for ${item.name}`}
                       >
-                        …
+                        <Icon name="more" />
                       </Button>
                       <Popover
                         className="provider-action-menu ui-popover"

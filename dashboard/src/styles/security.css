@@ -78,9 +78,14 @@
 .security-toolbar {
   @apply flex flex-wrap gap-2 items-center pb-4;
 }
+/* Search keeps a fixed width with the filters beside it; the page's own action goes to
+ * the far end. Phones give search its own row. */
 .security-search {
-  @apply relative flex items-center min-w-0 flex-1;
-  flex-basis: 20rem;
+  @apply relative flex items-center min-w-0;
+  flex: 0 1 20rem;
+}
+.security-toolbar-action {
+  @apply ms-auto;
 }
 .security-search > .icon {
   @apply absolute start-2.5 text-muted pointer-events-none;
@@ -1788,6 +1793,9 @@ summary.security-round-row:hover {
   }
   .security-content {
     @apply py-6;
+  }
+  .security-search {
+    flex-basis: 100%;
   }
   .security-toolbar > .ui-select {
     @apply flex-1;

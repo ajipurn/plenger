@@ -15,6 +15,7 @@ import {
   Cpu,
   Cubes3,
   Database,
+  Ellipsis,
   FaceRobot,
   FileCode,
   FileText,
@@ -82,6 +83,7 @@ export type IconName =
   | "close"
   | "trash"
   | "edit"
+  | "more"
   | "plus"
   | "pause"
   | "play"
@@ -126,6 +128,7 @@ const glyphs: Record<IconName, typeof Folder> = {
   close: Xmark,
   trash: TrashBin,
   edit: Pencil,
+  more: Ellipsis,
   plus: Plus,
   pause: Pause,
   play: Play,

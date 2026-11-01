@@ -211,6 +211,11 @@ main:focus-visible {
 .button-quiet:hover:not(:disabled) {
   @apply text-ink;
 }
+/* An icon-only button that sits beside labelled buttons of the same kind. */
+.button-square {
+  @apply p-0 shrink-0;
+  width: var(--control-height);
+}
 .icon-button {
   @apply inline-grid place-items-center rounded-ui text-muted bg-transparent border border-line shrink-0;
   width: var(--control-height);
@@ -956,12 +961,12 @@ main:focus-visible {
   background: var(--table-tray);
   padding: 0 var(--table-inset) var(--table-inset);
 }
-/* Search sits above the table, apart from it, as on the other list pages. */
+/* Search sits above the table at the same fixed width as on the other list pages. */
 .providers-toolbar {
   @apply flex items-center gap-2 pb-4 text-label;
 }
 .providers-toolbar .search-field {
-  @apply min-w-0 w-full;
+  @apply min-w-0 w-full max-w-80;
 }
 .provider-name-column {
   width: 25%;
@@ -1007,9 +1012,6 @@ main:focus-visible {
 }
 .provider-row-actions {
   @apply flex items-center justify-end gap-1.5;
-}
-.provider-row-actions .icon-button {
-  @apply bg-transparent border-transparent;
 }
 .provider-action-menu {
   @apply rounded-panel bg-raised text-ink p-1 min-w-[180px];
@@ -1235,6 +1237,9 @@ main:focus-visible {
   }
   .subnav-content-heading {
     @apply flex-wrap;
+  }
+  .providers-toolbar .search-field {
+    @apply max-w-none;
   }
   .providers-table th,
   .providers-table td {

@@ -68,7 +68,11 @@ export function ProjectsPage({
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <Button ref={addButton} className="button button-secondary" onClick={onAdd}>
+        <Button
+          ref={addButton}
+          className="button button-secondary security-toolbar-action"
+          onClick={onAdd}
+        >
           <Icon name="plus" /> Add project
         </Button>
       </div>
