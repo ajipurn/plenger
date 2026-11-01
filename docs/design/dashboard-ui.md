@@ -38,11 +38,16 @@ first, until a column is chosen. Search and filters sit
 above the tray, apart from the table. Tables have no footer. Search keeps a
 fixed 320px width at the start of the toolbar, with filters beside it. A page
 action such as Add project sits at the far end. Phones give search a full row.
-Settings includes Appearance, Providers and Data. Appearance holds the Theme
-choice: Dark, System or Light, as radio cards that each preview the dashboard
-in their appearance. System shows light and dark side by side. The Density
-choice, Comfortable or Compact, uses the same cards with a findings table that
-shows more rows when compact. A choice saves immediately.
+Settings includes Appearance, Providers and Data. Appearance places Theme and
+Density in two adjacent cards, with more room for Theme. Narrow layouts stack
+the cards. Theme offers Dark, System or Light as compact radio cards that each
+preview the dashboard. System shows light and dark side by side. Density uses
+a Comfortable or Compact segmented control above one findings table preview.
+The preview follows the selected density and shows more rows when compact.
+A choice saves immediately, with its save status beside the Appearance heading.
+Data lists what clearing removes and preserves in two columns inside one card.
+An irreversible-action notice and the Clear data button sit in its footer.
+The existing confirmation dialog is required before deletion.
 
 The header shows `/logo.svg`, the 48 by 48 pixel art tiger, beside the wordmark.
 It is also the favicon. Show it at 24px or 48px so each logo pixel maps to whole

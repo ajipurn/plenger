@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from "react";
+import { useId } from "react";
 import { Label, Radio, RadioGroup, Text } from "react-aria-components";
 import type { DashboardDensity, DashboardTheme } from "../../../src/dashboard/contract.ts";
 import {
@@ -9,6 +9,7 @@ import {
   isDashboardTheme,
   THEME_LABELS,
 } from "../app/appearance.ts";
+import { Icon } from "../shared/icons.tsx";
 
 /** A saved choice as `usePreference` returns it. */
 interface Preference<T> {
@@ -29,95 +30,105 @@ export function AppearanceSettings({
   density: Preference<DashboardDensity>;
 }) {
   const id = useId();
+  const saving = theme.saving || density.saving;
   return (
-    <section className="subnav-content" aria-labelledby={`${id}-heading`}>
+    <section
+      className="subnav-content settings-appearance-content"
+      aria-labelledby={`${id}-heading`}
+    >
       <div className="subnav-content-heading">
         <div>
           <h2 id={`${id}-heading`}>Appearance</h2>
           <p className="muted">Choose how the dashboard looks.</p>
         </div>
+        {!disabled && !theme.error && !density.error && (
+          <p className="settings-appearance-save" role="status">
+            <Icon name={saving ? "clock" : "check"} />
+            <span>{saving ? "Saving…" : "Saved automatically"}</span>
+          </p>
+        )}
       </div>
       <div className="settings-appearance">
-        <Choice
-          label="Theme"
-          description="System follows your device setting and changes with it."
-          options={DASHBOARD_THEMES}
-          labels={THEME_LABELS}
-          isOption={isDashboardTheme}
-          preference={theme}
-          disabled={disabled}
-          preview={(option) => <ThemePreview theme={option} />}
-        />
-        <Choice
-          label="Density"
-          description="Compact fits more rows on screen. Buttons and fields keep their size."
-          options={DASHBOARD_DENSITIES}
-          labels={DENSITY_LABELS}
-          isOption={isDashboardDensity}
-          preference={density}
-          disabled={disabled}
-          preview={(option) => <DensityPreview density={option} />}
-        />
-      </div>
-      <p className="muted settings-data-hint">Your preferences are saved automatically.</p>
-    </section>
-  );
-}
-
-/** One appearance setting as radio cards, each with a picture of what it does. */
-function Choice<T extends string>({
-  label,
-  description,
-  options,
-  labels,
-  isOption,
-  preference,
-  disabled,
-  preview,
-}: {
-  label: string;
-  description: string;
-  options: readonly T[];
-  labels: Record<T, string>;
-  isOption: (value: unknown) => value is T;
-  preference: Preference<T>;
-  disabled: boolean;
-  preview: (option: T) => ReactNode;
-}) {
-  return (
-    <RadioGroup
-      className="settings-choice"
-      orientation="horizontal"
-      value={preference.value}
-      isDisabled={disabled}
-      isReadOnly={preference.saving}
-      onChange={(value) => {
-        if (isOption(value)) void preference.choose(value);
-      }}
-    >
-      <div className="settings-choice-heading">
-        <Label>{label}</Label>
-        <Text slot="description" className="muted">
-          {description}
-        </Text>
-      </div>
-      <div className="settings-choice-options">
-        {options.map((option) => (
-          <Radio key={option} value={option} className="settings-choice-option">
-            {preview(option)}
-            <span className="settings-choice-label">
-              <span className="ui-choice-radio" aria-hidden="true" />
-              {labels[option]}
+        <RadioGroup
+          className="settings-choice settings-theme-choice"
+          orientation="horizontal"
+          value={theme.value}
+          isDisabled={disabled}
+          isReadOnly={theme.saving}
+          onChange={(value) => {
+            if (isDashboardTheme(value)) void theme.choose(value);
+          }}
+        >
+          <div className="settings-choice-heading">
+            <Label className="settings-choice-title">
+              <Icon name="sun" />
+              <span>Theme</span>
+            </Label>
+            <Text slot="description" className="muted">
+              Choose a light or dark workspace.
+            </Text>
+          </div>
+          <div className="settings-choice-options">
+            {DASHBOARD_THEMES.map((option) => (
+              <Radio key={option} value={option} className="settings-choice-option">
+                <ThemePreview theme={option} />
+                <span className="settings-choice-label">
+                  {THEME_LABELS[option]}
+                  <span className="ui-choice-radio" aria-hidden="true" />
+                </span>
+              </Radio>
+            ))}
+          </div>
+          <p className="settings-choice-hint">
+            <Icon name="settings" />
+            <span>
+              {theme.value === "system"
+                ? "Follows your device appearance."
+                : "Applies across your dashboard."}
             </span>
-          </Radio>
-        ))}
+          </p>
+          {theme.error && (
+            <p className="error-message" role="alert">
+              {theme.error}
+            </p>
+          )}
+        </RadioGroup>
+        <RadioGroup
+          className="settings-choice settings-density-choice"
+          orientation="horizontal"
+          value={density.value}
+          isDisabled={disabled}
+          isReadOnly={density.saving}
+          onChange={(value) => {
+            if (isDashboardDensity(value)) void density.choose(value);
+          }}
+        >
+          <div className="settings-choice-heading">
+            <Label className="settings-choice-title">
+              <Icon name="inventory" />
+              <span>Density</span>
+            </Label>
+            <Text slot="description" className="muted">
+              Choose how much fits on screen.
+            </Text>
+          </div>
+          <div className="settings-density-options">
+            {DASHBOARD_DENSITIES.map((option) => (
+              <Radio key={option} value={option} className="settings-density-option">
+                {DENSITY_LABELS[option]}
+              </Radio>
+            ))}
+          </div>
+          <DensityPreview density={density.value} />
+          <p className="settings-choice-hint">Buttons and fields keep their size.</p>
+          {density.error && (
+            <p className="error-message" role="alert">
+              {density.error}
+            </p>
+          )}
+        </RadioGroup>
       </div>
-      {preference.error && (
-        <p className="error-message" role="alert">
-          {preference.error}
-        </p>
-      )}
-    </RadioGroup>
+    </section>
   );
 }
 

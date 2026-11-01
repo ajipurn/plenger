@@ -24,7 +24,7 @@ export function DataSettings({ active, onCleared }: { active: boolean; onCleared
   }
 
   return (
-    <section className="subnav-content" aria-labelledby={`${id}-heading`}>
+    <section className="subnav-content settings-data-content" aria-labelledby={`${id}-heading`}>
       <div className="subnav-content-heading">
         <div>
           <h2 id={`${id}-heading`}>Data</h2>
@@ -32,28 +32,70 @@ export function DataSettings({ active, onCleared }: { active: boolean; onCleared
         </div>
       </div>
       <section className="settings-clear-data" aria-labelledby={`${id}-clear`}>
-        <div>
-          <h3 id={`${id}-clear`}>Clear data</h3>
+        <div className="settings-data-card-heading">
+          <h3 id={`${id}-clear`}>Clear saved data</h3>
           <p className="muted">
-            Delete all saved projects, scans, findings, reviews and red-team results. Providers and
-            their credentials are kept.
-          </p>
-          <p className="muted">
-            This cannot be undone. Your project files and exported reports stay unchanged.
+            Remove all saved projects and security review history from this device.
           </p>
         </div>
-        <Button
-          ref={trigger}
-          className="button button-danger"
-          disabled={!api || active || busy}
-          {...(active ? { "aria-describedby": `${id}-active` } : {})}
-          onClick={() => {
-            setError("");
-            setOpen(true);
-          }}
-        >
-          <Icon name="trash" /> Clear data
-        </Button>
+        <div className="settings-data-scope">
+          <section className="settings-data-scope-group" aria-labelledby={`${id}-deleted`}>
+            <h4 id={`${id}-deleted`} className="settings-data-scope-title">
+              Will be deleted
+            </h4>
+            <ul className="settings-data-list">
+              <li>
+                <Icon name="folder" />
+                <span>All saved projects</span>
+              </li>
+              <li>
+                <Icon name="history" />
+                <span>Scans, findings and reviews</span>
+              </li>
+              <li>
+                <Icon name="data-stores" />
+                <span>Imported evidence and red-team results</span>
+              </li>
+            </ul>
+          </section>
+          <section className="settings-data-scope-group" aria-labelledby={`${id}-kept`}>
+            <h4 id={`${id}-kept`} className="settings-data-scope-title">
+              Will be kept
+            </h4>
+            <ul className="settings-data-list">
+              <li>
+                <Icon name="providers" />
+                <span>Providers and credentials</span>
+              </li>
+              <li>
+                <Icon name="sun" />
+                <span>Appearance preferences</span>
+              </li>
+              <li>
+                <Icon name="source-files" />
+                <span>Project files and exported reports</span>
+              </li>
+            </ul>
+          </section>
+        </div>
+        <div className="settings-data-actions">
+          <p id={`${id}-warning`} className="settings-data-warning">
+            <Icon name="alert" />
+            <span>This action cannot be undone.</span>
+          </p>
+          <Button
+            ref={trigger}
+            className="button button-danger"
+            disabled={!api || active || busy}
+            aria-describedby={`${id}-warning${active ? ` ${id}-active` : ""}`}
+            onClick={() => {
+              setError("");
+              setOpen(true);
+            }}
+          >
+            <Icon name="trash" /> Clear data
+          </Button>
+        </div>
       </section>
       {active && (
         <p id={`${id}-active`} className="muted settings-data-hint">

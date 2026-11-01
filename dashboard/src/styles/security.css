@@ -680,9 +680,7 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 @media (prefers-reduced-motion: reduce) {
   .security-scan-segmented::before,
   .security-scan-card,
-  .security-scan-preset,
-  .settings-choice-option,
-  .settings-choice-preview {
+  .security-scan-preset {
     transition: none;
   }
   .security-scan-limit {
@@ -1553,73 +1551,180 @@ summary.security-round-row:hover {
 .provider-price-details p {
   margin-block-start: 8px;
 }
+.settings-data-content {
+  container: data-settings / inline-size;
+}
 .settings-clear-data {
-  @apply flex flex-wrap items-start justify-between gap-5 rounded-ui border border-line p-5;
+  @apply min-w-0 overflow-hidden rounded-panel border border-line bg-surface;
 }
-.settings-clear-data > div {
-  @apply min-w-0 flex-1;
-  flex-basis: 28rem;
+.settings-data-card-heading {
+  @apply p-5;
 }
-.settings-clear-data h3 {
-  @apply text-section;
+.settings-data-card-heading h3 {
+  @apply text-section font-semibold;
 }
-.settings-clear-data p {
-  @apply mt-2 max-w-[65ch] text-label;
+.settings-data-card-heading p {
+  @apply mt-1 max-w-[65ch] text-label;
+}
+.settings-data-scope {
+  @apply grid grid-cols-2 gap-6 px-5 pb-5;
+}
+.settings-data-scope-group {
+  @apply min-w-0;
+}
+.settings-data-scope-group + .settings-data-scope-group {
+  @apply border-s border-line ps-6;
+}
+.settings-data-scope-title {
+  @apply text-label font-semibold text-ink;
+}
+.settings-data-list {
+  @apply grid list-none gap-2.5 mt-3 mb-0 ps-0;
+}
+.settings-data-list li {
+  @apply flex min-w-0 items-start gap-2.5 text-label text-muted;
+}
+.settings-data-list .icon {
+  @apply size-4 flex-none;
+  margin-block-start: 2px;
+}
+.settings-data-actions {
+  @apply flex flex-wrap items-center justify-between gap-4 border-t border-line bg-canvas px-5 py-4;
+}
+.settings-data-warning {
+  @apply flex min-w-0 flex-1 items-start gap-2 text-label text-muted;
+  flex-basis: 16rem;
+}
+.settings-data-warning .icon {
+  @apply size-4 flex-none text-critical;
+  margin-block-start: 2px;
+}
+.settings-data-actions > .button {
+  @apply flex-none;
 }
 .settings-data-hint {
   @apply mt-3 text-label;
 }
-/* Appearance settings. Each choice is a group of radio cards whose pictures show what
- * the option does; the selected picture takes the selection ring. Theme and Density
- * share three columns, so their cards line up. */
+@container data-settings (max-width: 34rem) {
+  .settings-data-scope {
+    @apply grid-cols-1 gap-5;
+  }
+  .settings-data-scope-group + .settings-data-scope-group {
+    @apply border-s-0 border-t border-line ps-0 pt-5;
+  }
+}
+@container data-settings (max-width: 24rem) {
+  .settings-data-card-heading {
+    @apply p-4;
+  }
+  .settings-data-scope {
+    @apply px-4 pb-4;
+  }
+  .settings-data-actions {
+    @apply flex-col items-start p-4;
+  }
+  .settings-data-warning {
+    flex-basis: auto;
+  }
+}
+/* Appearance stays within its own content column. Theme and Density share a row when
+ * both cards fit; their controls keep the same geometry at either density. */
+.settings-appearance-content {
+  container: appearance / inline-size;
+}
+.subnav-content-heading .settings-appearance-save {
+  @apply flex flex-none items-center gap-1.5 mt-0 text-micro text-muted;
+}
+.settings-appearance-save .icon {
+  @apply size-3.5;
+}
 .settings-appearance {
-  @apply grid rounded-ui border border-line;
+  @apply grid gap-4;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
 }
 .settings-choice {
-  @apply grid gap-5 p-5;
-}
-.settings-choice + .settings-choice {
-  @apply border-t border-line;
+  @apply flex min-w-0 flex-col rounded-panel border border-line bg-surface p-5;
 }
 .settings-choice-heading {
   @apply grid gap-1 text-label;
 }
-.settings-choice-heading > label {
-  @apply text-[14px] font-semibold leading-[1.45] text-ink;
+.settings-choice-title {
+  @apply flex items-center gap-2 text-[14px] font-semibold leading-[1.45] text-ink;
+}
+.settings-choice-heading .icon {
+  @apply size-4 flex-none text-muted;
 }
 .settings-choice-options {
-  @apply grid grid-cols-3 gap-4 max-w-[36rem];
+  @apply grid grid-cols-3 gap-2.5 mt-5;
 }
 .settings-choice-option {
-  @apply grid gap-2.5 min-w-0 cursor-pointer text-label font-medium text-muted;
-  transition: color 150ms ease;
+  @apply grid min-w-0 cursor-pointer rounded-ui border border-line-control p-1.5 text-label font-medium text-muted;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
-.settings-choice-option:is([data-hovered], [data-selected]) {
-  @apply text-ink;
+.settings-choice-option[data-hovered] {
+  @apply border-line-strong text-ink;
 }
-.settings-choice-option[data-disabled] {
+.settings-choice-option[data-selected] {
+  @apply border-accent bg-accent-soft text-ink;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.settings-choice-option[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.settings-choice-option[data-disabled],
+.settings-density-option[data-disabled] {
   @apply opacity-50 cursor-not-allowed;
 }
 .settings-choice-label {
-  @apply inline-flex items-center gap-2 min-w-0;
+  @apply flex min-w-0 items-center justify-between gap-2 px-1 pt-2.5 pb-1 text-[12px];
+}
+.settings-choice-label .ui-choice-radio {
+  @apply size-3.5;
+}
+.settings-choice-hint {
+  @apply flex items-start gap-1.5 mt-auto pt-5 text-micro text-muted;
+}
+.settings-choice-hint .icon {
+  @apply size-3.5 flex-none;
+  margin-block-start: 1px;
+}
+.settings-choice .error-message {
+  @apply mt-3;
+}
+.settings-density-options {
+  @apply grid grid-cols-2 gap-0.5 mt-5 rounded-ui bg-canvas p-0.5;
+}
+.settings-density-option {
+  @apply grid min-w-0 place-items-center rounded-[6px] px-2 text-[12px] font-medium text-muted cursor-pointer;
+  min-height: calc(var(--control-height) - 4px);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.settings-density-option[data-hovered] {
+  @apply text-ink;
+}
+.settings-density-option[data-selected] {
+  @apply text-ink;
+  background: var(--segment-thumb);
+  box-shadow: var(--shadow-control);
+}
+.settings-density-option[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 /* Sizes inside a preview follow its width, so the picture keeps its proportions. */
 .settings-choice-preview {
-  @apply relative block overflow-hidden rounded-ui;
+  @apply relative block overflow-hidden rounded-[4px];
   aspect-ratio: 16 / 10;
   container-type: inline-size;
   box-shadow: 0 0 0 1px var(--line-control);
-  transition: box-shadow 150ms ease;
-}
-.settings-choice-option[data-hovered] .settings-choice-preview {
-  box-shadow: 0 0 0 1px var(--line-strong);
-}
-.settings-choice-option[data-selected] .settings-choice-preview {
-  box-shadow: 0 0 0 2px var(--accent);
-}
-.settings-choice-option[data-focus-visible] .settings-choice-preview {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
 }
 /* The card runs off the bottom edge, as a page that continues below. */
 .theme-preview-screen {
@@ -1700,40 +1805,41 @@ summary.security-round-row:hover {
 .theme-preview-row:nth-child(3) > span:last-child {
   width: 68%;
 }
-/* The density picture is one findings table on the page's canvas. Compact rows are
- * half as tall, so the frame shows more of them. */
+/* One table previews the current choice. A fixed frame reveals more compact rows. */
 .density-preview {
-  @apply bg-canvas;
+  @apply mt-3 rounded-[6px] border border-line bg-surface;
+  aspect-ratio: auto;
+  height: 108px;
+  box-shadow: none;
 }
-/* cqw on the frame itself would measure an outer container, so the inset lives here. */
 .density-preview-table {
-  @apply absolute grid content-start overflow-hidden border border-b-0 border-line bg-surface;
-  inset: 7cqw 8cqw 0;
-  border-radius: 2.5cqw 2.5cqw 0 0;
-  box-shadow: var(--shadow-card);
+  @apply absolute inset-0 grid content-start overflow-hidden bg-surface;
 }
 .density-preview-row {
-  @apply grid items-center border-b border-line;
-  grid-template-columns: auto minmax(0, 1fr) 12cqw;
-  gap: 3cqw;
-  padding: 3.6cqw 5cqw;
+  @apply grid items-center gap-2 border-b px-2.5;
+  grid-template-columns: 4px minmax(0, 1fr) 32px;
+  border-color: var(--table-row-line);
+  height: 27px;
+  transition: height 150ms ease;
 }
 .density-preview[data-density="compact"] .density-preview-row {
-  padding-block: 1.5cqw;
+  height: 16px;
 }
 .density-preview-row > span {
   @apply rounded-full bg-line-strong;
-  height: 1.6cqw;
+  height: 3px;
 }
 .density-preview-row > span:first-child {
-  width: 2.6cqw;
-  height: 2.6cqw;
+  @apply size-1;
 }
 .density-preview-row > span:last-child {
   @apply bg-line;
 }
 .density-preview-row[data-head] {
-  @apply bg-hover;
+  background: var(--table-tray);
+}
+.density-preview .density-preview-row[data-head] {
+  height: 19px;
 }
 .density-preview-row[data-head] > span:first-child {
   @apply bg-transparent;
@@ -1764,8 +1870,44 @@ summary.security-round-row:hover {
   .settings-choice-preview {
     outline: 1px solid CanvasText;
   }
-  .settings-choice-option[data-selected] .settings-choice-preview {
-    outline: 3px solid Highlight;
+  .settings-choice-option[data-selected] {
+    outline: 2px solid Highlight;
+  }
+  .settings-density-option[data-selected] {
+    background: Highlight;
+    color: HighlightText;
+  }
+}
+@container appearance (max-width: 38rem) {
+  .settings-appearance {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-choice-options {
+    max-width: 30rem;
+  }
+  .subnav-content-heading .settings-appearance-save {
+    @apply whitespace-nowrap;
+  }
+}
+@container appearance (max-width: 24rem) {
+  .subnav-content-heading .settings-appearance-save {
+    @apply hidden;
+  }
+  .settings-choice {
+    @apply p-4;
+  }
+  .settings-choice-options {
+    @apply gap-2;
+  }
+  .settings-choice-label {
+    @apply gap-1 px-0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-choice-option,
+  .settings-density-option,
+  .density-preview-row {
+    transition: none;
   }
 }
 @media (max-width: 1000px) {
