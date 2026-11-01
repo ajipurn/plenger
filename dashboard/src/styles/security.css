@@ -1911,6 +1911,16 @@ summary.security-round-row:hover {
 .security-continue-scan h2 {
   @apply font-semibold mb-2;
 }
+.security-continue-scan[data-tone="warning"] {
+  @apply border-medium/35 bg-medium-soft;
+  border-inline-start-width: 3px;
+}
+.security-continue-scan[data-tone="warning"] h2 {
+  @apply flex items-center gap-2 text-medium;
+}
+.security-continue-scan[data-tone="warning"] h2 > .icon {
+  @apply size-4 flex-none;
+}
 .security-continue-scan-form {
   @apply flex flex-wrap items-end gap-3 mt-3;
 }

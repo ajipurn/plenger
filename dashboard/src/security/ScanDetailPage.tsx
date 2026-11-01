@@ -293,11 +293,17 @@ export function ScanDetailPage({
             />
           )}
           {scan.status === "cancelled" && (
-            <section className="security-continue-scan" aria-labelledby="scan-stopped">
-              <h2 id="scan-stopped">Scan stopped</h2>
+            <section
+              className="security-continue-scan"
+              data-tone="warning"
+              aria-labelledby="scan-stopped"
+            >
+              <h2 id="scan-stopped">
+                <Icon name="alert" /> Scan stopped
+              </h2>
               <p className="muted">
-                This scan was stopped and cannot continue. Findings from rounds that finished are
-                kept. Start a new scan to review the rest.
+                This scan stopped before the review finished and cannot continue. Findings from
+                completed rounds are kept. Start a new scan to review the rest.
               </p>
             </section>
           )}
