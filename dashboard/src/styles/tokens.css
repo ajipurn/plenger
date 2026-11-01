@@ -98,7 +98,6 @@
     0 24px 48px -16px #0a1820cc;
   --shadow-drawer: -24px 0 64px #0a182099;
   --glow: none;
-  --brand-mark-filter: none;
 }
 
 :root,
@@ -151,7 +150,6 @@
       0 24px 48px -16px #172b3633;
     --shadow-drawer: -16px 0 48px #172b3624;
     --glow: none;
-    --brand-mark-filter: invert(1);
   }
 }
 

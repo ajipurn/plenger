@@ -8,7 +8,7 @@ import { DashboardProvider } from "../app/DashboardContext.tsx";
 import { useDensity } from "../app/useDensity.ts";
 import { useTheme } from "../app/useTheme.ts";
 import { errorMessage } from "../shared/async.ts";
-import { Icon } from "../shared/icons.tsx";
+import { Icon, Mark } from "../shared/icons.tsx";
 import { Button } from "../shared/ui.tsx";
 import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { useSecurityEvents } from "./useSecurityEvents.ts";
@@ -197,6 +197,7 @@ export function SecurityApp() {
                   to="/findings"
                   aria-label="Plenger security workspace"
                 >
+                  <Mark />
                   <span>Plenger</span>
                 </Link>
               </div>

@@ -146,6 +146,6 @@ export function Icon({ name, className = "" }: { name: IconName; className?: str
 }
 export function Mark() {
   return (
-    <img className="brand-mark" src="/mark.svg" width="28" height="28" alt="" aria-hidden="true" />
+    <img className="brand-mark" src="/logo.svg" width="24" height="24" alt="" aria-hidden="true" />
   );
 }

@@ -533,7 +533,7 @@ h2 {
 }
 
 .app-brand img {
-  border-radius: 6px;
+  image-rendering: pixelated;
 }
 
 .app-tabs {

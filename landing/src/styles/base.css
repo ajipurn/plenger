@@ -389,10 +389,11 @@ main,
   justify-self: start;
 }
 
+/* The pixel art logo keeps whole screen pixels at 24px. */
 .brand img {
   width: 24px;
   height: 24px;
-  border-radius: 7px;
+  image-rendering: pixelated;
 }
 
 /* Bytesized draws on 8 units per em; sizes divisible by 8 keep its pixels sharp. */

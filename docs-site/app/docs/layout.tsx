@@ -1,4 +1,5 @@
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { repositoryUrl } from "../../lib/content.ts";
 import { pageTree } from "../../lib/source.ts";
@@ -14,6 +15,14 @@ export default function DocumentationLayout({ children }: { children: ReactNode 
         nav={{
           title: (
             <span className="flex items-center gap-3">
+              <Image
+                className="docs-logo"
+                src="/logo.svg"
+                alt=""
+                width={24}
+                height={24}
+                unoptimized
+              />
               <span className="docs-wordmark">plenger</span>
               <span className="rounded-md border border-fd-border px-2 py-0.5 text-xs font-normal text-fd-muted-foreground">
                 docs

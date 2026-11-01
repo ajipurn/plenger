@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   title: { default: "Plenger documentation", template: "%s | Plenger docs" },
   description:
     "Get started with local repository security review, AI validation and STRIDE threat modeling.",
+  // The assembled site serves the logo from the landing root; public/ covers the dev server.
+  icons: { icon: { url: "/logo.svg", type: "image/svg+xml" } },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

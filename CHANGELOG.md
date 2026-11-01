@@ -9,6 +9,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- The logo and favicon are a pixel art tiger (`logo.svg`) on the dashboard, the
+  landing page and the docs. The dashboard header shows the logo again beside
+  the wordmark, also on phones where the wordmark is hidden.
 - The wordmark on the dashboard header, the landing page and the docs reads
   PLENGER in the bundled Bytesized pixel font instead of Sacramento.
 - The dashboard calls each AI review cycle a **round** in both modes and on

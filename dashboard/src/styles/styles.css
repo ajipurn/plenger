@@ -147,10 +147,11 @@ summary {
 .skip-link:focus {
   @apply top-4;
 }
+/* The logo is 48 by 48 pixel art. 24px keeps one logo pixel per screen pixel on retina
+ * screens, and its own colours read on both appearances. */
 .brand-mark {
-  @apply size-7 flex-none rounded-[8px];
-  box-shadow: 0 0 0 1px var(--line-strong);
-  filter: var(--brand-mark-filter);
+  @apply size-6 flex-none;
+  image-rendering: pixelated;
 }
 main {
   @apply w-full flex-1 mx-auto pt-7 px-8 pb-6;

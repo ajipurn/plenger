@@ -43,6 +43,10 @@ body {
   overflow-wrap: break-word;
 }
 
+.docs-logo {
+  image-rendering: pixelated;
+}
+
 /* Bytesized draws on 8 units per em, so 2rem keeps its pixels sharp. */
 .docs-wordmark {
   font-family: "Bytesized", ui-monospace, monospace;
