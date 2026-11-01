@@ -4,6 +4,7 @@ import { useApi } from "../app/DashboardContext.tsx";
 import { errorMessage } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
+import { notifySuccess } from "../shared/toast.tsx";
 import { Button, TextArea } from "../shared/ui.tsx";
 import { date } from "./ui.tsx";
 
@@ -48,6 +49,7 @@ export function ThreatModelPanel({
       await api.updateRepository(project.id, threatModel);
       await onChanged();
       setEditing(false);
+      notifySuccess("Threat model saved.");
     } catch (failure) {
       setError(errorMessage(failure, "Unable to save the threat model."));
     } finally {

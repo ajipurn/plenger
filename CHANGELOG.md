@@ -129,8 +129,13 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   findings fit on screen. Buttons and fields keep their size. Comfortable stays
   the default.
 - The dashboard confirms finished actions with a Notch Toast at the top of the
-  window: saving, deleting or defaulting a provider, clearing data and copying
-  a fix prompt. Errors and instructions stay next to their controls.
+  window: saving, deleting or defaulting a provider, connecting ChatGPT,
+  adding or deleting a project, setting a finding status, saving a threat
+  model, importing or removing REA evidence, clearing data and copying a fix
+  prompt. These replace the inline notices on the provider and REA evidence
+  panels. A provider connection test is one toast that shows progress, then
+  the result; a failure's full reason stays next to the table. Errors and
+  instructions stay next to their controls.
 - Delete a project from **Projects** or its detail page after confirming in a
   dialog. Its scans, findings, reviews, imported evidence, threat model and
   red-team results are deleted with it; the folder stays unchanged. Deletion

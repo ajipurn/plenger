@@ -66,7 +66,6 @@ export function ProviderEditor({
   onTest,
   onDelete,
   error,
-  notice,
   returnFocus,
   contentRef,
   login,
@@ -89,7 +88,6 @@ export function ProviderEditor({
   onTest: (provider: SavedProvider) => void;
   onDelete: (provider: SavedProvider) => void;
   error: string;
-  notice: string;
   returnFocus: () => HTMLElement | null | undefined;
   contentRef: RefObject<HTMLDivElement | null>;
   login: ChatgptLoginResult | null;
@@ -206,7 +204,6 @@ export function ProviderEditor({
               {validationError || error}
             </p>
           )}
-          {notice && open && <p role="status">{notice}</p>}
           <div className="provider-footer-actions">
             <p className="muted">
               {busy
@@ -539,7 +536,7 @@ export function ProviderEditor({
               </div>
               {selected && (
                 <p className="muted provider-hint">
-                  Makes one model call using the saved settings.
+                  Makes one model call using the saved settings. No project source is sent.
                 </p>
               )}
               {selected && (

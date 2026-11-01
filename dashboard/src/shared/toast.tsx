@@ -17,14 +17,44 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-/**
- * Confirm a finished action whose own controls have closed. The notch does not wrap and
- * clips past 343px on a 375px phone, so keep the message under about 35 characters.
- */
-export function notifySuccess(message: string): void {
+function announce(message: string) {
   announcement = { message, revision: announcement.revision + 1 };
   for (const listener of listeners) listener();
+}
+
+/**
+ * Confirm a finished action. The notch does not wrap and clips past 343px on a 375px
+ * phone, so keep every toast message under about 35 characters.
+ */
+export function notifySuccess(message: string): void {
+  announce(message);
   void import("notch-toast").then(({ toast }) => toast.success(message));
+}
+
+/** Report a finished action that did not change anything, such as a cancelled sign-in. */
+export function notifyInfo(message: string): void {
+  announce(message);
+  void import("notch-toast").then(({ toast }) => toast.info(message));
+}
+
+/**
+ * Show a short request the person waits on as one toast: progress, then its outcome.
+ * The error toast is a summary; the caller still reports the full reason inline.
+ * Returns the request, so the caller handles its result and failure as before.
+ */
+export function notifyPromise<T>(
+  request: Promise<T>,
+  messages: { loading: string; success: (value: T) => string; error: string },
+): Promise<T> {
+  announce(messages.loading);
+  void import("notch-toast").then(({ toast }) =>
+    toast.promise(request, { ...messages, error: () => messages.error }).catch(() => undefined),
+  );
+  request.then(
+    (value) => announce(messages.success(value)),
+    () => announce(messages.error),
+  );
+  return request;
 }
 
 /** Mount once at the root. */

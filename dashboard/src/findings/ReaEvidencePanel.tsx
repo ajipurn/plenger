@@ -4,6 +4,7 @@ import { useApi } from "../app/DashboardContext.tsx";
 import { errorMessage, useAsyncAction } from "../shared/async.ts";
 import { downloadJson } from "../shared/download.ts";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
+import { notifySuccess } from "../shared/toast.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 
 export function ReaEvidencePanel({
@@ -21,7 +22,6 @@ export function ReaEvidencePanel({
   const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
-  const [notice, setNotice] = useState("");
   const { busy, error, setError, run } = useAsyncAction();
   useEffect(() => {
     if (!api) return;
@@ -44,7 +44,6 @@ export function ReaEvidencePanel({
 
   function importFile() {
     if (!api) return;
-    setNotice("");
     if (!file) {
       setError("Choose a REA JSON file to import.");
       fileInput.current?.focus();
@@ -67,17 +66,16 @@ export function ReaEvidencePanel({
       onChange([saved, ...records.filter((item) => item.id !== saved.id)]);
       setFile(null);
       if (fileInput.current) fileInput.current.value = "";
-      setNotice("REA evidence imported. Open a finding to include it in a fix prompt.");
+      notifySuccess("REA evidence imported.");
     }, "Unable to import the REA file. Try again.");
   }
 
   function remove(record: ImportedReaEvidence) {
     if (!api) return;
-    setNotice("");
     void run(async () => {
       await api.deleteReaEvidence(scanId, record.id);
       onChange(records.filter((item) => item.id !== record.id));
-      setNotice(`${record.filename} removed from this scan.`);
+      notifySuccess("Evidence file removed.");
     }, "Unable to remove imported evidence. Try again.");
   }
 
@@ -90,7 +88,7 @@ export function ReaEvidencePanel({
       <div className="rea-evidence-body">
         <p className="muted">
           Attach JavaScript or Electron analysis to this scan. Imported claims are unverified and do
-          not change static findings.
+          not change static findings. Open a finding to include them in a fix prompt.
         </p>
         <form
           className="rea-import-form"
@@ -111,7 +109,6 @@ export function ReaEvidencePanel({
               onChange={(event) => {
                 setFile(event.target.files?.[0] ?? null);
                 setError("");
-                setNotice("");
               }}
             />
             <Button
@@ -218,9 +215,6 @@ export function ReaEvidencePanel({
             </article>
           ))}
         </div>
-        <p className="muted rea-evidence-status" role="status">
-          <NumericText>{notice}</NumericText>
-        </p>
       </div>
     </details>
   );

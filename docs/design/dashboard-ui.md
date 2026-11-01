@@ -211,12 +211,18 @@ response stylesheet nonce from the `csp-nonce` meta property. Radix scroll-lock
 styles use the same nonce. CSP admits the pinned Torph, Vaul and Notch Toast
 stylesheets by hash. No inline script or style policy is relaxed.
 
-Notch Toast confirms a finished action whose controls have closed: a saved,
-deleted or default provider, cleared data and a copied prompt. Call
-`notifySuccess` from `shared/toast.tsx` with under about 35 characters. The
-toast does not wrap and clips on a phone. Errors, progress and instructions
-stay inline next to their controls. The toast hides its own text from assistive technology, so a
-persistent status region repeats each message for screen readers.
+Notch Toast confirms finished actions; pages show no inline success notices.
+Toasts cover a saved, deleted or default provider, a connected ChatGPT
+sign-in, an added or deleted project, a finding status, a saved threat model,
+imported or removed REA evidence, cleared data and a copied prompt. Call
+`notifySuccess`, or `notifyInfo` for an action that changed nothing, such as a
+cancelled sign-in. A short request the person waits on, such as a connection
+test, uses `notifyPromise`: one toast shows progress, then the outcome. Its
+failure toast is a summary, and the full reason stays inline. Keep every toast
+under about 35 characters; the toast does not wrap and clips on a phone. Errors,
+ongoing progress and instructions stay inline next to their controls. The toast
+hides its own text from assistive technology, so a persistent status region
+repeats each message for screen readers.
 
 Ordinary buttons, icon buttons, inputs and select triggers share a 32px control
 height, 13px type, 18px line height, 1px border and 8px radius. Panels use a 12px

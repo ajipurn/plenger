@@ -6,6 +6,7 @@ import { ConfirmDialog } from "../shared/ConfirmDialog.tsx";
 import { plural } from "../shared/format.ts";
 import { Icon } from "../shared/icons.tsx";
 import { NumericText } from "../shared/MorphNumber.tsx";
+import { notifySuccess } from "../shared/toast.tsx";
 
 export type ProjectDeletion = ReturnType<typeof useProjectDeletion>;
 
@@ -42,6 +43,7 @@ export function useProjectDeletion(
         if (fallbackFocus) returnFocus.current = fallbackFocus.current;
         setProject(null);
         await onDeleted();
+        notifySuccess("Project deleted.");
       }, "Unable to delete the project. Check the local service connection and try again.");
     },
   };

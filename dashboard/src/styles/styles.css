@@ -748,9 +748,6 @@ th[aria-sort] .table-sort-icon {
 .rea-evidence-actions {
   @apply mt-2;
 }
-.rea-evidence-status:empty {
-  margin: 0;
-}
 .fix-prompt-evidence {
   @apply grid gap-2 mt-4;
 }

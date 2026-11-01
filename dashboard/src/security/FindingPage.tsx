@@ -14,6 +14,7 @@ import { FixPromptGenerator } from "../findings/FixPromptGenerator.tsx";
 import { errorMessage } from "../shared/async.ts";
 import { DetailDrawer } from "../shared/DetailDrawer.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
+import { notifySuccess } from "../shared/toast.tsx";
 import { Button, Select } from "../shared/ui.tsx";
 import { date, Empty, originLabel, statusLabel, validationLabel } from "./ui.tsx";
 
@@ -105,6 +106,7 @@ export function FindingPage({
     try {
       await api.setFindingStatus(finding.id, status);
       await onRefresh();
+      notifySuccess(`Status set to ${statusLabel[status]}.`);
     } catch (failure) {
       setError(errorMessage(failure, "Unable to update finding status."));
     } finally {

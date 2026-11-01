@@ -12,7 +12,7 @@ import { useApi } from "../app/DashboardContext.tsx";
 import { useAsyncAction } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
-import { notifySuccess } from "../shared/toast.tsx";
+import { notifyInfo, notifyPromise, notifySuccess } from "../shared/toast.tsx";
 import { Button } from "../shared/ui.tsx";
 import { DeleteProviderDialog } from "./DeleteProviderDialog.tsx";
 import { ProviderEditor, type ProviderForm, savedGeneration } from "./ProviderEditor.tsx";
@@ -48,7 +48,6 @@ export function ProvidersView({
     keepGeneration: true,
   });
   const { busy, error, setError, run } = useAsyncAction();
-  const [notice, setNotice] = useState("");
   const [pendingDelete, setPendingDelete] = useState<SavedProvider | null>(null);
   const [login, setLogin] = useState<ChatgptLoginResult | null>(null);
   const activeLogin = useRef<string | null>(null);
@@ -113,7 +112,6 @@ export function ProvidersView({
       keepGeneration: true,
     });
     setError("");
-    setNotice("");
     if (value?.hasApiKey && hasProviderModelCatalog(value.provider)) void catalog.restore(value.id);
   }
   function save() {
@@ -123,7 +121,6 @@ export function ProvidersView({
       connectChatgpt();
       return;
     }
-    setNotice("");
     // Hidden OpenAI and Claude settings saved earlier are kept unless the user opts out.
     const kept = form.keepGeneration ? savedGeneration(selected, form.provider) : null;
     void run(async () => {
@@ -178,7 +175,6 @@ export function ProvidersView({
     // Open during the click, before the API await, so browsers allow the new tab.
     const tab = window.open("about:blank", "_blank");
     if (tab) tab.opener = null;
-    setNotice("");
     void run(async () => {
       try {
         const result = await api.startChatgptLogin({
@@ -222,12 +218,8 @@ export function ProvidersView({
       if (result.state === "connected") {
         setSelected(result.provider);
         update({ model: result.provider.model });
-      }
-      setNotice(
-        result.state === "connected"
-          ? "ChatGPT connected."
-          : "Sign-in cancelled. You can try again.",
-      );
+        notifySuccess("ChatGPT connected.");
+      } else notifyInfo("Sign-in cancelled.");
       onChange(await api.providers());
     }, "Could not cancel sign-in.");
   }
@@ -243,9 +235,7 @@ export function ProvidersView({
         if (result.state === "connected") {
           setSelected(result.provider);
           setForm((current) => ({ ...current, model: result.provider.model }));
-          setNotice(
-            `Connected to ChatGPT${result.provider.chatgptAccount ? ` as ${result.provider.chatgptAccount}` : ""}. Choose a model, then save.`,
-          );
+          notifySuccess("ChatGPT connected.");
           onChange(await api.providers());
         } else if (result.state === "failed")
           setError(result.error ?? "ChatGPT sign-in failed. Try again.");
@@ -284,17 +274,17 @@ export function ProvidersView({
   }
   function test(value: SavedProvider) {
     if (!api) return;
-    setNotice("");
+    // The toast follows the test; a failure's full reason still shows inline.
     void run(async () => {
-      const result = await api.testProvider(value.id);
-      setNotice(
-        `Connected to ${result.model} in ${(result.durationMs / 1000).toFixed(1)}s. This checks model access without sending project source.`,
-      );
+      await notifyPromise(api.testProvider(value.id), {
+        loading: "Testing connection…",
+        success: (result) => `Connected in ${(result.durationMs / 1000).toFixed(1)}s.`,
+        error: "Connection test failed.",
+      });
     }, "Could not connect to the model.");
   }
   function makeDefault(value: SavedProvider) {
     if (!api) return;
-    setNotice("");
     void run(async () => {
       await api.saveProvider({
         id: value.id,
@@ -343,11 +333,6 @@ export function ProvidersView({
             <NumericText>{error}</NumericText>
           </p>
         )}
-        {!editorOpen && notice && (
-          <p className="provider-notice" role="status">
-            <NumericText>{notice}</NumericText>
-          </p>
-        )}
         <ProviderTable
           id={id}
           providers={providers}
@@ -388,7 +373,6 @@ export function ProvidersView({
         onTest={test}
         onDelete={requestDelete}
         error={error}
-        notice={notice}
         returnFocus={() =>
           returnFocus.current?.isConnected ? returnFocus.current : addButton.current
         }

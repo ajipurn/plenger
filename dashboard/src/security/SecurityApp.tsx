@@ -9,6 +9,7 @@ import { useDensity } from "../app/useDensity.ts";
 import { useTheme } from "../app/useTheme.ts";
 import { errorMessage } from "../shared/async.ts";
 import { Icon, Mark } from "../shared/icons.tsx";
+import { notifySuccess } from "../shared/toast.tsx";
 import { Button } from "../shared/ui.tsx";
 import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { useSecurityEvents } from "./useSecurityEvents.ts";
@@ -370,6 +371,7 @@ export function SecurityApp() {
                 addTrigger.current?.isConnected ? addTrigger.current : newTrigger.current
               }
               onCreated={(repository) => {
+                notifySuccess("Project added.");
                 setData((current) => ({
                   ...current,
                   repositories: [
