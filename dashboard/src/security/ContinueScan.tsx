@@ -15,6 +15,8 @@ import { RUNNING_SCAN_REASON } from "./running-scan.ts";
  * Continues a Full coverage scan that paused or stopped at its limit, under a new limit for
  * what it spends from now on. Later rounds skip files already sent whole. A paused scan
  * starts from what is left of its limit, and one that had no limit continues without one.
+ * The scan header continues a paused scan as it is, so here a paused scan only offers
+ * another limit, when it has one.
  */
 export function ContinueScan({
   scan,
@@ -93,42 +95,45 @@ export function ContinueScan({
             : ""}
         </NumericText>
       </p>
-      <form
-        className="security-continue-scan-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        {limited && (
-          <>
-            <label htmlFor={`${id}-limit`}>{paused ? "Limit" : "New limit"}</label>
-            <div className="security-scan-limit-input">
-              <Input
-                id={`${id}-limit`}
-                type="number"
-                inputMode={kind === "tokens" ? "numeric" : "decimal"}
-                step={kind === "tokens" ? 1000 : 0.01}
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                aria-invalid={!valid}
-                disabled={busy || disabled}
-              />
-              <span className="security-scan-limit-unit" aria-hidden="true">
-                {kind === "tokens" ? "tokens" : "USD"}
-              </span>
-            </div>
-          </>
-        )}
-        <Button
-          className="button button-primary"
-          type="submit"
-          {...(disabled ? { title: RUNNING_SCAN_REASON } : {})}
-          disabled={busy || disabled || !valid}
+      {(!paused || limited) && (
+        <form
+          className="security-continue-scan-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
         >
-          <Icon name="play" /> {busy ? "Continuing…" : "Continue scan"}
-        </Button>
-      </form>
+          {limited && (
+            <>
+              <label htmlFor={`${id}-limit`}>{paused ? "Limit" : "New limit"}</label>
+              <div className="security-scan-limit-input">
+                <Input
+                  id={`${id}-limit`}
+                  type="number"
+                  inputMode={kind === "tokens" ? "numeric" : "decimal"}
+                  step={kind === "tokens" ? 1000 : 0.01}
+                  value={value}
+                  onChange={(event) => setValue(event.target.value)}
+                  aria-invalid={!valid}
+                  disabled={busy || disabled}
+                />
+                <span className="security-scan-limit-unit" aria-hidden="true">
+                  {kind === "tokens" ? "tokens" : "USD"}
+                </span>
+              </div>
+            </>
+          )}
+          <Button
+            className={paused ? "button button-secondary" : "button button-primary"}
+            type="submit"
+            {...(disabled ? { title: RUNNING_SCAN_REASON } : {})}
+            disabled={busy || disabled || !valid}
+          >
+            <Icon name="play" />{" "}
+            {busy ? "Continuing…" : paused ? "Continue with this limit" : "Continue scan"}
+          </Button>
+        </form>
+      )}
       {error && (
         <p role="alert" className="error-message">
           <NumericText>{error}</NumericText>

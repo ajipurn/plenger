@@ -198,7 +198,10 @@ A Full coverage AI scan shows **Pause scan** and **Stop scan** while it runs; ot
 scans show **Stop scan** only. Both end the current request at once. Rounds that
 finished are kept with their findings. The round that was running stays in the
 list as not completed, with the tokens it charged. A paused scan can continue
-later. A stopped scan shows **Stopped** and cannot continue. Provider failures and
+later with **Continue scan** in the scan header, under what is left of its limit; a
+scan with a limit can also set another one in the paused card first. **Stop scan**
+also ends a paused scan for good, keeping its findings. A stopped scan shows
+**Stopped** and cannot continue. Provider failures and
 refusals stop further requests. Response validation errors name the failed stage
 and field when available. Completed static findings remain visible if the AI
 review fails.

@@ -142,8 +142,12 @@ summary shows elapsed time, saved findings and scan depth. Metadata groups sourc
 model usage and timing. Long folder paths wrap within the panel. While a scan
 runs, show its actual read, review and validation stages without estimating a
 percentage. Cancel acknowledges the pending request. Export snapshot identifies
-incomplete records; finished jobs use Export JSON. Scan again opens the local scan
-form after a job ends. Empty failed runs are incomplete, never clean results.
+incomplete records; finished jobs use Export JSON. The header holds the scan's
+actions in the same places: a running scan has Pause scan, Stop scan and Export
+snapshot; a paused one has Continue scan, Stop scan and Export snapshot, with
+Continue where Pause was. Header Continue keeps what is left of the limit; the
+paused card can set another limit first. Scan again opens the local scan form
+after a job ends, never while it is paused. Empty failed runs are incomplete, never clean results.
 
 The progress card lists the stages on a vertical timeline. The active stage
 holds its description and the latest activity, newest first. The heading shows
@@ -242,6 +246,10 @@ radius. Use shared control tokens for padding and icon size. On small screens
 controls are 40px with 16px type; coarse pointers use 44px controls. Multiline fields and selection indicators
 keep their appropriate shapes. Primary and secondary buttons have the same
 geometry. Do not add individual size overrides in page styles.
+Button colour follows the action. Primary Forsythia marks the main action, danger
+an action that cannot be undone such as Stop scan, warning one that interrupts
+work but can be undone such as Pause scan, success one that resumes work such as
+Continue scan, and secondary the rest, such as Export.
 
 Density changes spacing, never control size. Table, round and coverage rows,
 panel padding and the gaps between panels read `--row-padding-block`,

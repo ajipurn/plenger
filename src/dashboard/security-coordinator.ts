@@ -206,6 +206,21 @@ export class SecurityCoordinator {
     }
   }
 
+  /**
+   * Stop a scan. A running one aborts now. A paused one saved its rounds and findings when
+   * it paused, so it is only marked stopped and can no longer continue.
+   */
+  stop(id: string | null): void {
+    const scan = id === null ? undefined : this.#store.security.scan(id);
+    if (scan?.status !== "paused") {
+      this.#supervisor.cancel(id);
+      return;
+    }
+    scan.status = "cancelled";
+    scan.error = null;
+    this.#saveScan(scan);
+  }
+
   async start(input: StartSecurityScan, continued?: SecurityScan): Promise<SecurityScan> {
     return this.#supervisor.exclusive(async () => {
       if (
@@ -300,6 +315,9 @@ export class SecurityCoordinator {
         );
       const revision = await sourceRevision(repository.path);
       if (this.#closed) throw new HttpError(503, "The service is shutting down.");
+      // Stop may end a paused scan while its continuation is being prepared.
+      if (continued && this.#store.security.scan(continued.id)?.status !== continued.status)
+        throw new HttpError(409, "This scan was stopped and can no longer continue.");
       repository.revision = revision;
       this.#store.security.saveRepository(repository);
       const before = continued?.durationMs ?? 0;

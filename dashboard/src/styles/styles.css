@@ -205,6 +205,24 @@ main:focus-visible {
 .button-danger:hover:not(:disabled) {
   @apply border-critical;
 }
+/* An action that interrupts work but can be undone, such as Pause scan beside Stop scan. */
+.button-warning {
+  @apply bg-medium-soft text-medium;
+  border-color: color-mix(in oklab, var(--medium) 40%, transparent);
+  box-shadow: var(--shadow-control);
+}
+.button-warning:hover:not(:disabled) {
+  border-color: var(--medium);
+}
+/* Resumes work, such as Continue scan where Pause scan was. */
+.button-success {
+  @apply bg-success-soft text-success;
+  border-color: color-mix(in oklab, var(--success) 40%, transparent);
+  box-shadow: var(--shadow-control);
+}
+.button-success:hover:not(:disabled) {
+  border-color: var(--success);
+}
 .button-quiet {
   @apply bg-transparent text-muted px-0;
 }
@@ -228,7 +246,14 @@ main:focus-visible {
     box-shadow 150ms ease;
 }
 /* Pressing flattens a raised control; it does not move. */
-:is(.button-primary, .button-secondary, .button-danger, .icon-button):active:not(:disabled) {
+:is(
+  .button-primary,
+  .button-secondary,
+  .button-danger,
+  .button-warning,
+  .button-success,
+  .icon-button
+):active:not(:disabled) {
   box-shadow: var(--shadow-pressed);
 }
 .icon-button:hover:not(:disabled) {

@@ -9,6 +9,13 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- A running scan's actions differ by colour: **Stop scan**, which cannot be undone,
+  is a danger button, **Pause scan** a warning one, and **Export snapshot** stays
+  neutral.
+- A paused scan keeps its actions in the scan header: a green **Continue scan**
+  where Pause was, **Stop scan**, which now ends a paused scan for good while
+  keeping its findings, and **Export snapshot**. **Scan again** no longer
+  competes with Continue while a scan is paused.
 - A Quick scan no longer looks cut short. Its coverage card measures the round,
   not the project: Batch shows the files the round sends as its target, saved as
   the round starts, and Explore shows the files read. A finished scan's note says

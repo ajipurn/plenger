@@ -8,6 +8,7 @@ import {
   type ImportedReaEvidence,
   type ReviewFinding,
   type ReviewPath,
+  remainingBudget,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
   type ScanReply,
@@ -55,13 +56,14 @@ export function ScanDetailPage({
   const [params] = useSearchParams();
   const [scan, setScan] = useState<SecurityScan | null>(null);
   const [error, setError] = useState("");
-  // Which end of the run was requested; cleared once the scan stops running, so a scan
-  // continued on this page can pause or stop again.
+  // Which end of the run was requested; cleared when the status changes, so a paused scan
+  // can still be stopped and a scan continued on this page can pause or stop again.
   const [stopping, setStopping] = useState<"pause" | "stop" | null>(null);
-  const scanRunning = scan?.status === "running";
+  const [continuing, setContinuing] = useState(false);
+  const scanStatus = scan?.status;
   useEffect(() => {
-    if (!scanRunning) setStopping(null);
-  }, [scanRunning]);
+    if (scanStatus !== "running") setStopping(null);
+  }, [scanStatus]);
   const [rea, setRea] = useState<ImportedReaEvidence[]>([]);
   // Bumped to load the scan again: the service saved it, or the page restarted it.
   const [version, setVersion] = useState(0);
@@ -118,6 +120,8 @@ export function ScanDetailPage({
   const outputs = params.get("tab") === "outputs";
   const coverageTab = coverage && params.get("tab") === "coverage";
   const running = scan.status === "running";
+  // A paused scan can continue or be stopped for good; it is not finished yet.
+  const paused = scan.status === "paused";
   // One scan runs at a time, so this one or another blocks starting a scan here.
   const anyRunning = data.scans.some((item) => item.status === "running");
   const projectContext = params.get("project") === scan.repositoryId;
@@ -128,9 +132,26 @@ export function ScanDetailPage({
     : scanPath;
   const outputsPath = `${findingsPath}${projectContext ? "&" : "?"}tab=outputs`;
   const coveragePath = `${findingsPath}${projectContext ? "&" : "?"}tab=coverage`;
-  // Pause and Stop both end the run; only a paused scan can continue.
+  // A paused scan continues from the header under what is left of its limit; the paused
+  // card below can set another limit first.
+  async function continuePaused() {
+    if (!api || !scan || continuing) return;
+    setContinuing(true);
+    try {
+      const next = await api.continueSecurityScan(scan.id, remainingBudget(scan) ?? undefined);
+      setScan(next);
+      setVersion((value) => value + 1);
+      await onRefresh();
+    } catch (failure) {
+      setError(errorMessage(failure, "Unable to continue this scan."));
+    } finally {
+      setContinuing(false);
+    }
+  }
+  // Pause and Stop both end the run; only a paused scan can continue. Stop also ends a
+  // paused scan, which then can no longer continue.
   async function stop(kind: "pause" | "stop") {
-    if (!api || !running || stopping) return;
+    if (!api || stopping || !(running || (kind === "stop" && paused))) return;
     setStopping(kind);
     try {
       await (kind === "pause"
@@ -192,19 +213,29 @@ export function ScanDetailPage({
           )}
         </div>
         <div className="security-scan-actions">
+          {paused && (
+            <Button
+              className="button button-success"
+              {...(anyRunning ? { title: RUNNING_SCAN_REASON } : {})}
+              disabled={anyRunning || continuing || stopping !== null}
+              onClick={() => void continuePaused()}
+            >
+              <Icon name="play" /> {continuing ? "Continuing…" : "Continue scan"}
+            </Button>
+          )}
           {running && scan.depth === "full" && (
             <Button
-              className="button button-secondary"
+              className="button button-warning"
               disabled={stopping !== null}
               onClick={() => void stop("pause")}
             >
               <Icon name="pause" /> {stopping === "pause" ? "Pausing…" : "Pause scan"}
             </Button>
           )}
-          {running && (
+          {(running || paused) && (
             <Button
-              className="button button-secondary"
-              disabled={stopping !== null}
+              className="button button-danger"
+              disabled={stopping !== null || continuing}
               onClick={() => void stop("stop")}
             >
               <Icon name="stop" /> {stopping === "stop" ? "Stopping…" : "Stop scan"}
@@ -214,9 +245,9 @@ export function ScanDetailPage({
             className="button button-secondary"
             onClick={() => downloadJson(`plenger-scan-${scan.id}.json`, scan)}
           >
-            <Icon name="download" /> {running ? "Export snapshot" : "Export JSON"}
+            <Icon name="download" /> {running || paused ? "Export snapshot" : "Export JSON"}
           </Button>
-          {!running && (
+          {!running && !paused && (
             <Button
               className="button button-primary"
               {...(anyRunning ? { title: RUNNING_SCAN_REASON } : {})}

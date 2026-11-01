@@ -969,6 +969,25 @@ describe("local project security workspace", () => {
     ]);
   });
 
+  it("stops a paused scan for good, keeping its findings", async () => {
+    const job = await heldInSecondRound();
+    expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(200);
+    const paused = await finished(job.id);
+    release?.();
+    hold = undefined;
+    expect(paused.status).toBe("paused");
+    expect((await dashboard.request(pathFor(API.cancelSecurityScan, job.id), {})).status).toBe(200);
+    const stopped = await finished(job.id);
+    expect(stopped).toMatchObject({ status: "cancelled", error: null });
+    expect(stopped.findings).toEqual(paused.findings);
+    expect(stopped.finishedAt).toBe(paused.finishedAt);
+    // A stopped scan cannot continue, and stopping it again finds nothing to stop.
+    expect((await dashboard.request(pathFor(API.continueSecurityScan, job.id), {})).status).toBe(
+      400,
+    );
+    expect((await dashboard.request(pathFor(API.cancelSecurityScan, job.id), {})).status).toBe(409);
+  });
+
   it("continues a paused scan under what is left of its limit", async () => {
     const job = await heldInSecondRound({ budget: FULL.budget });
     expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(200);

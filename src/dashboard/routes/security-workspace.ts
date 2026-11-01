@@ -272,7 +272,7 @@ export function securityWorkspaceRoutes({
       path: API.cancelSecurityScan,
       handler: async ({ request, params }) => {
         expectKeys(await jsonRequest(request), [], "This request does not accept options.");
-        supervisor.cancel(params.id ?? null);
+        security.stop(params.id ?? null);
         return { status: 200, body: { cancelled: true } };
       },
     },
