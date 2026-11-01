@@ -15,66 +15,53 @@ import { useSecurityEvents } from "./useSecurityEvents.ts";
 
 /** How long the workspace waits after a pushed save, so a burst of saves refreshes once. */
 const SAVE_REFRESH_MS = 250;
+/** How long after the first route shows the other routes start loading. */
+const PRELOAD_DELAY_MS = 500;
 
+/** Each route's code, loaded on first visit or in the background once the workspace shows. */
+const pages = {
+  providers: () => import("../providers/ProvidersView.tsx"),
+  settings: () => import("../settings/SettingsLayout.tsx"),
+  data: () => import("../settings/DataSettings.tsx"),
+  appearance: () => import("../settings/AppearanceSettings.tsx"),
+  redteam: () => import("../redteam/RedteamComingSoon.tsx"),
+  findings: () => import("./FindingsPage.tsx"),
+  finding: () => import("./FindingPage.tsx"),
+  projects: () => import("./ProjectsPage.tsx"),
+  project: () => import("./ProjectDetailPage.tsx"),
+  scans: () => import("./ScansPage.tsx"),
+  scan: () => import("./ScanDetailPage.tsx"),
+  forms: () => import("./ScanForms.tsx"),
+};
 const ProvidersView = lazy(() =>
-  import("../providers/ProvidersView.tsx").then((module) => ({
-    default: module.ProvidersView,
-  })),
+  pages.providers().then((module) => ({ default: module.ProvidersView })),
 );
 const SettingsLayout = lazy(() =>
-  import("../settings/SettingsLayout.tsx").then((module) => ({
-    default: module.SettingsLayout,
-  })),
+  pages.settings().then((module) => ({ default: module.SettingsLayout })),
 );
-const DataSettings = lazy(() =>
-  import("../settings/DataSettings.tsx").then((module) => ({
-    default: module.DataSettings,
-  })),
-);
+const DataSettings = lazy(() => pages.data().then((module) => ({ default: module.DataSettings })));
 const AppearanceSettings = lazy(() =>
-  import("../settings/AppearanceSettings.tsx").then((module) => ({
-    default: module.AppearanceSettings,
-  })),
+  pages.appearance().then((module) => ({ default: module.AppearanceSettings })),
 );
 const RedteamComingSoon = lazy(() =>
-  import("../redteam/RedteamComingSoon.tsx").then((module) => ({
-    default: module.RedteamComingSoon,
-  })),
+  pages.redteam().then((module) => ({ default: module.RedteamComingSoon })),
 );
 const FindingsPage = lazy(() =>
-  import("./FindingsPage.tsx").then((module) => ({
-    default: module.FindingsPage,
-  })),
+  pages.findings().then((module) => ({ default: module.FindingsPage })),
 );
-const FindingPage = lazy(() =>
-  import("./FindingPage.tsx").then((module) => ({
-    default: module.FindingPage,
-  })),
-);
+const FindingPage = lazy(() => pages.finding().then((module) => ({ default: module.FindingPage })));
 const ProjectsPage = lazy(() =>
-  import("./ProjectsPage.tsx").then((module) => ({
-    default: module.ProjectsPage,
-  })),
+  pages.projects().then((module) => ({ default: module.ProjectsPage })),
 );
 const ProjectDetailPage = lazy(() =>
-  import("./ProjectDetailPage.tsx").then((module) => ({
-    default: module.ProjectDetailPage,
-  })),
+  pages.project().then((module) => ({ default: module.ProjectDetailPage })),
 );
-const ScansPage = lazy(() =>
-  import("./ScansPage.tsx").then((module) => ({ default: module.ScansPage })),
-);
+const ScansPage = lazy(() => pages.scans().then((module) => ({ default: module.ScansPage })));
 const ScanDetailPage = lazy(() =>
-  import("./ScanDetailPage.tsx").then((module) => ({
-    default: module.ScanDetailPage,
-  })),
+  pages.scan().then((module) => ({ default: module.ScanDetailPage })),
 );
-const NewScanForm = lazy(() =>
-  import("./ScanForms.tsx").then((module) => ({ default: module.NewScanForm })),
-);
-const ProjectForm = lazy(() =>
-  import("./ScanForms.tsx").then((module) => ({ default: module.ProjectForm })),
-);
+const NewScanForm = lazy(() => pages.forms().then((module) => ({ default: module.NewScanForm })));
+const ProjectForm = lazy(() => pages.forms().then((module) => ({ default: module.ProjectForm })));
 
 const EMPTY: SecurityWorkspace = { repositories: [], scans: [], findings: [] };
 export function SecurityApp() {
@@ -128,6 +115,15 @@ export function SecurityApp() {
       stopped = true;
     };
   }, [setTheme, setDensity]);
+  // Load the other routes after the first one shows, so a first visit renders at once.
+  // A failed background load is left for the route itself to report when it opens.
+  useEffect(() => {
+    if (loading) return;
+    const timer = setTimeout(() => {
+      for (const load of Object.values(pages)) void load().catch(() => undefined);
+    }, PRELOAD_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [loading]);
   const refresh = useCallback(async () => {
     if (!api) return;
     const next = await api.securityWorkspace();

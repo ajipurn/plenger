@@ -45,6 +45,11 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- Opening dashboard pages blocked the browser while every number and date set up
+  its digit animation, which measured each glyph. Scans took up to 400 ms, and a
+  scan with hundreds of model requests froze for several seconds. Values now
+  stay plain text until they change, the scan cost tables render only while
+  open, and the other pages load in the background after the first one shows.
 - **New Scan** beside each project stayed enabled while another scan ran, and
   its scan then failed to start. Every control that starts a scan is now
   disabled while one runs, and hovering it names the reason. Button hover text,

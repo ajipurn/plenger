@@ -8,9 +8,10 @@ Provider settings retain their connection behavior and use the shared React Aria
 Usage is documented in [../guide/dashboard.md](../guide/dashboard.md), with
 qualification in [../STATUS.md](../STATUS.md).
 
-Page modules load on navigation through React lazy and Suspense. The shell stays
-visible while a page loads. Scan forms and their drawer code load on first use
-and stay mounted afterwards to preserve closing and focus behavior. Keep the
+Page modules load through React lazy and Suspense. Once the first page shows, the
+other pages load in the background, so a first visit renders at once. The shell
+stays visible while a page loads. Scan forms and their drawer code load on first
+use and stay mounted afterwards to preserve closing and focus behavior. Keep the
 default 500 kB build warning and check emitted chunks when adding dependencies.
 
 ## Shell and visual system
@@ -174,7 +175,10 @@ Match digits by place value and use tabular figures. Only changed digits move.
 Use the shared 200ms ease-in-out transition without scale. Running scan timers tick
 locally once a second between API polls and stop when the scan finishes.
 Reduced motion displays updated values without rolling digits. Keep dates, model
-IDs, source text and editable fields static.
+IDs, source text and editable fields static. Torph measures every glyph when it
+attaches, so a value stays plain text until it first changes. A table of saved
+values then opens without layout work. Scan cost tables render only while their
+section is open.
 
 Use semantic tables, visible labels and status text alongside color. Shared
 React Aria Components provide buttons, inputs, selects, checkboxes,
