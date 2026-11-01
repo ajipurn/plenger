@@ -154,14 +154,9 @@ triage states on merges and accepts absorbed identities for later status updates
 Historical static reports without a verdict are unvalidated.
 
 `dashboard/security-coordinator.ts` owns background jobs and local commit
-monitoring. A static-only job requires no provider and ends after saving local
-results with unvalidated candidates. `security/scan-source.ts` fingerprints the
-bounded source before and after that scan. An explicit AI start checks the
-fingerprint again and creates a linked job from the saved scan, without changing
-the original job or repeating static analysis. Source changes require a new scan.
-Historical jobs without a workflow field retain their previous whole-workflow
-behavior. Run all captures an offline scan, runs bounded source-review rounds,
-saves results and stops at failures or refusals.
+monitoring. A job captures an offline scan, runs bounded source-review rounds,
+saves results and stops at failures or refusals. Saved static-only jobs, from a
+choice that was removed, stay readable and are never started.
 `OperationSupervisor` serializes jobs with other project operations and owns
 cancellation. The coordinator passes each review the project threat model; it
 saves the extended model when a scan completes. `continueScan` reruns the batch loop on a scan that stopped at its

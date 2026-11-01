@@ -47,7 +47,6 @@ export type {
   ScanCoverage,
   ScanDepth,
   ScanReply,
-  ScanWorkflow,
   SecurityFinding,
   SecurityScan,
   SecurityScanSummary,
@@ -57,14 +56,12 @@ export type {
 } from "../security/model.ts";
 export {
   canContinue,
-  canStartScanAi,
   FINDING_STATUSES,
   findingOrigins,
   findingValidation,
   remainingBudget,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
-  SCAN_WORKFLOWS,
   SECURITY_POLL_MS,
   THREAT_MODEL_LIMITS,
 } from "../security/model.ts";
@@ -96,7 +93,6 @@ export const API = {
   cancelSecurityScan: "/api/security/scans/:id/cancel",
   pauseSecurityScan: "/api/security/scans/:id/pause",
   continueSecurityScan: "/api/security/scans/:id/continue",
-  startScanAi: "/api/security/scans/:id/ai",
   findingStatus: "/api/security/findings/:id/status",
   reaEvidence: "/api/evidence/rea",
   deleteReaEvidence: "/api/evidence/rea/delete",

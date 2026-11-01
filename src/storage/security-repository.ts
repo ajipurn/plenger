@@ -196,7 +196,7 @@ export class SecurityRepository {
         const scan = this.scan(item.id);
         if (!scan) continue;
         // Finished rounds are saved, so a Full coverage AI scan pauses and can continue.
-        const resumable = scan.depth === "full" && scan.workflow !== "static" && scan.provider;
+        const resumable = scan.depth === "full" && scan.provider;
         scan.status = resumable ? "paused" : "failed";
         scan.phase = "finished";
         scan.finishedAt = new Date().toISOString();

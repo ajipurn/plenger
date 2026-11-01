@@ -365,43 +365,6 @@ main:focus-visible {
   @apply opacity-50 cursor-not-allowed;
 }
 
-/* Development-only UI sits inside construction tape with a note. Production builds never
- * render it. The frame's padding is taken back from the inline margin, so labels stay in
- * line with the rows around it. */
-.dev-only {
-  @apply relative grid gap-3 min-w-0 rounded-ui;
-  margin-inline: -14px;
-  padding: 14px;
-}
-/* The tape: diagonal stripes cut down to a 4px frame. */
-.dev-only::before {
-  content: "";
-  @apply absolute inset-0 rounded-ui pointer-events-none;
-  padding: 4px;
-  background: repeating-linear-gradient(-45deg, var(--hazard) 0 10px, var(--hazard-ink) 10px 20px);
-  mask:
-    linear-gradient(#000 0 0) content-box exclude,
-    linear-gradient(#000 0 0);
-}
-/* A faint wash of the same stripes over the block itself. */
-.dev-only::after {
-  content: "";
-  @apply absolute inset-0 rounded-ui pointer-events-none;
-  background: repeating-linear-gradient(
-    -45deg,
-    color-mix(in oklab, var(--hazard) 9%, transparent) 0 10px,
-    transparent 10px 20px
-  );
-}
-.dev-only-note {
-  @apply flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0 text-[12px] leading-relaxed text-muted;
-}
-.dev-only-badge {
-  @apply inline-flex items-center rounded-full px-2 py-px text-[11px] font-semibold uppercase tracking-[0.04em];
-  background: var(--hazard);
-  color: var(--hazard-ink);
-}
-
 /* Surfaces */
 .panel {
   @apply bg-surface border border-line rounded-panel min-w-0;

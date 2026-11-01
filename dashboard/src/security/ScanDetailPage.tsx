@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import {
   canContinue,
-  canStartScanAi,
   EXPLORE_STOPS,
   type ExploreSessionRecord,
   findingValidation,
@@ -45,12 +44,10 @@ export function ScanDetailPage({
   data,
   onRefresh,
   onNewScan,
-  onContinueWithAi,
 }: {
   data: SecurityWorkspace;
   onRefresh: () => Promise<void>;
   onNewScan: (id: string) => void;
-  onContinueWithAi: (scan: SecurityScan) => void;
 }) {
   const api = useApi();
   const { id } = useParams();
@@ -200,7 +197,7 @@ export function ScanDetailPage({
           )}
         </div>
         <div className="security-scan-actions">
-          {running && scan.depth === "full" && scan.workflow !== "static" && (
+          {running && scan.depth === "full" && (
             <Button
               className="button button-secondary"
               disabled={stopping !== null}
@@ -284,25 +281,9 @@ export function ScanDetailPage({
                   : "Static analysis did not finish"}
               </h2>
               <p>
-                AI discovery and validation have not been run. Static candidates are Unvalidated.
+                AI discovery and validation were not run, so static candidates are Unvalidated. Scan
+                again to run the full review.
               </p>
-              {canStartScanAi(scan) ? (
-                <Button
-                  className="button button-primary"
-                  {...(anyRunning ? { title: RUNNING_SCAN_REASON } : {})}
-                  disabled={anyRunning}
-                  onClick={() => onContinueWithAi(scan)}
-                >
-                  Continue with AI
-                </Button>
-              ) : (
-                scan.status === "completed" && (
-                  <p className="muted">
-                    Source changed while static analysis was running. Start a new static scan before
-                    continuing with AI.
-                  </p>
-                )
-              )}
             </section>
           )}
           {canContinue(scan) && (
@@ -509,7 +490,7 @@ export function ScanDetailPage({
                   {scan.status === "running"
                     ? "Model outputs appear after each round finishes."
                     : scan.workflow === "static"
-                      ? "AI discovery and validation were not run. Continue with AI to produce model outputs."
+                      ? "AI discovery and validation were not run. Scan again to produce model outputs."
                       : "This scan has no AI outputs. Start a new scan with a saved provider to generate STRIDE and source analysis."}
                 </p>
               )}

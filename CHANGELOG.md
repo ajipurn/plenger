@@ -72,6 +72,12 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   instructions, so both prompt digests change. Scan details no longer show
   the base of an earlier change review. Its design stays in
   docs/design/strix-adoption.md.
+- **Static only** and **Continue with AI**. New Scan no longer shows **Steps
+  to run** in development builds, and every scan runs static analysis, AI
+  discovery and validation. The scan API drops its `workflow` option and the
+  `/api/security/scans/:id/ai` endpoint, along with the source fingerprint that
+  guarded a continuation. Saved static-only scans stay readable; use **Scan
+  again** for a full review.
 
 ### Added
 

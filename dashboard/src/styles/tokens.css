@@ -75,9 +75,6 @@
   --scrollbar: #d9e8e340;
   --scrollbar-hover: #d9e8e373;
   --surface-overlay: #0a1820b3;
-  /* Construction tape for development-only UI, the same in both appearances. */
-  --hazard: #ffc801;
-  --hazard-ink: #172b36;
 
   /* Forsythia primary actions with Oceanic Noir labels (9.4:1) in both appearances. */
   --primary-bg: #ffc801;

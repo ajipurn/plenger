@@ -23,12 +23,10 @@ import { scanFindings, vanishedStaticFindings } from "../security/findings.ts";
 import { sourceRevision } from "../security/git.ts";
 import {
   canContinue,
-  canStartScanAi,
   remainingBudget,
   SCAN_ACTIVITY_LIMIT,
   SCAN_DEPTHS,
   type ScanActivity,
-  type ScanAiOptions,
   type ScanBudget,
   type ScanCoverage,
   type ScanReply,
@@ -36,7 +34,6 @@ import {
   type SecurityScan,
   type StartSecurityScan,
 } from "../security/model.ts";
-import { scanSourceDigest } from "../security/scan-source.ts";
 import { extendThreatModel, type ThreatModelContent } from "../security/threat-model.ts";
 import { reportedScanTokens } from "../security/usage.ts";
 import type { DashboardStore } from "../storage/store.ts";
@@ -198,7 +195,7 @@ export class SecurityCoordinator {
   pause(id: string): void {
     const scan = this.#store.security.scan(id);
     if (!scan) throw new HttpError(404, "Scan not found.");
-    if (scan.status !== "running" || scan.workflow === "static" || scan.depth !== "full")
+    if (scan.status !== "running" || scan.depth !== "full")
       throw new HttpError(409, "Only a running Full coverage scan can pause.");
     this.#pausing.add(id);
     try {
@@ -209,112 +206,7 @@ export class SecurityCoordinator {
     }
   }
 
-  async startScanAi(id: string, options: ScanAiOptions): Promise<SecurityScan> {
-    const base = this.#store.security.scan(id);
-    if (!base) throw new HttpError(404, "Scan not found.");
-    if (!canStartScanAi(base))
-      throw new HttpError(400, "Choose a completed static-only scan to continue with AI.");
-    return this.#startReview({ ...options, repositoryId: base.repositoryId }, undefined, base);
-  }
-
   async start(input: StartSecurityScan, continued?: SecurityScan): Promise<SecurityScan> {
-    return input.workflow === "static"
-      ? this.#startStatic(input.repositoryId)
-      : this.#startReview(input, continued);
-  }
-
-  async #startStatic(repositoryId: string): Promise<SecurityScan> {
-    return this.#supervisor.exclusive(async () => {
-      if (this.#closed) throw new HttpError(503, "The service is shutting down.");
-      const repository = this.#store.security.repository(repositoryId);
-      if (!repository) throw new HttpError(404, "Project not found. Add a local folder first.");
-      const revision = await sourceRevision(repository.path);
-      if (this.#closed) throw new HttpError(503, "The service is shutting down.");
-      repository.revision = revision;
-      this.#store.security.saveRepository(repository);
-      const job: SecurityScan = {
-        id: randomUUID(),
-        repositoryId,
-        sourceScanId: null,
-        workflow: "static",
-        startedAt: new Date().toISOString(),
-        finishedAt: null,
-        durationMs: 0,
-        status: "running",
-        phase: "reading",
-        initiatedBy: "Local user",
-        scope: "local",
-        depth: "quick",
-        provider: null,
-        revision,
-        environment: structuredClone(repository.environment),
-        findingCount: 0,
-        modelCalls: 0,
-        tokens: 0,
-        tokensComplete: true,
-        cost: null,
-        error: null,
-        findings: [],
-        reviews: [],
-      };
-      this.#saveScan(job);
-      const controller = new AbortController();
-      const task = Promise.resolve()
-        .then(async () => {
-          const started = performance.now();
-          let captured: ScanResult | undefined;
-          try {
-            const before = await scanSourceDigest(repository.path, controller.signal);
-            controller.signal.throwIfAborted();
-            const result = {
-              id: randomUUID(),
-              createdAt: new Date().toISOString(),
-              scan: await scan(repository.path, { texts: true }),
-              rules: RULES,
-            };
-            captured = result.scan;
-            this.#store.saveScan(result);
-            job.sourceScanId = result.id;
-            job.staticCompletedAt = new Date().toISOString();
-            const after = await scanSourceDigest(repository.path, controller.signal);
-            // Keep static results if files changed, but never reuse their candidates for AI.
-            if (before === after) job.staticSourceDigest = after;
-            controller.signal.throwIfAborted();
-            job.status = "completed";
-          } catch {
-            job.status = controller.signal.aborted ? "cancelled" : "failed";
-            job.error = controller.signal.aborted
-              ? "Scan cancelled."
-              : "Unable to finish static analysis. Check the local folder and start a new scan.";
-          } finally {
-            job.phase = "finished";
-            job.finishedAt = new Date().toISOString();
-            job.durationMs = Math.round(performance.now() - started);
-            if (captured && job.sourceScanId) {
-              const previous = this.#store.security.findings(repositoryId);
-              job.findings = scanFindings(job, captured, RULES, [], previous);
-              job.findingCount = job.findings.length;
-              this.#store.security.saveFindings(
-                job,
-                vanishedStaticFindings(previous, job.findings, captured),
-              );
-              this.#emit({ type: "scan", id: job.id });
-            } else this.#saveScan(job);
-          }
-        })
-        .catch(() => {
-          /* Storage failures cannot be repaired by restarting a scan. */
-        });
-      this.#supervisor.track(job.id, controller, task);
-      return structuredClone(job);
-    });
-  }
-
-  async #startReview(
-    input: ScanAiOptions & { repositoryId: string },
-    continued?: SecurityScan,
-    staticBase?: SecurityScan,
-  ): Promise<SecurityScan> {
     return this.#supervisor.exclusive(async () => {
       if (
         continued &&
@@ -324,20 +216,6 @@ export class SecurityCoordinator {
       if (this.#closed) throw new HttpError(503, "The service is shutting down.");
       const repository = this.#store.security.repository(input.repositoryId);
       if (!repository) throw new HttpError(404, "Project not found. Add a local folder first.");
-      const base = staticBase?.sourceScanId
-        ? this.#store.scans.readScan(staticBase.sourceScanId)
-        : null;
-      if (staticBase) {
-        if (!base)
-          throw new HttpError(409, "The saved static result is unavailable. Run a new scan.");
-        const digest = await scanSourceDigest(repository.path).catch(() => null);
-        if (digest === null || digest !== staticBase.staticSourceDigest)
-          throw new HttpError(
-            409,
-            "Source files or scan exclusions changed since static analysis. Run a new static scan before continuing with AI.",
-          );
-        this.#store.reviews.assertCapacity(base.id);
-      }
       const resolved = this.#store.resolveProvider(input.providerId);
       const model = input.model ?? resolved.saved.model;
       try {
@@ -443,15 +321,8 @@ export class SecurityCoordinator {
         : {
             id: randomUUID(),
             repositoryId: repository.id,
-            sourceScanId: base?.id ?? null,
+            sourceScanId: null,
             workflow: "all",
-            ...(staticBase
-              ? {
-                  parentScanId: staticBase.id,
-                  staticCompletedAt:
-                    staticBase.staticCompletedAt ?? staticBase.finishedAt ?? staticBase.startedAt,
-                }
-              : {}),
             startedAt: new Date().toISOString(),
             finishedAt: null,
             durationMs: 0,
@@ -516,26 +387,15 @@ export class SecurityCoordinator {
               ? this.#store.scans.readScan(continued.sourceScanId)
               : null;
             if (continued && !kept) throw new Error("missing-static-scan");
-            const result = kept ??
-              base ?? {
-                id: randomUUID(),
-                createdAt: new Date().toISOString(),
-                scan: await scan(repository.path, { texts: true }),
-                rules: RULES,
-              };
+            const result = kept ?? {
+              id: randomUUID(),
+              createdAt: new Date().toISOString(),
+              scan: await scan(repository.path, { texts: true }),
+              rules: RULES,
+            };
             captured = result.scan;
             controller.signal.throwIfAborted();
-            if (
-              staticBase &&
-              (await scanSourceDigest(repository.path, controller.signal)) !==
-                staticBase.staticSourceDigest
-            ) {
-              job.status = "failed";
-              job.error =
-                "Source files changed while AI review was starting. Run a new static scan before continuing with AI.";
-              return;
-            }
-            if (!kept && !base) {
+            if (!kept) {
               job.staticCompletedAt = new Date().toISOString();
               this.#store.saveScan(result);
               job.sourceScanId = result.id;

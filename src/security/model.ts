@@ -32,17 +32,6 @@ export const SCAN_DEPTHS = {
 export type ScanDepth = keyof typeof SCAN_DEPTHS;
 /** The depths a new scan can choose. */
 export type SelectableScanDepth = "quick" | "full";
-export const SCAN_WORKFLOWS = {
-  all: {
-    label: "Run all",
-    description: "Run static analysis, AI discovery and source validation.",
-  },
-  static: {
-    label: "Static only",
-    description: "Run local rules and stop. You can continue with AI later.",
-  },
-} as const;
-export type ScanWorkflow = keyof typeof SCAN_WORKFLOWS;
 /**
  * A scan's spending limit across every model connection it uses: accounted tokens, or
  * USD estimated from saved prices. A batch starts only when its maximum fits what remains.
@@ -181,12 +170,14 @@ export interface SecurityScanSummary {
   initiatedBy: "Local user" | "Continuous scanning" | "Imported history";
   scope: "local" | "repository" | "continuous";
   depth: ScanDepth;
-  /** Absent on historical scans, which ran the whole workflow. */
-  workflow?: ScanWorkflow;
-  /** A saved static scan this AI scan continues, without rewriting its history. */
+  /**
+   * Absent on historical scans, which ran the whole workflow. `static` scans ran local rules
+   * only, from a choice that was removed; they are shown, never started.
+   */
+  workflow?: "all" | "static";
+  /** The static scan an older AI scan continued from, before that choice was removed. */
   parentScanId?: string;
-  /** Local source fingerprint for explicitly continuing a completed static scan. */
-  staticSourceDigest?: string;
+  /** When static analysis finished. */
   staticCompletedAt?: string;
   /** How its reviews read the source; absent on scans from before exploration, which ran batches. */
   mode?: ReviewMode;
@@ -263,14 +254,6 @@ export function remainingBudget(scan: SecurityScanSummary): ScanBudget | null {
         : Math.max(0, Math.floor((budget.usd - (charged.usd - start.usd)) * 100) / 100),
   };
 }
-export function canStartScanAi(scan: SecurityScanSummary): boolean {
-  return (
-    scan.workflow === "static" &&
-    scan.status === "completed" &&
-    scan.sourceScanId !== null &&
-    Boolean(scan.staticSourceDigest)
-  );
-}
 /** Activity entries a scan keeps; older ones drop off. */
 export const SCAN_ACTIVITY_LIMIT = 60;
 export interface SecurityScan extends SecurityScanSummary {
@@ -306,6 +289,4 @@ export interface ScanAiOptions {
   /** Omit for no limit: Full coverage then stops when covered or at its batch cap. */
   budget?: ScanBudget;
 }
-export type StartSecurityScan =
-  | { repositoryId: string; workflow: "static" }
-  | (ScanAiOptions & { repositoryId: string; workflow?: "all" });
+export type StartSecurityScan = ScanAiOptions & { repositoryId: string };

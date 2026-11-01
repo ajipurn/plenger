@@ -196,7 +196,6 @@ export function securityWorkspaceRoutes({
           body,
           [
             "repositoryId",
-            "workflow",
             "providerId",
             "scope",
             "depth",
@@ -211,23 +210,13 @@ export function securityWorkspaceRoutes({
         // Accept earlier local-scan clients, without enabling any automatic mode.
         if (body.scope !== undefined && body.scope !== "local" && body.scope !== "repository")
           throw new HttpError(400, "Only manual scans of local folders are supported.");
-        if (body.workflow !== undefined && body.workflow !== "all" && body.workflow !== "static")
-          throw new HttpError(400, "Choose Run all or Static only.");
-        if (body.workflow === "static")
-          expectKeys(
-            body,
-            ["repositoryId", "workflow", "scope"],
-            "Static-only scans do not accept AI settings.",
-          );
         try {
           const result = await security.start({
             repositoryId: requireString(body.repositoryId, "Choose a local project.", {
               min: 1,
               max: WORKSPACE_LIMITS.recordIdCharacters,
             }),
-            ...(body.workflow === "static"
-              ? { workflow: "static" as const }
-              : { workflow: "all" as const, ...scanAiOptions(body) }),
+            ...scanAiOptions(body),
           });
           return { status: 202, body: result };
         } catch (error) {
@@ -262,34 +251,6 @@ export function securityWorkspaceRoutes({
         const saved = scan.sourceScanId ? store.scans.readScan(scan.sourceScanId) : null;
         const body: ScanSourceFiles = { paths: saved ? reviewPaths(saved.scan) : null };
         return { status: 200, body };
-      },
-    },
-    {
-      method: "POST",
-      path: API.startScanAi,
-      handler: async ({ request, params }) => {
-        const body = await jsonRequest(request);
-        expectKeys(
-          body,
-          [
-            "providerId",
-            "model",
-            "validatorProviderId",
-            "validatorModel",
-            "depth",
-            "mode",
-            "budget",
-          ],
-          "Choose the AI review settings.",
-        );
-        try {
-          const result = await security.startScanAi(params.id ?? "", scanAiOptions(body));
-          return { status: 202, body: result };
-        } catch (error) {
-          if (error instanceof StoreValidationError)
-            throw new HttpError(400, error.message, { cause: error });
-          throw error;
-        }
       },
     },
     {
@@ -340,7 +301,7 @@ export function securityWorkspaceRoutes({
   ];
 }
 
-/** Both new reviews and reviews continued from static results use the same checked options. */
+/** The checked AI settings of a new scan. */
 function scanAiOptions(body: Record<string, unknown>): ScanAiOptions {
   if (
     typeof body.depth !== "string" ||

@@ -113,46 +113,27 @@ a project.
 
 1. Press **New Scan**, choose a local project and check its folder path.
    Optionally edit **Review context**, which is saved for subsequent scans.
-2. New Scan runs all steps. Development builds (`pnpm dashboard`) also offer
-   **Static only** under **Steps to run**, inside a striped development-only frame.
-3. For **Run all**, choose a saved provider, model, review mode and **Quick** or
-   **Full coverage**. Save a connection in **Settings > Providers** first if needed.
+2. Choose a saved provider, model, review mode and **Quick** or **Full coverage**.
+   Save a connection in **Settings > Providers** first if needed.
    **Batch** sends each round the files the scan picks. **Explore**, selected for
    Claude connections, lets the model read the project through read-only tools.
    For Full coverage, **Set a spending limit** is checked by default. Enter a token
    or USD limit, or clear it to run without one. Choosing another model applies to
    this scan only. **Load models** refreshes the saved catalog. Optionally choose
    a different validation model.
-4. Press **Start Scan** for the whole workflow, or **Run static scan** for local
-   rules only in a development build. Run all sends redacted source and context to the selected providers
-   and consumes model usage.
+3. Press **Start Scan**. The scan sends redacted source and context to the
+   selected providers and consumes model usage.
 
 One scan runs at a time across all projects. While it runs, **New Scan**,
-**Scan again**, **Continue with AI** and **Continue scan** are disabled, and
-hovering one names the reason. Let the running scan finish, or pause or stop it,
-to start another. A paused scan does not block other scans.
+**Scan again** and **Continue scan** are disabled, and hovering one names the
+reason. Let the running scan finish, or pause or stop it, to start another. A
+paused scan does not block other scans.
 
-**Static only** is a development aid. It needs no provider, model or AI budget. It runs local rules and
-stops with a completed static result, zero model calls and no model usage cost.
-Its candidates are **Unvalidated**. AI discovery, STRIDE and validation are marked
-as not run. The result and triage survive navigation and service restarts.
+Scans saved by the former **Static only** choice still open as static results.
+Their candidates stay **Unvalidated**. Use **Scan again** for a full review.
 
-Open a completed static result and select **Continue with AI** to choose AI
-settings later. This creates a linked scan that reuses the saved static result
-without repeating static analysis. The original scan remains unchanged. The AI
-scan keeps the same finding identities and saved triage, with its own model usage
-and spending limit. Discovery remains independent, followed by validation of
-static and AI candidates. Discovery and validation run together in this workflow.
-
-The host fingerprints bounded local source before and after a static-only scan.
-Before continuing, it checks the contents and included file list again. Changed,
-added, removed or newly excluded files require a fresh static scan. If source
-changes during static analysis, the result is still saved but cannot continue
-with AI. These checks do not freeze files during the later review. Review source
-digests and limitations identify the source that AI actually received.
-
-**Run all**, the default for earlier clients and scans, first runs the offline
-scanner, then AI discovery, STRIDE and source validation.
+Each scan first runs the offline scanner, then AI discovery, STRIDE and source
+validation.
 **Quick** runs one round. In Batch mode the round sends the files on traced
 paths first and makes at most two model calls. In Explore mode it makes at most
 18 model calls; see [Explore mode](ai-security-review.md#explore-mode).
