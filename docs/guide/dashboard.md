@@ -113,14 +113,16 @@ a project.
 
 1. Press **New Scan**, choose a local project and check its folder path.
    Optionally edit **Review context**, which is saved for subsequent scans.
-2. Choose a saved provider, model, review mode and **Quick** or **Full coverage**.
-   Save a connection in **Settings > Providers** first if needed.
-   **Batch** sends each round the files the scan picks. **Explore**, selected for
-   Claude connections, lets the model read the project through read-only tools.
-   For Full coverage, **Set a spending limit** is checked by default. Enter a token
-   or USD limit, or clear it to run without one. Choosing another model applies to
-   this scan only. **Load models** refreshes the saved catalog. Optionally choose
-   a different validation model.
+2. Choose a saved provider and model, a review mode and **Quick** or
+   **Full coverage**. Save a connection in **Settings > Providers** first if
+   needed. **Batch** sends each round the files the scan picks. **Explore**,
+   selected for Claude connections, lets the model read the project through
+   read-only tools. Each card shows its model calls or rounds. For Full coverage,
+   pick a limit preset, enter another token or USD amount, or choose
+   **No limit**. Choosing another model applies to this scan only.
+   **Load models** refreshes the saved catalog. **Validate with** keeps the same
+   model, or pick another saved connection and model for validation. The plan
+   above **Start Scan** sums up the choices.
 3. Press **Start Scan**. The scan sends redacted source and context to the
    selected providers and consumes model usage.
 

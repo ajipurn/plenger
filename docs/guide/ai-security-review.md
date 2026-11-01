@@ -263,9 +263,9 @@ already holds. Outputs list them under
 If they cannot be read, validation continues without them.
 
 By default validation uses the same model with a separate
-instruction. **Validation model** in New Scan can pick another saved connection,
-which runs with its saved model; a different model is less likely to repeat the
-first model's mistakes. Its usage and estimated cost are reported separately.
+instruction. **Validate with** in New Scan can pick another saved connection and
+its model; a different model is less likely to repeat the first model's
+mistakes. Its usage and estimated cost are reported separately.
 Validation reads source only; it is not runtime testing. A Source-supported static
 candidate must have all its submitted evidence ranges inside validation's captured
 source. A claimed supported decision without those ranges becomes Needs review.

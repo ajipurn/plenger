@@ -106,7 +106,7 @@ function Choice<T extends string>({
           <Radio key={option} value={option} className="settings-choice-option">
             {preview(option)}
             <span className="settings-choice-label">
-              <span className="settings-choice-radio" aria-hidden="true" />
+              <span className="ui-choice-radio" aria-hidden="true" />
               {labels[option]}
             </span>
           </Radio>

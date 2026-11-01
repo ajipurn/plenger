@@ -365,6 +365,42 @@ main:focus-visible {
 .ui-checkbox[data-disabled] {
   @apply opacity-50 cursor-not-allowed;
 }
+/* The radio dot inside a card choice. The card is the React Aria Radio and carries
+ * data-selected. */
+.ui-choice-radio {
+  @apply inline-grid place-items-center size-4 shrink-0 rounded-full border border-line-strong bg-field;
+  box-shadow: var(--shadow-field);
+}
+.ui-choice-radio::after {
+  content: "";
+  @apply size-1.5 rounded-full;
+  background: var(--checked-fg);
+  scale: 0;
+  transition: scale 150ms ease;
+}
+[data-selected] .ui-choice-radio {
+  background-color: var(--checked);
+  background-image: var(--primary-sheen);
+  border-color: var(--checked);
+  box-shadow: var(--shadow-control);
+}
+[data-selected] .ui-choice-radio::after {
+  scale: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-choice-radio::after {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  [data-selected] .ui-choice-radio {
+    background: Highlight;
+    border-color: Highlight;
+  }
+  [data-selected] .ui-choice-radio::after {
+    background: HighlightText;
+  }
+}
 
 /* Surfaces */
 .panel {

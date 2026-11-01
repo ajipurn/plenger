@@ -9,6 +9,11 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- New Scan groups its fields under Source, Model and Review. Mode and depth are
+  cards that show both options with their model calls or rounds. Provider and
+  model share a row, **Validate with** replaces the validation checkbox, and
+  Full coverage limits have presets and a No limit choice. A plan above
+  **Start Scan** sums up the mode, depth, limit and source per round.
 - The logo and favicon are a pixel art tiger (`logo.svg`) on the dashboard and
   the docs. The dashboard header shows the logo again beside the wordmark, also
   on phones where the wordmark is hidden.

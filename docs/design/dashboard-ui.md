@@ -149,20 +149,25 @@ and close action above the scrolling form. Cancel and Start Scan stay in a
 fixed footer, alongside a visible source-dispatch and API-usage disclosure.
 The form selects a saved local project, provider, model, review mode and scan
 depth, in that order. Labels sit left of their controls and stack above them on
-phones. Hairlines group the project, the models, and the review settings.
-Binary choices are pill segmented controls whose raised thumb
-slides to the selected option. They describe only the selected option and its
-model calls. Selected segments, checkboxes and
-switches use the selection color. Start with the
-provider's default model. A scan's model choice does not change that default.
-Show the selected folder path. Keep optional review context in a disclosure
-under the project. Do not add environment or scan-scope selectors.
-Validation uses the same provider and model by default. A checkbox reveals
-separate validation provider and model choices. These apply only to this scan.
-Quick and Full coverage describe actual review coverage. Full coverage offers
-an optional token or USD limit behind a checkbox that is on by default, and
-shows how many batches the limit guarantees and how many the project needs.
-Without a limit it states the batch cap and one batch's maximum.
+phones. Small titles and hairlines group Source, Model and Review.
+Show the selected folder path on one line; a long path loses its start, never
+the project folder, and the file count stays at the right. Keep optional review
+context in a disclosure under the project. Do not add environment or
+scan-scope selectors.
+Provider and model share one row. Start with the provider's default model; a
+scan's model choice does not change that default. **Validate with** keeps the
+same model by default, or picks a saved connection and its model for this scan
+only.
+Mode and depth are radio cards. Both options show one line on what they do and
+a chip with what they cost, such as model calls per round or the rounds a
+project needs, so they compare without switching. The selected card takes the
+selection ring and a filled radio dot.
+Full coverage adds a limit. Presets offer token or USD amounts that fit one
+round's maximum, plus No limit, and a field takes any other amount, shown with
+thousands separators. Errors stay under the field.
+The footer adds the choices up into a plan above the disclosure: mode, depth
+and limit on one line, then the source per round and the rounds the limit
+guarantees. Phones keep only the first line.
 Static checks, AI code review and STRIDE threat modeling remain included.
 
 All scans start manually. The service does not watch commits or start scheduled

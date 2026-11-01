@@ -373,8 +373,9 @@ legend.security-filter-title {
 body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   background: color-mix(in oklab, var(--canvas) 70%, transparent);
 }
-/* New Scan: labels on the left, controls on the right, in hairline groups. A segmented
- * choice describes only its selected option, so the form stays short. */
+/* New Scan: labels on the left, controls on the right, in titled hairline groups. Mode
+ * and depth are cards that show both options with what they cost, and the footer adds
+ * the choices up into a plan above Start Scan. */
 .security-scan-drawer .security-drawer-heading,
 .security-scan-drawer .security-form-footer {
   @apply px-6;
@@ -387,6 +388,9 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 }
 .security-scan-group + .security-scan-group {
   @apply border-t border-line;
+}
+.security-scan-form .security-scan-group-title {
+  @apply -mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-subtle;
 }
 .security-scan-row {
   @apply grid gap-x-6 gap-y-2 min-w-0;
@@ -406,12 +410,6 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-scan-form .security-scan-row-help {
   @apply min-w-0 text-[12px] leading-relaxed text-muted;
 }
-.security-scan-row-help > p + p {
-  @apply mt-0.5;
-}
-.security-scan-form .security-scan-row-meta {
-  @apply font-medium text-ink tabular-nums;
-}
 .security-scan-inline {
   @apply flex flex-wrap items-center gap-2 min-w-0;
 }
@@ -421,8 +419,13 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-scan-inline > .button {
   @apply shrink-0;
 }
-.security-scan-subfields {
-  @apply grid gap-3 min-w-0 mt-1 ps-6;
+/* Provider and model share one row: the connection narrow, the model wide. */
+.security-scan-model {
+  @apply grid items-start gap-2 min-w-0;
+  grid-template-columns: minmax(8rem, 11rem) minmax(0, 1fr);
+}
+.security-scan-model > .ui-select {
+  @apply w-full;
 }
 .security-scan-field {
   @apply grid content-start gap-1.5 min-w-0;
@@ -434,16 +437,21 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   @apply w-full;
 }
 .security-scan-source {
-  @apply flex flex-wrap items-start justify-between gap-x-4 gap-y-1 min-w-0 text-[12px] leading-relaxed text-muted;
+  @apply flex items-start justify-between gap-4 min-w-0 text-[12px] leading-relaxed text-muted;
 }
 .security-scan-source-path {
-  @apply flex items-start gap-2 min-w-0;
+  @apply flex flex-1 items-start gap-2 min-w-0;
 }
 .security-scan-source-path > .icon {
   @apply size-3.5 shrink-0 mt-[3px];
 }
+/* A right-to-left box clips the start of a long path; bdi keeps the path itself in order. */
 .security-scan-source-path > code {
-  @apply wrap-anywhere;
+  @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-start;
+  direction: rtl;
+}
+.security-scan-source-path > code > bdi {
+  direction: ltr;
 }
 .security-scan-source-size {
   @apply shrink-0 tabular-nums whitespace-nowrap;
@@ -523,6 +531,82 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-scan-segment[data-disabled] {
   @apply opacity-50 cursor-not-allowed;
 }
+/* Card choices. The label lines up with the card title: 1px border plus 10px padding. */
+.security-scan-row:has(> .security-scan-cards) > .security-scan-row-label {
+  padding-top: 11px;
+}
+.security-scan-cards {
+  @apply grid grid-cols-2 gap-2 min-w-0;
+}
+.security-scan-form .security-scan-card {
+  @apply grid content-start gap-1 min-w-0 rounded-ui border border-line-control bg-surface px-3 py-2.5 cursor-pointer;
+  box-shadow: var(--shadow-control);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.security-scan-card[data-hovered] {
+  @apply border-line-strong;
+}
+.security-scan-card[data-selected] {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    var(--shadow-control);
+}
+.security-scan-card[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.security-scan-card[data-disabled] {
+  @apply opacity-50 cursor-not-allowed;
+}
+.security-scan-card-title {
+  @apply flex items-center gap-2 text-[13px] font-medium leading-5 text-ink;
+}
+.security-scan-card-description {
+  @apply text-[12px] leading-relaxed text-muted;
+}
+.security-scan-card-meta {
+  @apply justify-self-start mt-1 rounded-full bg-hover px-2 py-px text-[11px] font-medium text-muted tabular-nums;
+}
+.security-scan-card[data-selected] .security-scan-card-meta {
+  @apply bg-accent-soft text-accent;
+}
+.security-scan-presets {
+  @apply flex flex-wrap items-center gap-1.5 min-w-0;
+}
+.security-scan-form .security-scan-preset {
+  @apply inline-flex items-center min-h-7 rounded-full border border-line-control bg-surface px-2.5 text-[12px] font-medium text-muted tabular-nums cursor-pointer;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+.security-scan-preset[data-hovered] {
+  @apply border-line-strong text-ink;
+}
+.security-scan-preset[data-selected] {
+  @apply bg-accent-soft text-accent;
+  border-color: var(--accent);
+}
+.security-scan-preset[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+/* The plan spans the footer above the disclosure and actions. */
+.security-scan-plan {
+  @apply flex basis-full items-start gap-2.5 min-w-0 rounded-ui bg-accent-soft px-3 py-2.5;
+}
+.security-scan-plan > .icon {
+  @apply size-4 shrink-0 mt-0.5 text-accent;
+}
+.security-scan-plan-title {
+  @apply text-[13px] font-medium leading-5 text-ink;
+}
+.security-scan-plan-detail {
+  @apply mt-0.5 text-[12px] leading-relaxed text-muted;
+}
 .security-scan-limit {
   transition:
     opacity 200ms cubic-bezier(0.23, 1, 0.32, 1),
@@ -561,8 +645,19 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   .security-scan-row {
     grid-template-columns: minmax(0, 1fr);
   }
-  .security-scan-form .security-scan-row-label {
+  .security-scan-form .security-scan-row-label,
+  .security-scan-row:has(> .security-scan-cards) > .security-scan-row-label {
     @apply pt-0;
+  }
+}
+@media (max-width: 420px) {
+  .security-scan-cards,
+  .security-scan-model {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* The plan keeps its one-line summary so the fixed footer leaves room for the form. */
+  .security-scan-plan-detail {
+    @apply hidden;
   }
 }
 .security-scan-context > summary {
@@ -579,8 +674,9 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 }
 @media (prefers-reduced-motion: reduce) {
   .security-scan-segmented::before,
+  .security-scan-card,
+  .security-scan-preset,
   .settings-choice-option,
-  .settings-choice-radio::after,
   .settings-choice-preview {
     transition: none;
   }
@@ -592,6 +688,10 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
   .security-scan-segment[data-selected] {
     background: Highlight;
     color: HighlightText;
+  }
+  .security-scan-card[data-selected],
+  .security-scan-preset[data-selected] {
+    outline: 2px solid Highlight;
   }
 }
 /* Cards share the panel's lift. */
@@ -1498,26 +1598,6 @@ summary.security-round-row:hover {
 .settings-choice-label {
   @apply inline-flex items-center gap-2 min-w-0;
 }
-.settings-choice-radio {
-  @apply inline-grid place-items-center size-4 shrink-0 rounded-full border border-line-strong bg-field;
-  box-shadow: var(--shadow-field);
-}
-.settings-choice-radio::after {
-  content: "";
-  @apply size-1.5 rounded-full;
-  background: var(--checked-fg);
-  scale: 0;
-  transition: scale 150ms ease;
-}
-.settings-choice-option[data-selected] .settings-choice-radio {
-  background-color: var(--checked);
-  background-image: var(--primary-sheen);
-  border-color: var(--checked);
-  box-shadow: var(--shadow-control);
-}
-.settings-choice-option[data-selected] .settings-choice-radio::after {
-  scale: 1;
-}
 /* Sizes inside a preview follow its width, so the picture keeps its proportions. */
 .settings-choice-preview {
   @apply relative block overflow-hidden rounded-ui;
@@ -1681,13 +1761,6 @@ summary.security-round-row:hover {
   }
   .settings-choice-option[data-selected] .settings-choice-preview {
     outline: 3px solid Highlight;
-  }
-  .settings-choice-option[data-selected] .settings-choice-radio {
-    background: Highlight;
-    border-color: Highlight;
-  }
-  .settings-choice-option[data-selected] .settings-choice-radio::after {
-    background: HighlightText;
   }
 }
 @media (max-width: 1000px) {
