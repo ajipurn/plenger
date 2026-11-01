@@ -51,6 +51,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - The Projects list showed the last scan's finding count, so a project whose
   latest scan found nothing read 0 while its page listed open findings. The
   column is now Open findings, counted across all scans as on the project page.
+- In the light theme, text fields and dropdowns had the same color as the page,
+  so the search and filters in the Projects and Findings toolbars blended in.
+  Fields are now white.
 
 ### Removed
 
