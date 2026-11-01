@@ -298,9 +298,11 @@ export function securityWorkspaceRoutes({
       handler: async ({ request, params }) => {
         const body = await jsonRequest(request);
         expectKeys(body, ["budget"], "Set a limit to continue the scan.");
-        if (body.budget === undefined)
-          throw new HttpError(400, "Set a limit to continue the scan.");
-        const scan = await security.continueScan(params.id ?? "", scanBudget(body.budget));
+        // The coordinator decides whether this scan may continue without a limit.
+        const scan = await security.continueScan(
+          params.id ?? "",
+          body.budget === undefined ? undefined : scanBudget(body.budget),
+        );
         return { status: 202, body: scan };
       },
     },
@@ -311,6 +313,15 @@ export function securityWorkspaceRoutes({
         expectKeys(await jsonRequest(request), [], "This request does not accept options.");
         supervisor.cancel(params.id ?? null);
         return { status: 200, body: { cancelled: true } };
+      },
+    },
+    {
+      method: "POST",
+      path: API.pauseSecurityScan,
+      handler: async ({ request, params }) => {
+        expectKeys(await jsonRequest(request), [], "This request does not accept options.");
+        security.pause(params.id ?? "");
+        return { status: 200, body: { paused: true } };
       },
     },
     {

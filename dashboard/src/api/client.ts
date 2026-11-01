@@ -20,6 +20,7 @@ import {
   type ModelPricingResult,
   type ModelWindowRequest,
   type ModelWindowResult,
+  type PauseResult,
   type ProviderModelsRequest,
   type ProviderModelsResult,
   type ProviderTestResult,
@@ -61,7 +62,9 @@ export interface DashboardApi {
     onOpen: () => void,
   ): Promise<void>;
   cancelSecurityScan(id: string): Promise<CancelResult>;
-  continueSecurityScan(id: string, budget: ScanBudget): Promise<SecurityScan>;
+  pauseSecurityScan(id: string): Promise<PauseResult>;
+  /** Omit the limit only for a paused scan whose run had none. */
+  continueSecurityScan(id: string, budget?: ScanBudget): Promise<SecurityScan>;
   setFindingStatus(id: string, status: FindingStatus): Promise<SecurityFinding>;
   initialState: DashboardState;
   chooseFolder(path: string, signal?: AbortSignal): Promise<ChooseFolderResult>;
@@ -167,10 +170,13 @@ export async function connect(): Promise<DashboardApi> {
       ),
     cancelSecurityScan: (id) =>
       request<CancelResult>(API.cancelSecurityScan.replace(":id", encodeURIComponent(id)), {}),
+    pauseSecurityScan: (id) =>
+      request<PauseResult>(API.pauseSecurityScan.replace(":id", encodeURIComponent(id)), {}),
     continueSecurityScan: (id, budget) =>
-      request<SecurityScan>(API.continueSecurityScan.replace(":id", encodeURIComponent(id)), {
-        budget,
-      }),
+      request<SecurityScan>(
+        API.continueSecurityScan.replace(":id", encodeURIComponent(id)),
+        budget ? { budget } : {},
+      ),
     setFindingStatus: (id, status) =>
       request<SecurityFinding>(API.findingStatus.replace(":id", encodeURIComponent(id)), {
         status,

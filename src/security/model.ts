@@ -164,7 +164,10 @@ export function findingValidation(finding: SecurityFinding): ReviewFinding["vali
 export function findingOrigins(finding: SecurityFinding): SecurityFinding["origin"][] {
   return [...new Set([finding.origin, ...(finding.provenance ?? []).map((item) => item.origin)])];
 }
-export type SecurityScanStatus = "running" | "completed" | "failed" | "cancelled";
+/** `cancelled` is shown as Stopped: the person ended the scan. A `paused` scan can continue. */
+export type SecurityScanStatus = "running" | "completed" | "failed" | "cancelled" | "paused";
+/** Why a Full coverage scan paused that nobody paused. */
+export const SERVICE_STOPPED_PAUSE = "It paused because the local service stopped while it ran.";
 export type SecurityScanPhase = "reading" | "discovering" | "validating" | "finished";
 export interface SecurityScanSummary {
   id: string;
@@ -204,8 +207,12 @@ export interface SecurityScanSummary {
   coverage?: ScanCoverage;
   /** The project threat model the scan started from; absent when there was none. */
   threatModel?: { version: number; origin: ProjectThreatModel["origin"] };
-  /** Later limits a Full coverage scan continued under, after it stopped at its limit. */
-  continuations?: { at: string; budget: ScanBudget }[];
+  /**
+   * Later runs of a Full coverage scan that stopped at its limit, failed or paused: the limit
+   * each ran under, absent for none, and what the scan had charged when it began, absent on
+   * older scans.
+   */
+  continuations?: { at: string; budget?: ScanBudget; charged?: ScanCoverage["charged"] }[];
   error: string | null;
 }
 /** One step of a running scan, for its live timeline. */
@@ -220,17 +227,41 @@ export interface ScanActivity {
   tokens: number;
 }
 /**
- * Whether a Full coverage scan can continue: it stopped at its limit, or a later batch
- * failed, on a provider error for instance, after earlier batches completed.
+ * Whether a Full coverage scan can continue: it paused, it stopped at its limit, or a later
+ * batch failed, on a provider error for instance, after earlier batches completed.
  */
 export function canContinue(scan: SecurityScan): boolean {
   if (scan.depth !== "full" || !scan.provider) return false;
+  if (scan.status === "paused") return true;
   if (scan.status === "completed") return scan.coverage?.stop === "budget";
   return (
     scan.status === "failed" &&
     scan.reviews.some((review) => review.status === "completed") &&
     scan.reviews.at(-1)?.status === "failed"
   );
+}
+/**
+ * What is left of the limit the scan's latest run started under, its own or its latest
+ * continuation's, or null when that run had no limit. A paused scan continues under it.
+ */
+export function remainingBudget(scan: SecurityScanSummary): ScanBudget | null {
+  const latest = scan.continuations?.at(-1);
+  const budget = latest ? latest.budget : scan.budget;
+  if (!budget) return null;
+  // An older continuation did not record where it began, so its whole limit is left.
+  const start = latest ? latest.charged : { tokens: 0, usd: 0 };
+  if (!start) return budget;
+  const charged = scan.coverage?.charged ?? { tokens: 0, usd: 0 };
+  if (budget.kind === "tokens")
+    return { kind: "tokens", tokens: Math.max(0, budget.tokens - (charged.tokens - start.tokens)) };
+  // Unpriced usage leaves nothing of a USD limit, as during the run.
+  return {
+    kind: "usd",
+    usd:
+      charged.usd === null || start.usd === null
+        ? 0
+        : Math.max(0, Math.floor((budget.usd - (charged.usd - start.usd)) * 100) / 100),
+  };
 }
 export function canStartScanAi(scan: SecurityScanSummary): boolean {
   return (

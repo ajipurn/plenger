@@ -415,8 +415,10 @@ REA imports can be selected for this prompt. They are not inputs to AI
 discovery or validation. Workflow statuses such as Triaged or Resolved are
 stored separately from the source analysis verdict.
 
-The local service keeps scans running when you leave the page. **Cancel scan**
-requests cancellation and saves the outcome. Model refusals and errors stop
+The local service keeps scans running when you leave the page. **Stop scan**
+ends a scan and saves the outcome. **Pause scan**, for Full coverage, also ends
+the run, and **Continue scan** later runs the remaining rounds; see
+[dashboard.md](dashboard.md#start-a-scan). Model refusals and errors stop
 without retries. All scans start manually; see [dashboard.md](dashboard.md#manual-local-scans).
 
 Batch mode exposes no model tools. Explore mode exposes only the four

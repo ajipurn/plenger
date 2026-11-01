@@ -32,6 +32,7 @@ import { Icon } from "./icons.tsx";
 export function Button({
   type = "button",
   disabled = false,
+  title,
   onClick,
   ...props
 }: Omit<ButtonProps, "onClick" | "render"> &
@@ -45,6 +46,8 @@ export function Button({
       type={type}
       isDisabled={disabled}
       {...props}
+      // React Aria drops `title` from a button's DOM props, so it is added on render.
+      {...(title ? { render: (dom) => <button {...dom} title={title} /> } : {})}
       // This wrapper always renders a button, so callers receive its concrete DOM type.
       {...(onClick ? { onClick: (event) => onClick(event as MouseEvent<HTMLButtonElement>) } : {})}
     />

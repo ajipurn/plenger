@@ -28,11 +28,14 @@ import {
   ListCheck,
   Magnifier,
   Moon,
+  Pause,
   Pencil,
+  Play,
   PlugConnection,
   PlugWire,
   Plus,
   Shield,
+  Stop,
   Sun,
   TrashBin,
   Wrench,
@@ -79,7 +82,10 @@ export type IconName =
   | "close"
   | "trash"
   | "edit"
-  | "plus";
+  | "plus"
+  | "pause"
+  | "play"
+  | "stop";
 const glyphs: Record<IconName, typeof Folder> = {
   overview: LayoutCellsLarge,
   findings: Fingerprint,
@@ -121,6 +127,9 @@ const glyphs: Record<IconName, typeof Folder> = {
   trash: TrashBin,
   edit: Pencil,
   plus: Plus,
+  pause: Pause,
+  play: Play,
+  stop: Stop,
 };
 export function Icon({ name, className = "" }: { name: IconName; className?: string }) {
   const Glyph = glyphs[name];

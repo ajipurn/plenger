@@ -11,6 +11,7 @@ import {
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Checkbox, Input, Select } from "../shared/ui.tsx";
+import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { SeverityFlow } from "./SeverityFlow.tsx";
 import { Empty, FindingsTable, Pagination, statusLabel, validationLabel } from "./ui.tsx";
 
@@ -22,6 +23,7 @@ export function FindingsPage({
   onNewScan: () => void;
 }) {
   const id = useId();
+  const running = data.scans.some((scan) => scan.status === "running");
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState("");
   const [statuses, setStatuses] = useState<FindingStatus[]>(["new", "triaged", "in-progress"]);
@@ -272,7 +274,12 @@ export function FindingsPage({
               : "Run a security scan to review source evidence, threat models, and remediation guidance."
           }
           action={
-            <Button className="button button-primary" onClick={onNewScan}>
+            <Button
+              className="button button-primary"
+              {...(running ? { title: RUNNING_SCAN_REASON } : {})}
+              disabled={running}
+              onClick={onNewScan}
+            >
               New Scan
             </Button>
           }

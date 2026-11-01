@@ -61,6 +61,7 @@ export {
   FINDING_STATUSES,
   findingOrigins,
   findingValidation,
+  remainingBudget,
   SCAN_BUDGET_LIMITS,
   SCAN_DEPTHS,
   SCAN_WORKFLOWS,
@@ -93,6 +94,7 @@ export const API = {
   scanSourceFiles: "/api/security/scans/:id/source-files",
   securityEvents: "/api/security/events",
   cancelSecurityScan: "/api/security/scans/:id/cancel",
+  pauseSecurityScan: "/api/security/scans/:id/pause",
   continueSecurityScan: "/api/security/scans/:id/continue",
   startScanAi: "/api/security/scans/:id/ai",
   findingStatus: "/api/security/findings/:id/status",
@@ -190,6 +192,9 @@ export interface DeleteResult {
 }
 export interface CancelResult {
   cancelled: true;
+}
+export interface PauseResult {
+  paused: true;
 }
 export interface ProviderTestResult {
   connected: true;

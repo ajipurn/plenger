@@ -24,6 +24,7 @@ import { sourceRevision } from "../security/git.ts";
 import {
   canContinue,
   canStartScanAi,
+  remainingBudget,
   SCAN_ACTIVITY_LIMIT,
   SCAN_DEPTHS,
   type ScanActivity,
@@ -31,6 +32,7 @@ import {
   type ScanBudget,
   type ScanCoverage,
   type ScanReply,
+  SERVICE_STOPPED_PAUSE,
   type SecurityScan,
   type StartSecurityScan,
 } from "../security/model.ts";
@@ -64,6 +66,8 @@ export class SecurityCoordinator {
   readonly #store: DashboardStore;
   readonly #supervisor: OperationSupervisor;
   #closed = false;
+  // Pause and Stop both abort a run; scans named here end paused instead of stopped.
+  readonly #pausing = new Set<string>();
   readonly #listeners = new Set<(event: SecurityEvent) => void>();
   // Replies stream too fast to save; they live here until their request ends.
   readonly #replies = new Map<string, ScanReply>();
@@ -153,18 +157,21 @@ export class SecurityCoordinator {
   }
 
   /**
-   * Continue a Full coverage scan that stopped at its limit, under a new limit for what it
-   * spends from now on. It keeps the saved static scan and earlier reviews; later batches
-   * skip files sent whole and continue excerpts, as within one run.
+   * Continue a Full coverage scan that paused or stopped at its limit, under a new limit for
+   * what it spends from now on. It keeps the saved static scan and earlier reviews; later
+   * batches skip files sent whole and continue excerpts, as within one run. A paused scan
+   * whose run had no limit continues without one.
    */
-  async continueScan(id: string, budget: ScanBudget): Promise<SecurityScan> {
+  async continueScan(id: string, budget?: ScanBudget): Promise<SecurityScan> {
     const previous = this.#store.security.scan(id);
     if (!previous) throw new HttpError(404, "Scan not found.");
     if (!canContinue(previous) || !previous.provider)
       throw new HttpError(
         400,
-        "Only a Full coverage scan that stopped at its limit, or whose later round failed, can continue.",
+        "Only a Full coverage scan that paused, stopped at its limit, or whose later round failed, can continue.",
       );
+    if (!budget && (previous.status !== "paused" || remainingBudget(previous)))
+      throw new HttpError(400, "Set a limit to continue the scan.");
     return this.start(
       {
         repositoryId: previous.repositoryId,
@@ -178,10 +185,28 @@ export class SecurityCoordinator {
           : {}),
         depth: "full",
         mode: previous.mode ?? "batch",
-        budget,
+        ...(budget ? { budget } : {}),
       },
       previous,
     );
+  }
+
+  /**
+   * Pause a running Full coverage scan. It stops now like Stop; its finished rounds stay,
+   * and Continue runs the rest, starting again with the round that was running.
+   */
+  pause(id: string): void {
+    const scan = this.#store.security.scan(id);
+    if (!scan) throw new HttpError(404, "Scan not found.");
+    if (scan.status !== "running" || scan.workflow === "static" || scan.depth !== "full")
+      throw new HttpError(409, "Only a running Full coverage scan can pause.");
+    this.#pausing.add(id);
+    try {
+      this.#supervisor.cancel(id);
+    } catch (error) {
+      this.#pausing.delete(id);
+      throw error;
+    }
   }
 
   async startScanAi(id: string, options: ScanAiOptions): Promise<SecurityScan> {
@@ -408,7 +433,11 @@ export class SecurityCoordinator {
             error: null,
             continuations: [
               ...(continued.continuations ?? []),
-              { at: new Date().toISOString(), budget: structuredClone(input.budget as ScanBudget) },
+              {
+                at: new Date().toISOString(),
+                ...(input.budget ? { budget: structuredClone(input.budget) } : {}),
+                charged: structuredClone(continued.coverage?.charged ?? { tokens: 0, usd: 0 }),
+              },
             ],
           })
         : {
@@ -467,6 +496,15 @@ export class SecurityCoordinator {
         }
       };
       const controller = new AbortController();
+      // Stop, Pause and closing the service abort the run. The round that was running stays
+      // as a record of what it charged; a paused scan runs that round again when it continues.
+      // Closing pauses a Full coverage scan too, so it can continue after a restart.
+      const stopped = () => {
+        const asked = this.#pausing.has(job.id);
+        const paused = input.depth === "full" && (asked || this.#closed);
+        job.status = paused ? "paused" : "cancelled";
+        job.error = paused && !asked ? SERVICE_STOPPED_PAUSE : null;
+      };
       // Defer execution so the initial response and tracked operation are established first.
       const task = Promise.resolve()
         .then(async () => {
@@ -676,8 +714,11 @@ export class SecurityCoordinator {
                   stop = "budget";
                   break;
                 }
-                job.status = review.status === "cancelled" ? "cancelled" : "failed";
-                job.error = review.reason ?? review.summary;
+                if (review.status === "cancelled") stopped();
+                else {
+                  job.status = "failed";
+                  job.error = review.reason ?? review.summary;
+                }
                 break;
               }
               if (model?.origin !== "user")
@@ -732,11 +773,14 @@ export class SecurityCoordinator {
               this.#store.security.saveRepository(saved);
             }
           } catch {
-            job.status = controller.signal.aborted ? "cancelled" : "failed";
-            job.error = controller.signal.aborted
-              ? "Scan cancelled."
-              : "Unable to finish this scan. Check the folder and provider settings, then start a new scan.";
+            if (controller.signal.aborted) stopped();
+            else {
+              job.status = "failed";
+              job.error =
+                "Unable to finish this scan. Check the folder and provider settings, then start a new scan.";
+            }
           } finally {
+            this.#pausing.delete(job.id);
             this.#reply(job.id, null);
             job.phase = "finished";
             job.finishedAt = new Date().toISOString();

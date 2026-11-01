@@ -4,7 +4,7 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Input, Select } from "../shared/ui.tsx";
 import { ScansTable } from "./ScansTable.tsx";
-import { Empty, Pagination } from "./ui.tsx";
+import { Empty, Pagination, scanStatusLabel } from "./ui.tsx";
 
 export function ScansPage({ data }: { data: SecurityWorkspace }) {
   const id = useId();
@@ -58,10 +58,10 @@ export function ScansPage({ data }: { data: SecurityWorkspace }) {
           label="Scan status"
           id={`${id}-status`}
           value={status}
-          items={["all", "running", "completed", "failed", "cancelled"].map((value) => ({
-            value,
-            label: value === "all" ? "All statuses" : `${value[0]?.toUpperCase()}${value.slice(1)}`,
-          }))}
+          items={[
+            { value: "all", label: "All statuses" },
+            ...Object.entries(scanStatusLabel).map(([value, label]) => ({ value, label })),
+          ]}
           onValueChange={(value) => {
             setStatus(value);
             setPage(0);

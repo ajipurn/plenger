@@ -58,7 +58,7 @@ export function DataSettings({ active, onCleared }: { active: boolean; onCleared
       </section>
       {active && (
         <p id={`${id}-active`} className="muted settings-data-hint">
-          Finish or cancel the running scan before clearing data.
+          Finish, pause or stop the running scan before clearing data.
         </p>
       )}
       <div role="status">{notice && <p className="provider-notice">{notice}</p>}</div>

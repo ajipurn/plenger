@@ -106,8 +106,8 @@ on its detail page. Confirm in the dialog. Deleting removes the project and its
 scan history: scans, findings and their triage, reviews, imported evidence, the
 threat model and red-team results. It cannot be undone. The folder and its files
 stay unchanged, and other projects and providers are kept. Adding the folder
-again starts a new project. Finish or cancel a running scan before deleting a
-project.
+again starts a new project. Finish, pause or stop a running scan before deleting
+a project.
 
 ## Start a scan
 
@@ -126,6 +126,11 @@ project.
 4. Press **Start Scan** for the whole workflow, or **Run static scan** for local
    rules only in a development build. Run all sends redacted source and context to the selected providers
    and consumes model usage.
+
+One scan runs at a time across all projects. While it runs, **New Scan**,
+**Scan again**, **Continue with AI** and **Continue scan** are disabled, and
+hovering one names the reason. Let the running scan finish, or pause or stop it,
+to start another. A paused scan does not block other scans.
 
 **Static only** is a development aid. It needs no provider, model or AI budget. It runs local rules and
 stops with a completed static result, zero model calls and no model usage cost.
@@ -180,6 +185,11 @@ continue excerpted files, from the saved static scan. They also attempt remainin
 static candidates and may retry ones left Unvalidated before this continuation.
 The scan keeps its first limit and lists each continuation with its limit.
 
+A paused scan shows **Scan paused** in its details. **Continue scan** runs the
+remaining rounds, starting again with the round that was running. The limit field
+holds what is left of the limit the scan ran under; change it if needed. A scan
+that ran without a limit continues without one.
+
 The job continues in the local service when you navigate away or close the
 page. Scans and scan details show its current phase. For an AI scan, a coverage
 card at the top of scan details shows the files covered, read in full, read in
@@ -196,12 +206,21 @@ is an estimate from the characters received. The reply's reported usage replaces
 it when the reply ends, and only reported usage counts toward the limit. Reply
 text is never shown or saved. Between replies, the current round shows its
 latest step, such as a file an Explore round reads. The details column appears
-when the scan finishes. **Cancel scan** explicitly
-requests cancellation. Provider failures and refusals stop further requests. Response validation
-errors name the failed stage and field when available. Completed static
-findings remain visible if the AI review fails.
-Stopping the service cancels its active job; an interrupted persisted job is
-reported as failed on restart.
+when the scan finishes.
+
+A Full coverage AI scan shows **Pause scan** and **Stop scan** while it runs; other
+scans show **Stop scan** only. Both end the current request at once. Rounds that
+finished are kept with their findings. The round that was running stays in the
+list as not completed, with the tokens it charged. A paused scan can continue
+later. A stopped scan shows **Stopped** and cannot continue. Provider failures and
+refusals stop further requests. Response validation errors name the failed stage
+and field when available. Completed static findings remain visible if the AI
+review fails.
+Stopping the service pauses a running Full coverage AI scan, so it can continue
+after a restart, and stops other jobs. A job interrupted before it saved its end,
+for instance by a crash, is paused on restart when it is a Full coverage AI scan
+and reported as failed otherwise. Findings of a scan paused this way appear when
+it continues and finishes.
 
 The local service pushes scan changes to the page as they happen. The page
 polls every second only while that connection is closed. Claude, OpenAI and
@@ -403,7 +422,7 @@ Open **Settings > Data** and press **Clear data** to remove all saved projects,
 scans, findings, reviews, imported evidence, red-team results and run settings.
 Confirm the deletion in the dialog. This cannot be undone. Providers, their
 credentials, saved model lists and the theme are kept. Project files and exported reports stay
-unchanged. Finish or cancel active scans before clearing data.
+unchanged. Finish, pause or stop active scans before clearing data.
 
 The service binds to `127.0.0.1` and checks Host and Origin against its local
 address. Requests require a token generated per launch. No CORS access is

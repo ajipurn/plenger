@@ -11,10 +11,26 @@ function file(path: string, ranges?: File["ranges"], digest = "version-one"): Fi
   return { path, lines: 10, digest, ...(ranges ? { ranges } : {}) };
 }
 function review(files: File[], related: File[] = []): SecurityReview {
-  return { scope: { files, eligibleFiles: 3, related } } as SecurityReview;
+  return { status: "completed", scope: { files, eligibleFiles: 3, related } } as SecurityReview;
 }
 
 describe("cumulative scan source coverage", () => {
+  it("does not count the files of a round that did not complete", () => {
+    const coverage = scanSourceCoverage({
+      reviews: [review([file("a.ts")]), { ...review([file("b.ts")]), status: "cancelled" }],
+    });
+    expect(coverage.rounds.at(-1)).toEqual({
+      total: 3,
+      read: 1,
+      partial: 0,
+      unread: 2,
+      files: 1,
+      newFiles: 1,
+      revisitedFiles: 0,
+    });
+    expect(coverage.files).toEqual([{ path: "a.ts", read: true }]);
+  });
+
   it("keeps earlier files read when later rounds read other files or no files", () => {
     const coverage = scanSourceCoverage({
       reviews: [review([file("a.ts")]), review([file("b.ts")]), review([])],
@@ -125,6 +141,7 @@ describe("scan pace", () => {
   /** Rounds of two new files each, from 100 eligible files, a minute and 10,000 tokens apiece. */
   function paced(rounds: number, extra: Partial<Pace> = {}): Pace {
     const reviews = Array.from({ length: rounds }, (_, index) => ({
+      status: "completed",
       scope: { files: [file(`${index}a.ts`), file(`${index}b.ts`)], eligibleFiles: 100 },
       request: { durationMs: 60_000, charged: { tokens: 10_000, usd: 0.1 } },
     })) as SecurityReview[];

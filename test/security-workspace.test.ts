@@ -11,6 +11,7 @@ import {
   batchTokenBound,
   type LocalRepository,
   type RepositorySource,
+  remainingBudget,
   reviewBudget,
   SCAN_BUDGET_LIMITS,
   type ScanSourceFiles,
@@ -24,6 +25,7 @@ import { ModelWindowCatalog } from "../src/dashboard/model-windows.ts";
 import { OperationSupervisor } from "../src/dashboard/operations.ts";
 import { SecurityCoordinator } from "../src/dashboard/security-coordinator.ts";
 import { PROVIDER_URLS, type SavedProvider } from "../src/redteam/provider-config.ts";
+import { SERVICE_STOPPED_PAUSE } from "../src/security/model.ts";
 import { DashboardStore } from "../src/storage/store.ts";
 import { startTestDashboard, type TestDashboard } from "./support/dashboard.ts";
 import {
@@ -633,9 +635,12 @@ describe("local project security workspace", () => {
     ).toBe(409);
     expect((await dashboard.request(API.clear, {})).status).toBe(409);
     expect((await dashboard.request(pathFor(API.deleteRepository, repo.id), {})).status).toBe(409);
+    // A Quick scan has one round, so it only stops.
+    expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(409);
     expect((await dashboard.request(pathFor(API.cancelSecurityScan, job.id), {})).status).toBe(200);
     expect(await finished(job.id)).toMatchObject({
       status: "cancelled",
+      error: null,
       tokens: null,
       cost: null,
       modelCalls: 1,
@@ -849,7 +854,9 @@ describe("local project security workspace", () => {
     ).toBe(true);
     // The new limit counts what the scan spends from now on; the first limit is kept.
     expect(second.budget).toEqual(budget);
-    expect(second.continuations).toEqual([{ at: expect.any(String), budget }]);
+    expect(second.continuations).toEqual([
+      { at: expect.any(String), budget, charged: first.coverage?.charged },
+    ]);
     expect(second.coverage).toMatchObject({ stop: "budget", sentFiles: 48 });
     expect(second.coverage?.charged.tokens).toBe(
       (first.coverage?.charged.tokens ?? 0) + (second.reviews[1]?.request.charged?.tokens ?? 0),
@@ -905,6 +912,123 @@ describe("local project security workspace", () => {
         })
       ).status,
     ).toBe(400);
+  });
+
+  /** Starts a Full coverage scan whose second round waits until `release`. */
+  async function heldInSecondRound(patch = {}): Promise<SecurityScan> {
+    for (let i = 0; i < 50; i++)
+      await writeFile(join(project, `module-${i}.ts`), `export const value${i} = ${i};\n`);
+    const repo = await repository();
+    let enter: (() => void) | undefined;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    hold = () =>
+      bodies.length > 2
+        ? new Promise<void>((resolve) => {
+            release = resolve;
+            enter?.();
+          })
+        : Promise.resolve();
+    const job = await start(repo.id, { depth: "full", ...patch });
+    await entered;
+    return job;
+  }
+
+  it("pauses a Full coverage scan and continues it without a limit from the round that was running", async () => {
+    const job = await heldInSecondRound();
+    expect((await dashboard.request(pathFor(API.pauseSecurityScan, "missing"), {})).status).toBe(
+      404,
+    );
+    expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(200);
+    const paused = await finished(job.id);
+    release?.();
+    hold = undefined;
+    expect(paused).toMatchObject({ status: "paused", error: null });
+    // The round that was running stays as a record of what it charged.
+    expect(paused.reviews.map((review) => review.status)).toEqual(["completed", "cancelled"]);
+    expect(paused.findings.length).toBeGreaterThan(0);
+    expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(409);
+    // A paused scan holds no lock, so another scan can run meanwhile.
+    expect((await finished((await start(job.repositoryId)).id)).status).toBe("completed");
+    // It ran without a limit, so it continues without one.
+    const response = await dashboard.request(pathFor(API.continueSecurityScan, job.id), {});
+    expect(response.status, await response.clone().text()).toBe(202);
+    const continued = await finished(job.id, 5000);
+    expect(continued).toMatchObject({ status: "completed", error: null });
+    expect(continued.coverage).toMatchObject({ stop: "complete", sentFiles: 52 });
+    expect(continued.reviews.map((review) => review.status)).toEqual([
+      "completed",
+      "cancelled",
+      "completed",
+      "completed",
+    ]);
+    expect(continued.continuations).toEqual([
+      { at: expect.any(String), charged: paused.coverage?.charged },
+    ]);
+  });
+
+  it("continues a paused scan under what is left of its limit", async () => {
+    const job = await heldInSecondRound({ budget: FULL.budget });
+    expect((await dashboard.request(pathFor(API.pauseSecurityScan, job.id), {})).status).toBe(200);
+    const paused = await finished(job.id);
+    release?.();
+    hold = undefined;
+    const charged = paused.coverage?.charged.tokens ?? 0;
+    expect(charged).toBeGreaterThan(0);
+    const left = remainingBudget(paused);
+    expect(left).toEqual({ kind: "tokens", tokens: FULL.budget.tokens - charged });
+    const path = pathFor(API.continueSecurityScan, job.id);
+    // Its run had a limit, so continuing names one.
+    expect((await dashboard.request(path, {})).status).toBe(400);
+    const response = await dashboard.request(path, { budget: left });
+    expect(response.status, await response.clone().text()).toBe(202);
+    const continued = await finished(job.id, 5000);
+    expect(continued.status).toBe("completed");
+    expect(continued.continuations).toEqual([
+      { at: expect.any(String), budget: left, charged: paused.coverage?.charged },
+    ]);
+    // A later pause counts from where the continuation began.
+    expect(remainingBudget(continued)).toEqual({
+      kind: "tokens",
+      tokens:
+        (left?.kind === "tokens" ? left.tokens : 0) -
+        (continued.coverage?.charged.tokens ?? 0) +
+        charged,
+    });
+  });
+
+  it("pauses a Full coverage scan when the service stops, so it continues after a restart", async () => {
+    const job = await heldInSecondRound();
+    await dashboard.close();
+    release?.();
+    hold = undefined;
+    dashboard = await startTestDashboard({ root, workspace: project });
+    expect(await finished(job.id)).toMatchObject({
+      status: "paused",
+      error: SERVICE_STOPPED_PAUSE,
+    });
+    // A run that ended without saving its end, as after a crash, pauses on the next start.
+    await dashboard.close();
+    const { DatabaseSync } = await import("node:sqlite");
+    const saved = new DatabaseSync(join(root, "data", "dashboard.sqlite"));
+    try {
+      saved
+        .prepare(
+          "UPDATE security_scans SET payload = json_set(payload, '$.status', 'running', '$.error', json('null')) WHERE id = ?",
+        )
+        .run(job.id);
+    } finally {
+      saved.close();
+    }
+    dashboard = await startTestDashboard({ root, workspace: project });
+    expect(await finished(job.id)).toMatchObject({
+      status: "paused",
+      error: SERVICE_STOPPED_PAUSE,
+    });
+    const response = await dashboard.request(pathFor(API.continueSecurityScan, job.id), {});
+    expect(response.status, await response.clone().text()).toBe(202);
+    expect(await finished(job.id, 5000)).toMatchObject({ status: "completed", error: null });
   });
 
   it("limits Full coverage in USD only when every selected model has prices", async () => {

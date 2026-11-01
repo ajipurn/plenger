@@ -31,7 +31,8 @@ export function scanSourceCoverage(scan: Pick<SecurityScan, "reviews" | "coverag
     const files = [...review.scope.files, ...(review.scope.related ?? [])];
     const paths = new Set(files.map((file) => file.path));
     const newFiles = [...paths].filter((path) => !known.has(path)).length;
-    for (const file of files) {
+    // A round that did not complete covered nothing; a later round sends its files again.
+    for (const file of review.status === "completed" ? files : []) {
       const previous = known.get(file.path);
       const sameSource = previous?.digest === file.digest && previous.lines === file.lines;
       const earlier = sameSource ? previous : undefined;

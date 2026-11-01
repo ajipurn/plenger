@@ -10,6 +10,7 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.tsx";
+import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { usdCounterLabel } from "./ScanBilling.tsx";
 import { ScansTable } from "./ScansTable.tsx";
 import { ThreatModelPanel } from "./ThreatModelPanel.tsx";
@@ -97,7 +98,7 @@ export function ProjectDetailPage({
             className="button button-secondary"
             {...(active
               ? {
-                  title: "Finish or cancel the running scan before deleting a project",
+                  title: "Finish, pause or stop the running scan before deleting a project",
                 }
               : {})}
             disabled={active}
@@ -107,6 +108,7 @@ export function ProjectDetailPage({
           </Button>
           <Button
             className="button button-primary"
+            {...(active ? { title: RUNNING_SCAN_REASON } : {})}
             disabled={active}
             onClick={() => onNewScan(project.id)}
           >

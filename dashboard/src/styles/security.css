@@ -266,6 +266,10 @@ legend.security-filter-title {
   background: var(--accent-soft);
   color: var(--accent);
 }
+.security-status.scan-paused {
+  background: var(--medium-soft);
+  color: var(--medium);
+}
 .security-date {
   @apply text-[12px] whitespace-nowrap;
 }
@@ -1241,7 +1245,7 @@ summary.security-round-row:hover {
   .security-scan-progress[data-phase="validating"] .scan-art-halo {
     animation: scan-verify-pulse 3.2s linear infinite;
   }
-  .security-scan-progress[data-cancelling="true"]
+  .security-scan-progress[data-stopping="true"]
     :is(.scan-art-beam, .scan-art-packet, .scan-art-halo) {
     animation-play-state: paused;
   }

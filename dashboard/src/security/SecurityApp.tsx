@@ -10,6 +10,7 @@ import { useTheme } from "../app/useTheme.ts";
 import { errorMessage } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
 import { Button } from "../shared/ui.tsx";
+import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { useSecurityEvents } from "./useSecurityEvents.ts";
 
 /** How long the workspace waits after a pushed save, so a burst of saves refreshes once. */
@@ -206,6 +207,7 @@ export function SecurityApp() {
                   <Button
                     ref={newTrigger}
                     className="button button-primary"
+                    {...(active ? { title: RUNNING_SCAN_REASON } : {})}
                     disabled={!api || active}
                     onClick={() => openNewScan()}
                   >

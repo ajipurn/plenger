@@ -27,6 +27,7 @@ import { Button } from "../shared/ui.tsx";
 import { ContinueScan } from "./ContinueScan.tsx";
 import { CoverageOverview, FolderCoverage } from "./CoverageOverview.tsx";
 import { scanSourceCoverage } from "./coverage.ts";
+import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { costDescription, ScanBilling, usdCounterLabel } from "./ScanBilling.tsx";
 import { ScanProgress } from "./ScanProgress.tsx";
 import { ScanRounds } from "./ScanRounds.tsx";
@@ -56,7 +57,13 @@ export function ScanDetailPage({
   const [params] = useSearchParams();
   const [scan, setScan] = useState<SecurityScan | null>(null);
   const [error, setError] = useState("");
-  const [cancelling, setCancelling] = useState(false);
+  // Which end of the run was requested; cleared once the scan stops running, so a scan
+  // continued on this page can pause or stop again.
+  const [stopping, setStopping] = useState<"pause" | "stop" | null>(null);
+  const scanRunning = scan?.status === "running";
+  useEffect(() => {
+    if (!scanRunning) setStopping(null);
+  }, [scanRunning]);
   const [rea, setRea] = useState<ImportedReaEvidence[]>([]);
   // Bumped to load the scan again: the service saved it, or the page restarted it.
   const [version, setVersion] = useState(0);
@@ -113,6 +120,8 @@ export function ScanDetailPage({
   const outputs = params.get("tab") === "outputs";
   const coverageTab = coverage && params.get("tab") === "coverage";
   const running = scan.status === "running";
+  // One scan runs at a time, so this one or another blocks starting a scan here.
+  const anyRunning = data.scans.some((item) => item.status === "running");
   const projectContext = params.get("project") === scan.repositoryId;
   const projectPath = `/projects/${encodeURIComponent(scan.repositoryId)}`;
   const scanPath = `/scans/${encodeURIComponent(scan.id)}`;
@@ -121,15 +130,20 @@ export function ScanDetailPage({
     : scanPath;
   const outputsPath = `${findingsPath}${projectContext ? "&" : "?"}tab=outputs`;
   const coveragePath = `${findingsPath}${projectContext ? "&" : "?"}tab=coverage`;
-  async function cancel() {
-    if (!api || !running || cancelling) return;
-    setCancelling(true);
+  // Pause and Stop both end the run; only a paused scan can continue.
+  async function stop(kind: "pause" | "stop") {
+    if (!api || !running || stopping) return;
+    setStopping(kind);
     try {
-      await api.cancelSecurityScan(scan?.id ?? "");
+      await (kind === "pause"
+        ? api.pauseSecurityScan(scan?.id ?? "")
+        : api.cancelSecurityScan(scan?.id ?? ""));
       await onRefresh();
     } catch (failure) {
-      setError(errorMessage(failure, "Unable to cancel scan."));
-      setCancelling(false);
+      setError(
+        errorMessage(failure, kind === "pause" ? "Unable to pause scan." : "Unable to stop scan."),
+      );
+      setStopping(null);
     }
   }
   return (
@@ -186,13 +200,22 @@ export function ScanDetailPage({
           )}
         </div>
         <div className="security-scan-actions">
+          {running && scan.depth === "full" && scan.workflow !== "static" && (
+            <Button
+              className="button button-secondary"
+              disabled={stopping !== null}
+              onClick={() => void stop("pause")}
+            >
+              <Icon name="pause" /> {stopping === "pause" ? "Pausing…" : "Pause scan"}
+            </Button>
+          )}
           {running && (
             <Button
               className="button button-secondary"
-              disabled={cancelling}
-              onClick={() => void cancel()}
+              disabled={stopping !== null}
+              onClick={() => void stop("stop")}
             >
-              <Icon name="close" /> {cancelling ? "Cancelling…" : "Cancel scan"}
+              <Icon name="stop" /> {stopping === "stop" ? "Stopping…" : "Stop scan"}
             </Button>
           )}
           <Button
@@ -204,7 +227,8 @@ export function ScanDetailPage({
           {!running && (
             <Button
               className="button button-primary"
-              disabled={data.scans.some((item) => item.status === "running")}
+              {...(anyRunning ? { title: RUNNING_SCAN_REASON } : {})}
+              disabled={anyRunning}
               onClick={() => onNewScan(scan.repositoryId)}
             >
               <Icon name="scan" /> Scan again
@@ -248,7 +272,7 @@ export function ScanDetailPage({
             <ScanProgress
               scan={scan}
               coverage={sourceCoverage}
-              cancelling={cancelling}
+              stopping={stopping}
               roundsPath={coveragePath}
             />
           )}
@@ -265,7 +289,8 @@ export function ScanDetailPage({
               {canStartScanAi(scan) ? (
                 <Button
                   className="button button-primary"
-                  disabled={data.scans.some((item) => item.status === "running")}
+                  {...(anyRunning ? { title: RUNNING_SCAN_REASON } : {})}
+                  disabled={anyRunning}
                   onClick={() => onContinueWithAi(scan)}
                 >
                   Continue with AI
@@ -283,7 +308,7 @@ export function ScanDetailPage({
           {canContinue(scan) && (
             <ContinueScan
               scan={scan}
-              disabled={data.scans.some((item) => item.status === "running")}
+              disabled={anyRunning}
               onContinued={async (next) => {
                 setScan(next);
                 setVersion((value) => value + 1);
@@ -291,16 +316,24 @@ export function ScanDetailPage({
               }}
             />
           )}
-          {scan.error && (
+          {scan.status === "cancelled" && (
+            <section className="security-continue-scan" aria-labelledby="scan-stopped">
+              <h2 id="scan-stopped">Scan stopped</h2>
+              <p className="muted">
+                This scan was stopped and cannot continue. Findings from rounds that finished are
+                kept. Start a new scan to review the rest.
+              </p>
+            </section>
+          )}
+          {/* A stopped or paused scan says so above; older stopped scans kept a message. */}
+          {scan.error && scan.status !== "cancelled" && scan.status !== "paused" && (
             <div role="alert" className="security-review-error">
               <Icon name="alert" />
               <div>
                 <strong>
-                  {scan.status === "cancelled"
-                    ? "Scan cancelled"
-                    : scan.workflow === "static"
-                      ? "Static analysis could not complete"
-                      : "AI review could not complete"}
+                  {scan.workflow === "static"
+                    ? "Static analysis could not complete"
+                    : "AI review could not complete"}
                 </strong>
                 <p>
                   {scan.workflow === "static"

@@ -40,6 +40,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- **New Scan** beside each project stayed enabled while another scan ran, and
+  its scan then failed to start. Every control that starts a scan is now
+  disabled while one runs, and hovering it names the reason. Button hover text,
+  such as why **Delete project** is disabled, was never shown before.
 - Reopening a connected ChatGPT provider kept the model as free text. The models
   listed at sign-in are now saved with the provider and offered again, in the
   editor and in New Scan.
@@ -68,6 +72,13 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- A running scan has **Pause scan** and **Stop scan** instead of **Cancel scan**.
+  Pause, for Full coverage AI scans, ends the current request and keeps the
+  finished rounds and their findings. **Continue scan** later runs the remaining
+  rounds under what is left of the limit, starting again with the round that was
+  running. Stop ends a scan for good; it shows as **Stopped**, formerly
+  Cancelled. Closing the dashboard, or a crash, now pauses a running Full
+  coverage scan instead of failing it.
 - **Settings > Appearance** has a **Theme** choice of Dark, System or Light,
   replacing the Dark mode switch. Each option previews the dashboard. System
   follows the device setting, applies before scripts load and changes with the

@@ -10,6 +10,7 @@ import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
 import { Button, Input } from "../shared/ui.tsx";
 import { DeleteProjectDialog, useProjectDeletion } from "./DeleteProjectDialog.tsx";
+import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { date, Empty, isOpenStatus, ScanStatus } from "./ui.tsx";
 
 export function ProjectsPage({
@@ -127,6 +128,8 @@ export function ProjectsPage({
                       <div className="security-row-actions">
                         <Button
                           className="button button-secondary"
+                          {...(running ? { title: RUNNING_SCAN_REASON } : {})}
+                          disabled={running}
                           onClick={() => onNewScan(project.id)}
                         >
                           <Icon name="scan" /> New Scan
@@ -136,7 +139,7 @@ export function ProjectsPage({
                           aria-label={`Delete ${project.name}`}
                           title={
                             running
-                              ? "Finish or cancel the running scan before deleting a project"
+                              ? "Finish, pause or stop the running scan before deleting a project"
                               : "Delete project"
                           }
                           disabled={running}

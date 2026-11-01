@@ -49,11 +49,13 @@ export const closureLabel: Record<ReviewPath["closure"], string> = {
   open: "Open",
   unclosed: "Not closed",
 };
-export const scanStatusLabel = {
+export const scanStatusLabel: Record<SecurityScanSummary["status"], string> = {
   running: "Running",
+  paused: "Paused",
   completed: "Completed",
   failed: "Failed",
-  cancelled: "Cancelled",
+  // The person ended the scan; the saved value predates Stop.
+  cancelled: "Stopped",
 };
 export const phaseLabel = {
   reading: "Reading source",

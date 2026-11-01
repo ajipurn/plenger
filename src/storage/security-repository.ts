@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type {
-  FindingStatus,
-  LocalRepository,
-  SecurityFinding,
-  SecurityScan,
-  SecurityScanSummary,
-  SecurityWorkspace,
+import {
+  type FindingStatus,
+  type LocalRepository,
+  SERVICE_STOPPED_PAUSE,
+  type SecurityFinding,
+  type SecurityScan,
+  type SecurityScanSummary,
+  type SecurityWorkspace,
 } from "../security/model.ts";
 import { restoreReportedTokens } from "../security/usage.ts";
 import { redactReport } from "../shared/secrets.ts";
@@ -194,11 +195,14 @@ export class SecurityRepository {
       if (item.status === "running") {
         const scan = this.scan(item.id);
         if (!scan) continue;
-        scan.status = "failed";
+        // Finished rounds are saved, so a Full coverage AI scan pauses and can continue.
+        const resumable = scan.depth === "full" && scan.workflow !== "static" && scan.provider;
+        scan.status = resumable ? "paused" : "failed";
         scan.phase = "finished";
         scan.finishedAt = new Date().toISOString();
-        scan.error =
-          "The local service stopped before this scan finished. Start a new scan to continue.";
+        scan.error = resumable
+          ? SERVICE_STOPPED_PAUSE
+          : "The local service stopped before this scan finished. Start a new scan to continue.";
         this.saveScan(scan);
       }
   }
