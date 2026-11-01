@@ -199,32 +199,23 @@ legend.security-filter-title {
 .ribbon-low {
   fill: color-mix(in oklab, var(--low) 12%, var(--canvas));
 }
+/* The tray around a table; the shared data table rules in styles.css draw the card. */
 .security-table-scroll {
-  @apply w-full overflow-x-auto min-w-0 border border-line rounded-panel bg-surface;
+  @apply w-full overflow-x-auto min-w-0 border border-line rounded-panel;
+  background: var(--table-tray);
+  padding: 0 var(--table-inset) var(--table-inset);
 }
 .security-table {
   @apply w-full text-[13px];
-  border-collapse: collapse;
   min-width: 780px;
 }
 .security-table th {
-  @apply text-start text-[12px] font-medium text-muted px-4 border-b border-line bg-hover;
+  @apply px-4;
   padding-block: calc(var(--row-padding-block) - 2px);
 }
 .security-table td {
-  @apply px-4 border-b border-line align-middle;
+  @apply px-4 align-middle;
   padding-block: var(--row-padding-block);
-}
-.security-table th:first-child,
-.security-table td:first-child {
-  @apply ps-4;
-}
-.security-table th:last-child,
-.security-table td:last-child {
-  @apply pe-4;
-}
-.security-table tr:hover td {
-  background: var(--hover);
 }
 .security-table .badge {
   @apply text-[12px] py-0.5 px-1.5 rounded-[6px] font-medium;
@@ -660,8 +651,23 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-detail-main .security-table th:last-child {
   @apply pe-4 hidden;
 }
-.security-detail-main .security-table-scroll {
-  @apply border border-line rounded-panel;
+/* With the last column hidden, the one before it closes the card. */
+.security-detail-main .security-table:not(.security-billing-table) tbody > tr > :nth-last-child(2) {
+  border-inline-end: 1px solid var(--line);
+}
+.security-detail-main
+  .security-table:not(.security-billing-table)
+  tbody:first-of-type
+  > tr:first-child
+  > :nth-last-child(2) {
+  border-start-end-radius: var(--table-card-radius);
+}
+.security-detail-main
+  .security-table:not(.security-billing-table)
+  tbody:last-of-type
+  > tr:last-child
+  > :nth-last-child(2) {
+  border-end-end-radius: var(--table-card-radius);
 }
 .security-detail-meta {
   @apply min-w-0 border border-line rounded-panel bg-surface;

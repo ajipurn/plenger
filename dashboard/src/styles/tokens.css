@@ -38,6 +38,10 @@
    * shadow already set them apart. */
   --line-control: #d9e8e33d;
   --line-strong: #69868d;
+  /* Tables: a recessed tray carries the column labels around the card of rows, and rows
+   * part with a quieter line than the card's edge. */
+  --table-tray: #132631;
+  --table-row-line: #d9e8e31a;
 
   /* Text: Arctic Powder, then Mystic Mint toned down. */
   --ink: #f1f6f4;
@@ -115,6 +119,8 @@
     --line: #c5d5cf;
     --line-control: #b0c4bd;
     --line-strong: #6c858a;
+    --table-tray: #e6efeb;
+    --table-row-line: #e1eae6;
     --ink: #172b36;
     --ink-hover: #0d1c24;
     --muted: #446067;
@@ -163,6 +169,9 @@
   --control-padding-block: 6px;
   --control-icon-size: 14px;
   --panel-radius: 12px;
+  /* The table card sits this far inside its tray, with corners concentric to the tray's. */
+  --table-inset: 3px;
+  --table-card-radius: calc(var(--panel-radius) - 1px - var(--table-inset));
   --sidebar-width: 248px;
   --topbar-height: 56px;
   --navigation-height: 96px;

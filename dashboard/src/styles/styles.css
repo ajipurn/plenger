@@ -492,14 +492,59 @@ main:focus-visible {
 .capabilities {
   @apply flex flex-wrap items-center gap-2;
 }
-/* Data tables share one header treatment: a quiet band with small caps labels. */
+/* Data tables share one shape. Column labels sit on the tray, and the rows form a card
+ * inset in it. Table rows cannot round their corners, so the outer cells draw the card's
+ * edge and corners. A table may group rows in several bodies; they share one card. */
+:is(.security-table, .providers-table) {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+:is(.security-table, .providers-table) thead th {
+  @apply text-start align-middle text-[12px] font-medium text-muted;
+}
+:is(.security-table, .providers-table) thead th[aria-sort] {
+  @apply text-ink;
+}
+:is(.security-table, .providers-table) tbody th {
+  @apply text-start font-medium;
+}
+:is(.security-table, .providers-table) tbody > tr > * {
+  @apply bg-surface border-b;
+  border-color: var(--table-row-line);
+}
+:is(.security-table, .providers-table) tbody > tr:hover > * {
+  background-image: linear-gradient(var(--hover), var(--hover));
+}
+:is(.security-table, .providers-table) tbody:first-of-type > tr:first-child > * {
+  border-top: 1px solid var(--line);
+}
+:is(.security-table, .providers-table) tbody:last-of-type > tr:last-child > * {
+  border-bottom-color: var(--line);
+}
+:is(.security-table, .providers-table) tbody > tr > :first-child {
+  border-inline-start: 1px solid var(--line);
+}
+:is(.security-table, .providers-table) tbody > tr > :last-child {
+  border-inline-end: 1px solid var(--line);
+}
+:is(.security-table, .providers-table) tbody:first-of-type > tr:first-child > :first-child {
+  border-start-start-radius: var(--table-card-radius);
+}
+:is(.security-table, .providers-table) tbody:first-of-type > tr:first-child > :last-child {
+  border-start-end-radius: var(--table-card-radius);
+}
+:is(.security-table, .providers-table) tbody:last-of-type > tr:last-child > :first-child {
+  border-end-start-radius: var(--table-card-radius);
+}
+:is(.security-table, .providers-table) tbody:last-of-type > tr:last-child > :last-child {
+  border-end-end-radius: var(--table-card-radius);
+}
 .providers-table {
   @apply w-full text-label;
   table-layout: fixed;
-  border-collapse: collapse;
 }
 .providers-table th {
-  @apply h-9 px-4 py-0 text-start align-middle font-medium text-subtle bg-paper/60 border-y border-line text-micro uppercase tracking-[0.06em];
+  @apply h-9 px-4 py-0;
 }
 .findings-drawer-heading {
   @apply flex items-center justify-between gap-4 px-6 py-4 border-b border-line;
@@ -869,17 +914,18 @@ main:focus-visible {
     @apply static;
   }
 }
+/* The panel is the table's tray, as around the security tables. */
 .providers-table-panel {
   @apply overflow-hidden;
+  background: var(--table-tray);
+  padding: 0 var(--table-inset) var(--table-inset);
 }
+/* Search sits above the table, apart from it, as on the other list pages. */
 .providers-toolbar {
-  @apply flex items-center justify-between gap-3 px-4 py-3 text-label;
+  @apply flex items-center gap-2 pb-4 text-label;
 }
 .providers-toolbar .search-field {
-  @apply min-w-0 w-full max-w-[300px];
-}
-.providers-toolbar > span {
-  @apply text-[12px] text-subtle whitespace-nowrap;
+  @apply min-w-0 w-full;
 }
 .provider-name-column {
   width: 25%;
@@ -895,12 +941,6 @@ main:focus-visible {
 }
 .providers-table td {
   @apply px-4 py-2.5 align-middle;
-}
-.providers-table tbody tr + tr {
-  @apply border-t border-line;
-}
-.providers-table tbody tr:hover {
-  @apply bg-hover;
 }
 .provider-name-button {
   @apply font-medium text-ink text-start wrap-anywhere;
@@ -956,7 +996,8 @@ main:focus-visible {
   @apply size-4;
 }
 .providers-empty {
-  @apply flex flex-col items-center text-center px-5 py-12 gap-2;
+  @apply flex flex-col items-center text-center px-5 py-12 gap-2 bg-surface border border-line;
+  border-radius: var(--table-card-radius);
 }
 :is(.providers-empty, .inventory-empty) h3 {
   @apply text-ui font-medium mt-2;
@@ -970,9 +1011,6 @@ main:focus-visible {
 .providers-empty-symbol {
   @apply inline-grid place-items-center size-10 bg-paper rounded-[10px] text-muted;
   box-shadow: inset 0 0 0 1px var(--line);
-}
-.providers-footer {
-  @apply flex items-center gap-1 text-[12px] text-muted px-4 py-2.5 border-t border-line;
 }
 .provider-mobile-endpoint {
   @apply hidden;
@@ -1161,15 +1199,6 @@ main:focus-visible {
   }
   .subnav-content-heading {
     @apply flex-wrap;
-  }
-  .providers-toolbar {
-    @apply p-3;
-  }
-  .providers-toolbar > span {
-    @apply hidden;
-  }
-  .providers-toolbar .search-field {
-    @apply max-w-none;
   }
   .providers-table th,
   .providers-table td {

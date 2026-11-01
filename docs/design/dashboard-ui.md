@@ -25,6 +25,10 @@ settings routes. Header, tabs and content share a 1280px container with
 second outer gutter. Do not restore the old
 Overview, Inventory or campaign sidebar in this shell. The workspace has no footer.
 The header rows are 56px and 40px tall. Tables and drawers use compact padding.
+Data tables sit in a recessed tray that carries the sentence case column labels.
+The rows form a card inset 3px inside it, with quieter lines between rows than
+at its edge. The sorted column's label reads in ink. Search and filters sit
+above the tray, apart from the table. Tables have no footer.
 Settings includes Appearance, Providers and Data. Appearance holds the Theme
 choice: Dark, System or Light, as radio cards that each preview the dashboard
 in their appearance. System shows light and dark side by side. The Density

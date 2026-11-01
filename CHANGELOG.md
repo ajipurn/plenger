@@ -14,6 +14,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   on phones where the wordmark is hidden.
 - The wordmark on the dashboard header and the docs reads PLENGER in the bundled
   Bytesized pixel font instead of Sacramento.
+- Dashboard tables sit in a recessed tray that carries the column labels, with
+  the rows on a card inset in it. Provider labels are sentence case like the
+  other tables. Provider search sits above the table, and the provider count
+  footer is gone.
 - The dashboard calls each AI review cycle a **round** in both modes and on
   every page, instead of batch, source batch, review or exploring review. Each
   round runs discovery, then **validation**, the former second review. The New
