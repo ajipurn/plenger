@@ -2,7 +2,6 @@
 # and never run dependency install scripts unless listed here.
 packages:
   - dashboard
-  - landing
   - docs-site
 minimumReleaseAge: 4320
 onlyBuiltDependencies: []

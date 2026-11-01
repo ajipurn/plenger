@@ -15,5 +15,3 @@ docs-site/.source/
 docs-site/out/
 docs-site/next-env.d.ts
 
-# Astro's generated types
-landing/.astro/

@@ -37,7 +37,7 @@ updates weekly.
 ## Checks
 
 ```sh
-pnpm check            # typecheck (engine, dashboard, landing, docs), biome lint, vitest
+pnpm check            # typecheck (engine, dashboard, docs), biome lint, vitest
 pnpm typecheck        # engine only
 pnpm lint             # biome check .
 pnpm format           # biome check --write . (formatting and import order)
@@ -266,8 +266,8 @@ See [docs/design/distribution.md](docs/design/distribution.md).
 ## Documentation
 
 The Fumadocs site reads the maintained Markdown directly. Run `pnpm docs:dev` to
-open it at `http://127.0.0.1:4192/docs/`. `pnpm docs:build` exports static files.
-`pnpm site:build` builds the landing page and documentation in `landing/dist`.
+open it at `http://127.0.0.1:4192/docs/`. `pnpm docs:build` exports static files
+to `docs-site/out`, ready for a static host.
 See [docs-site/README.md](docs-site/README.md) for routes and content configuration.
 
 Docs are English, present tense, short sentences, no marketing. Status claims

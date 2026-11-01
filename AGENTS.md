@@ -16,10 +16,10 @@ are easy to get wrong.
 ```sh
 source ~/.nvm/nvm.sh && nvm use     # Node 22; the shell default may be older
 pnpm install --ignore-scripts
-pnpm check                           # typecheck (engine, dashboard, landing), biome, vitest; must pass
+pnpm check                           # typecheck (engine, dashboard, docs), biome, vitest; must pass
 pnpm dev [options]                   # launch the dashboard from source, no build step
 pnpm dashboard                       # Vite dev server + local API with hot reload
-pnpm landing                         # landing page dev server; see landing/README.md
+pnpm docs:dev                        # documentation site dev server; see docs-site/README.md
 pnpm generate                        # regenerate docs/RULES.md and schemas/*.json
 pnpm bench -- --write                # regenerate test/fixtures/*/expected-*.json
 pnpm evaluate                        # static detection on test/fixtures/evaluation; see CONTRIBUTING.md

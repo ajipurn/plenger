@@ -9,11 +9,11 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
-- The logo and favicon are a pixel art tiger (`logo.svg`) on the dashboard, the
-  landing page and the docs. The dashboard header shows the logo again beside
-  the wordmark, also on phones where the wordmark is hidden.
-- The wordmark on the dashboard header, the landing page and the docs reads
-  PLENGER in the bundled Bytesized pixel font instead of Sacramento.
+- The logo and favicon are a pixel art tiger (`logo.svg`) on the dashboard and
+  the docs. The dashboard header shows the logo again beside the wordmark, also
+  on phones where the wordmark is hidden.
+- The wordmark on the dashboard header and the docs reads PLENGER in the bundled
+  Bytesized pixel font instead of Sacramento.
 - The dashboard calls each AI review cycle a **round** in both modes and on
   every page, instead of batch, source batch, review or exploring review. Each
   round runs discovery, then **validation**, the former second review. The New
@@ -62,6 +62,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Removed
 
+- The landing page (`landing/`) and `pnpm site:build` are removed. The marketing
+  site moves to the repository of the planned hosted product. The documentation
+  site deploys on its own from `docs-site/out`.
 - Engine parts that only the removed commands used: the terminal report and rule
   list, the facts-only Claude assessment and its schema, the red-team text,
   Markdown and SARIF reports, campaign comparisons and their schema, and the

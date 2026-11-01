@@ -15,18 +15,10 @@
   },
   "overrides": [
     {
-      "includes": ["dashboard/src/**/*.css", "landing/src/**/*.css"],
+      "includes": ["dashboard/src/**/*.css"],
       "linter": {
         "rules": {
           "style": { "noDescendingSpecificity": "off" }
-        }
-      }
-    },
-    {
-      "includes": ["landing/src/**/*.astro"],
-      "linter": {
-        "rules": {
-          "correctness": { "noUnusedImports": "off", "noUnusedVariables": "off" }
         }
       }
     }

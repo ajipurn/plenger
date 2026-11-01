@@ -32,7 +32,6 @@ export default function DocumentationLayout({ children }: { children: ReactNode 
           url: "/docs/",
         }}
         githubUrl={repositoryUrl}
-        links={[{ text: "Home", url: "/", external: true }]}
         sidebar={{
           footer: (
             <a
