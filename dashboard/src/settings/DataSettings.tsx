@@ -3,6 +3,7 @@ import { useApi } from "../app/DashboardContext.tsx";
 import { ClearSavedData } from "../history/ClearSavedData.tsx";
 import { useAsyncAction } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
+import { notifySuccess } from "../shared/toast.tsx";
 import { Button } from "../shared/ui.tsx";
 
 export function DataSettings({ active, onCleared }: { active: boolean; onCleared: () => void }) {
@@ -10,7 +11,6 @@ export function DataSettings({ active, onCleared }: { active: boolean; onCleared
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const [notice, setNotice] = useState("");
   const { busy, error, setError, run } = useAsyncAction();
 
   async function clear() {
@@ -19,7 +19,7 @@ export function DataSettings({ active, onCleared }: { active: boolean; onCleared
       await api.clear();
       onCleared();
       setOpen(false);
-      setNotice("Workspace data cleared. Providers and credentials are kept.");
+      notifySuccess("Workspace data cleared.");
     }, "Unable to clear saved data. Check the local service connection and try again.");
   }
 
@@ -49,7 +49,6 @@ export function DataSettings({ active, onCleared }: { active: boolean; onCleared
           {...(active ? { "aria-describedby": `${id}-active` } : {})}
           onClick={() => {
             setError("");
-            setNotice("");
             setOpen(true);
           }}
         >
@@ -61,7 +60,6 @@ export function DataSettings({ active, onCleared }: { active: boolean; onCleared
           Finish, pause or stop the running scan before clearing data.
         </p>
       )}
-      <div role="status">{notice && <p className="provider-notice">{notice}</p>}</div>
       <ClearSavedData
         open={open}
         busy={busy}

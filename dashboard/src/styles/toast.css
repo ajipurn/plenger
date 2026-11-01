@@ -1,0 +1,7 @@
+/* Notch Toast colors its inverted notch with shadcn token names. Map them to the palette so
+ * the notch follows the appearance: light on the dark theme, dark on the light theme. */
+.nt-root {
+  --foreground: var(--ink);
+  --background: var(--canvas);
+  --muted-foreground: var(--subtle);
+}

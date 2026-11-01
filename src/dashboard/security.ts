@@ -20,7 +20,7 @@ export function newSessionToken(): string {
 
 /**
  * Scripts only from the page itself; stylesheets from the page, this response's nonce
- * and the exact stylesheets Torph and Vaul inject. Modal libraries use the nonce.
+ * and the exact stylesheets Torph, Vaul and Notch Toast inject. Modal libraries use the nonce.
  */
 export function contentSecurityPolicy(styleNonce: string): string {
   return `default-src 'self'; script-src 'self'; style-src 'self' 'nonce-${styleNonce}' ${LIBRARY_STYLE_SOURCES}; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`;

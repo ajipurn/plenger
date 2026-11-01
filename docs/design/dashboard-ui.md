@@ -184,8 +184,15 @@ so its modal focus scope includes them. Escape dismisses the innermost popup fir
 scrolling and allow vertical scrolling inside the form. Busy forms cannot dismiss
 their modal. Reduced motion disables drawer animations. React Aria reads the
 response stylesheet nonce from the `csp-nonce` meta property. Radix scroll-lock
-styles use the same nonce. CSP admits only Vaul's pinned stylesheet by hash.
-No inline script or style policy is relaxed.
+styles use the same nonce. CSP admits the pinned Torph, Vaul and Notch Toast
+stylesheets by hash. No inline script or style policy is relaxed.
+
+Notch Toast confirms a finished action whose controls have closed: a saved,
+deleted or default provider, cleared data and a copied prompt. Call
+`notifySuccess` from `shared/toast.tsx` with under about 35 characters. The
+toast does not wrap and clips on a phone. Errors, progress and instructions
+stay inline next to their controls. The toast hides its own text from assistive technology, so a
+persistent status region repeats each message for screen readers.
 
 Ordinary buttons, icon buttons, inputs and select triggers share a 32px control
 height, 13px type, 18px line height, 1px border and 8px radius. Panels use a 12px

@@ -6,11 +6,13 @@ import { BrowserRouter } from "react-router";
 import { App } from "./app/App.tsx";
 import { legacyHashTarget } from "./app/routes.ts";
 import { verticalScrollbars } from "./shared/scrollbars.ts";
+import { Toaster } from "./shared/toast.tsx";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "@fontsource/bytesized/latin-400.css";
 import "./styles/styles.css";
 import "./styles/scrollbars.css";
+import "./styles/toast.css";
 
 // Preserve bookmarks from the first dashboard while moving to real routes.
 const legacy = legacyHashTarget(window.location.hash.slice(1));
@@ -34,5 +36,6 @@ createRoot(element).render(
     <BrowserRouter>
       <App />
     </BrowserRouter>
+    <Toaster />
   </StrictMode>,
 );

@@ -98,6 +98,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
   table and round rows, panel padding and the gaps between panels, so more
   findings fit on screen. Buttons and fields keep their size. Comfortable stays
   the default.
+- The dashboard confirms finished actions with a Notch Toast at the top of the
+  window: saving, deleting or defaulting a provider, clearing data and copying
+  a fix prompt. Errors and instructions stay next to their controls.
 - Delete a project from **Projects** or its detail page after confirming in a
   dialog. Its scans, findings, reviews, imported evidence, threat model and
   red-team results are deleted with it; the folder stays unchanged. Deletion

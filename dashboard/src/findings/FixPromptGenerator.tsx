@@ -6,6 +6,7 @@ import { useApi } from "../app/DashboardContext.tsx";
 import { routes } from "../app/routes.ts";
 import { errorMessage } from "../shared/async.ts";
 import { NumericText } from "../shared/MorphNumber.tsx";
+import { notifySuccess } from "../shared/toast.tsx";
 import { Button, Select, TextArea } from "../shared/ui.tsx";
 
 export function FixPromptGenerator({
@@ -73,7 +74,8 @@ export function FixPromptGenerator({
     if (result?.status !== "generated") return;
     try {
       await navigator.clipboard.writeText(result.prompt);
-      setCopyStatus("Prompt copied. Paste it into your coding agent.");
+      setCopyStatus("");
+      notifySuccess("Prompt copied.");
     } catch {
       textarea.current?.focus();
       textarea.current?.select();

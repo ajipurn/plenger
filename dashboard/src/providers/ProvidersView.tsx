@@ -12,6 +12,7 @@ import { useApi } from "../app/DashboardContext.tsx";
 import { useAsyncAction } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
+import { notifySuccess } from "../shared/toast.tsx";
 import { Button } from "../shared/ui.tsx";
 import { DeleteProviderDialog } from "./DeleteProviderDialog.tsx";
 import { ProviderEditor, type ProviderForm, savedGeneration } from "./ProviderEditor.tsx";
@@ -150,7 +151,7 @@ export function ProvidersView({
       setSelected(saved);
       update({ apiKey: "" });
       setEditorOpen(false);
-      setNotice("Provider saved.");
+      notifySuccess("Provider saved.");
     }, "Could not save the provider.");
   }
   async function loadModels() {
@@ -278,7 +279,7 @@ export function ProvidersView({
       setSelected(null);
       setPendingDelete(null);
       setEditorOpen(false);
-      setNotice("Provider deleted, including its saved credentials.");
+      notifySuccess("Provider and its credentials deleted.");
     }, "Could not delete the provider.");
   }
   function test(value: SavedProvider) {
@@ -306,7 +307,7 @@ export function ProvidersView({
         isDefault: true,
       });
       onChange(await api.providers());
-      setNotice(`${value.name} is now the default for new scans.`);
+      notifySuccess("Default provider updated.");
     }, "Could not update the default provider.");
   }
   function requestDelete(value: SavedProvider) {
