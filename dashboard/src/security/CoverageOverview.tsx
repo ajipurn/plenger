@@ -19,22 +19,46 @@ export function CoverageOverview({
   scan: SecurityScan;
   coverage: SourceCoverage;
   findings: number;
-  /** Why a finished scan stopped and what it charged. */
-  note: string | null;
+  /** Why a finished scan stopped and what it charged; `done` adds the finished mark. */
+  note: { text: string; done: boolean } | null;
 }) {
   const running = scan.status === "running";
   const pace = running ? scanPace(scan, coverage) : null;
+  const covered = coverage.total - coverage.unread;
+  // Quick runs one round, so the project is not its target. A Batch round reviews the
+  // files it packs, known as it starts; Explore picks its own, so it has no target.
+  const quick = scan.depth === "quick";
+  const target =
+    quick && scan.mode !== "explore"
+      ? (coverage.rounds[0]?.files ?? scan.coverage?.roundFiles ?? null)
+      : null;
+  const roundUnread = target === null ? 0 : Math.max(0, target - covered);
   return (
     <section className="security-coverage" aria-label="Source coverage">
       <div className="security-coverage-heading">
         <p className="security-coverage-total">
           <strong>
-            <MorphNumber value={coverage.total - coverage.unread} />
+            <MorphNumber value={covered} />
           </strong>
           {/* Its own line box, so the smaller numbers align with their text. */}
-          <span>
-            of <MorphNumber value={coverage.total} /> files covered
-          </span>
+          {quick ? (
+            <span>
+              {target === null ? (
+                "files read"
+              ) : (
+                <>
+                  of <MorphNumber value={target} /> files in the round
+                </>
+              )}{" "}
+              <span className="muted">
+                · <MorphNumber value={coverage.total} /> in the project
+              </span>
+            </span>
+          ) : (
+            <span>
+              of <MorphNumber value={coverage.total} /> files covered
+            </span>
+          )}
         </p>
         {running && (
           <p className="muted">
@@ -54,11 +78,13 @@ export function CoverageOverview({
           </p>
         )}
       </div>
-      <CoverageBar
-        segments={[coverage.read, coverage.partial]}
-        total={coverage.total}
-        className="security-coverage-bar"
-      />
+      {(!quick || target !== null) && (
+        <CoverageBar
+          segments={[coverage.read, coverage.partial]}
+          total={quick && target !== null ? Math.max(target, covered) : coverage.total}
+          className="security-coverage-bar"
+        />
+      )}
       <ul className="security-coverage-legend">
         <li data-state="read">
           <MorphNumber value={coverage.read} /> read
@@ -66,16 +92,25 @@ export function CoverageOverview({
         <li data-state="partial">
           <MorphNumber value={coverage.partial} /> partial
         </li>
-        <li data-state="unread">
-          <MorphNumber value={coverage.unread} /> unread
-        </li>
+        {/* Quick counts unread files within its round; the rest of the project was never its target. */}
+        {(!quick || roundUnread > 0) && (
+          <li data-state="unread">
+            <MorphNumber value={quick ? roundUnread : coverage.unread} /> unread
+          </li>
+        )}
       </ul>
       {pace ? (
         <PaceNote pace={pace} coverage={coverage} rounds={SCAN_DEPTHS[scan.depth].batches} />
       ) : (
         note && (
-          <p className="security-coverage-note muted">
-            <NumericText>{note}</NumericText>
+          <p
+            className="security-coverage-note muted"
+            {...(note.done ? { "data-tone": "done" } : {})}
+          >
+            {note.done && <Icon name="check" />}
+            <span>
+              <NumericText>{note.text}</NumericText>
+            </span>
           </p>
         )
       )}

@@ -157,8 +157,11 @@ rate, plus the whole output allowance. Rounds usually charge far less, so a
 limit covers at least the number of rounds New Scan shows, often more. New
 Scan also lists how many files the review can read and, in Batch mode, how many
 rounds full coverage needs, from file sizes alone. Scan details show the files
-covered, why rounds stopped and what the limit was charged. Exact source and omission
-counts are saved in Outputs.
+covered, why rounds stopped and what the limit was charged. A Quick scan counts
+against its one round: Batch shows the files the round sends, known as it starts,
+and Explore, whose model picks what it reads, shows the files read. A finished
+Quick scan says so and names how many more files Full coverage reads. Exact source and
+omission counts are saved in Outputs.
 
 A Full coverage scan that stopped at its limit, or whose later round failed
 after earlier ones completed, for instance on a provider rate limit, shows

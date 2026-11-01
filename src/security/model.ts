@@ -52,6 +52,12 @@ export interface ScanCoverage {
   stop: "complete" | "budget" | "limit" | "quick" | "explored" | null;
   /** Charged against the limit: accounted tokens, and USD when every request was priced. */
   charged: { tokens: number; usd: number | null };
+  /**
+   * Files the latest round packed into its first message, set as the round starts. A
+   * Batch round reviews exactly these, so a running Quick scan can show its target.
+   * Absent on older scans.
+   */
+  roundFiles?: number;
 }
 export const SECURITY_POLL_MS = 1000;
 export interface SourceRevision {

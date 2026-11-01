@@ -1109,6 +1109,13 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-coverage-note > .icon {
   @apply shrink-0 mt-0.5;
 }
+/* A scan that finished what it set out to do, such as one Quick round. */
+.security-coverage-note[data-tone="done"] {
+  @apply flex items-start gap-2;
+}
+.security-coverage-note[data-tone="done"] > .icon {
+  @apply size-4 text-success;
+}
 .security-round-strip {
   @apply grid gap-2 pt-3 border-t border-line;
 }

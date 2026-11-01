@@ -811,6 +811,8 @@ describe("local project security workspace", () => {
     // One batch fits; after it charged anything, the next batch's maximum does not.
     expect(scan.reviews).toHaveLength(1);
     expect(scan.coverage).toMatchObject({ stop: "budget", eligibleFiles: 52, sentFiles: 24 });
+    // The round's packed files are saved as it starts, so a running scan can show its target.
+    expect(scan.coverage?.roundFiles).toBe(scan.reviews[0]?.scope.files.length);
     expect(scan.coverage?.charged.tokens).toBe(scan.reviews[0]?.request.charged?.tokens);
     expect(scan.coverage?.charged.tokens).toBeGreaterThan(0);
   });

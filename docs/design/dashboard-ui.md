@@ -128,7 +128,14 @@ Outputs tabs with metadata beside them. Outputs includes architecture, assets,
 trust boundaries, all six STRIDE categories, source coverage and optional REA
 imports. Scans with several batches expose their independent batches and
 limitations. The summary shows files covered, why batches stopped and what the
-limit was charged.
+limit was charged. A scan that finished what it set out to do carries a green
+check: a Quick round, or Full coverage that read every file or found nothing new.
+A finished Quick scan says it is complete and how many files Full coverage would
+add, so unread files do not read as a scan cut short. Quick is measured against
+its round, not the project. A Batch round packs its files before the first model
+call, so the card shows them as the target, for example 6 of 6 files in the
+round, with the project total beside it. Explore chooses its own files, so the
+card counts the files read and shows no target bar.
 
 Scan details place the project, status and actions in one header. A compact
 summary shows elapsed time, saved findings and scan depth. Metadata groups source,

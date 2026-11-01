@@ -9,6 +9,10 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- A Quick scan no longer looks cut short. Its coverage card measures the round,
+  not the project: Batch shows the files the round sends as its target, saved as
+  the round starts, and Explore shows the files read. A finished scan's note says
+  it is complete, with a green check, and how many files Full coverage reads.
 - Scans and scan details no longer label each scan Run all, since every scan runs
   the whole workflow. Scans saved by the removed choices keep **Static only** or
   **AI review**.

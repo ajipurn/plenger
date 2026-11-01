@@ -902,9 +902,31 @@ function RoundCoverageSummary({
 }
 
 /** Why rounds stopped and what the limit charged; the heading names depth and mode. */
-function coverageNote(scan: SecurityScan, source: ReturnType<typeof scanSourceCoverage>): string {
+/**
+ * Why a finished scan stopped and what it charged. `done` marks a scan that finished what
+ * it set out to do, so a Quick scan with most files unread does not read as cut short.
+ */
+function coverageNote(
+  scan: SecurityScan,
+  source: ReturnType<typeof scanSourceCoverage>,
+): { text: string; done: boolean } {
   const coverage = scan.coverage;
   const explore = scan.mode === "explore";
+  const completed = scan.status === "completed";
+  if (coverage?.stop === "quick") {
+    const rest = source.unread;
+    return {
+      text: [
+        `Quick scan complete: one round read ${explore ? "the files the model chose" : "the most important files"}.`,
+        rest > 0
+          ? `Full coverage reads the other ${rest.toLocaleString()} ${rest === 1 ? "file" : "files"}.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
+      done: completed,
+    };
+  }
   const parts: string[] = [];
   if (coverage?.stop)
     parts.push(
@@ -914,9 +936,7 @@ function coverageNote(scan: SecurityScan, source: ReturnType<typeof scanSourceCo
           : source.partial > 0
             ? "some files were read in part"
             : "every file was read in full"
-        : explore && coverage.stop === "quick"
-          ? "the files the model chose to read"
-          : STOP_TEXT[coverage.stop],
+        : STOP_TEXT[coverage.stop],
     );
   if (coverage && scan.budget)
     parts.push(
@@ -927,5 +947,11 @@ function coverageNote(scan: SecurityScan, source: ReturnType<typeof scanSourceCo
   else if (coverage && scan.depth === "full")
     parts.push(`${coverage.charged.tokens.toLocaleString()} tokens charged, no limit`);
   const note = parts.join(" · ");
-  return note.charAt(0).toUpperCase() + note.slice(1);
+  return {
+    text: note.charAt(0).toUpperCase() + note.slice(1),
+    done:
+      completed &&
+      (coverage?.stop === "explored" ||
+        (coverage?.stop === "complete" && source.unread === 0 && source.partial === 0)),
+  };
 }

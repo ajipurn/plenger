@@ -525,6 +525,10 @@ export class SecurityCoordinator {
                   job.phase = phase;
                   this.#saveScan(job);
                 },
+                onScope: (files) => {
+                  coverage.roundFiles = files;
+                  this.#saveScan(job);
+                },
                 onUsage: (request) => {
                   // A timed-out provider may settle after this round or scan has ended.
                   if (

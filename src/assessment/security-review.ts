@@ -335,6 +335,8 @@ export async function reviewProject(
     /** Batch when omitted. */
     mode?: ReviewMode;
     onPhase?: (phase: "reading" | "discovering" | "validating") => void;
+    /** The files packed into the first message, before any model call. */
+    onScope?: (files: number) => void;
     /** Each model request and read tool call, with the tokens this review has charged. */
     onActivity?: (event: { kind: "request" | "tool"; detail: string; tokens: number }) => void;
     /** Reported usage after each request starts or finishes, including rejected replies. */
@@ -509,6 +511,7 @@ export async function reviewProject(
       { reader, budget: sizes },
     );
     review.scope = { ...scope, budget: sizes };
+    options.onScope?.(scope.files.length);
     if (sizes.inputTokens !== null && !explore)
       review.limitations.push(
         `This round allowed ${Math.round(sizes.contextBytes / 1024)} KiB of source for a ${sizes.inputTokens.toLocaleString("en-US")}-token model window, within the ${LIMITS.tokens.toLocaleString("en-US")}-token round ceiling.`,
