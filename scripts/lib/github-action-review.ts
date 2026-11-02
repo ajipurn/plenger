@@ -65,7 +65,7 @@ export function aiReviewInputs(
   };
 }
 
-/** One Quick review of the whole checkout. */
+/** One Quick review of the scanned path. */
 export function runAiReview(inputs: AiReviewInputs, snapshot: ScanResult): Promise<SecurityReview> {
   return reviewProject(snapshot, {
     scanId: "github-action",
@@ -182,7 +182,7 @@ export function aiSummary(review: SecurityReview): string {
     "",
     "## Plenger AI review",
     "",
-    `Whole checkout, one Quick review. Review ${review.status} with ${review.provider.model}, ${review.request.calls} model ${review.request.calls === 1 ? "request" : "requests"}. Source analysis only; not runtime validated.`,
+    `Scanned path, one Quick review. Review ${review.status} with ${review.provider.model}, ${review.request.calls} model ${review.request.calls === 1 ? "request" : "requests"}. Source analysis only; not runtime validated.`,
     ...(review.status !== "completed" && review.reason ? ["", cell(review.reason)] : []),
     "",
     ...(rows.length

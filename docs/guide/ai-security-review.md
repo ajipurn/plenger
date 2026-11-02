@@ -3,7 +3,7 @@
 The dashboard can discover security findings from source code through a saved
 model provider, including Anthropic Claude. It also produces a STRIDE threat
 model. Discovery is independent of the offline rule scanner. Its static candidates
-join AI candidates only for the second source review. See
+join AI candidates only for validation. See
 [../STATUS.md](../STATUS.md) for qualification.
 
 ## Run a review
@@ -60,15 +60,17 @@ server sets the context. The cost ceiling does not change: each round stays
 within two requests and 400,000 accounted tokens. The larger, second request
 (instructions, candidates, round source and related files) is sized to fit half that
 ceiling and the smallest window of the models in use, counting one token per
-request byte. Seventy percent goes to the round's source, up to 112 KiB with 48 KiB per
-file and 48 files, and thirty percent to related files, up to 48 KiB. A
+request byte. Of what remains after the output allowance and the fixed parts,
+seventy percent goes to the round's source, up to about 103 KiB with 48 KiB per
+file and 48 files, and thirty percent to related files, up to about 44 KiB. A
 validation model whose window is unknown keeps the defaults. New Scan shows
 the source per round for the selected model, and Outputs record the budget each
 round used. Path files are added first as excerpts: the functions
 and methods on the path, their class headers and the module imports. Spare
 budget then replaces those excerpts with whole files and adds the remaining
 files. Budget left after that extends excerpts with their files' other
-top-level definitions. A file larger than 16 KiB is always an excerpt. It holds
+top-level definitions. A file larger than the per-file limit (16 KiB by default)
+is always an excerpt. It holds
 the located functions first, or its top-level definitions in source order when
 nothing was located. A file without a parser, or one that no longer parses, is
 excerpted as consecutive 80-line windows from its start; the excerpt stops at
@@ -223,8 +225,11 @@ assesses the source that round read.
 
 After independent discovery, validation checks AI candidates and up to six static
 candidates per round, within the existing 16 KiB combined candidate limit. Static
-candidates keep their rule ids, fingerprints and evidence. Batch validation rereads
-the cited files within its source budget, then adds related imports and callers.
+candidates keep their rule ids, fingerprints and evidence. Without static candidates,
+Batch validation receives the round's source and rereads nothing. With them, it
+receives only the cited files instead, within the round's source budget: a file up
+to 8 KiB whole, a larger one as its cited ranges with 20 lines of context. Either
+way it then adds related imports and callers.
 Explore validation starts with cited source and can read more through the same tools.
 Candidates outside those limits remain Unvalidated. Full coverage attempts later
 static candidates in later rounds, even when discovery has covered all files.
@@ -247,17 +252,18 @@ A dismissal names its basis and cites the lines that decide it:
 | Duplicate | Another candidate reports the same path | The other candidate's id |
 
 The host checks each citation against the source validation received:
-the round's source and its related files, or what an Explore session read. A
+the round's source or the cited files, with their related files, or what an
+Explore session read. A
 dismissal without a basis, with no citation that checks, or as a duplicate of a
 candidate that is not kept becomes **Needs review**. Its reason starts with the
 host's note, and the review adds a limitation with the count.
 
-Guards and callers often live outside the round's source, so validation also
-reads related files that discovery did not see. These are project files a cited
+Guards and callers often live outside the source validation receives, so
+validation also reads related files. These are project files a cited
 file imports, with the imported definitions, and project files that call a cited
 file, with the calling functions. They come from the scan's allowlist through the
 same reader, redaction and excerpt rules as the round's source, within the related
-budget (12 KiB by default) and eight files, and never repeat lines the round
+budget (12 KiB by default) and eight files, and never repeat lines validation
 already holds. Outputs list them under
 **Validation context**, and the review adds a limitation naming their count.
 If they cannot be read, validation continues without them.
@@ -275,8 +281,10 @@ its candidates as Unvalidated and adds a limitation with the reason; the review
 still completes. A failed discovery request fails the review. There are no
 model retries. No candidates means one request. The limit per round is two
 requests, 400,000 accounted tokens and 120 seconds. Full coverage stops further
-rounds after a failed or refused round. Output is capped at the smaller of
-the provider setting and 12,288 tokens per request.
+rounds after a failed or refused round. Each request may use up to 12,288 output
+tokens, or 16,384 per Explore turn. This allowance replaces a saved provider
+output limit. On automatic settings, Claude uses the lower of the allowance and
+the model's own output limit.
 
 ## Explore mode
 
@@ -384,8 +392,10 @@ trust boundaries, STRIDE, traced paths with their closures, dismissed candidates
 with their basis and cited lines, and source coverage. **Export JSON** includes
 these redacted records and usage.
 
-Native Claude reviews retain per-request cache usage and the model's manual
-price snapshot. Scan details show category costs and an estimated USD total.
+Claude, OpenAI and ChatGPT reviews retain per-request usage, including cache
+reads and writes, and a snapshot of the model's public prices taken when the
+scan starts. Saved prices are used only when that lookup fails. Scan details
+show category costs and an estimated USD total.
 Missing usage or cache-write lifetimes cannot be priced. Valid usage remains
 billable even when a reply is refused, truncated or fails host validation.
 See [model pricing](dashboard.md#model-pricing) for configuration and

@@ -2,8 +2,9 @@
 
 The static engine reads Python, JavaScript and TypeScript source and reports
 the agent inventory, tool capabilities and risk findings. PHP files are parsed
-into code facts too (see [Code facts](#code-facts)); no detectors, sinks or
-rules use them yet. It never runs,
+into code facts too (see [Code facts](#code-facts)). PLG003 reads their
+`ini_set()` calls, and the inventory reports PHP AI libraries as "not understood
+yet". No detectors or sinks cover PHP code paths. The engine never runs,
 imports or installs the project and needs no network access. The dashboard
 uses this engine before its AI source review. See [reports-ci.md](reports-ci.md)
 for the direct-engine GitHub Action, baselines and suppressions.

@@ -156,7 +156,9 @@ never install on their own, and they never move or delete dashboard data. See
 The dashboard exports each scan as JSON. The composite
 [GitHub Action](action.yml) runs the static engine in your workflow and writes
 SARIF, a Markdown job summary and a severity gate, with explicit baseline and
-suppression files. See [reports and CI](docs/guide/reports-ci.md).
+suppression files. An opt-in AI review of the scanned path sends redacted source
+to the chosen provider and adds its findings as a second SARIF run. See
+[reports and CI](docs/guide/reports-ci.md).
 
 ## Documentation
 
@@ -173,8 +175,7 @@ suppression files. See [reports and CI](docs/guide/reports-ci.md).
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers the toolchain, checks, fixtures and
 benchmarks. [AGENTS.md](AGENTS.md) holds instructions for coding agents. Report
-security issues as described in [SECURITY.md](SECURITY.md). The earlier Python
-implementation is kept on the `feat/backup` branch.
+security issues as described in [SECURITY.md](SECURITY.md).
 
 ## License
 

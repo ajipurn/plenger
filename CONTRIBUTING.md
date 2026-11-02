@@ -76,10 +76,10 @@ Vite. The `dashboard/` package has its own `package.json` and typecheck, run by
 - `test/support/fixtures.ts` resolves paths under `test/fixtures/`;
   `test/support/tmp.ts` creates temporary directories removed after each test.
   `test/helpers.ts` holds fact and scan helpers for parser-level tests.
-- Fixture corpora: `test/fixtures/frameworks`, `crossfile` and `risks` each
-  carry `expected-inventory.json` and `expected-findings.json` reviewed against
-  their source. `mixed-agent` is the end-to-end project used by CLI, report,
-  inventory, dashboard and package smoke tests. `redteam/llmfy` and
+- Fixture corpora: `test/fixtures/frameworks`, `crossfile`, `risks` and
+  `runtimes` each carry `expected-inventory.json` and `expected-findings.json`
+  reviewed against their source. `mixed-agent` is the end-to-end project used by
+  report, inventory, dashboard and package smoke tests. `redteam/llmfy` and
   `redteam/vercel` are the discovery and planning fixtures. `reports/` holds the
   unmodified OASIS SARIF 2.1.0 schema.
 - Golden files: the JSON schemas under `schemas/` and `docs/RULES.md` are
@@ -175,7 +175,7 @@ compare the checked-in files with fresh output and fail on drift. Never edit
 
 ## Grammars
 
-Parsing uses web-tree-sitter with the Python, JavaScript, TypeScript and TSX
+Parsing uses web-tree-sitter with the Python, JavaScript, TypeScript, TSX and PHP
 grammars vendored as WASM in `grammars/`. `grammars/manifest.json` records each
 file's source package, version and SHA-256, and a test checks them. To change a
 grammar version, edit `scripts/update-grammars.ts` and run `pnpm grammars`. The
@@ -256,8 +256,8 @@ The smoke check writes `dist/npm/plenger-<version>.tgz`. It installs the archive
 and the locally packed production dependency closure in a temporary directory
 without registry access. It fails on runtime files outside `RUNTIME_FILES` and
 on compiled files without a matching source. It checks npm command resolution,
-launcher and update help, and all four grammars through authenticated scans on
-the real dashboard.
+launcher and update help, and an authenticated scan on the real dashboard that
+parses Python, JavaScript, TypeScript and TSX files.
 The npm package workflow runs it on Linux for pushes to main, and on Linux,
 macOS and Windows for pull requests and manual runs. It keeps no artifact.
 

@@ -17,6 +17,8 @@ src/
   storage/               SQLite repositories shared by the dashboard and the CLI
   redteam/               dynamic testing engine: discovery, plans, campaigns, workers
   scan.ts                composition root of the static pipeline
+  parse-files.ts         reading and parsing, on worker threads for larger projects
+  parse-worker.ts        the worker thread that parse-files.ts starts
   security/              repository, job and finding domain; read-only Git metadata
   assessment/            source-based AI review and STRIDE
   remediation/           explicit model-generated coding agent prompts from saved findings
@@ -37,14 +39,19 @@ schemas/                 generated JSON schemas (`pnpm generate`)
 test/                    vitest suites, `support/` helpers, fixture corpora and golden files
 ```
 
-Dependencies point downwards only. `shared` and `source` import nothing else from
-`src/`. The pipeline layers (`facts` → `project` → `inventory` → `capabilities` →
-`rules` → `report`) each depend on the layers below them. `platform` depends
-only on `source` and `shared`; `rules` reads it. `redteam` uses the
-pipeline through `scan.ts` and `facts`/`inventory` types, plus `shared`. `security` normalizes static and AI findings without changing the static
-pipeline. `storage` depends on persisted domain record types. `dashboard` and `cli` sit on top and nothing
-imports them back; `src/bin.ts` and `src/dashboard/bin.ts` are the only entry
-points.
+Dependencies point downwards only. `shared` imports nothing else from `src/`, and
+`source` imports only `shared`. The pipeline layers (`facts` → `project` →
+`inventory` → `capabilities` → `rules` → `report`) each depend on the layers
+below them. `platform` depends only on `source` and `shared`; `rules` reads it.
+`redteam` uses the pipeline through `scan.ts`, `source/files.ts`,
+`rules/model.ts` and `facts`/`inventory` types, plus `shared`. `storage`,
+`security`, `assessment` and `remediation` import `redteam`, never the reverse.
+`security` normalizes static and AI findings without changing the static
+pipeline. `storage` depends on persisted domain record types. `dashboard` and
+`cli` sit on top and nothing imports them back. The entry points are
+`src/bin.ts` (`plenger` and `pnpm dev`), `src/dashboard/dev.ts`
+(`pnpm dashboard`) and `src/parse-worker.ts`. `src/dashboard/bin.ts` also calls
+the launcher; no script or package field uses it.
 
 ## The static pipeline
 
@@ -53,9 +60,10 @@ code:
 
 1. `source/files.ts` walks the tree, applies `.gitignore` and the built-in
    exclusions, and classifies files by language.
-2. `source/read.ts` reads each file and skips binaries, non-UTF-8 and minified
-   output; `source/parser.ts` parses with the vendored tree-sitter WASM grammars,
-   after `source/typescript-syntax.ts` blanks TypeScript 5 type syntax the
+2. `parse-files.ts` reads and parses the files in order, on worker threads
+   (`parse-worker.ts`) from 64 files. `source/read.ts` reads each file and skips
+   binaries, non-UTF-8 and minified output; `source/parser.ts` parses with the
+   vendored tree-sitter WASM grammars, after `source/typescript-syntax.ts` blanks TypeScript 5 type syntax the
    TypeScript grammar does not know.
 3. `facts/` extracts imports, definitions, assignments, calls and the guards of
    `if` statements per file (`python.ts`, `javascript.ts`, `php.ts`) into the shapes in
@@ -134,13 +142,9 @@ coordinates new jobs through `security-coordinator.ts` and exposes coverage,
 threat models and source traces in scan Outputs. See
 [guide/ai-security-review.md](guide/ai-security-review.md).
 
-`assessment/assess.ts` composes an offline scan with one explicit Claude request.
-It selects bounded, redacted facts and finding snippets from the chosen path.
-`assessment/model.ts` validates the structured STRIDE response and its file/line
-references. It defines the generated assessment schema. `assessment/format.ts`
-renders JSON or escaped Markdown. Refusals and failures stop after one request.
-No project execution or model tools are exposed. This retained engine is no longer
-exposed as a public CLI command.
+`assessment/model.ts` holds the six STRIDE categories the review checks.
+`review-remediation.ts` passes a kept review finding to the fix prompt writer in
+`remediation/`.
 
 ## Repository security workspace
 
@@ -152,16 +156,21 @@ provenance, review decisions and absorbed identities. Storage preserves prior
 triage states on merges and accepts absorbed identities for later status updates.
 Historical static reports without a verdict are unvalidated.
 
-`dashboard/security-coordinator.ts` owns background jobs and local commit
-monitoring. A job captures an offline scan, runs bounded source-review rounds,
+`dashboard/security-coordinator.ts` owns background jobs. Every job needs an
+explicit start; the coordinator turns off monitors saved by older workspaces when
+it starts. A job captures an offline scan, runs bounded source-review rounds,
 saves results and stops at failures or refusals. Saved static-only jobs, from a
 choice that was removed, stay readable and are never started.
 `OperationSupervisor` serializes jobs with other project operations and owns
 cancellation. The coordinator passes each review the project threat model; it
-saves the extended model when a scan completes. `continueScan` reruns the batch loop on a scan that stopped at its
-limit, from its saved static scan and earlier reviews, under a new limit. Each
-request, read tool call and finished batch is recorded as job activity. Navigating away does not abort a job. Monitoring checks local
-HEAD every 30 seconds while the service runs. Provider failures pause it.
+saves the extended model when a scan completes. `pause` lets a running Full
+coverage scan finish its running round, then pauses it. `stop` aborts a running
+scan at once and marks a paused one stopped, so it cannot continue.
+`continueScan` runs more rounds of a Full coverage scan that paused, stopped at
+its limit or failed in a later round, from its saved static scan and earlier
+reviews, under a new limit. A paused scan whose run had no limit continues
+without one. Each request, read tool call and finished batch is recorded as job
+activity. Navigating away does not abort a job.
 
 `security/git.ts` reads revision metadata using fixed Git commands, disables
 hooks and fsmonitor, and removes inherited Git configuration variables.
@@ -172,8 +181,9 @@ outside the static pipeline. The reported revision does not freeze source;
 review file digests identify captured content. No application code executes.
 
 `routes/security-workspace.ts` validates repository registration, job starts,
-monitoring pauses, cancellation and finding status updates. It resolves saved
-provider IDs without accepting raw credentials or model-supplied execution.
+pauses, continuations, cancellation and finding status updates. It rejects any
+request to turn monitoring on. It resolves saved provider IDs without accepting
+raw credentials or model-supplied execution.
 
 ## The red-team engine
 
@@ -197,15 +207,14 @@ explicit start.
   which reports observed token thresholds instead of an enforced output cap.
 - **Trial input.** `attack-model.ts` holds the built-in control and probe
   input as templates with `{{name}}` placeholders, the placeholders each
-  profile's runner fills, and the fill and validation helpers. It has no
-  `node:` imports, so the dashboard can render templates.
+  profile's runner fills, and the fill and validation helpers.
 - **Runs.** `run-model.ts` defines a run and its trials. `run.ts` executes the
   llmfy file-canary profile and dispatches `vercel-booking-sqlite-v1` to
   `vercel-run.ts`. `run-lifecycle.ts` holds the shared executor core (budget,
   state transitions, source reading, model dispatch, ready-frame validation).
   `worker.ts` launches one container per trial and turns protocol violations and
   cleanup results into a typed `WorkerError`. `runtime.ts` builds the pinned
-  images and lists the recipe files (`RUNTIME_FILES`) shipped by both distributions.
+  images and lists the recipe files (`RUNTIME_FILES`) the npm package ships.
   Runs own disposable runtime images. Docker builds have a dedicated Buildx
   builder whose cache is removed after building; Podman disables intermediate
   image caching. Runtime images are removed when a run or campaign ends; expired
@@ -224,10 +233,13 @@ The host to container protocol is specified in
 [design/worker-protocol.md](design/worker-protocol.md); the workers live in
 `runtimes/llmfy/` and `runtimes/vercel/`.
 
-Modules the browser bundles must stay free of `node:` imports: `constants.ts`,
-`campaign-model.ts`, `campaign-evidence.ts`, `profile.ts`,
-`plan-model.ts`, `run-model.ts`, `provider-config.ts` and `budget.ts`. The page
-imports only types from `run.ts`, `campaign.ts` and `plan.ts`.
+Modules the browser bundles must stay free of `node:` imports. From the engine
+these are `dashboard/contract.ts`, `redteam/constants.ts`,
+`redteam/model-pricing.ts`, `redteam/provider-config.ts`, `rules/model.ts`,
+`assessment/model.ts`, `assessment/review-model.ts`,
+`assessment/review-excerpt.ts`, `security/model.ts`, `evidence/rea-model.ts`,
+`storage/records.ts` and `shared/guards.ts`. Other engine modules, such as
+`redteam/campaign.ts` and `redteam/provider.ts`, reach the page only as types.
 
 ## Storage
 
@@ -242,7 +254,8 @@ ChatGPT OAuth session and the lease that serialises its refresh across
 processes. `store.ts` is the
 facade the dashboard uses. `security-repository.ts` stores repository settings,
 scan jobs and current finding statuses. Migration 8 adds its tables without
-replacing existing provider storage. Interrupted jobs become failed on open.
+replacing existing provider storage. On open, an interrupted Full coverage AI
+scan becomes paused so it can continue; other interrupted jobs become failed.
 The coordinator imports earlier static history with its latest review once.
 `review-repository.ts` and `evidence-repository.ts` retain source reviews and
 redacted REA imports tied to the underlying static snapshot. `records.ts`
@@ -273,7 +286,8 @@ The service in `src/dashboard/` binds `127.0.0.1`, issues a per-process token an
 serves the built page from `dashboard/dist` in the npm package or checkout.
 `server.ts` listens and dispatches through the explicit route table in
 `routes/index.ts`; each file under `routes/` handles one area (session, state,
-scan, history, folders, providers, security workspace, red-team, appearance). `http.ts` holds the request
+scan, history, folders, providers, security review, security workspace, REA
+evidence, fix prompts, red-team, appearance). `http.ts` holds the request
 validators and `HttpError`, `security.ts` the headers and CSP, `operations.ts` the
 supervisor that serialises long operations and cancellation, `static-assets.ts`
 the asset serving, and `chatgpt-login.ts` the one browser sign-in a dashboard
@@ -283,9 +297,10 @@ runs at a time, exposing only its public progress through the provider routes.
 route map, request and response types, the limits both sides enforce and the
 theme markup both rewrite. It has no `node:` imports.
 
-The page in `dashboard/src/security/` implements the Findings, Repositories and
-Scans shell, job details, finding reports and scan forms. `app/App.tsx` exports
-this shell. `providers/` retains the existing connection settings, `findings/`
+The page in `dashboard/src/security/` implements the Findings, Projects, Scans
+and Settings shell, job details, finding reports and scan forms. `app/App.tsx`
+exports this shell. `settings/` holds the Settings pages for providers, appearance and
+saved data. `providers/` retains the existing connection settings, `findings/`
 supplies fix prompt and REA components, `api/` owns the fetch client, and
 `shared/` owns UI primitives. The earlier overview, inventory, history and red-team
 views were removed; they remain in Git history. `/redteam` renders its placeholder.

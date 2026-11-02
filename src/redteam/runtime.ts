@@ -11,7 +11,7 @@ import { EXPIRES_LABEL, removeExpiredWorkers } from "./worker.ts";
 
 const execute = promisify(execFile);
 
-/** Every file of each managed runtime recipe; the binary build embeds exactly these. */
+/** Every file of each managed runtime recipe; the npm package ships exactly these. */
 export const RUNTIME_FILES = {
   llmfy: ["Dockerfile", "requirements.txt", "qualify.py", "worker.py", "project/agent.py"],
   vercel: [

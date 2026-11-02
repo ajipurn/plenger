@@ -33,21 +33,24 @@ pnpm evaluate                        # static detection on test/fixtures/evaluat
 - **Scanning never executes project code.** `src/scan.ts` and everything below it
   must only read files. Dynamic tests run only inside `src/redteam/` after an
   explicit start, in networkless containers.
-- **Keep the layers one-directional.** `shared` and `source` depend on nothing in
-  `src/`. `facts` → `project` → `inventory` → `capabilities` → `rules` → `report`
+- **Keep the layers one-directional.** `shared` depends on nothing in `src/`;
+  `source` depends only on `shared`.
+  `facts` → `project` → `inventory` → `capabilities` → `rules` → `report`
   depend downwards only; `platform` depends on `source` and `shared`, and `rules`
-  reads it. `redteam` depends on the scan pipeline, `storage` and
-  `shared`; `dashboard` and `cli` are adapters on top of everything and nothing
+  reads it. `redteam` depends on the scan pipeline and `shared`, never on
+  `storage`, `security`, `assessment` or `remediation`, which import it;
+  `dashboard` and `cli` are adapters on top of everything and nothing
   imports them back. The browser bundle (`dashboard/src`) imports only
   `src/dashboard/contract.ts` and modules that have no `node:` imports
-  (`redteam/{campaign-model,campaign-evidence,profile,constants,...}`);
+  (`redteam/{constants,model-pricing,provider-config}`, `rules/model`,
+  `assessment/review-model`, `security/model`, `storage/records`, ...);
   adding a `node:` import to one of those breaks `pnpm dashboard:build`.
 - **Generated files are never edited by hand.** `docs/RULES.md` and `schemas/*.json`
   come from `pnpm generate`; the golden files under `test/fixtures/*/expected-*.json`
   come from `pnpm bench -- --write`. Tests fail on drift. Review a golden diff line
   by line before accepting it.
 - **Branch on language family exhaustively.** Choose per-family behavior with
-  `byFamily(language, { python, javascript })` or a `Record<LanguageFamily, …>`
+  `byFamily(language, { python, javascript, php })` or a `Record<LanguageFamily, …>`
   table, never `language === "python" ? … : …`, so a new family is a compile error
   where it is undecided. A check that only one family has may test that family
   directly.

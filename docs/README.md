@@ -27,8 +27,10 @@ repeating milestone status.
 | [design/worker-protocol.md](design/worker-protocol.md) | The host to container message protocol of both runtimes |
 | [design/redteam-engine.md](design/redteam-engine.md) | Engine internals: budget controller, project preparation, qualification broker |
 | [design/llmfy-runtime.md](design/llmfy-runtime.md) | The llmfy container image, isolation checks and the synthetic qualification suite |
-| [design/review-exploration.md](design/review-exploration.md) | Read-only exploration for the AI review (M9b): tools, limits, citations, failure handling; design only |
-| [design/strix-adoption.md](design/strix-adoption.md) | Ideas adopted from Strix for M10 and M11, the selection criteria and what is left out; design only |
+| [design/review-exploration.md](design/review-exploration.md) | Read-only exploration for the AI review (M9b): tools, limits, citations, failure handling; implemented as Explore mode |
+| [design/strix-adoption.md](design/strix-adoption.md) | Ideas adopted from Strix for M10 and M11, the selection criteria and what is left out; M10 is implemented, M11 is planned |
+| [design/runtime-advisories.md](design/runtime-advisories.md) | Runtime advisories that read the PHP a repository declares (PLG001 to PLG003); implemented for PHP2Shell |
+| [design/fastapi-profile.md](design/fastapi-profile.md) | The FastAPI project profile (M6b); checkpoint 1 was implemented and then removed; checkpoints 2 to 4 are design only |
 | [design/generated-attacks.md](design/generated-attacks.md) | Attacker-generated, frozen attack corpora; checkpoint 1 (host templates) is implemented |
 | [design/dashboard-ui.md](design/dashboard-ui.md) | Visual design rules for the dashboard |
 | [design/distribution.md](design/distribution.md) | How the npm package is built and checked |

@@ -80,8 +80,9 @@ or result and M7 reuses it.
 
 ## Principles
 
-These come from what went wrong in v0 (on `feat/backup`), where trust and
-isolation infrastructure grew far ahead of what the tool could detect.
+These come from what went wrong in v0, the earlier Python implementation,
+where trust and isolation infrastructure grew far ahead of what the tool could
+detect.
 
 1. **Detection value first.** Add infrastructure only when a feature needs it.
 2. **Static triage never executes, imports or installs project code** and needs

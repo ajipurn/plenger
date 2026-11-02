@@ -2,7 +2,7 @@
  * The HTTP contract between the dashboard page and its local service: routes,
  * request and response shapes, the limits both sides enforce, and the theme
  * markup both sides rewrite. The browser bundles this file, so it must stay free
- * of `node:` imports and of anything but types from the engine.
+ * of `node:` imports and take engine values only from modules that have none.
  */
 import type { BudgetLimits } from "../redteam/budget.ts";
 import type { CampaignPolicy } from "../redteam/campaign.ts";

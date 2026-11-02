@@ -134,7 +134,7 @@ describe("GitHub Action AI review", () => {
     ]);
     const summary = await readFile(join(root, "summary.md"), "utf8");
     expect(summary).toContain("## Plenger AI review");
-    expect(summary).toContain("Whole checkout, one Quick review.");
+    expect(summary).toContain("Scanned path, one Quick review.");
     expect(summary).toContain(
       "| high | Search builds SQL from the query string | source-supported |",
     );

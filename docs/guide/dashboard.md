@@ -24,11 +24,12 @@ npx plenger@latest --port 4180
 
 See [install.md](install.md) for npm installation and local tarballs.
 
-Use either a positional project path or `--workspace`, not both. Without
+`plenger` takes no project path argument; a path exits with code 2. Without
 `--port` (or with `--port 0`) a free local port is chosen. `--data-dir` selects
-where dashboard state is stored. Without a workspace, the dashboard restores
-the last selected project, falling back to the current directory. Relative
-paths resolve from the launch directory. Stop the service with Ctrl+C.
+where dashboard state is stored. `--workspace` defaults to the current
+directory. It prefills **Local folder** in **Add project**, and **Browse…**
+starts there. It does not add or open a project. Relative `--workspace` and
+`--data-dir` paths resolve from the launch directory. Stop the service with Ctrl+C.
 
 For development, from the repository root:
 
@@ -51,8 +52,8 @@ The Clerk-inspired header has a workspace row and an underlined navigation
 row. Header, navigation and main content share the same centered width.
 The main tabs are **Findings**, **Projects**, **Scans** and **Settings**.
 Each tab has an icon. Settings sits beside Scans and opens the provider
-connection settings. **New Scan** is available in the header
-and beside each project. Open **Settings > Appearance** to choose the Dark, System
+connection settings. **New Scan** is in the header, except on a finding, scan
+or project page, and beside each project. Open **Settings > Appearance** to choose the Dark, System
 or Light theme. System follows your device setting and changes with it.
 Choose **Compact** density there to fit more rows on screen.
 The theme and density are saved in SQLite and applied before scripts load.
@@ -67,10 +68,18 @@ Select menus with ten or more options include a search field. Search matches dis
 names and IDs without regard to case. Use arrow keys and Enter to choose a result,
 or Escape to close the menu. Shorter lists keep the compact select menu.
 
+A toast at the top of the window confirms finished actions: saving, deleting or
+defaulting a provider, connecting ChatGPT, adding or deleting a project, setting
+a finding status, saving a threat model, importing or removing REA evidence,
+clearing data and copying a fix prompt. Errors and instructions stay next to
+their controls.
+
 The workspace accepts local folders. It does not need a GitHub connection.
 Projects can be in any language. Static agent-specific rules cover Python,
-JavaScript and TypeScript; PHP is parsed for the model analysis but has no
-static rules yet. The source-based model analysis also reads other
+JavaScript and TypeScript. PHP is parsed for the model analysis. The runtime
+advisory rules PLG001 to PLG003 read its `composer.json` platform and
+`ini_set()` or `ini_alter()` calls, but no static rule traces PHP code paths.
+The source-based model analysis also reads other
 languages, templates and configuration as plain text. The two have different
 coverage.
 See [ai-security-review.md](ai-security-review.md).
@@ -81,6 +90,11 @@ Open **Projects > Add project**. Enter a local folder path, or use **Browse…**
 The display name and review context are optional. Context can describe
 security assumptions, tenant boundaries and protected assets. Git is optional.
 Adding a project saves its configuration without making a model request.
+
+**Projects** lists each project's name and folder, the status and date of its
+**Last scan**, and **Open findings**. Open findings counts, across all of the
+project's scans, the findings that are not resolved or dismissed and that
+validation did not dismiss, as the project page does.
 
 Select a project name to open its detail page. **Findings** shows its saved
 findings and triage statuses. **Scans** lists that project's scan history.
@@ -96,8 +110,9 @@ details return to the same project page.
 
 Browse opens the operating system's folder chooser on the computer running the
 service. Cancelling it keeps the path. If the chooser is unavailable, enter the
-path directly. Relative paths resolve from the service's launch directory.
-The dashboard scans folders; the CLI also accepts a single file.
+path directly. Relative paths resolve from the `--workspace` folder, which
+defaults to the service's launch directory. The dashboard scans folders, not
+single files.
 
 ## Delete a project
 
@@ -120,7 +135,8 @@ a project.
    read-only tools. Each card shows its model calls or rounds. For Full coverage,
    pick a limit preset, enter another token or USD amount, or choose
    **No limit**. Choosing another model applies to this scan only.
-   **Load models** refreshes the saved catalog. **Validate with** keeps the same
+   **Load models**, or **Reload models** once a list is loaded, refreshes the
+   saved catalog. **Validate with** keeps the same
    model, or pick another saved connection and model for validation. The plan
    above **Start Scan** sums up the choices.
 3. Press **Start Scan**. The scan sends redacted source and context to the
@@ -133,6 +149,8 @@ paused scan does not block other scans.
 
 Scans saved by the former **Static only** choice still open as static results.
 Their candidates stay **Unvalidated**. Use **Scan again** for a full review.
+Scans saved by the former **Continue with AI** keep the **AI review** label and
+link to the saved static scan they continued.
 
 Each scan first runs the offline scanner, then AI discovery, STRIDE and source
 validation.
@@ -175,10 +193,12 @@ A paused scan shows **Scan paused** in its details. **Continue scan** runs the
 remaining rounds. A scan paused by stopping the service starts again with the
 round that was running. The limit field
 holds what is left of the limit the scan ran under; change it if needed. A scan
-that ran without a limit continues without one.
+that ran without a limit continues without one. A continued scan's duration
+leaves out the time it spent paused.
 
 The job continues in the local service when you navigate away or close the
-page. Scans and scan details show its current phase. For an AI scan, a coverage
+page. **Scans** shows its status, and the progress card in scan details shows
+its current phase. For an AI scan, a coverage
 card at the top of scan details shows the files covered, read in full, read in
 part and unread. It has one cell per round the scan may run. While the scan runs,
 the card also shows the findings and tokens so far. After two rounds it estimates
@@ -193,7 +213,7 @@ is an estimate from the characters received. The reply's reported usage replaces
 it when the reply ends, and only reported usage counts toward the limit. Reply
 text is never shown or saved. Between replies, the current round shows its
 latest step, such as a file an Explore round reads. The details column appears
-when the scan finishes.
+once the scan stops running, also while it is paused.
 
 A Full coverage AI scan shows **Pause scan** and **Stop scan** while it runs; other
 scans show **Stop scan** only. **Pause scan** waits for the running round to
@@ -222,7 +242,7 @@ compatible servers differ in how they report usage in a stream.
 
 No project code, package scripts or model tools execute. The service reads
 source and uses fixed read-only Git metadata commands. It does not install
-project dependencies or probe a running application. The static engine and the repository's GitHub Action run without model usage.
+project dependencies or probe a running application. The static engine runs without model usage. The repository's GitHub Action does too, unless its opt-in [AI review](reports-ci.md#ai-review-in-ci) is turned on.
 
 ## Review findings and outputs
 
@@ -232,8 +252,10 @@ diagram. The initial view includes New, Triaged and In progress candidates that 
 has not dismissed. Origin and validation have separate labels. Static indications
 without a completed source review show as Unvalidated, including historical data.
 Use the validation filter to see dismissed static candidates.
-Select a column header to sort by it, and again to reverse it; this works in every
-table. Open a row to see its summary, root cause, attack path, validation,
+Select a column header to sort by it, and again to reverse it. Finding, project,
+scan and provider tables sort this way. The sort stays in the address, so it
+survives opening a row and coming back. Findings start sorted by severity and
+scans by start time. Open a row to see its summary, root cause, attack path, validation,
 remediation, affected source locations and captured evidence.
 
 The status selector saves **New**, **Triaged**, **In progress**, **Resolved** or
@@ -247,8 +269,8 @@ resolved by absence, because each round covers only part of the source.
 Validation outcomes for either origin, such as Source-supported and Needs review, describe the
 source analysis; they are separate from this workflow status.
 
-**Scans** lists start time, source, initiator, duration, reported tokens and job
-status. Open a scan for its findings. The **Coverage** tab of an AI scan lists
+**Scans** lists the start time, source, duration, tokens used, estimated cost
+and status of each scan. Open a scan for its findings. The **Coverage** tab of an AI scan lists
 the eligible files by folder, read, partial and unread, and every round with the
 files it read. The file list comes from the saved static scan. A scan without one
 lists only the files its rounds covered. The **Outputs** tab contains
@@ -269,7 +291,8 @@ Budget reservations never replace missing usage. Missing prices or all missing u
 remain unavailable. ChatGPT subscription scans estimate USD using standard API rates.
 The breakdown records the pricing basis and completeness for each pass.
 
-**Export scan** downloads the redacted job, its findings and review records.
+**Export JSON** downloads the redacted job, its findings and review records.
+While the scan runs or is paused, the button reads **Export snapshot**.
 It is distinct from the static engine's versioned JSON report. Dismissed model
 candidates remain in the review records even though they are absent from the
 default finding table. Cross-origin duplicates merge only with a CWE of the same
@@ -318,7 +341,12 @@ history and finding triage remain readable. The API accepts the older
 storage, connection tests and the default provider. Ollama, OpenAI, Gemini,
 Anthropic Claude and the experimental ChatGPT connection use the existing
 provider implementation. API keys are entered here, never in scan forms.
+The providers table has a search field above it and shows each connection's
+masked API key. A row's actions menu has **Test connection**, **Make default**
+and **Delete provider**, which asks for confirmation.
 **Test saved connection** makes one bounded call without project source.
+A connection test shows its progress, then the result, in one toast. A failure's
+full reason stays on the page.
 Editing or deleting a provider does not rewrite earlier scan evidence.
 Changing a cloud provider's endpoint requires entering its key again.
 
@@ -344,13 +372,14 @@ requires loading a matching list. Loading draft models saves the list without
 saving the API key; saving the provider makes that list available in its editor.
 
 These two providers have no temperature or output controls in the editor.
-Saving uses the model's default temperature and automatic output settings.
-OpenAI requests omit the optional output limit. Their reported token use is
-checked after completion, so a response can exceed the operation's threshold.
+A new connection uses the model's default temperature and automatic output settings.
+OpenAI requests send the operation's allowance as the output limit.
 Claude requires an output limit. Plenger reads the selected model's limit and
 caps it by the operation allowance. Older compatible endpoints without model
 limit metadata use the operation allowance. Existing explicit generation settings
-remain supported; saving an Anthropic or OpenAI connection in the editor resets them
+remain supported. When a saved connection has them, **Advanced connection
+settings** shows a checkbox to keep the saved temperature and output limit. It
+is selected by default, so saving keeps them. Clear it before saving to switch
 to automatic settings.
 
 ### Model pricing
@@ -416,7 +445,7 @@ Leave the key field blank to keep the saved key. Deleting a provider removes its
 Open **Settings > Data** and press **Clear data** to remove all saved projects,
 scans, findings, reviews, imported evidence, red-team results and run settings.
 Confirm the deletion in the dialog. This cannot be undone. Providers, their
-credentials, saved model lists and the theme are kept. Project files and exported reports stay
+credentials, saved model lists, the theme and density are kept. Project files and exported reports stay
 unchanged. Finish, pause or stop active scans before clearing data.
 
 The service binds to `127.0.0.1` and checks Host and Origin against its local
@@ -425,8 +454,8 @@ enabled. The page enforces a Content Security Policy. Fonts are bundled locally.
 The frontend uses React Router, React Aria Components, Tailwind and Gravity icons.
 
 SQLite stores local projects, review context, scan jobs,
-reviews, finding statuses and existing project history. Provider connections
-and the theme remain shared across projects. The first workspace startup
+reviews, finding statuses and existing project history. Provider connections,
+the theme and density remain shared across projects. The first workspace startup
 imports earlier static scans with the latest saved AI review for each scan.
 Existing provider credentials and legacy evidence remain stored.
 Refreshing the page, changing ports and restarting do not clear this data.

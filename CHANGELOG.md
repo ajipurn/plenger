@@ -67,14 +67,15 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 - The ChatGPT provider editor no longer has an output token threshold. Saving or
   signing in uses automatic output settings, so each operation's allowance is the
   observed limit instead of 1,024 tokens per red-team call.
-- A running scan's progress card shows its stages on a vertical timeline, with
-  the latest steps under the active stage and the tokens charged so far in its
-  heading. Each new step adds a ring to the illustration. **Pause animation** is
+- A running scan's progress card shows its stages on a vertical timeline under a
+  heading with the scan depth and phase. The current round's row below the
+  timeline shows the latest step and the tokens charged so far in that round.
+  Each new step adds a ring to the illustration. **Pause animation** is
   gone: the illustration is a working indicator, and reduced motion keeps it
   static.
-- Full coverage's spending limit is optional. **Set a spending limit** stays
-  checked by default; clear it to run until the project is covered or 100
-  batches have run. Scan details show the tokens such a scan charged.
+- Full coverage's spending limit is optional. New Scan starts with a limit
+  preset selected; choose **No limit** to run until the project is covered or
+  100 rounds have run. Scan details show the tokens such a scan charged.
 
 ### Fixed
 

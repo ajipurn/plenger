@@ -116,16 +116,16 @@ by default. The summary retains the review counts.
 
 ### AI review in CI
 
-With `ai-review: true` the Action also runs one Quick AI review of the whole
-checkout, as the dashboard does, after the static scan. It sends redacted source
+With `ai-review: true` the Action also runs one Quick AI review of the scanned
+`path`, as the dashboard does, after the static scan. It sends redacted source
 to `ai-provider` within `ai-token-limit`; pass the key from a secret and never
 from the workflow file.
 
 Kept findings are a second SARIF run, `plenger-ai-review`, with rule ids such as
 `AI-CWE-89`, and a section of the job summary. Source-supported findings at or
 above `fail-on` fail the gate like static findings. A review that fails or is
-refused exits 1 after the reports are written. AI findings are source analysis,
-not runtime validation.
+refused exits 1 after the reports are written, or 3 when the gate also fails.
+AI findings are source analysis, not runtime validation.
 
 ```yaml
 - uses: actions/checkout@<pinned sha>

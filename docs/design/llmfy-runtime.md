@@ -7,9 +7,9 @@ design. The recipe lives in `runtimes/llmfy/` (`Dockerfile`, `requirements.in`,
 `requirements.txt`, `qualify.py`, `worker.py`, `project/agent.py`) and ships in
 the npm package. Qualification records are in
 [../qualifications/](../qualifications/); the current status is in
-[../STATUS.md](../STATUS.md#qualified-versus-pending). The user-facing profile
-is described in [../guide/redteam.md](../guide/redteam.md#llmfy-file-canary-v1)
-and the message protocol in [worker-protocol.md](worker-protocol.md).
+[../STATUS.md](../STATUS.md#qualified-versus-pending). The profile is
+summarized in [../guide/redteam.md](../guide/redteam.md) and the message
+protocol in [worker-protocol.md](worker-protocol.md).
 
 ## Reproduce
 
