@@ -10,7 +10,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-pre--release-ff9932" alt="Status: pre-release">
+  <a href="https://www.npmjs.com/package/plenger"><img src="https://img.shields.io/npm/v/plenger" alt="npm version"></a>
+  <img src="https://img.shields.io/badge/status-preview-ff9932" alt="Status: preview">
   <img src="https://img.shields.io/badge/node-22.23.4%2B%20%7C%2024.22.1%2B%20%7C%2026.12.1%2B-114c5a" alt="Node.js 22.23.4+, 24.22.1+ or 26.12.1+">
   <img src="https://img.shields.io/badge/license-Apache%202.0-172b36" alt="License: Apache 2.0">
 </p>
@@ -70,14 +71,19 @@ flowchart LR
 Plenger needs Node.js 22.23.4+, 24.22.1+ or 26.12.1+. Earlier patches carry the
 Brotli flaw CVE-2026-111497 (Node2Shell).
 
-The public npm release is pending; see [status](docs/STATUS.md#npm-distribution).
-Once it is published:
+Run it with npx, or install it globally:
 
 ```sh
 npx plenger@latest
 ```
 
-Until then, run it from source with pnpm 10.19.0:
+```sh
+npm install -g plenger
+plenger
+```
+
+0.1.0 is a preview: see [status](docs/STATUS.md) for what is qualified. To run it
+from source instead, use pnpm 10.19.0:
 
 ```sh
 git clone https://github.com/ajipurn/plenger.git

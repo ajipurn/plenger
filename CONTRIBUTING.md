@@ -249,7 +249,8 @@ pnpm test:package    # pack, install offline and check the installed CLI and das
 ```
 
 `npm pack` and `npm publish` run `prepack`, which builds the package first.
-`private: true` keeps `npm publish` refusing until the release; see
+A release is published with `npm publish` from a clean `main` checkout whose
+installed-package jobs passed on Linux, macOS and Windows; see
 [docs/STATUS.md](docs/STATUS.md).
 Installation from the tarball or registry uses the built files and runs no
 Plenger install scripts. The package includes all CLI commands, the dashboard,

@@ -59,8 +59,7 @@ The `prepack` hook runs this build for `npm pack` and `npm publish`. npm
 installation uses the prepared files and runs no Plenger install scripts.
 The npm notices include the WASM grammars and dashboard dependency closure.
 They omit Node.js because the npm package uses the user's installed runtime.
-`private: true` in `package.json` makes `npm publish` refuse while `npm pack`
-still works.
+Releases are published to the npm registry as `plenger`; 0.1.0 was the first.
 
 ## Installed package check
 

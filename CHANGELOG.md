@@ -1,11 +1,16 @@
 # Changelog
 
 All notable changes to plenger. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions are
-milestones from [docs/ROADMAP.md](docs/ROADMAP.md); there is no public release
-yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). From 0.1.0, versions
+are npm releases; earlier entries are milestones from
+[docs/ROADMAP.md](docs/ROADMAP.md). Current status is in
+[docs/STATUS.md](docs/STATUS.md).
 
 ## Unreleased
+
+## 0.1.0 (2026-11-02)
+
+The first release on npm. It collects the changes since the M8 preview.
 
 ### Changed
 
