@@ -8,6 +8,16 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+### Changed
+
+- Releases are published from GitHub Actions through npm trusted publishing, so
+  each version carries provenance that links it to its commit and workflow.
+
+### Fixed
+
+- Starting the dashboard on Node.js 22 printed an `ExperimentalWarning` about
+  SQLite. The launcher now drops that notice; other warnings still print.
+
 ## 0.1.0 (2026-11-02)
 
 The first release on npm. It collects the changes since the M8 preview.

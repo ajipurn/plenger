@@ -34,6 +34,28 @@ if (!supported) {
   );
   process.exitCode = 1;
 } else {
+  // Node.js 22 calls its built-in SQLite experimental when the dashboard opens its store.
+  // The notice only worries users, so it is dropped; every other warning still prints.
+  const emitWarning = process.emitWarning;
+  process.emitWarning = function (
+    this: NodeJS.Process,
+    warning: string | Error,
+    ...rest: unknown[]
+  ) {
+    const [options] = rest;
+    const type =
+      typeof options === "string"
+        ? options
+        : options && typeof options === "object" && "type" in options
+          ? options.type
+          : typeof warning === "string"
+            ? undefined
+            : warning.name;
+    const text = typeof warning === "string" ? warning : warning.message;
+    if (type === "ExperimentalWarning" && text.startsWith("SQLite is an experimental feature"))
+      return;
+    Reflect.apply(emitWarning, this, [warning, ...rest]);
+  } as typeof process.emitWarning;
   const { main } = await import("./cli/index.ts");
   process.exitCode = await main(process.argv.slice(2));
 }

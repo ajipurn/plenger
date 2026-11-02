@@ -20,9 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pushes to main check Linux only; pull requests and manual runs add macOS and
-        # Windows, whose minutes count several times against the private repository's quota.
-        os: ${{ github.event_name == 'push' && fromJSON('["ubuntu-24.04"]') || fromJSON('["ubuntu-24.04", "macos-15", "windows-2022"]') }}
+        os: [ubuntu-24.04, macos-15, windows-2022]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

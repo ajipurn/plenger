@@ -77,14 +77,8 @@ export async function launchDashboard(options: DashboardLaunch) {
         if (process.platform === "win32")
           assert.ok(stopped.code === 0 || stopped.signal === "SIGTERM");
         else assert.deepEqual(stopped, { code: 0, signal: null });
-        // Node 22 reports its built-in SQLite status once; all other stderr remains a failure.
-        assert.equal(
-          stderr.replace(
-            /^\(node:\d+\) ExperimentalWarning: SQLite is an experimental feature and might change at any time\r?\n\(Use `[^`]+ --trace-warnings \.\.\.` to show where the warning was created\)\r?\n/,
-            "",
-          ),
-          "",
-        );
+        // The launcher drops Node 22's SQLite notice, so any stderr is a failure.
+        assert.equal(stderr, "");
       },
     };
   } catch (error) {

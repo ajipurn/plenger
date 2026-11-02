@@ -68,7 +68,7 @@ The former analysis and red-team commands are removed; their engines remain.
 | Package name | `plenger` with the `plenger` command; the `@plenger` npm organisation is registered. The private dashboard workspace is `@plenger/dashboard` |
 | Local npm tarball | Built and installed on macOS Apple Silicon with Node.js 22.23.4 and npm 10.9.9 (2026-11-02) |
 | Installed CLI and dashboard | Global install and npm exec check launcher help, update help, built assets and authenticated dashboard scans of Python, JavaScript, TypeScript and TSX files; the PHP grammar is not exercised |
-| Linux, macOS and Windows CI | Installed-package jobs in [package.yml](../.github/workflows/package.yml) passed on Ubuntu 24.04, macOS 15 and Windows 2022 with Node.js 22.23.4 (manual run on commit `7324afc`, 2026-11-02). Pushes to main run Linux only; pull requests and manual runs add macOS and Windows |
+| Linux, macOS and Windows CI | Installed-package jobs in [package.yml](../.github/workflows/package.yml) passed on Ubuntu 24.04, macOS 15 and Windows 2022 with Node.js 22.23.4 (manual run on commit `e6c0361`, the 0.1.0 release, 2026-11-02). Every push to main and every pull request runs all three |
 | Public npm registry release | 0.1.0 published on 2026-11-02 under the `latest` tag (shasum `49d32677`). A global install and `npm exec` from the registry ran `plenger --version`, `--help` and the dashboard on macOS Apple Silicon with Node.js 22.23.4. The registry also lists `0.0.0-stage`, the placeholder npm created for the first publish |
 | Project licence | Apache-2.0, see [LICENSE](../LICENSE) |
 

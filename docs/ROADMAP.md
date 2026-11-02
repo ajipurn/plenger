@@ -308,9 +308,8 @@ dashboard, parser WASM assets and managed runtime recipes. npm and npx expose
 the dashboard launcher, help, version and confirmed `plenger update`. A prepack build prepares
 the package. The installed-package check verifies global installation, npm
 command resolution and authenticated dashboard scanning outside the
-checkout. Installed-package CI jobs cover Linux on every push, and macOS and
-Windows on pull requests and manual runs. 0.1.0 was published to npm on
-2026-11-02.
+checkout. Installed-package CI jobs cover Linux, macOS and Windows on every
+push and pull request. 0.1.0 was published to npm on 2026-11-02.
 
 npm is the only distribution; the standalone binary build was dropped. See
 [design/distribution.md](design/distribution.md), [guide/install.md](guide/install.md)

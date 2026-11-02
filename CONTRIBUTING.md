@@ -249,9 +249,14 @@ pnpm test:package    # pack, install offline and check the installed CLI and das
 ```
 
 `npm pack` and `npm publish` run `prepack`, which builds the package first.
-A release is published with `npm publish` from a clean `main` checkout whose
-installed-package jobs passed on Linux, macOS and Windows; see
-[docs/STATUS.md](docs/STATUS.md).
+To release, set the version in `package.json`, give the changelog's Unreleased
+entries that version and date, and commit to `main`. Once the installed-package
+jobs pass on Linux, macOS and Windows, push a tag such as `v0.1.1`. The
+[Release workflow](.github/workflows/release.yml) checks that the tag names the
+package version, runs `pnpm check` and `pnpm test:package`, and publishes with
+npm trusted publishing, which needs no token and adds provenance. A manual run
+of the workflow stops at `npm publish --dry-run`. See
+[docs/STATUS.md](docs/STATUS.md) for what has been published.
 Installation from the tarball or registry uses the built files and runs no
 Plenger install scripts. The package includes all CLI commands, the dashboard,
 grammars and container recipes. Docker or Podman is needed only for red-team
@@ -263,8 +268,8 @@ without registry access. It fails on runtime files outside `RUNTIME_FILES` and
 on compiled files without a matching source. It checks npm command resolution,
 launcher and update help, and an authenticated scan on the real dashboard that
 parses Python, JavaScript, TypeScript and TSX files.
-The npm package workflow runs it on Linux for pushes to main, and on Linux,
-macOS and Windows for pull requests and manual runs. It keeps no artifact.
+The npm package workflow runs it on Linux, macOS and Windows for every push to
+main, pull request and manual run. It keeps no artifact.
 
 See [docs/design/distribution.md](docs/design/distribution.md).
 
