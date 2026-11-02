@@ -309,13 +309,14 @@ the dashboard launcher, help, version and confirmed `plenger update`. A prepack 
 the package. The installed-package check verifies global installation, npm
 command resolution and authenticated dashboard scanning outside the
 checkout. Installed-package CI jobs cover Linux on every push, and macOS and
-Windows on pull requests and manual runs.
+Windows on pull requests and manual runs. 0.1.0 was published to npm on
+2026-11-02.
 
 npm is the only distribution; the standalone binary build was dropped. See
 [design/distribution.md](design/distribution.md), [guide/install.md](guide/install.md)
 and [STATUS.md](STATUS.md) for release and platform evidence.
 
-**Next checkpoints:** publish the npm release. Qualify runtime integrations
+**Next checkpoints:** qualify a live `plenger update` with the next release. Qualify runtime integrations
 under M6/M7 before advertising their dynamic coverage, once that work resumes. Keep installation free of
 frontend builds and automatic container setup. Document the offline scan and
 click-to-run workflows, model-access setup, supported framework versions,
