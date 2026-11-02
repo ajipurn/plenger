@@ -905,8 +905,7 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-billing > p:first-child {
   @apply mt-0;
 }
-.security-billing section + section,
-.security-billing > div + div > section:first-child {
+.security-billing section + section {
   @apply mt-6 pt-5 border-t border-line;
 }
 .security-billing h3 {
@@ -1093,16 +1092,16 @@ body:has(.security-drawer[data-state="open"]) .inventory-drawer-overlay {
 .security-coverage-note {
   @apply text-[13px] leading-relaxed;
 }
+.security-coverage-note[data-tone] {
+  @apply flex items-start gap-2;
+}
 .security-coverage-note[data-tone="warning"] {
-  @apply flex items-start gap-2 rounded-ui px-3 py-2 bg-medium-soft text-medium;
+  @apply rounded-ui px-3 py-2 bg-medium-soft text-medium;
 }
 .security-coverage-note > .icon {
   @apply shrink-0 mt-0.5;
 }
 /* A scan that finished what it set out to do, such as one Quick round. */
-.security-coverage-note[data-tone="done"] {
-  @apply flex items-start gap-2;
-}
 .security-coverage-note[data-tone="done"] > .icon {
   @apply size-4 text-success;
 }

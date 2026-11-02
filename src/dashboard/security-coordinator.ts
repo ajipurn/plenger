@@ -213,11 +213,11 @@ export class SecurityCoordinator {
    * its rounds and findings when it paused, so it is only marked stopped and can no longer
    * continue.
    */
-  stop(id: string | null): void {
-    const scan = id === null ? undefined : this.#store.security.scan(id);
+  stop(id: string): void {
+    const scan = this.#store.security.scan(id);
     if (scan?.status !== "paused") {
       this.#supervisor.cancel(id);
-      if (id !== null) this.#pausing.delete(id);
+      this.#pausing.delete(id);
       return;
     }
     scan.status = "cancelled";
@@ -553,9 +553,9 @@ export class SecurityCoordinator {
                   job.phase = phase;
                   this.#saveScan(job);
                 },
+                // The discovering phase saves it next, before any model call.
                 onScope: (files) => {
                   coverage.roundFiles = files;
-                  this.#saveScan(job);
                 },
                 onUsage: (request) => {
                   // A timed-out provider may settle after this round or scan has ended.

@@ -43,13 +43,12 @@ export function ContinueScan({
   const [error, setError] = useState("");
   const amount = Number(value);
   const valid =
-    !limited ||
-    (Number.isFinite(amount) &&
-      (kind === "tokens"
-        ? Number.isSafeInteger(amount) &&
-          amount >= SCAN_BUDGET_LIMITS.minTokens &&
-          amount <= SCAN_BUDGET_LIMITS.maxTokens
-        : amount >= SCAN_BUDGET_LIMITS.minUsd && amount <= SCAN_BUDGET_LIMITS.maxUsd));
+    Number.isFinite(amount) &&
+    (kind === "tokens"
+      ? Number.isSafeInteger(amount) &&
+        amount >= SCAN_BUDGET_LIMITS.minTokens &&
+        amount <= SCAN_BUDGET_LIMITS.maxTokens
+      : amount >= SCAN_BUDGET_LIMITS.minUsd && amount <= SCAN_BUDGET_LIMITS.maxUsd);
   async function submit() {
     if (!api || !valid) return;
     setBusy(true);
@@ -57,11 +56,9 @@ export function ContinueScan({
     try {
       const next = await api.continueSecurityScan(
         scan.id,
-        !limited
-          ? undefined
-          : kind === "tokens"
-            ? { kind: "tokens", tokens: amount }
-            : { kind: "usd", usd: Math.round(amount * 100) / 100 },
+        kind === "tokens"
+          ? { kind: "tokens", tokens: amount }
+          : { kind: "usd", usd: Math.round(amount * 100) / 100 },
       );
       await onContinued(next);
     } catch (failure) {
@@ -95,7 +92,7 @@ export function ContinueScan({
             : ""}
         </NumericText>
       </p>
-      {(!paused || limited) && (
+      {limited && (
         <form
           className="security-continue-scan-form"
           onSubmit={(event) => {
@@ -103,26 +100,22 @@ export function ContinueScan({
             void submit();
           }}
         >
-          {limited && (
-            <>
-              <label htmlFor={`${id}-limit`}>{paused ? "Limit" : "New limit"}</label>
-              <div className="security-scan-limit-input">
-                <Input
-                  id={`${id}-limit`}
-                  type="number"
-                  inputMode={kind === "tokens" ? "numeric" : "decimal"}
-                  step={kind === "tokens" ? 1000 : 0.01}
-                  value={value}
-                  onChange={(event) => setValue(event.target.value)}
-                  aria-invalid={!valid}
-                  disabled={busy || disabled}
-                />
-                <span className="security-scan-limit-unit" aria-hidden="true">
-                  {kind === "tokens" ? "tokens" : "USD"}
-                </span>
-              </div>
-            </>
-          )}
+          <label htmlFor={`${id}-limit`}>{paused ? "Limit" : "New limit"}</label>
+          <div className="security-scan-limit-input">
+            <Input
+              id={`${id}-limit`}
+              type="number"
+              inputMode={kind === "tokens" ? "numeric" : "decimal"}
+              step={kind === "tokens" ? 1000 : 0.01}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              aria-invalid={!valid}
+              disabled={busy || disabled}
+            />
+            <span className="security-scan-limit-unit" aria-hidden="true">
+              {kind === "tokens" ? "tokens" : "USD"}
+            </span>
+          </div>
           <Button
             className={paused ? "button button-secondary" : "button button-primary"}
             type="submit"

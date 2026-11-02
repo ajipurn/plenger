@@ -124,6 +124,7 @@ export function ScanDetailPage({
   const running = scan.status === "running";
   // A paused scan can continue or be stopped for good; it is not finished yet.
   const paused = scan.status === "paused";
+  const unfinished = running || paused;
   // Pause waits for the running round to end; Stop still ends the scan at once meanwhile.
   const pausing = running && (scan.pausing === true || stopping === "pause");
   // One scan runs at a time, so this one or another blocks starting a scan here.
@@ -136,16 +137,19 @@ export function ScanDetailPage({
     : scanPath;
   const outputsPath = `${findingsPath}${projectContext ? "&" : "?"}tab=outputs`;
   const coveragePath = `${findingsPath}${projectContext ? "&" : "?"}tab=coverage`;
+  // A continued scan loads again, and the workspace sees that it runs.
+  async function continued(next: SecurityScan) {
+    setScan(next);
+    setVersion((value) => value + 1);
+    await onRefresh();
+  }
   // A paused scan continues from the header under what is left of its limit; the paused
   // card below can set another limit first.
   async function continuePaused() {
     if (!api || !scan || continuing) return;
     setContinuing(true);
     try {
-      const next = await api.continueSecurityScan(scan.id, remainingBudget(scan) ?? undefined);
-      setScan(next);
-      setVersion((value) => value + 1);
-      await onRefresh();
+      await continued(await api.continueSecurityScan(scan.id, remainingBudget(scan) ?? undefined));
     } catch (failure) {
       setError(errorMessage(failure, "Unable to continue this scan."));
     } finally {
@@ -153,18 +157,24 @@ export function ScanDetailPage({
     }
   }
   // Pause ends the run after its round and Stop at once; only a paused scan can continue.
-  // Stop also ends a paused scan, which then can no longer continue.
+  // Stop also ends a paused scan, which then can no longer continue. Stop stays available
+  // while a pause waits, and a pause saves nothing until it takes effect, so only Stop
+  // refreshes the workspace.
   async function stop(kind: "pause" | "stop") {
-    if (!api || stopping || !(running || (kind === "stop" && paused))) return;
+    if (
+      !api ||
+      stopping === "stop" ||
+      stopping === kind ||
+      !(running || (kind === "stop" && paused))
+    )
+      return;
     setStopping(kind);
     try {
-      if (kind === "pause") {
-        await api.pauseSecurityScan(scan?.id ?? "");
-        // The scan keeps running until its round ends, so Stop must stay available.
-        setScan((current) => current && { ...current, pausing: true });
-        setStopping(null);
-      } else await api.cancelSecurityScan(scan?.id ?? "");
-      await onRefresh();
+      if (kind === "pause") await api.pauseSecurityScan(scan?.id ?? "");
+      else {
+        await api.cancelSecurityScan(scan?.id ?? "");
+        await onRefresh();
+      }
     } catch (failure) {
       setError(
         errorMessage(failure, kind === "pause" ? "Unable to pause scan." : "Unable to stop scan."),
@@ -239,10 +249,10 @@ export function ScanDetailPage({
               <Icon name="pause" /> {pausing ? "Pausing after this round…" : "Pause scan"}
             </Button>
           )}
-          {(running || paused) && (
+          {unfinished && (
             <Button
               className="button button-danger"
-              disabled={stopping !== null || continuing}
+              disabled={stopping === "stop" || continuing}
               onClick={() => void stop("stop")}
             >
               <Icon name="stop" /> {stopping === "stop" ? "Stopping…" : "Stop scan"}
@@ -252,9 +262,9 @@ export function ScanDetailPage({
             className="button button-secondary"
             onClick={() => downloadJson(`plenger-scan-${scan.id}.json`, scan)}
           >
-            <Icon name="download" /> {running || paused ? "Export snapshot" : "Export JSON"}
+            <Icon name="download" /> {unfinished ? "Export snapshot" : "Export JSON"}
           </Button>
-          {!running && !paused && (
+          {!unfinished && (
             <Button
               className="button button-primary"
               {...(anyRunning ? { title: RUNNING_SCAN_REASON } : {})}
@@ -302,7 +312,8 @@ export function ScanDetailPage({
             <ScanProgress
               scan={scan}
               coverage={sourceCoverage}
-              stopping={stopping === "stop" ? "stop" : pausing ? "pause" : null}
+              stopping={stopping === "stop"}
+              pausing={pausing}
               roundsPath={coveragePath}
             />
           )}
@@ -320,15 +331,7 @@ export function ScanDetailPage({
             </section>
           )}
           {canContinue(scan) && (
-            <ContinueScan
-              scan={scan}
-              disabled={anyRunning}
-              onContinued={async (next) => {
-                setScan(next);
-                setVersion((value) => value + 1);
-                await onRefresh();
-              }}
-            />
+            <ContinueScan scan={scan} disabled={anyRunning} onContinued={continued} />
           )}
           {scan.status === "cancelled" && (
             <section
@@ -730,11 +733,13 @@ function samplingText(
   return `${label} ${sampling.model}, ${sampling.temperature === null ? "default temperature" : `temperature ${sampling.temperature}`}, ${sampling.maxOutputTokens === null ? "model output limit" : `up to ${sampling.maxOutputTokens.toLocaleString()} output tokens`}`;
 }
 
-const STOP_TEXT: Record<NonNullable<NonNullable<SecurityScan["coverage"]>["stop"]>, string> = {
-  complete: "all source that fits a round was sent",
+// Complete and Quick scans describe what they read instead.
+const STOP_TEXT: Record<
+  Exclude<NonNullable<NonNullable<SecurityScan["coverage"]>["stop"]>, "complete" | "quick">,
+  string
+> = {
   budget: "stopped at the limit",
   limit: `stopped at ${SCAN_BUDGET_LIMITS.fullBatches} rounds`,
-  quick: "one round",
   explored: "the last round read nothing new",
 };
 
@@ -953,7 +958,6 @@ function RoundCoverageSummary({
   );
 }
 
-/** Why rounds stopped and what the limit charged; the heading names depth and mode. */
 /**
  * Why a finished scan stopped and what it charged. `done` marks a scan that finished what
  * it set out to do, so a Quick scan with most files unread does not read as cut short.
@@ -965,29 +969,23 @@ function coverageNote(
   const coverage = scan.coverage;
   const explore = scan.mode === "explore";
   const completed = scan.status === "completed";
+  const readAll = source.unread === 0 && source.partial === 0;
   if (coverage?.stop === "quick") {
     const rest = source.unread;
-    return {
-      text: [
-        `Quick scan complete: one round read ${explore ? "the files the model chose" : "the most important files"}.`,
-        rest > 0
-          ? `Full coverage reads the other ${rest.toLocaleString()} ${rest === 1 ? "file" : "files"}.`
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" "),
-      done: completed,
-    };
+    let text = `Quick scan complete: one round read ${explore ? "the files the model chose" : "the most important files"}.`;
+    if (rest > 0)
+      text += ` Full coverage reads the other ${rest.toLocaleString()} ${rest === 1 ? "file" : "files"}.`;
+    return { text, done: completed };
   }
   const parts: string[] = [];
   if (coverage?.stop)
     parts.push(
       coverage.stop === "complete"
-        ? source.unread > 0
-          ? "some files were not read"
-          : source.partial > 0
-            ? "some files were read in part"
-            : "every file was read in full"
+        ? readAll
+          ? "every file was read in full"
+          : source.unread > 0
+            ? "some files were not read"
+            : "some files were read in part"
         : STOP_TEXT[coverage.stop],
     );
   if (coverage && scan.budget)
@@ -1002,8 +1000,6 @@ function coverageNote(
   return {
     text: note.charAt(0).toUpperCase() + note.slice(1),
     done:
-      completed &&
-      (coverage?.stop === "explored" ||
-        (coverage?.stop === "complete" && source.unread === 0 && source.partial === 0)),
+      completed && (coverage?.stop === "explored" || (coverage?.stop === "complete" && readAll)),
   };
 }

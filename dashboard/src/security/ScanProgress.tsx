@@ -36,15 +36,17 @@ export function ScanProgress({
   scan,
   coverage,
   stopping,
+  pausing,
   roundsPath,
 }: {
   scan: SecurityScan;
   coverage: SourceCoverage;
-  /** Pause waits for the current round to end; Stop ends the current request now. */
-  stopping: "pause" | "stop" | null;
+  /** Stop ends the current request now. */
+  stopping: boolean;
+  /** Pause waits for the current round to end. */
+  pausing: boolean;
   roundsPath: string;
 }) {
-  const ending = stopping === "stop";
   const ai = scan.workflow !== "static";
   const limit = SCAN_DEPTHS[scan.depth].batches;
   const round = Math.min(scan.reviews.length + 1, limit);
@@ -69,19 +71,21 @@ export function ScanProgress({
       className="security-scan-progress"
       aria-label="Scan progress"
       data-phase={scan.phase}
-      data-stopping={ending}
+      data-stopping={stopping}
     >
       <div className="security-scan-progress-heading">
         <ScanIllustration
           step={
-            !ending && latest && latest.at > openedAt ? `${latest.at}-${latest.detail}` : undefined
+            !stopping && latest && latest.at > openedAt
+              ? `${latest.at}-${latest.detail}`
+              : undefined
           }
         />
         <div className="security-scan-progress-copy" role="status">
           <p className="security-scan-progress-kicker">
             {ai ? `${SCAN_DEPTHS[scan.depth].label} scan` : "Static scan"}
           </p>
-          <h2>{ending ? "Stopping scan" : phaseLabel[scan.phase]}</h2>
+          <h2>{stopping ? "Stopping scan" : phaseLabel[scan.phase]}</h2>
         </div>
       </div>
       <ol className="security-scan-stages" aria-label="Analysis stages">
@@ -101,9 +105,9 @@ export function ScanProgress({
         )}
       </ol>
       <p className="security-scan-stage-note muted">
-        {ending
+        {stopping
           ? "Waiting for the current request to end. Finished rounds and static results are kept."
-          : stopping === "pause"
+          : pausing
             ? "The scan pauses before its next round. Finished rounds and static results are kept."
             : scan.phase === "reading" && scan.parentScanId
               ? "Loading the saved static result and preparing source for AI review."
@@ -112,6 +116,7 @@ export function ScanProgress({
                 : STAGES[scan.phase].description}
         {ai &&
           !stopping &&
+          !pausing &&
           (limit > 1
             ? " Each round discovers, then validates when it has candidates."
             : " Validation runs when the round has candidates.")}

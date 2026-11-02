@@ -50,8 +50,7 @@ export class OperationSupervisor {
 
   /** 409 unless `id` names the active operation. */
   assertActive(id: string | null): void {
-    if (id === null || this.#active?.id !== id)
-      throw new HttpError(409, "This run is no longer active.");
+    if (this.#active?.id !== id) throw new HttpError(409, "This run is no longer active.");
   }
 
   /** Abort the active operation if `id` names it; 409 otherwise. */
