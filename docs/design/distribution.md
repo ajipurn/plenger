@@ -86,5 +86,6 @@ on Ubuntu 24.04, macOS 15 and Windows 2022 for every push to main, pull request
 and manual run. The workflow keeps no artifact: the
 archive is the same on every platform, and `pnpm test:package` writes it to
 `dist/npm/` locally when a build needs to be shared before a release.
-The [Release workflow](../../.github/workflows/release.yml) publishes a pushed
-`v*` tag through npm trusted publishing, with provenance.
+The [Release workflow](../../.github/workflows/release.yml) stages a pushed `v*`
+tag through npm trusted publishing, with provenance, and a maintainer approves
+the staged version with 2FA before it is released.

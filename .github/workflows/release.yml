@@ -1,8 +1,11 @@
 name: Release
-# A pushed v* tag publishes that version to npm through trusted publishing: npm
-# trusts this workflow by name, so no token is stored, and it adds provenance.
-# A manual run checks and packs the same way, then dry-runs a prerelease of the
-# current version, since npm refuses even a dry run of a version it already has.
+# A pushed v* tag stages that version on npm through trusted publishing: npm
+# trusts this workflow by name, so no token is stored, and the version carries
+# provenance. The trusted publisher may only stage, so a maintainer approves the
+# staged version with 2FA on npmjs.com (Staged Packages) or with
+# `npm stage approve <stage-id>`. A manual run checks and packs the same way,
+# then dry-runs a prerelease of the current version, since npm refuses even a dry
+# run of a version it already has.
 on:
   push:
     tags: ['v*']
@@ -28,7 +31,7 @@ jobs:
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           run_install: false
-      # Trusted publishing needs npm 11.5.1 or later; Node.js 22 ships npm 10.
+      # Staged trusted publishing needs npm 11.15.0 or later; Node.js 22 ships npm 10.
       - run: npm install -g npm@11.21.1
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Check that the tag names the package version
@@ -36,11 +39,11 @@ jobs:
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
       - run: pnpm check
       - run: pnpm test:package
-      - name: Publish
+      - name: Stage
         if: github.event_name == 'push'
-        run: npm publish
+        run: npm stage publish --provenance
       - name: Dry run
         if: github.event_name == 'workflow_dispatch'
         run: |
           npm version --no-git-tag-version "$(node -p "require('./package.json').version")-dry.$GITHUB_RUN_ID"
-          npm publish --dry-run --tag dry-run
+          npm stage publish --dry-run --tag dry-run

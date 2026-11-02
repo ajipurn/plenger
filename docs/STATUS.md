@@ -68,8 +68,9 @@ The former analysis and red-team commands are removed; their engines remain.
 | Package name | `plenger` with the `plenger` command; the `@plenger` npm organisation is registered. The private dashboard workspace is `@plenger/dashboard` |
 | Local npm tarball | Built and installed on macOS Apple Silicon with Node.js 22.23.4 and npm 10.9.9 (2026-11-02) |
 | Installed CLI and dashboard | Global install and npm exec check launcher help, update help, built assets and authenticated dashboard scans of Python, JavaScript, TypeScript and TSX files; the PHP grammar is not exercised |
-| Linux, macOS and Windows CI | Installed-package jobs in [package.yml](../.github/workflows/package.yml) passed on Ubuntu 24.04, macOS 15 and Windows 2022 with Node.js 22.23.4 (manual run on commit `e6c0361`, the 0.1.0 release, 2026-11-02). Every push to main and every pull request runs all three |
+| Linux, macOS and Windows CI | Installed-package jobs in [package.yml](../.github/workflows/package.yml) passed on Ubuntu 24.04, macOS 15 and Windows 2022 with Node.js 22.23.4 (push of commit `3ff353e`, 2026-11-02). Every push to main and every pull request runs all three |
 | Public npm registry release | 0.1.0 published on 2026-11-02 under the `latest` tag (shasum `49d32677`). A global install and `npm exec` from the registry ran `plenger --version`, `--help` and the dashboard on macOS Apple Silicon with Node.js 22.23.4. The registry also lists `0.0.0-stage`, the placeholder npm created for the first publish |
+| Release workflow | [release.yml](../.github/workflows/release.yml) stages a pushed `v*` tag through npm trusted publishing, with provenance, for a maintainer to approve with 2FA. The trusted publisher for `ajipurn/plenger` and `release.yml` is registered with stage-only permission and awaits validation by a first staged release before 2026-11-04 08:20 UTC. A manual dry run of a prerelease passed on commit `3ff353e` (2026-11-02) and published nothing |
 | Project licence | Apache-2.0, see [LICENSE](../LICENSE) |
 
 ## Qualified versus pending

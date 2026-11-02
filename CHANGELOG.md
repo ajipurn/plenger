@@ -10,8 +10,9 @@ are npm releases; earlier entries are milestones from
 
 ### Changed
 
-- Releases are published from GitHub Actions through npm trusted publishing, so
-  each version carries provenance that links it to its commit and workflow.
+- Releases are staged from GitHub Actions through npm trusted publishing and
+  released once a maintainer approves them with 2FA. Each version carries
+  provenance that links it to its commit and workflow.
 
 ### Fixed
 
