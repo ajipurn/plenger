@@ -82,7 +82,7 @@ npm install -g plenger
 plenger
 ```
 
-0.1.0 is a preview: see [status](docs/STATUS.md) for what is qualified. To run it
+Plenger is a preview: see [status](docs/STATUS.md) for what is qualified. To run it
 from source instead, use pnpm 10.19.0:
 
 ```sh

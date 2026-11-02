@@ -8,6 +8,8 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+## 0.1.1 (2026-11-02)
+
 ### Changed
 
 - Releases are staged from GitHub Actions through npm trusted publishing and

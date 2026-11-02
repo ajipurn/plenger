@@ -89,7 +89,7 @@ Maintainers can build and verify the package before a registry release:
 ```sh
 pnpm install --ignore-scripts
 pnpm test:package
-npm install -g ./dist/npm/plenger-0.1.0.tgz
+npm install -g ./dist/npm/plenger-<version>.tgz
 plenger --port 4180
 ```
 
