@@ -7,6 +7,26 @@
   "version": "0.1.0",
   "description": "Local security review of repositories: AI source review, STRIDE threat modeling and static triage for agentic AI code",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ajipurn/plenger.git"
+  },
+  "homepage": "https://github.com/ajipurn/plenger#readme",
+  "bugs": {
+    "url": "https://github.com/ajipurn/plenger/issues"
+  },
+  "keywords": [
+    "security",
+    "security-review",
+    "code-review",
+    "sast",
+    "threat-modeling",
+    "stride",
+    "llm",
+    "ai-agents",
+    "agentic-ai",
+    "dashboard"
+  ],
   "private": true,
   "type": "module",
   "bin": {

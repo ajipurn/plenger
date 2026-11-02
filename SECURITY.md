@@ -28,7 +28,7 @@ container is not a proof against kernel escape.
 
 ## Reporting an issue
 
-There is no public disclosure process yet and no security contact address.
-Until one exists, report a problem to the maintainers through the repository's
-private channels. Do not open a public issue for a vulnerability in plenger
-itself.
+Report a vulnerability in plenger itself through GitHub private vulnerability
+reporting: open the repository's **Security** tab and choose **Report a
+vulnerability**. Only the maintainers see the report. Do not open a public issue
+for it.
