@@ -55,16 +55,24 @@ function sinks(candidate: Pick<ReviewCandidate, "evidence">): ReviewCitation[] {
   return marked.length ? marked : candidate.evidence.slice(-1);
 }
 
+/** A candidate's sinks and the flow steps that lead to them. */
+function path(candidate: Pick<ReviewCandidate, "evidence">): ReviewCitation[] {
+  return [...sinks(candidate), ...candidate.evidence.filter((cite) => cite.role === "flow")];
+}
+
 /**
- * A model's duplicate claim across origins also needs a weakness of the same family and an
- * overlapping sink. Sources are not compared: a configuration rule cites only its sink, and
- * a rule and the model often cite different lines of the same input.
+ * A model's duplicate claim across origins also needs a weakness of the same family and a
+ * sink of one candidate on the other's sink or flow: a rule may name the prompt text as its
+ * sink where the model names the call that sends it. Sources are not compared: a
+ * configuration rule cites only its sink, and a rule and the model often cite different
+ * lines of the same input.
  */
 export function sameCandidatePath(
   a: Pick<ReviewCandidate, "cwe" | "evidence">,
   b: Pick<ReviewCandidate, "cwe" | "evidence">,
 ): boolean {
   if (!sameWeakness(a.cwe, b.cwe)) return false;
-  const others = sinks(b);
-  return sinks(a).some((sink) => others.some((other) => overlaps(sink, other)));
+  const reaches = (from: typeof a, to: typeof b) =>
+    sinks(from).some((sink) => path(to).some((cite) => overlaps(sink, cite)));
+  return reaches(a, b) || reaches(b, a);
 }

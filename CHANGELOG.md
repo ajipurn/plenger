@@ -84,6 +84,19 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- An AI finding and a static finding for the same weakness stayed separate when
+  validation named the static one only in its reason, or when the rule's sink
+  lay on the AI finding's flow instead of its sink. Both now merge. On the
+  corpus with `gpt-6-luna`, cases listed twice fell from 15 to 8, with
+  precision and recall unchanged
+  ([record](docs/qualifications/review-openai-batch-2026-11-02-duplicates.md)).
+- A scan whose ChatGPT sign-in had expired or was revoked failed with a generic
+  reason about source coverage and structured responses. It now names the
+  sign-in problem and says to sign in again.
+- A running Quick scan measured its round against the files it sent, and a
+  finished one also counted the related files validation read, so 23 files
+  became 28. The target now stays the files sent; related files are counted
+  apart.
 - **Stop scan** on a paused scan left its page on **Stopping…** until you left
   it. The page now loads the scan again and shows it stopped.
 - A continued scan's timer no longer counts the time it spent paused. Its running
@@ -137,6 +150,9 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Added
 
+- **Use another account** in a ChatGPT connection's editor signs in under a new
+  registration, since a registration only admits the account and workspace it
+  was issued to. The editor also says that plan use needs ChatGPT Go, Plus or Pro.
 - Every data column in Findings, Projects, Scans and Settings > Providers sorts
   from its header, and a second click reverses it. The sort stays in the address,
   so it survives opening a row and coming back. Findings still start by severity

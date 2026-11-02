@@ -108,7 +108,11 @@ git diff test/fixtures/*/expected-*.json
 weakness, described in its README. Without options it scores the static rules
 offline. `--provider <saved name>` also runs the AI review of that connection
 `--runs` times (default 3) and reports precision, recall and their spread per
-run; `--validator` adds a separate second-review connection. `--mode explore`
+run; `--validator` adds a separate second-review connection. `--model <id>` uses
+another model of the saved connections instead of their default, with that
+model's prices and window, and leaves the saved connection as it is. Check which
+model a run will use before starting it: the default may cost far more than the
+model a scan used. `--mode explore`
 runs exploring reviews, where the model reads each case through read-only tools,
 instead of the default `--mode batch`. A live run sends the redacted corpus to
 the provider and needs `--yes`; a batch review makes at most two model requests

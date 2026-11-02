@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ChatgptAuthError, chatgptModels, signInChatgpt } from "../redteam/chatgpt-auth.ts";
 import { CHATGPT } from "../redteam/constants.ts";
 import { type ProviderInput, validateProviderInput } from "../redteam/provider-config.ts";
+import { isRecord } from "../shared/guards.ts";
 import { StoreValidationError } from "../storage/errors.ts";
 import type { ProviderRepository } from "../storage/provider-repository.ts";
 import type { ChatgptLoginResult } from "./contract.ts";
@@ -27,9 +28,14 @@ export class ChatgptLogin {
     if (this.#closed) throw new HttpError(409, "The dashboard is shutting down.");
     if (this.#attempt?.result.state === "pending")
       throw new HttpError(409, "Finish or cancel the current ChatGPT sign-in first.");
+    // The saved registration only admits the account and workspace it was issued to, so
+    // another account signs in under a new one.
+    const { anotherAccount = false, ...settings } = isRecord(value) ? value : {};
+    if (typeof anotherAccount !== "boolean")
+      throw new HttpError(400, "Choose whether to sign in with another account.");
     let input: ProviderInput;
     try {
-      input = validateProviderInput(value);
+      input = validateProviderInput(isRecord(value) ? settings : value);
       if (input.provider !== "chatgpt") throw new Error("Choose ChatGPT subscription to sign in.");
     } catch (error) {
       throw new HttpError(
@@ -60,7 +66,9 @@ export class ChatgptLogin {
         if (session.refreshLease && session.refreshLease.until > Date.now()) throw new Error();
         session = await signInChatgpt({
           hostId: await this.#providers.chatgptHostId(),
-          ...(session.clientId === CHATGPT.dynamicClient ? {} : { previous: session }),
+          ...(session.clientId === CHATGPT.dynamicClient || anotherAccount
+            ? {}
+            : { previous: session }),
           signal: attempt.controller.signal,
           onAuthorize: (url) => {
             attempt.result.authorizationUrl = url;

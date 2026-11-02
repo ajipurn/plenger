@@ -177,8 +177,10 @@ Scan also lists how many files the review can read and, in Batch mode, how many
 rounds full coverage needs, from file sizes alone. Scan details show the files
 covered, why rounds stopped and what the limit was charged. A Quick scan counts
 against its one round: Batch shows the files the round sends, known as it starts,
-and Explore, whose model picks what it reads, shows the files read. A finished
-Quick scan says so and names how many more files Full coverage reads. Exact source and
+and Explore, whose model picks what it reads, shows the files read. Related files
+that validation reads are counted apart, so a Batch round's target stays the same
+once it finishes. A finished Quick scan says so and names how many more files Full
+coverage reads. Exact source and
 omission counts are saved in Outputs.
 
 A Full coverage scan that stopped at its limit, or whose later round failed
@@ -356,6 +358,16 @@ models that account offers. The list is saved with the connection, so the editor
 New Scan offer the same choice. **Reconnect ChatGPT** replaces it with the latest list.
 ChatGPT has no temperature or output controls. Requests send no output limit, and
 token use is checked after each response against the operation's allowance.
+
+OpenAI lets apps use a ChatGPT Go, Plus or Pro plan. A Business or Enterprise
+workspace can refuse it; OpenAI then shows "Your organization hasn't enabled
+access for this app". Use a personal plan or an API key connection instead.
+The first sign-in registers Plenger with that account and workspace, and
+**Reconnect ChatGPT** signs in to the same registration. To switch to another
+account or workspace, choose **Use another account**, which registers Plenger
+again. Signing in to the old registration with another account shows "This account
+can't access this app". When a saved sign-in has expired or was revoked, a scan
+stops with a reason that says to sign in again.
 
 For Anthropic and OpenAI, enter an API key, press **Load models**, and choose
 a **Default model** from the provider's catalog. Editing a saved connection can use its

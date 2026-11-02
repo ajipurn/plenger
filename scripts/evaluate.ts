@@ -1,12 +1,14 @@
 // Measures detection on the labeled corpus: the static rules always, and the AI review
 // of each saved provider when asked. Developer-only; the CLI never runs it.
-// Usage: pnpm evaluate [--provider <name|id>]... [--validator <name|id>] [--runs <n>]
-//                      [--corpus <dir>] [--data-dir <dir>] [--output <file.md>]
+// Usage: pnpm evaluate [--provider <name|id>]... [--validator <name|id>] [--model <id>]
+//                      [--runs <n>] [--corpus <dir>] [--data-dir <dir>] [--output <file.md>]
 //                      [--json <file>] [--mode batch|explore] [--concurrency <n>] [--yes]
 //   Without --provider only the static scanner is evaluated, offline.
 //   With --provider, redacted corpus source is sent to that connection: up to two model
 //   requests per case and run in batch mode, and up to the session limits in explore
 //   mode, where the model reads the case through read-only tools. --yes is required.
+//   --model reviews with that model of each saved connection instead of its default, for
+//   its requests, prices and window; the saved connection is not changed.
 //   --concurrency reviews that many cases at a time (default 1). A review the provider
 //   rejects with HTTP 429 is rerun after a pause, and the report counts the reruns.
 
@@ -14,6 +16,7 @@ import { writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { EXPLORE_LIMITS, SECURITY_REVIEW_LIMITS } from "../src/assessment/review-model.ts";
 import { ModelWindowCatalog } from "../src/dashboard/model-windows.ts";
+import { MODEL_ID } from "../src/redteam/constants.ts";
 import { ProviderRepository } from "../src/storage/provider-repository.ts";
 import {
   type AiConnection,
@@ -30,6 +33,7 @@ const { values } = parseArgs({
   options: {
     provider: { type: "string", multiple: true },
     validator: { type: "string" },
+    model: { type: "string" },
     runs: { type: "string" },
     corpus: { type: "string" },
     "data-dir": { type: "string" },
@@ -47,6 +51,8 @@ if (!Number.isSafeInteger(runs) || runs < 1 || runs > 10) throw new Error("Use -
 const concurrency = Number(values.concurrency ?? 1);
 if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 8)
   throw new Error("Use --concurrency 1 to 8.");
+if (values.model !== undefined && (!MODEL_ID.test(values.model) || values.model.includes("://")))
+  throw new Error("Use --model with a model id.");
 const corpus = values.corpus ?? "test/fixtures/evaluation";
 const cases = await loadCorpus(corpus);
 const staticOutcomes = await evaluateStatic(cases);
@@ -76,12 +82,13 @@ if (names.length) {
         .find((item) => item.id === name || item.name === name);
       if (!saved) throw new Error(`No saved provider named ${name}.`);
       const { access } = store.providers.resolveProvider(saved.id);
-      const pricing = saved.modelPricing?.find((item) => item.model === saved.model);
+      const model = values.model ?? saved.model;
+      const pricing = saved.modelPricing?.find((item) => item.model === model);
       return {
-        provider: { id: saved.id, name: saved.name, model: saved.model },
-        access,
+        provider: { id: saved.id, name: saved.name, model },
+        access: { ...access, model },
         ...(pricing ? { pricing } : {}),
-        inputTokens: await windows.forScan(saved, access.apiKey, saved.model),
+        inputTokens: await windows.forScan(saved, access.apiKey, model),
       };
     };
     const validator = values.validator ? await connection(values.validator) : undefined;

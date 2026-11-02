@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { AnthropicResponseError } from "../redteam/anthropic-provider.ts";
 import { BudgetStoppedError, ModelBudget, type TokenUsage } from "../redteam/budget.ts";
+import { ChatgptAuthError } from "../redteam/chatgpt-auth.ts";
 import {
   type BillableTokenUsage,
   type ModelPricing,
@@ -496,7 +497,7 @@ export async function reviewProject(
                 ? `${error.message} Check the network connection and try again.`
                 : error instanceof ReviewResponseError || error instanceof AnthropicResponseError
                   ? `${phase === "validation" ? "Validation" : "Discovery"} response rejected. ${error.message}`
-                  : error instanceof ReviewSourceError
+                  : error instanceof ReviewSourceError || error instanceof ChatgptAuthError
                     ? error.message
                     : "Unable to complete the source review. Check source coverage, provider settings, and structured response support.";
   };

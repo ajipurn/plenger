@@ -299,6 +299,10 @@ export type FixPromptResult = FixPromptDraft & {
 };
 
 export const CHATGPT_LOGIN_POLL_MS = 1000;
+/** Connection settings; `anotherAccount` signs in under a new registration. */
+export type ChatgptLoginRequest = import("../redteam/provider-config.ts").ProviderInput & {
+  anotherAccount?: boolean;
+};
 export interface ChatgptLoginResult {
   id: string;
   state: "pending" | "connected" | "failed" | "cancelled";

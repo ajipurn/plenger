@@ -8,6 +8,7 @@ import {
 } from "../src/assessment/review-model.ts";
 import { captureReviewSource } from "../src/assessment/review-source.ts";
 import { reviewProject } from "../src/assessment/security-review.ts";
+import { ChatgptAuthError } from "../src/redteam/chatgpt-auth.ts";
 import { scan } from "../src/scan.ts";
 import { required } from "./support/dashboard.ts";
 import {
@@ -365,6 +366,30 @@ describe("source-based AI security review", () => {
     expect(review.reason).toBe(`${reason} Check the network connection and try again.`);
   });
 
+  it("names an expired ChatGPT sign-in as the review's reason", async () => {
+    const snapshot = await scan(await writeReviewProject(await temporaryDir()));
+    const expired =
+      "ChatGPT token exchange (HTTP 401) failed. Try signing in again. If it persists, check account access and the integration configuration.";
+    const review = await reviewProject(
+      snapshot,
+      {
+        scanId: "scan",
+        provider,
+        access: {
+          provider: "chatgpt",
+          model: "gpt-review-test",
+          maxOutputTokens: 8192,
+          accessToken: async () => {
+            throw new ChatgptAuthError(expired);
+          },
+        },
+      },
+      async () => new Response("unreachable", { status: 500 }),
+    );
+    expect(review.status).toBe("failed");
+    expect(review.reason).toBe(expired);
+  });
+
   it("identifies the failed stage and field without accepting unknown files or echoing provider text", async () => {
     const snapshot = await scan(await writeReviewProject(await temporaryDir()));
     const invalid = reviewDiscovery();
@@ -702,6 +727,35 @@ describe("source-based AI security review", () => {
     const changed = await captureReviewSource(snapshot, []);
     expect(changed.context.files.some((file) => file.path === "server.ts")).toBe(false);
     expect(JSON.stringify(changed.context.files)).not.toContain("outside-private-marker");
+  });
+
+  it("takes a duplicate's target from its reason when the reply leaves it out", () => {
+    const kept = "3fdf6ad8-9735-4b96-bac2-1902e98a783d";
+    const other = "7a1c9e20-5b4d-4c3e-9f21-0d8b6a4e2c10";
+    const repeat = "152f7405-8e6a-4b1c-a3d2-6f0e9c7b5a48";
+    const decide = (reason: string) =>
+      parseReviewValidation(
+        JSON.stringify({
+          status: "completed",
+          reason: null,
+          decisions: [
+            { id: kept, verdict: "source-supported", reason: "Kept." },
+            { id: other, verdict: "source-supported", reason: "Kept." },
+            { id: repeat, verdict: "dismissed", reason, basis: "duplicate", evidence: [] },
+          ],
+        }),
+        [kept, other, repeat],
+        [{ path: "route.ts", lines: 80, digest: "" }],
+      ).decisions.find((item) => item.id === repeat);
+    expect(decide(`Duplicate of static candidate ${kept}.`)).toMatchObject({
+      verdict: "dismissed",
+      dismissal: { basis: "duplicate", evidence: [], duplicateOf: kept },
+    });
+    // With two other ids the target is unclear.
+    expect(decide(`Duplicate of ${kept}, not ${other}.`)).toMatchObject({
+      verdict: "needs-review",
+      unchecked: true,
+    });
   });
 
   it("keeps a dismissal as needs-review unless its basis and citation check out", () => {

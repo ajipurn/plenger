@@ -91,7 +91,8 @@ export function ProviderEditor({
   returnFocus: () => HTMLElement | null | undefined;
   contentRef: RefObject<HTMLDivElement | null>;
   login: ChatgptLoginResult | null;
-  onConnect: () => void;
+  /** Signs in with ChatGPT; `anotherAccount` starts a new registration. */
+  onConnect: (anotherAccount?: boolean) => void;
   onCancelLogin: () => void;
   catalog: ReturnType<typeof useProviderModels>;
   onLoadModels: () => void;
@@ -504,7 +505,8 @@ export function ProviderEditor({
                     ? `Connected as ${selected?.chatgptAccount}.`
                     : "Sign in with ChatGPT in a new tab to save this provider and choose an available model."}{" "}
                   Requests use your ChatGPT plan and the model's default output settings. Token use
-                  is checked after each response and is not a hard spending cap.{" "}
+                  is checked after each response and is not a hard spending cap. Plan use here needs
+                  ChatGPT Go, Plus or Pro; a Business or Enterprise workspace can block it.{" "}
                   <a href={CHATGPT.usageUrl} target="_blank" rel="noreferrer">
                     Manage ChatGPT usage
                   </a>
@@ -520,9 +522,22 @@ export function ProviderEditor({
               </Checkbox>
               <div className="provider-actions">
                 {connected && (
-                  <Button type="button" className="button button-secondary" onClick={onConnect}>
-                    Reconnect ChatGPT
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => onConnect()}
+                    >
+                      Reconnect ChatGPT
+                    </Button>
+                    <Button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => onConnect(true)}
+                    >
+                      Use another account
+                    </Button>
+                  </>
                 )}
                 {selected && (
                   <Button

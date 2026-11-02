@@ -24,15 +24,19 @@ export function CoverageOverview({
 }) {
   const running = scan.status === "running";
   const pace = running ? scanPace(scan, coverage) : null;
-  const covered = coverage.total - coverage.unread;
-  // Quick runs one round, so the project is not its target. A Batch round reviews the
-  // files it packs, known as it starts; Explore picks its own, so it has no target.
+  // Quick runs one round, so the project is not its target. A Batch round's target is the
+  // files it sends, known as it starts, so it stays the same once validation adds related
+  // files; those are listed apart. Explore picks its own files, so it has no target.
   const quick = scan.depth === "quick";
+  const round = quick && scan.mode !== "explore" ? coverage.rounds[0] : undefined;
   const target = !quick
     ? coverage.total
     : scan.mode !== "explore"
-      ? (coverage.rounds[0]?.files ?? scan.coverage?.roundFiles ?? null)
+      ? (round?.sent.files ?? scan.coverage?.roundFiles ?? null)
       : null;
+  const counts = round?.sent ?? coverage;
+  const covered = counts.read + counts.partial;
+  const related = round ? round.files - round.sent.files : 0;
   // Full equals the project's unread files; Quick counts those left in its round.
   const unread = target === null ? 0 : Math.max(0, target - covered);
   return (
@@ -55,6 +59,13 @@ export function CoverageOverview({
               <>
                 {" "}
                 <span className="muted">
+                  {related > 0 && (
+                    <>
+                      · <MorphNumber value={related} /> related {related === 1
+                        ? "file"
+                        : "files"}{" "}
+                    </>
+                  )}
                   · <MorphNumber value={coverage.total} /> in the project
                 </span>
               </>
@@ -81,17 +92,17 @@ export function CoverageOverview({
       </div>
       {target !== null && (
         <CoverageBar
-          segments={[coverage.read, coverage.partial]}
+          segments={[counts.read, counts.partial]}
           total={Math.max(target, covered)}
           className="security-coverage-bar"
         />
       )}
       <ul className="security-coverage-legend">
         <li data-state="read">
-          <MorphNumber value={coverage.read} /> read
+          <MorphNumber value={counts.read} /> read
         </li>
         <li data-state="partial">
-          <MorphNumber value={coverage.partial} /> partial
+          <MorphNumber value={counts.partial} /> partial
         </li>
         {/* Quick counts unread files within its round; the rest of the project was never its target. */}
         {(!quick || unread > 0) && (

@@ -1,4 +1,5 @@
 import { isRecord } from "../shared/guards.ts";
+import { ChatgptAuthError } from "./chatgpt-auth.ts";
 import { CHATGPT, MAX_OUTPUT_TOKENS, MODEL_RESPONSE_CAP } from "./constants.ts";
 import { parseOpenAIResponsesTokenUsage } from "./model-pricing.ts";
 import {
@@ -22,7 +23,8 @@ import {
 /** SIWC uses the public Responses API. No Codex credentials or agent process are involved. */
 export function createChatgptProvider(access: ProviderAccess, dispatch: typeof fetch): RunProvider {
   const accessToken = access.accessToken;
-  if (!accessToken) throw new Error("Sign in with ChatGPT in Settings > Providers first.");
+  if (!accessToken)
+    throw new ChatgptAuthError("Sign in with ChatGPT in Settings > Providers first.");
   // Requests send no output limit. Automatic settings (null) reserve the operation's whole
   // allowance, and the observed usage is checked against it after each response.
   const outputLimit = Math.min(

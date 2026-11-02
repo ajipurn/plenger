@@ -821,8 +821,14 @@ export function parseReviewValidation(
         : enumValue(decision.basis, DISMISSAL_BASES, `${location}.basis`);
     if (basis === null) return unchecked(id, reason, UNCHECKED.basis);
     if (basis === "duplicate") {
-      const target = typeof decision.duplicateOf === "string" ? decision.duplicateOf : "";
-      return target !== id && ids.includes(target)
+      const given = typeof decision.duplicateOf === "string" ? decision.duplicateOf : "";
+      // Without structured output a model may name the kept candidate only in its reason.
+      // Host-assigned ids are UUIDs, so exactly one other id there is taken as the target;
+      // the host still checks that the target is kept and shares the path.
+      const named = ids.filter((other) => other !== id && reason.includes(other));
+      const target =
+        given !== id && ids.includes(given) ? given : named.length === 1 ? named[0] : undefined;
+      return target
         ? { id, verdict, reason, dismissal: { basis, evidence: [], duplicateOf: target } }
         : unchecked(id, reason, UNCHECKED.duplicate);
     }

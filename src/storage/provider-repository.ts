@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
-import { type ChatgptSession, refreshChatgpt } from "../redteam/chatgpt-auth.ts";
+import { ChatgptAuthError, type ChatgptSession, refreshChatgpt } from "../redteam/chatgpt-auth.ts";
 import { CHATGPT, MODEL_PRICING_LIMITS } from "../redteam/constants.ts";
 import { type ModelPricing, validateModelPricing } from "../redteam/model-pricing.ts";
 import { type ModelWindow, validateModelWindow } from "../redteam/models-dev-window.ts";
@@ -389,7 +389,7 @@ async function chatgptAccessToken(
     try {
       const { session, sealed } = store.providers.readChatgptSession(id);
       if (!session.credentials)
-        throw new Error("Sign in with ChatGPT in Settings > Providers first.");
+        throw new ChatgptAuthError("Sign in with ChatGPT in Settings > Providers first.");
       if (session.credentials.expiresAt > Date.now() + 60_000)
         return session.credentials.accessToken;
       if (!session.refreshLease || session.refreshLease.until <= Date.now()) {
@@ -423,11 +423,14 @@ async function chatgptAccessToken(
       } finally {
         store.close();
       }
-      if (!refreshed.credentials) throw new Error("ChatGPT refresh did not provide model access.");
+      if (!refreshed.credentials)
+        throw new ChatgptAuthError(
+          "ChatGPT refresh did not provide model access. Sign in with ChatGPT again.",
+        );
       return refreshed.credentials.accessToken;
     }
     if (Date.now() >= deadline)
-      throw new Error("ChatGPT refresh is already running. Try again shortly.");
+      throw new ChatgptAuthError("ChatGPT refresh is already running. Try again shortly.");
     await setTimeout(50, undefined, { signal });
   }
 }

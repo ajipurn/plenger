@@ -28,6 +28,7 @@ describe("cumulative scan source coverage", () => {
       files: 1,
       newFiles: 1,
       revisitedFiles: 0,
+      sent: { files: 1, read: 0, partial: 0 },
     });
     expect(coverage.files).toEqual([{ path: "a.ts", read: true }]);
   });
@@ -36,11 +37,52 @@ describe("cumulative scan source coverage", () => {
     const coverage = scanSourceCoverage({
       reviews: [review([file("a.ts")]), review([file("b.ts")]), review([])],
     });
+    const sent = (files: number) => ({ sent: { files, read: files, partial: 0 } });
     expect(coverage.rounds).toEqual([
-      { total: 3, read: 1, partial: 0, unread: 2, files: 1, newFiles: 1, revisitedFiles: 0 },
-      { total: 3, read: 2, partial: 0, unread: 1, files: 1, newFiles: 1, revisitedFiles: 0 },
-      { total: 3, read: 2, partial: 0, unread: 1, files: 0, newFiles: 0, revisitedFiles: 0 },
+      {
+        total: 3,
+        read: 1,
+        partial: 0,
+        unread: 2,
+        files: 1,
+        newFiles: 1,
+        revisitedFiles: 0,
+        ...sent(1),
+      },
+      {
+        total: 3,
+        read: 2,
+        partial: 0,
+        unread: 1,
+        files: 1,
+        newFiles: 1,
+        revisitedFiles: 0,
+        ...sent(1),
+      },
+      {
+        total: 3,
+        read: 2,
+        partial: 0,
+        unread: 1,
+        files: 0,
+        newFiles: 0,
+        revisitedFiles: 0,
+        ...sent(0),
+      },
     ]);
+  });
+
+  it("counts a round's sent files apart from the related files validation read", () => {
+    const coverage = scanSourceCoverage({
+      reviews: [review([file("a.ts"), file("b.ts", [{ line: 1, endLine: 4 }])], [file("c.ts")])],
+    });
+    // A Quick round's target stays the files it sent, before and after validation.
+    expect(coverage.rounds[0]).toMatchObject({
+      files: 3,
+      read: 2,
+      partial: 1,
+      sent: { files: 2, read: 1, partial: 1 },
+    });
   });
 
   it("merges overlapping excerpts but leaves gaps partial until their lines are read", () => {

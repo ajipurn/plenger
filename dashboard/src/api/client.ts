@@ -2,6 +2,7 @@ import {
   type AddRepositoryRequest,
   API,
   type CancelResult,
+  type ChatgptLoginRequest,
   type ChatgptLoginResult,
   type ChooseFolderResult,
   type DashboardDensity,
@@ -81,7 +82,7 @@ export interface DashboardApi {
   cachedProviderModels(id: string, signal?: AbortSignal): Promise<ProviderModelsResult | null>;
   modelPricing(input: ModelPricingRequest, signal?: AbortSignal): Promise<ModelPricingResult>;
   modelWindow(input: ModelWindowRequest, signal?: AbortSignal): Promise<ModelWindowResult>;
-  startChatgptLogin(input: ProviderInput): Promise<ChatgptLoginResult>;
+  startChatgptLogin(input: ChatgptLoginRequest): Promise<ChatgptLoginResult>;
   chatgptLoginStatus(id: string): Promise<ChatgptLoginResult>;
   cancelChatgptLogin(id: string): Promise<ChatgptLoginResult>;
 }

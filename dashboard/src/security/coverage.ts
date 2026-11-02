@@ -15,6 +15,11 @@ interface RoundCoverage extends FileCounts {
   files: number;
   newFiles: number;
   revisitedFiles: number;
+  /**
+   * The files the round sent, without the related files validation read, and how many of
+   * them the scan has read in full or in part. A Quick round's target is these files.
+   */
+  sent: { files: number; read: number; partial: number };
 }
 export type SourceCoverage = ReturnType<typeof scanSourceCoverage>;
 
@@ -53,6 +58,9 @@ export function scanSourceCoverage(scan: Pick<SecurityScan, "reviews" | "coverag
     }
     const read = [...known.values()].filter((file) => file.ranges === null).length;
     const total = Math.max(eligible, known.size);
+    const sentPaths = new Set(review.scope.files.map((file) => file.path));
+    const sent = [...sentPaths].flatMap((path) => known.get(path) ?? []);
+    const sentRead = sent.filter((file) => file.ranges === null).length;
     rounds.push({
       total,
       read,
@@ -61,6 +69,7 @@ export function scanSourceCoverage(scan: Pick<SecurityScan, "reviews" | "coverag
       files: paths.size,
       newFiles,
       revisitedFiles: paths.size - newFiles,
+      sent: { files: sentPaths.size, read: sentRead, partial: sent.length - sentRead },
     });
   }
   const counts: FileCounts = rounds.at(-1) ?? {

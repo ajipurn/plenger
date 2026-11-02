@@ -30,6 +30,20 @@ describe("cross-origin duplicate check", () => {
     expect(sameCandidatePath({ cwe: null, evidence: sink }, evalRule)).toBe(false);
   });
 
+  it("matches a rule's sink on a flow step the model cites before its own sink", () => {
+    // A system prompt rule names the prompt text; the model follows it into the call.
+    const rule = {
+      cwe: "CWE-1427",
+      evidence: [cite(26, "source", 116), cite(70, "source", 77), cite(53, "sink")],
+    };
+    const model = { cwe: "CWE-1427", evidence: [cite(53, "flow", 67), cite(70, "sink", 86)] };
+    expect(sameCandidatePath(rule, model)).toBe(true);
+    expect(sameCandidatePath(model, rule)).toBe(true);
+    // The rule's sources are still not compared.
+    const elsewhere = { cwe: "CWE-1427", evidence: [cite(90, "flow"), cite(100, "sink")] };
+    expect(sameCandidatePath(rule, elsewhere)).toBe(false);
+  });
+
   it("rejects the same weakness at another sink", () => {
     const other = { cwe: "CWE-89", evidence: [cite(9, "source"), cite(20, "sink")] };
     expect(sameCandidatePath(ai, other)).toBe(false);

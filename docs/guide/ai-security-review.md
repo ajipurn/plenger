@@ -407,9 +407,13 @@ Dismissed static candidates remain saved and can be selected through the Finding
 validation filter; Outputs also show their dismissal evidence.
 
 A cross-origin duplicate merges only after validation names the other candidate
-and the host matches a CWE of the same family and an overlapping sink. The host
-compares the citations each candidate marks as its sink, since a configuration
-rule cites only the setting and the model may cite the input at another line.
+and the host matches a CWE of the same family and a sink of one candidate on the
+other's sink or flow. Validation names the candidate in its duplicate field, or,
+when a model without structured output leaves that out, as the only other
+candidate id in its reason. The host compares sinks and flows, not sources: a
+configuration rule cites only the setting, a rule may name the prompt text where
+the model names the call that sends it, and the model may cite the input at
+another line.
 Similar titles do not merge. The report keeps each origin's rule, evidence and review, and absorbed ids
 remain aliases for triage. The most recently updated saved workflow state wins a
 merge; both earlier states remain in `mergedTriage`. Historical scan occurrences

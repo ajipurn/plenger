@@ -170,7 +170,7 @@ export function ProvidersView({
           : current,
       );
   }
-  function connectChatgpt() {
+  function connectChatgpt(anotherAccount = false) {
     if (!api || busy || signingIn) return;
     // Open during the click, before the API await, so browsers allow the new tab.
     const tab = window.open("about:blank", "_blank");
@@ -186,6 +186,7 @@ export function ProvidersView({
           maxOutputTokens: null,
           isDefault: form.isDefault,
           ...(selected ? { id: selected.id } : {}),
+          ...(anotherAccount ? { anotherAccount } : {}),
         });
         activeLogin.current = result.state === "pending" ? result.id : null;
         if (!mounted.current) {

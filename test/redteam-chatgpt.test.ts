@@ -146,7 +146,7 @@ async function loginHarness(
     throw new Error(`Unexpected test fetch: ${url}`);
   });
   vi.stubGlobal("fetch", fetchMock);
-  async function login() {
+  async function login(extra: Record<string, unknown> = {}) {
     const store = await ProviderRepository.open(root);
     const previous = store.providers
       .readProviders()
@@ -163,6 +163,7 @@ async function loginHarness(
           baseUrl: PROVIDER_URLS.chatgpt,
           temperature: null,
           maxOutputTokens: 1024,
+          ...extra,
         })
       ).json()) as ChatgptLoginResult;
       const auth = new URL(required(started.authorizationUrl, "authorization URL"));
@@ -406,6 +407,30 @@ describe("ChatGPT subscription login", () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(message);
     expect(result.stderr).not.toContain("private-");
+  });
+
+  it("signs in with another account under a new registration", async () => {
+    const harness = await loginHarness();
+    expect((await harness.login()).code).toBe(0);
+    expect((await harness.login({ anotherAccount: true })).code).toBe(0);
+    // The saved registration only admits its own account, so the new sign-in registers again.
+    expect(harness.authUrls[1]?.searchParams.get("client_id")).toBe(CHATGPT.dynamicClient);
+    expect(harness.authUrls[1]?.searchParams.get("agent_name_hint")).toBe("Plenger");
+    const dashboard = await startTestDashboard({ root: harness.root });
+    try {
+      const response = await dashboard.request(API.chatgptLogin, {
+        name: "My subscription",
+        provider: "chatgpt",
+        model: "pending-sign-in",
+        baseUrl: PROVIDER_URLS.chatgpt,
+        temperature: null,
+        maxOutputTokens: 1024,
+        anotherAccount: "yes",
+      });
+      expect(response.status).toBe(400);
+    } finally {
+      await dashboard.close();
+    }
   });
 
   it("retains an issued registration when token exchange fails", async () => {
