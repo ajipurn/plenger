@@ -1,7 +1,8 @@
 name: Release
 # A pushed v* tag publishes that version to npm through trusted publishing: npm
 # trusts this workflow by name, so no token is stored, and it adds provenance.
-# A manual run checks and packs the same way, then stops at a dry run.
+# A manual run checks and packs the same way, then dry-runs a prerelease of the
+# current version, since npm refuses even a dry run of a version it already has.
 on:
   push:
     tags: ['v*']
@@ -40,4 +41,6 @@ jobs:
         run: npm publish
       - name: Dry run
         if: github.event_name == 'workflow_dispatch'
-        run: npm publish --dry-run
+        run: |
+          npm version --no-git-tag-version "$(node -p "require('./package.json').version")-dry.$GITHUB_RUN_ID"
+          npm publish --dry-run --tag dry-run

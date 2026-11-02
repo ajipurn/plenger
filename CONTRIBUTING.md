@@ -255,7 +255,8 @@ jobs pass on Linux, macOS and Windows, push a tag such as `v0.1.1`. The
 [Release workflow](.github/workflows/release.yml) checks that the tag names the
 package version, runs `pnpm check` and `pnpm test:package`, and publishes with
 npm trusted publishing, which needs no token and adds provenance. A manual run
-of the workflow stops at `npm publish --dry-run`. See
+of the workflow publishes nothing: it dry-runs a prerelease of the current
+version, since npm refuses even a dry run of a published version. See
 [docs/STATUS.md](docs/STATUS.md) for what has been published.
 Installation from the tarball or registry uses the built files and runs no
 Plenger install scripts. The package includes all CLI commands, the dashboard,
