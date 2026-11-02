@@ -394,4 +394,23 @@ describe("native Anthropic transport", () => {
     expect(await testProviderConnection(access, dispatch)).toMatchObject({ model: access.model });
     expect(dispatch).toHaveBeenCalledTimes(1);
   });
+
+  it("names a failed connection test in a few words that fit a toast", async () => {
+    const failing = (status: number) => async () => new Response("{}", { status });
+    const reasons = {
+      401: "API key was rejected.",
+      404: "Model not found.",
+      429: "Usage limit reached.",
+      500: "Provider returned HTTP 500.",
+    };
+    for (const [status, reason] of Object.entries(reasons))
+      await expect(testProviderConnection(access, failing(Number(status)))).rejects.toThrow(reason);
+    await expect(
+      testProviderConnection(access, async () => {
+        throw new TypeError("fetch failed");
+      }),
+    ).rejects.toThrow("Could not reach the provider.");
+    for (const reason of [...Object.values(reasons), "Could not reach the provider."])
+      expect(reason.length).toBeLessThanOrEqual(35);
+  });
 });

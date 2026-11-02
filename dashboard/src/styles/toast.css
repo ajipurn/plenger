@@ -1,7 +1,26 @@
-/* Notch Toast colors its inverted notch with shadcn token names. Map them to the palette so
- * the notch follows the appearance: light on the dark theme, dark on the light theme. */
+/* Notch Toast colors its notch with shadcn token names: --foreground fills the notch and
+ * --background draws its text and icons. Map them to the palette so the notch is a raised
+ * surface of the current appearance, tinted by the outcome it reports. Its own rules load
+ * after this file, so these selectors are one class more specific. */
 .nt-root {
-  --foreground: var(--ink);
-  --background: var(--canvas);
+  --foreground: var(--raised);
+  --background: var(--ink);
   --muted-foreground: var(--subtle);
+}
+.nt-root .nt-shell {
+  box-shadow: var(--shadow-toast);
+}
+.nt-root .nt-shell:has(.nt-icon-success) {
+  --foreground: color-mix(in oklab, var(--success) 14%, var(--raised));
+}
+.nt-root .nt-shell:has(.nt-icon-error) {
+  --foreground: color-mix(in oklab, var(--critical) 14%, var(--raised));
+}
+.nt-root .nt-icon-success {
+  background: var(--success);
+  color: var(--raised);
+}
+.nt-root .nt-icon-error {
+  background: var(--critical);
+  color: var(--raised);
 }

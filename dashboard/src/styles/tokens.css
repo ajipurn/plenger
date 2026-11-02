@@ -101,6 +101,8 @@
     inset 0 1px 0 #f1f6f414, 0 0 0 1px #d9e8e333, 0 2px 4px #0a182066, 0 12px 24px -6px #0a182099,
     0 24px 48px -16px #0a1820cc;
   --shadow-drawer: -24px 0 64px #0a182099;
+  /* The toast hangs from the window's top edge, so it has no ring and casts downward. */
+  --shadow-toast: 0 2px 4px #0a182066, 0 12px 24px -6px #0a182099;
   --glow: none;
 }
 
@@ -155,6 +157,7 @@
       0 0 0 1px #172b361a, 0 2px 4px #172b360f, 0 12px 24px -6px #172b3624,
       0 24px 48px -16px #172b3633;
     --shadow-drawer: -16px 0 48px #172b3624;
+    --shadow-toast: 0 2px 4px #172b360f, 0 12px 24px -6px #172b362e;
     --glow: none;
   }
 }

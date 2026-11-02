@@ -237,9 +237,11 @@ imported or removed REA evidence, cleared data and a copied prompt. Call
 `notifySuccess`, or `notifyInfo` for an action that changed nothing, such as a
 cancelled sign-in. A short request the person waits on, such as a connection
 test, uses `notifyPromise`: one toast shows progress, then the outcome. Its
-failure toast is a summary, and the full reason stays inline. Keep every toast
-under about 35 characters; the toast does not wrap and clips on a phone. Errors,
-ongoing progress and instructions stay inline next to their controls. The toast
+failure toast names the reason, so a connection test shows nothing inline. Keep
+every toast under about 35 characters; the toast does not wrap and clips on a
+phone. Other errors, ongoing progress and instructions stay inline next to their
+controls. The toast is a raised surface of the current appearance: a success
+is tinted green and a failure red, each with an icon in that color. The toast
 hides its own text from assistive technology, so a persistent status region
 repeats each message for screen readers.
 

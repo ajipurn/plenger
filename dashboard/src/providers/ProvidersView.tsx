@@ -9,7 +9,7 @@ import {
   type SavedProvider,
 } from "../../../src/redteam/provider-config.ts";
 import { useApi } from "../app/DashboardContext.tsx";
-import { useAsyncAction } from "../shared/async.ts";
+import { errorMessage, useAsyncAction } from "../shared/async.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import { notifyInfo, notifyPromise, notifySuccess } from "../shared/toast.tsx";
@@ -274,13 +274,13 @@ export function ProvidersView({
   }
   function test(value: SavedProvider) {
     if (!api) return;
-    // The toast follows the test; a failure's full reason still shows inline.
+    // The toast follows the test and names why it failed, so nothing is shown inline.
     void run(async () => {
       await notifyPromise(api.testProvider(value.id), {
         loading: "Testing connection…",
         success: (result) => `Connected in ${(result.durationMs / 1000).toFixed(1)}s.`,
-        error: "Connection test failed.",
-      });
+        error: (failure) => errorMessage(failure, "Could not connect to the model."),
+      }).catch(() => undefined);
     }, "Could not connect to the model.");
   }
   function makeDefault(value: SavedProvider) {

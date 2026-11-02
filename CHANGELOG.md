@@ -9,6 +9,11 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Changed
 
+- A failed connection test now names its reason in the toast in a few words,
+  such as **API key was rejected.**, **Model not found.** or **Could not reach
+  the provider.**, instead of a long notice on the page.
+- Toasts follow the appearance. They take the raised surface of the light or
+  dark theme, tinted green for a success and red for a failure.
 - Token usage and cost details moved out of the scan's main column. **Usage by
   request**, under Model & usage in the details panel, opens them in a drawer,
   so findings, coverage and outputs start right below the tabs.

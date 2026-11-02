@@ -288,6 +288,9 @@ export interface ProviderConnection {
   durationMs: number;
 }
 
+/** The model answered the connection test with a refusal. */
+class ConnectionTestRefusal extends Error {}
+
 /**
  * One bounded request proving the endpoint, model and key work together. Failures
  * are reported by category only; provider error bodies may echo the request.
@@ -311,26 +314,39 @@ export async function testProviderConnection(
     const reply = await budget.execute(provider.reservation(request, "setup"), (allowance) =>
       provider.generate(request, allowance),
     );
-    if (reply.refusal) throw new Error("The provider declined the connection test.");
+    if (reply.refusal) throw new ConnectionTestRefusal("The model declined the test.");
     return { model: provider.model, durationMs: Math.round(performance.now() - started) };
   } catch (error) {
-    throw new Error(
-      access.provider === "chatgpt"
-        ? "ChatGPT connection test failed. Sign in with ChatGPT in Settings > Providers, then check the model and ChatGPT usage limits."
-        : connectionTestFailure(error),
-      { cause: error },
-    );
+    throw new Error(connectionTestFailure(access, error), { cause: error });
   } finally {
     budget.finish();
   }
 }
 
-function connectionTestFailure(error: unknown): string {
-  if (error instanceof ModelProviderHttpError)
-    return `Connection test failed: provider returned HTTP ${error.status}. Check model availability and access.`;
+/**
+ * Why a connection test failed, in a few words. The dashboard shows it in a toast, which
+ * clips past about 35 characters on a phone.
+ */
+function connectionTestFailure(access: ProviderAccess, error: unknown): string {
+  const chatgpt = access.provider === "chatgpt";
+  if (error instanceof ConnectionTestRefusal) return error.message;
   if (error instanceof BudgetStoppedError && error.reason === "deadline")
-    return `Connection test timed out after ${CONNECTION_TEST_TIMEOUT_MS / 1000} seconds. Check that the model is available and responding.`;
-  return "Connection test failed. Check the endpoint, model and API key.";
+    return `No reply within ${CONNECTION_TEST_TIMEOUT_MS / 1000} seconds.`;
+  if (error instanceof ModelProviderHttpError) {
+    if (error.status === 401 || error.status === 403)
+      return chatgpt ? "Check your ChatGPT sign-in." : "API key was rejected.";
+    if (error.status === 404) return "Model not found.";
+    if (error.status === 429) return "Usage limit reached.";
+    return `Provider returned HTTP ${error.status}.`;
+  }
+  if (
+    error instanceof ModelProviderFailureError &&
+    /usage_limit|quota|rate_limit/.test(error.code ?? "")
+  )
+    return "Usage limit reached.";
+  if (error instanceof ModelProviderConnectionError) return "Could not reach the provider.";
+  // A ChatGPT test that fails otherwise has no usable sign-in in nearly every case.
+  return chatgpt ? "Check your ChatGPT sign-in." : "Check the endpoint, model and key.";
 }
 
 /** A reply stopped at its output token allowance; whatever it held is incomplete. */

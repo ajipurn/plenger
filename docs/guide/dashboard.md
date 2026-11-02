@@ -345,8 +345,9 @@ The providers table has a search field above it and shows each connection's
 masked API key. A row's actions menu has **Test connection**, **Make default**
 and **Delete provider**, which asks for confirmation.
 **Test saved connection** makes one bounded call without project source.
-A connection test shows its progress, then the result, in one toast. A failure's
-full reason stays on the page.
+A connection test shows its progress, then the result, in one toast. A failure
+names its reason there in a few words, such as **API key was rejected.** or
+**Model not found.**
 Editing or deleting a provider does not rewrite earlier scan evidence.
 Changing a cloud provider's endpoint requires entering its key again.
 

@@ -38,21 +38,25 @@ export function notifyInfo(message: string): void {
 }
 
 /**
- * Show a short request the person waits on as one toast: progress, then its outcome.
- * The error toast is a summary; the caller still reports the full reason inline.
+ * Show a short request the person waits on as one toast: progress, then its outcome. A
+ * failure names its reason in the toast, so keep that reason short too.
  * Returns the request, so the caller handles its result and failure as before.
  */
 export function notifyPromise<T>(
   request: Promise<T>,
-  messages: { loading: string; success: (value: T) => string; error: string },
+  messages: {
+    loading: string;
+    success: (value: T) => string;
+    error: (failure: unknown) => string;
+  },
 ): Promise<T> {
   announce(messages.loading);
   void import("notch-toast").then(({ toast }) =>
-    toast.promise(request, { ...messages, error: () => messages.error }).catch(() => undefined),
+    toast.promise(request, messages).catch(() => undefined),
   );
   request.then(
     (value) => announce(messages.success(value)),
-    () => announce(messages.error),
+    (failure) => announce(messages.error(failure)),
   );
   return request;
 }
