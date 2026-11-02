@@ -78,6 +78,8 @@ yet. Current status is in [docs/STATUS.md](docs/STATUS.md).
 
 ### Fixed
 
+- **Stop scan** on a paused scan left its page on **Stopping…** until you left
+  it. The page now loads the scan again and shows it stopped.
 - A continued scan's timer no longer counts the time it spent paused. Its running
   time and the duration shown once it pauses or finishes now agree.
 - Opening dashboard pages blocked the browser while every number and date set up

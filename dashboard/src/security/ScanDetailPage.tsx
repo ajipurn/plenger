@@ -173,6 +173,8 @@ export function ScanDetailPage({
       if (kind === "pause") await api.pauseSecurityScan(scan?.id ?? "");
       else {
         await api.cancelSecurityScan(scan?.id ?? "");
+        // A paused scan sends this page no events, so it loads again to show it stopped.
+        if (paused) setVersion((value) => value + 1);
         await onRefresh();
       }
     } catch (failure) {
