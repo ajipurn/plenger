@@ -8,6 +8,8 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+## 0.1.2 (2026-11-04)
+
 ### Changed
 
 - Redaction now covers more credential shapes before source reaches a provider or a
