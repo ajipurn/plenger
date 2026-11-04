@@ -59,6 +59,30 @@ function ampersandsInJsx(text: string, rejected: Tree): string {
   );
 }
 
+/**
+ * Whether some node of `tree` lies more than `limit` levels below its root. A cursor
+ * walks the tree, so a deep tree cannot exhaust the stack here as it would in the
+ * recursive fact extractors.
+ */
+export function deeperThan(tree: Tree, limit: number): boolean {
+  const cursor = tree.walk();
+  try {
+    let depth = 0;
+    for (;;) {
+      if (cursor.gotoFirstChild()) {
+        if (++depth > limit) return true;
+        continue;
+      }
+      while (!cursor.gotoNextSibling()) {
+        if (!cursor.gotoParent()) return false;
+        depth--;
+      }
+    }
+  } finally {
+    cursor.delete();
+  }
+}
+
 function errorCount(tree: Tree): number {
   return tree.rootNode.descendantsOfType("ERROR").length + (tree.rootNode.hasError ? 1 : 0);
 }

@@ -208,6 +208,8 @@ export interface CallFact {
    * tracing can follow the functions a fixed collection holds.
    */
   lookup?: Value;
+  /** The call is a statement of its own, awaited or not, so its result is not used. */
+  discarded?: true;
   span: Span;
 }
 
@@ -235,7 +237,8 @@ export interface GuardFact {
    * it is not the text `allowed` (`rel != ".."`). `ends`: it ends with the text
    * `allowed` (`name.endswith(".json")`). `call`: the
    * subject, a call to a function the code defines (`is_within(BASE, path)`), returned
-   * a true value; `allowed` is the same call.
+   * a true value; `allowed` is the same call. `string`: the subject is not an array
+   * (`typeof name === "string"`, `!Array.isArray(name)`), so `includes` reads its text.
    */
   test?:
     | "matches"
@@ -247,7 +250,8 @@ export interface GuardFact {
     | "descends"
     | "differs"
     | "ends"
-    | "call";
+    | "call"
+    | "string";
   allowed: Value;
   /** The code that runs only while the limit holds. */
   region: Span;

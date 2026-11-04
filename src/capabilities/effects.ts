@@ -14,6 +14,7 @@ import type {
   Value,
 } from "../facts/model.ts";
 import {
+  ANCHORED_FLAG,
   argumentParameters,
   callsStartingAt,
   type DynamicPart,
@@ -916,7 +917,7 @@ export class EffectTracer {
     limits: GuardFact[],
     parameterBases = false,
   ): Set<string> {
-    const safe = safeSubjects(kind, limits, file.facts, parameterBases);
+    const safe = safeSubjects(kind, limits, file, parameterBases);
     for (const guard of limits)
       if (guard.test === "call")
         for (const name of this.helperChecked(file, guard.subject, kind)) safe.add(name);
@@ -962,7 +963,7 @@ export class EffectTracer {
       scope: definition,
       region: fact.span,
     }));
-    const safe = safeSubjects(kind, guards, file.facts, true);
+    const safe = safeSubjects(kind, guards, file, true);
     for (const guard of guards) {
       if (guard.test === "call")
         for (const name of this.helperChecked(file, guard.subject, kind, depth)) safe.add(name);
@@ -1098,12 +1099,25 @@ const FILE_KINDS: ReadonlySet<CapabilityKind> = new Set(["file_read", "file_writ
 function safeSubjects(
   kind: CapabilityKind,
   guards: GuardFact[],
-  facts: FileFacts,
+  source: ProjectFile,
   parameterBases = false,
 ): Set<string> {
+  const { facts } = source;
   const safe = new Set<string>();
   const excluded = new Map<string, Set<string>>();
   const file = FILE_KINDS.has(kind);
+  const strings = new Set(
+    guards.flatMap((guard) =>
+      guard.test === "string" && guard.subject.kind === "name" ? [guard.subject.text] : [],
+    ),
+  );
+  // In JavaScript, `includes` on an array checks its items, so `?name[]=../x` passes
+  // `!name.includes("..")` and turns back into text in `${BASE}/${name}`.
+  const arrays =
+    familyOf(source.language) === "javascript"
+      ? (subject: Value) =>
+          !strings.has(subject.kind === "name" ? subject.text : "") && mayHoldArray(subject, facts)
+      : () => false;
   for (const guard of guards) {
     const subject = guard.subject.kind === "name" ? guard.subject.text : "";
     switch (guard.test) {
@@ -1117,7 +1131,7 @@ function safeSubjects(
         break;
       case "excludes": {
         const text = literalString(guard.allowed, facts);
-        if (!file || text === null) break;
+        if (!file || text === null || arrays(guard.subject)) break;
         excluded.set(subject, new Set([...(excluded.get(subject) ?? []), text]));
         break;
       }
@@ -1156,6 +1170,26 @@ function safeSubjects(
     else if (climbs && texts.has("<relative>")) safe.add(subject);
   }
   return safe;
+}
+
+/** Request members a query or body parser may fill with an array or object. */
+const PARSED_INPUT = /(?:^|\.)(?:query|body)(?:\.|\[|$)/;
+
+/**
+ * Whether a value may be an array a request parser built: `req.query.name`,
+ * `req.body.file`, or a variable assigned or destructured from one
+ * (`const { name } = req.query`).
+ */
+function mayHoldArray(value: Value, facts: FileFacts): boolean {
+  let current = value;
+  for (let depth = 0; depth < 8 && current.kind === "name"; depth++) {
+    if (PARSED_INPUT.test(current.text)) return true;
+    const assignment =
+      current.assignment === undefined ? undefined : facts.assignments[current.assignment];
+    if (assignment === undefined) return false;
+    current = assignment.value;
+  }
+  return false;
 }
 
 /** Relative-path calls: `path.relative(from, to)` and `os.path.relpath(path, start)`. */
@@ -1345,16 +1379,21 @@ function endsWithSeparator(value: Value, facts: FileFacts): boolean {
  * A regular expression that admits only names: `^`, one class of letters, digits, `_`
  * and `-` (or `\w`, `\d`), a repetition and `$`, the anchors optional when the test
  * matches the `whole` value (`re.fullmatch`). Such a name cannot hold `/`, `\` or `.`.
+ * A multiline flag (`/…/m`, `re.compile(…, re.M)`) anchors `^` and `$` at every line,
+ * so `"a\n../../etc/passwd"` passes; such a pattern admits more than names.
  */
 function namePattern(value: Value, facts: FileFacts, whole = false): boolean {
   const target = deref(value, facts);
   const compiled = target.kind === "call" ? facts.calls[target.call] : undefined;
+  const literal = target.kind === "literal" ? /^\/(.*)\/([a-z]*)$/s.exec(target.text) : null;
   const pattern =
     literalString(value, facts) ??
-    (compiled !== undefined && /(?:^|\.)compile$/.test(compiled.ref?.name ?? compiled.callee)
+    (compiled !== undefined &&
+    /(?:^|\.)compile$/.test(compiled.ref?.name ?? compiled.callee) &&
+    compiled.arguments.slice(1).every((argument) => anchorsWhole(argument.value))
       ? literalString(compiled.arguments[0]?.value, facts)
       : null) ??
-    (target.kind === "literal" ? (/^\/(.*)\/[a-z]*$/s.exec(target.text)?.[1] ?? null) : null);
+    (literal && !literal[2]?.includes("m") ? (literal[1] ?? null) : null);
   const match =
     pattern === null
       ? null
@@ -1370,6 +1409,14 @@ function namePattern(value: Value, facts: FileFacts, whole = false): boolean {
       .replace(/\\[wd_-]/g, "")
       .replace(/[a-z]-[a-z]|[A-Z]-[A-Z]|[0-9]-[0-9]/g, "")
       .replace(/[\w-]/g, "") === ""
+  );
+}
+
+/** Whether Python regular expression flags keep `^` and `$` at the ends of the value. */
+function anchorsWhole(flags: Value): boolean {
+  return (
+    (flags.kind === "name" || flags.kind === "other" || flags.kind === "literal") &&
+    flags.text.split("|").every((flag) => ANCHORED_FLAG.test(flag.trim()))
   );
 }
 

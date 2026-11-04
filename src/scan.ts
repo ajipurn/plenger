@@ -6,7 +6,7 @@ import { analyzeCapabilities } from "./capabilities/analyze.ts";
 import type { FileFacts } from "./facts/index.ts";
 import { literalCredentials } from "./facts/query.ts";
 import { buildInventory, type Inventory } from "./inventory/index.ts";
-import { parseFiles } from "./parse-files.ts";
+import { type ParseSkipReason, parseFiles } from "./parse-files.ts";
 import { readPlatform } from "./platform/index.ts";
 import { Project, type ProjectFile } from "./project/project.ts";
 import { evaluateRules, type Finding } from "./rules/index.ts";
@@ -21,7 +21,6 @@ import {
   type SkipReason,
 } from "./source/files.ts";
 import type { BinaryKind, Language, TextKind } from "./source/languages.ts";
-import type { ReadSkipReason } from "./source/read.ts";
 
 export interface ScannedFile {
   path: string;
@@ -65,7 +64,7 @@ export interface ScanOptions extends CollectOptions {
   library?: boolean;
 }
 
-export type ScanSkipReason = SkipReason | ReadSkipReason;
+export type ScanSkipReason = SkipReason | ParseSkipReason;
 
 export interface ScanResult {
   root: string;

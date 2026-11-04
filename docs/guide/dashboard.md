@@ -263,7 +263,8 @@ remediation, affected source locations and captured evidence.
 The status selector saves **New**, **Triaged**, **In progress**, **Resolved** or
 **Dismissed**. A finding reported again keeps its status and first detection
 date. An AI finding counts as reported again when a later review gives the same
-STRIDE category and overlapping source evidence, even under a new title. A
+STRIDE category and overlapping source evidence, even under a new title, unless
+both name CWE weaknesses of different families. A
 resolved finding that is reported again reopens as **New**; a dismissed one stays
 dismissed. A complete static scan resolves static findings it no longer reports,
 unless the scan was truncated or skipped their file. AI findings are never
@@ -314,7 +315,7 @@ make a focused fix and add suitable regression coverage. It includes provenance
 so the agent can detect stale assumptions. Plenger does not run the agent,
 edit code or create a pull request.
 
-Generation has a 60-second deadline, a 2,048-token output allowance and a 24 KiB
+Generation has a 60-second deadline, an 8,192-token output allowance and a 24 KiB
 evidence limit. A saved per-call output limit for red-team runs does not apply. Automatic output settings for OpenAI
 and Claude send that allowance as the output ceiling. Refusals and errors stop without
 retrying. Prompts are displayed in the drawer without being saved to scan

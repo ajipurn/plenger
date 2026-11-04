@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SecurityReview } from "../assessment/review-model.ts";
 import { sameCandidatePath } from "../assessment/review-static.ts";
+import { sameWeakness } from "../assessment/weaknesses.ts";
 import type { Rule } from "../rules/model.ts";
 import type { ScanResult } from "../scan.ts";
 import type { FindingProvenance, SecurityFinding, SecurityScan } from "./model.ts";
@@ -125,6 +126,9 @@ export function scanFindings(
           (item) =>
             !claimed.has(item.id) &&
             item.category === finding.category &&
+            // A shared line is not the same issue when the weaknesses differ: an
+            // injection found beside a dismissed tampering finding keeps its own triage.
+            (!item.cwe || !finding.cwe || sameWeakness(item.cwe, finding.cwe)) &&
             item.evidence.some((saved) =>
               finding.evidence.some(
                 (cite) =>
@@ -219,17 +223,26 @@ export function scanFindings(
       removed.add(other);
     }
   }
-  return [
-    ...new Map(
-      findings
-        .filter(
-          (finding) =>
-            !removed.has(finding) &&
-            (finding.origin === "static" || finding.validationStatus !== "dismissed"),
-        )
-        .map((finding) => [finding.id, finding]),
-    ).values(),
-  ];
+  // Rounds of one scan can report the same finding; keep the best supported report.
+  const kept = new Map<string, SecurityFinding>();
+  for (const finding of findings) {
+    if (removed.has(finding)) continue;
+    if (finding.origin !== "static" && finding.validationStatus === "dismissed") continue;
+    const other = kept.get(finding.id);
+    if (other === undefined || support(finding) >= support(other)) kept.set(finding.id, finding);
+  }
+  return [...kept.values()];
+}
+
+const SUPPORT: Record<NonNullable<SecurityFinding["validationStatus"]>, number> = {
+  dismissed: 0,
+  unvalidated: 1,
+  "needs-review": 2,
+  "source-supported": 3,
+};
+
+function support(finding: SecurityFinding): number {
+  return SUPPORT[finding.validationStatus ?? "unvalidated"];
 }
 
 function reviewRecord(

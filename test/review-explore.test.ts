@@ -36,8 +36,9 @@ const access = {
 const provider = { id: "saved-provider", name: "Claude review", model: access.model };
 
 /** The review fixture, an injection note, a credential in source and an excluded file. */
-async function project() {
+async function project(extra: Record<string, string> = {}) {
   const root = await writeReviewProject(await temporaryDir());
+  for (const [path, content] of Object.entries(extra)) await writeFile(join(root, path), content);
   await writeFile(
     join(root, "notes.ts"),
     [
@@ -102,8 +103,9 @@ function results(request: ModelRequest | undefined): Record<string, unknown>[] {
 async function discoverySession(
   turns: ((request: ModelRequest) => ModelReply)[],
   seed: string[] = ["server.ts"],
+  options: { files?: Record<string, string>; requestBytes?: number } = {},
 ) {
-  const snapshot = await project();
+  const snapshot = await project(options.files);
   const reader = await ReviewSourceReader.open(snapshot, []);
   const log = new ReadLog();
   const first = [];
@@ -132,6 +134,7 @@ async function discoverySession(
     send: model.send,
     tokens: { used: () => 0, limit: 10_000_000 },
     records,
+    ...(options.requestBytes ? { requestBytes: options.requestBytes } : {}),
   });
   reader.dispose();
   return { outcome, model, records, snapshot };
@@ -232,6 +235,34 @@ describe("read-only exploration tools", () => {
     expect(outcome.value?.findings).toEqual([]);
     // Every turn offers the same tools so the conversation stays valid.
     expect(model.requests.every((request) => request.tools?.length === 5)).toBe(true);
+  });
+
+  it("refuses reads that leave no room for the closing turn, so one turn of reads cannot end the session", async () => {
+    const files = Object.fromEntries(
+      [1, 2, 3, 4].map((n) => [
+        `big${n}.ts`,
+        Array.from({ length: 300 }, (_, line) => `export const value${line} = ${line};`).join("\n"),
+      ]),
+    );
+    const { model, outcome } = await discoverySession(
+      [
+        () => turn(...Object.keys(files).map((path) => use("read_file", { path }))),
+        (request) => {
+          const last = request.messages.at(-1) as { role: string; content: string };
+          expect(last.content).toContain("near its limit (request-size)");
+          return turn(use("submit_discovery", { ...reviewDiscovery(), findings: [] }));
+        },
+      ],
+      ["server.ts", "store.ts"],
+      { files, requestBytes: 40 * 1024 },
+    );
+    const refused = results(model.requests[1]).filter((item) => "error" in item);
+    expect(refused).toHaveLength(1);
+    expect(String(refused[0]?.error)).toContain("does not fit");
+    expect(outcome.record.stop).toBe("submitted");
+    expect(model.requests).toHaveLength(2);
+    for (const request of model.requests)
+      expect(Buffer.byteLength(JSON.stringify(request.messages))).toBeLessThanOrEqual(40 * 1024);
   });
 
   it("stops at the model call limit without a submission and keeps the record", async () => {

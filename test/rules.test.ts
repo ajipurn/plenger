@@ -1647,6 +1647,156 @@ function hidden(key: string) {
     expect(plain.findings.map((finding) => finding.rule)).toEqual(["PLG801"]);
     expect(JSON.stringify(plain.inventory)).not.toContain('"given"');
   });
+
+  it("do not take a multiline name pattern as a check on a file name", async () => {
+    const root = await project({
+      "app.js": `const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const app = express();
+
+app.get("/multiline/:name", (req, res) => {
+  if (!/^[a-z0-9_-]+$/m.test(req.params.name)) return res.status(400).end();
+  res.send(fs.readFileSync(path.join("/srv/data", req.params.name)));
+});
+
+app.get("/caseless/:name", (req, res) => {
+  if (!/^[a-z0-9_-]+$/i.test(req.params.name)) return res.status(400).end();
+  res.send(fs.readFileSync(path.join("/srv/data", req.params.name)));
+});
+`,
+      "app.py": `import os
+import re
+
+from flask import Flask, abort, request
+
+app = Flask(__name__)
+BASE = os.path.realpath("reports")
+NAME = re.compile(r"^[a-z0-9_-]+$", re.MULTILINE)
+
+
+@app.post("/match")
+def match():
+    name = request.form["name"]
+    if not re.match(r"^[a-z0-9_-]+$", name, flags=re.I | re.M):
+        abort(400)
+    return open(os.path.join(BASE, name)).read()
+
+
+@app.post("/compiled")
+def compiled():
+    name = request.form["name"]
+    if not NAME.match(name):
+        abort(400)
+    return open(os.path.join(BASE, name)).read()
+
+
+@app.post("/ascii")
+def ascii():
+    name = request.form["name"]
+    if not re.match(r"^[a-z0-9_-]+$", name, re.A):
+        abort(400)
+    return open(os.path.join(BASE, name)).read()
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // With \`m\`, \`^\` and \`$\` match at each line: "a\\n../../etc/passwd" passes.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 GET /multiline/:name",
+      "PLG802 POST /compiled",
+      "PLG802 POST /match",
+    ]);
+  });
+
+  it("take includes as a check on request query and body values only when they are text", async () => {
+    const root = await project({
+      "app.js": `const express = require("express");
+const fs = require("fs");
+const app = express();
+const BASE = "/srv/data";
+
+app.get("/query", (req, res) => {
+  const name = req.query.name;
+  if (name.includes("..") || name.includes("/")) return res.status(400).end();
+  res.send(fs.readFileSync(\`\${BASE}/\${name}\`));
+});
+
+app.post("/body", (req, res) => {
+  const { name } = req.body;
+  if (name.includes("..") || name.includes("/")) return res.status(400).end();
+  res.send(fs.readFileSync(BASE + "/" + name));
+});
+
+app.get("/typed", (req, res) => {
+  const name = req.query.name;
+  if (typeof name !== "string" || name.includes("..") || name.includes("/"))
+    return res.status(400).end();
+  res.send(fs.readFileSync(\`\${BASE}/\${name}\`));
+});
+
+app.get("/scalar", (req, res) => {
+  const name = req.query.name;
+  if (Array.isArray(name) || name.includes("..") || name.includes("/"))
+    return res.status(400).end();
+  res.send(fs.readFileSync(\`\${BASE}/\${name}\`));
+});
+
+app.get("/param/:name", (req, res) => {
+  const name = req.params.name;
+  if (name.includes("..") || name.includes("/")) return res.status(400).end();
+  res.send(fs.readFileSync(\`\${BASE}/\${name}\`));
+});
+`,
+    });
+    const findings = (await scan(root)).findings;
+    // \`?name[]=../../etc/passwd\` makes an array: \`includes\` checks its items, and the
+    // template turns it back into the path. Route parameters are always text.
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG802 GET /query",
+      "PLG802 POST /body",
+    ]);
+  });
+
+  it("do not take a prompt whose answer is thrown away as a human approval", async () => {
+    const root = await project({
+      "agent.py": `import shutil
+
+import click
+from langchain_core.tools import tool
+
+
+@tool
+def remove_unused(path: str) -> str:
+    """Delete a folder."""
+    shutil.rmtree(path)
+    input("Press enter")
+    return "deleted"
+
+
+@tool
+def remove_asked(path: str) -> str:
+    """Delete a folder."""
+    if input(f"Delete {path}? ") != "y":
+        return "cancelled"
+    shutil.rmtree(path)
+    return "deleted"
+
+
+@tool
+def remove_confirmed(path: str) -> str:
+    """Delete a folder."""
+    click.confirm(f"Delete {path}?", abort=True)
+    shutil.rmtree(path)
+    return "deleted"
+`,
+    });
+    const result = await scan(root);
+    expect(result.inventory.tools.map((tool) => [tool.name, tool.approval ?? null])).toEqual([
+      ["remove_unused", null],
+      ["remove_asked", "input"],
+      ["remove_confirmed", "click.confirm"],
+    ]);
+  });
 });
 
 describe("triage score", () => {
@@ -1761,11 +1911,56 @@ describe("secrets", () => {
     expect(redactKnown("id 3f9a8b7c6d5e4f3a", ["3f9a8b7c6d5e4f3a"])).toBe("id <redacted>");
   });
 
+  it.each([
+    [
+      'AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYzQ8vN2kT5wR9"',
+      'AWS_SECRET_ACCESS_KEY="<redacted>"',
+    ],
+    ["DB_PASSWORD=hunter2hunter2", "DB_PASSWORD=<redacted>"],
+    ['SECRET_KEY = "django-insecure-abc123xyz"', 'SECRET_KEY = "<redacted>"'],
+    ['{"db_password": "S3cretPass!"}', '{"db_password": "<redacted>"}'],
+    ['password = "hunter2"', 'password = "<redacted>"'],
+    [
+      "headers = {'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abcdefghijk'}",
+      "headers = {'Authorization': 'Bearer <redacted>'}",
+    ],
+    ["Authorization: Bearer 9f8e7d6c5b4a3f2e1d0c9b8a", "Authorization: Bearer <redacted>"],
+    [
+      "DATABASE_URL=postgres://admin:S3cretPass@db.internal:5432/app",
+      "DATABASE_URL=postgres://admin:<redacted>@db.internal:5432/app",
+    ],
+    ['token = "npm_abcdefghijklmnopqrstuvwxyz0123456789"', 'token = "<redacted>"'],
+    ['client = "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"', 'client = "<redacted>"'],
+    // Assembled here, so the repository holds no webhook-shaped literal.
+    [
+      `hook = "${["https://hooks.slack.com/services", "T0123ABCD", "B0123ABCD", "Zq8vN2kT5wR9mL3xB7cJ1pF4"].join("/")}"`,
+      'hook = "<redacted>"',
+    ],
+  ])("redacts credentials that configuration and code commonly hold: %s", (text, redacted) => {
+    expect(redact(text)).toBe(redacted);
+  });
+
+  it.each([
+    "password = user.password",
+    "max_tokens = 1024",
+    'max_tokens: "4096"',
+    "apiKey: process.env.OPENAI_API_KEY,",
+    'api_key = os.environ["OPENAI_API_KEY"]',
+    'token = request.headers.get("Authorization")',
+    'PASSWORD_FIELD = "password"',
+    // A template literal in the source under test, not one in this test.
+    "fetch(url, { headers: { Authorization: `Bearer $" + "{token}` } })",
+  ])("leaves code that names a credential without holding one alone: %s", (text) => {
+    expect(redact(text)).toBe(text);
+  });
+
   it("redacts private key material, including truncated blocks", () => {
     const body = "cHJpdmF0ZS1rZXktbWF0ZXJpYWw=";
     const key = `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----`;
     expect(redact(`prefix\n${key}\nsuffix`)).toBe("prefix\n<redacted>\nsuffix");
     expect(redact(`-----BEGIN PRIVATE KEY-----\n${body}`)).toBe("<redacted>");
+    const encrypted = `-----BEGIN ENCRYPTED PRIVATE KEY-----\n${body}\n-----END ENCRYPTED PRIVATE KEY-----`;
+    expect(redact(encrypted)).toBe("<redacted>");
   });
 });
 

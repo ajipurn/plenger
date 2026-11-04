@@ -52,9 +52,17 @@ const SECRET_FORMATS: { name: string; pattern: RegExp; entropy?: true }[] = [
   { name: "LangSmith API key", pattern: /\blsv2_(?:pt|sk)_[a-f0-9]{32}_[a-f0-9]{10}\b/ },
   { name: "Slack token", pattern: /\bxox[abposr]-[A-Za-z0-9-]{10,}/, entropy: true },
   { name: "Stripe live key", pattern: /\b(?:sk|rk)_live_[A-Za-z0-9]{20,}/ },
+  { name: "npm token", pattern: /\bnpm_[A-Za-z0-9]{36}\b/ },
+  { name: "GitLab token", pattern: /\bglpat-[\w-]{20,}/, entropy: true },
+  { name: "Google OAuth client secret", pattern: /\bGOCSPX-[\w-]{28}/ },
+  { name: "Google OAuth access token", pattern: /\bya29\.[\w-]{30,}/, entropy: true },
+  {
+    name: "Slack webhook",
+    pattern: /https:\/\/hooks\.slack\.com\/services\/T\w{6,}\/B\w{6,}\/\w{16,}/,
+  },
   {
     name: "private key",
-    pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY( BLOCK)?-----/,
+    pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY( BLOCK)?-----/,
   },
 ];
 
@@ -85,7 +93,20 @@ const CREDENTIAL_PHRASE =
 /** A quoted string in source code. */
 const QUOTED = /(["'`])([^"'`\s]{20,})\1/g;
 const PRIVATE_KEY_BLOCK =
-  /-----BEGIN ((?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY(?: BLOCK)?)-----[\s\S]*?(?:-----END \1-----|$)/g;
+  /-----BEGIN ((?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?)-----[\s\S]*?(?:-----END \1-----|$)/g;
+/** A JSON web token: three base64url parts, the first two encoding JSON objects. */
+const JWT = /\beyJ[\w-]{8,}\.eyJ[\w-]{8,}\.[\w-]{8,}/g;
+/** The password in a URL's user information: `postgres://app:s3cret@db/app`. */
+const URL_PASSWORD = /\b([a-z][a-z\d+.-]*:\/\/[^\s:@/"'`]*:)([^\s@/"'`]+)@/gi;
+/** The credential of an authorization header: `Authorization: Bearer ...`. */
+const AUTHORIZATION = /\b(Bearer|Basic|Token)(\s+)([\w.~+/-]{16,}=*)/g;
+/**
+ * A value given to a name for a credential, as code and configuration write it:
+ * `AWS_SECRET_ACCESS_KEY=...`, `"db_password": "..."`, `SECRET_KEY = '...'`. The
+ * groups are the name, the operator, the quote (or none) and the value.
+ */
+const ASSIGNED_CREDENTIAL =
+  /\b([\w.-]*?(?:password|passwd|passphrase|secret|api[_-]?key|access[_-]?key|private[_-]?key|token|credentials?)[\w-]*)(["']?\s*(?:=|:|=>)\s*)(["'`]?)([^\s"'`,;{}()]+)\3/gi;
 
 /** The kind of secret a text contains, if any: a known key format, or a credential written out. */
 export function secretIn(text: string): string | null {
@@ -153,6 +174,14 @@ export function redactKnown(text: string, credentials: readonly string[] = []): 
       isSecretMatch(format, match) ? REDACTED : match,
     );
   }
+  result = result
+    .replace(JWT, REDACTED)
+    .replace(URL_PASSWORD, (whole, start: string, password: string) =>
+      password.startsWith(REDACTED) || PLACEHOLDER.test(password) ? whole : `${start}${REDACTED}@`,
+    )
+    .replace(AUTHORIZATION, (whole, scheme: string, space: string, value: string) =>
+      looksLikeSecret(value) ? `${scheme}${space}${REDACTED}` : whole,
+    );
   return result.replace(CREDENTIAL_PHRASE, (whole, value: string) =>
     looksLikeSecret(value) ? whole.replace(value, REDACTED) : whole,
   );
@@ -160,12 +189,36 @@ export function redactKnown(text: string, credentials: readonly string[] = []): 
 
 /**
  * Redacts text copied from source code (snippets, prompts, code facts): what
- * `redactKnown` replaces, and quoted strings that look like generated keys.
+ * `redactKnown` replaces, values given to credential names, and quoted strings that
+ * look like generated keys.
  */
 export function redact(text: string, credentials: readonly string[] = []): string {
-  return redactKnown(text, credentials).replace(QUOTED, (whole, quote: string, inner: string) =>
-    looksRandom(inner) ? `${quote}${REDACTED}${quote}` : whole,
-  );
+  return redactKnown(text, credentials)
+    .replace(
+      ASSIGNED_CREDENTIAL,
+      (whole, name: string, operator: string, quote: string, value: string) =>
+        // `DB_PASSWORD=...` in an environment file holds text, unquoted.
+        assignedCredential(value, quote !== "" || (ENVIRONMENT_NAME.test(name) && operator === "="))
+          ? `${name}${operator}${quote}${REDACTED}${quote}`
+          : whole,
+    )
+    .replace(QUOTED, (whole, quote: string, inner: string) =>
+      looksRandom(inner) ? `${quote}${REDACTED}${quote}` : whole,
+    );
+}
+
+const ENVIRONMENT_NAME = /^[A-Z][A-Z\d_]*$/;
+
+/**
+ * Whether a value given to a credential name is a credential. Text needs six
+ * characters of two kinds (`hunter2x`, `S3cretPass`); a value that may be code
+ * (`password = user.password`, `max_tokens = 1024`) must look random.
+ */
+function assignedCredential(value: string, text: boolean): boolean {
+  if (value.startsWith(REDACTED) || PLACEHOLDER.test(value)) return false;
+  if (!text) return looksLikeSecret(value);
+  const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z\d]/].filter((kind) => kind.test(value));
+  return value.length >= 6 && kinds.length >= 2;
 }
 
 /**

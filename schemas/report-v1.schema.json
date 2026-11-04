@@ -73,7 +73,8 @@
               "too_large",
               "unreadable",
               "binary",
-              "not_utf8"
+              "not_utf8",
+              "too_deep"
             ]
           }
         },
@@ -1935,7 +1936,8 @@
                         "descends",
                         "differs",
                         "ends",
-                        "call"
+                        "call",
+                        "string"
                       ]
                     }
                   },
@@ -2043,6 +2045,9 @@
               },
               "lookup": {
                 "$ref": "#/definitions/value"
+              },
+              "discarded": {
+                "const": true
               }
             },
             "required": ["callee", "ref", "new", "arguments", "scope", "span"]
@@ -2085,7 +2090,8 @@
                   "descends",
                   "differs",
                   "ends",
-                  "call"
+                  "call",
+                  "string"
                 ]
               }
             },

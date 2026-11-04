@@ -21,6 +21,7 @@ const guardTest = choices(
   "differs",
   "ends",
   "call",
+  "string",
 );
 const texts = array(text);
 const locations = array(ref("location"));
@@ -381,7 +382,12 @@ const definitions: Record<string, Schema> = {
             arguments: array(ref("argument")),
             ...definitionSpan,
           },
-          { receiver: natural, object: ref("value"), lookup: ref("value") },
+          {
+            receiver: natural,
+            object: ref("value"),
+            lookup: ref("value"),
+            discarded: yes,
+          },
         ),
       ),
     },
@@ -433,6 +439,7 @@ export const REPORT_SCHEMA = document(
             "unreadable",
             "binary",
             "not_utf8",
+            "too_deep",
           ),
         }),
       ),

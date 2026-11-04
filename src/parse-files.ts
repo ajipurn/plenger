@@ -8,7 +8,7 @@ import { availableParallelism } from "node:os";
 import { Worker } from "node:worker_threads";
 import { extractFacts, type FileFacts } from "./facts/index.ts";
 import { byFamily, type Grammar, LANGUAGE_OF, type Language } from "./source/languages.ts";
-import { SourceParser } from "./source/parser.ts";
+import { deeperThan, SourceParser } from "./source/parser.ts";
 import { countLines, looksMinified, type ReadSkipReason, readSource } from "./source/read.ts";
 
 /** A file to parse, as the file collector lists it. */
@@ -19,8 +19,11 @@ export interface ParseTask {
   bytes: number;
 }
 
+/** Why a listed file was read but not parsed into facts. */
+export type ParseSkipReason = ReadSkipReason | "minified" | "too_deep";
+
 export type ParseResult =
-  | { kind: "skipped"; path: string; reason: ReadSkipReason | "minified" }
+  | { kind: "skipped"; path: string; reason: ParseSkipReason }
   | {
       kind: "parsed";
       path: string;
@@ -35,6 +38,14 @@ export type ParseResult =
 const WORKER_THRESHOLD = 64;
 /** Workers to start at most, leaving a core for the rest of the scan. */
 const MAX_WORKERS = 4;
+/**
+ * Syntax trees deeper than this are skipped rather than parsed into facts, which the
+ * extractors do recursively. The deepest of about 110,000 published JavaScript,
+ * TypeScript and Python files measured 219 levels; the extractors exhaust the main
+ * thread's stack from about 1,600. A fixed limit keeps workers and the main thread,
+ * which have different stacks, giving the same result.
+ */
+export const MAX_TREE_DEPTH = 1000;
 
 /** Parses one file with `parser`. */
 export async function parseOne(
@@ -53,8 +64,11 @@ export async function parseOne(
   });
   if (bundled && looksMinified(source))
     return { kind: "skipped", path: task.path, reason: "minified" };
-  const tree = await parser.parse(task.grammar, source);
+  // tree-sitter reads a NUL byte as an error token; a space keeps every position.
+  const tree = await parser.parse(task.grammar, source.replaceAll("\0", " "));
   try {
+    if (deeperThan(tree, MAX_TREE_DEPTH))
+      return { kind: "skipped", path: task.path, reason: "too_deep" };
     return {
       kind: "parsed",
       path: task.path,

@@ -409,6 +409,12 @@ export class ExploreLimitError extends Error {
   }
 }
 
+/**
+ * Bytes kept free after a tool result: the closing notice and the errors that answer
+ * the rest of the turn's calls.
+ */
+const CLOSING_RESERVE = 2048;
+
 /** A submission the host checked, or the reason it was rejected. */
 export type Submission<T> = { value: T } | { error: string };
 
@@ -469,11 +475,14 @@ export async function exploreSession<T>(options: {
   let corrections = 0;
   let nudges = 0;
   let closingSent = false;
+  // Set when a tool result was refused for lack of room, which asks for the submission.
+  let full: ExploreStop | null = null;
   const finish = (stop: ExploreStop, value: T | null, error?: string) => {
     record.stop = stop;
     return { value, record, ...(error === undefined ? {} : { error }) };
   };
   const nearLimit = (): ExploreStop | null => {
+    if (full !== null) return full;
     if (record.modelCalls >= limits.modelCalls - 1) return "model-calls";
     if (record.bytesReturned >= limits.toolBytes) return "tool-bytes";
     const size = Buffer.byteLength(JSON.stringify(messages));
@@ -567,6 +576,21 @@ export async function exploreSession<T>(options: {
         } else {
           options.onTool?.(call.name, call.arguments);
           result = await options.tools.run(call.name, call.arguments);
+          // One turn of reads can pass both caps at once. A result that leaves no room
+          // for the closing turn is refused, so the session can still submit.
+          const size = Buffer.byteLength(JSON.stringify(messages));
+          const room = {
+            "request-size": limits.requestBytes - size,
+            tokens: options.tokens.limit - options.tokens.used() - size - turnOverhead,
+          } as const;
+          const bytes = Buffer.byteLength(JSON.stringify(result)) + CLOSING_RESERVE;
+          const cap = room["request-size"] < room.tokens ? "request-size" : "tokens";
+          if (bytes > room[cap]) {
+            full = cap;
+            result = {
+              error: `This result does not fit in what remains of the session. Call ${submit.function.name} now with your answer.`,
+            };
+          }
         }
         const content = JSON.stringify(result);
         record.bytesReturned += Buffer.byteLength(content);

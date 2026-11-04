@@ -56,7 +56,7 @@ describe("coding agent fix prompt generation", () => {
       const submitted = JSON.parse(body.messages[0].content[0].text);
       expect(submitted.finding.fingerprint).toBe(context.finding.fingerprint);
       expect(submitted.rule.remediation).toBe(context.rule?.remediation);
-      expect(body.max_tokens).toBe(2048);
+      expect(body.max_tokens).toBe(8192);
       expect(body.tools).toBeUndefined();
       expect(init?.redirect).toBe("error");
       expect(JSON.stringify(body)).not.toContain(sourceSecret);
@@ -115,7 +115,7 @@ describe("coding agent fix prompt generation", () => {
     input.finding.notes = ["x".repeat(25 * 1024)];
     const dispatch = vi.fn<typeof fetch>(async (_url, init) => {
       // A saved per-call red-team limit would truncate the prompt; the allowance applies.
-      expect(JSON.parse(init?.body as string).max_tokens).toBe(2048);
+      expect(JSON.parse(init?.body as string).max_tokens).toBe(8192);
       return response({ status: "generated", prompt: "Investigate tools.ts." });
     });
     await expect(generateFixPrompt(input, access, {}, dispatch)).rejects.toThrow(

@@ -111,6 +111,18 @@ function limits(node: Node, truth: boolean): Limit[] {
       if (operator === "in") return truth ? [{ subject: left, allowed: right }] : [];
       const equal = operator === "===" || operator === "==";
       const unequal = operator === "!==" || operator === "!=";
+      // `typeof name === "string"` holding: the value is text, not an array.
+      const typed = [left, right].find(
+        (side) =>
+          side.type === "unary_expression" && side.childForFieldName("operator")?.type === "typeof",
+      );
+      const kind = typed === left ? right : left;
+      if (typed !== undefined && stringContent(kind) === "string") {
+        const argument = typed.childForFieldName("argument");
+        return argument !== null && ((equal && truth) || (unequal && !truth))
+          ? [{ subject: argument, allowed: kind, test: "string" }]
+          : [];
+      }
       // `rel !== ".."` holding: the value is not that text.
       if ((unequal && truth) || (equal && !truth))
         return right.type === "string" ? [{ subject: left, allowed: right, test: "differs" }] : [];
@@ -149,6 +161,9 @@ function limits(node: Node, truth: boolean): Limit[] {
         return [{ subject: object, allowed: argument, test: "descends" }];
       if (!truth && method === "isAbsolute" && object.text === "path")
         return [{ subject: argument, allowed: argument, test: "relative" }];
+      // `Array.isArray(name)` failing: the value is not an array.
+      if (!truth && method === "isArray" && object.text === "Array")
+        return [{ subject: argument, allowed: argument, test: "string" }];
       if (!truth) return [];
       if (method === "test") return [{ subject: argument, allowed: object, test: "matches" }];
       if (method === "endsWith" && argument.type === "string")

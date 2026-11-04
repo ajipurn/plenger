@@ -131,6 +131,10 @@ export interface LanguageHooks {
  * opening scopes and recording bindings, imports and the nodes to describe. Phase
  * two (`finish`) resolves names once every binding in the file is known.
  */
+
+/** Nodes between a call and the statement it forms when awaited: `await input()`. */
+const AWAITED = new Set(["await", "await_expression", "parenthesized_expression"]);
+
 export class Context {
   readonly language: LanguageFamily;
   readonly module = new Scope("module", null, null);
@@ -138,7 +142,7 @@ export class Context {
   readonly classes = new Map<string, ClassInfo>();
   readonly #definitions: DefinitionDraft[] = [];
   readonly #assignments: AssignmentDraft[] = [];
-  readonly #calls: { node: Node; scope: Scope }[] = [];
+  readonly #calls: { node: Node; scope: Scope; discarded: boolean }[] = [];
   readonly #returns: { node: Node; scope: Scope; limits: Limit[]; falsy: boolean }[] = [];
   readonly #guards: GuardDraft[] = [];
   readonly #mutated = new Set<number>();
@@ -212,7 +216,9 @@ export class Context {
 
   addCall(node: Node, scope: Scope): void {
     this.#callIndex.set(node.id, this.#calls.length);
-    this.#calls.push({ node, scope });
+    let statement = node.parent;
+    while (statement !== null && AWAITED.has(statement.type)) statement = statement.parent;
+    this.#calls.push({ node, scope, discarded: statement?.type === "expression_statement" });
   }
 
   /**
@@ -397,7 +403,11 @@ export class Context {
       if (this.#mutated.has(index)) fact.mutated = true;
       return fact;
     });
-    const calls = this.#calls.map(({ node, scope }) => hooks.call(node, scope));
+    const calls = this.#calls.map(({ node, scope, discarded }) => {
+      const fact = hooks.call(node, scope);
+      if (discarded) fact.discarded = true;
+      return fact;
+    });
     const byId = new Map(definitions.map((definition) => [definition.id, definition]));
     for (const { node, scope } of this.#returns) {
       const definition = byId.get(scope.definition as string);

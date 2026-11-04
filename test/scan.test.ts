@@ -22,6 +22,68 @@ describe("looksMinified", () => {
   it("keeps small files with one long line", () => {
     expect(looksMinified(`const prompt = "${"x".repeat(1500)}";\n`)).toBe(false);
   });
+
+  it("keeps written code with one very long comment or string line", () => {
+    const route = 'app.get("/f", (req, res) => res.send(read(req.query.name)));\n'.repeat(6);
+    expect(looksMinified(`${route}// ${"x".repeat(4000)}\n`)).toBe(false);
+    expect(looksMinified(`const pad = "${"x".repeat(4000)}";\n${route}`)).toBe(false);
+  });
+
+  it("flags bundles with a licence header and a source map comment", () => {
+    const header = "/*!\n * Example v1.0.0\n * Licensed MIT\n */\n";
+    const bundle = `${header}${"var a=1;".repeat(600)}\nexport{a as b};\n//# sourceMappingURL=x.js.map\n`;
+    expect(looksMinified(bundle)).toBe(true);
+  });
+});
+
+describe("files the scan could skip", () => {
+  const route = [
+    'const express = require("express");',
+    'const fs = require("fs");',
+    "const app = express();",
+    'app.get("/f", (req, res) => { res.send(fs.readFileSync("/srv/data/" + req.query.name)); });',
+    "",
+  ].join("\n");
+
+  async function findingsOf(content: string | Buffer) {
+    const root = await temporaryDir();
+    await writeFile(join(root, "app.js"), content);
+    const result = await scan(root);
+    return { rules: result.findings.map((finding) => finding.rule), skipped: result.skipped };
+  }
+
+  it("still analyses source with a NUL byte, a byte that is not UTF-8 or one long line", async () => {
+    const clean = await findingsOf(route);
+    expect(clean.rules.length).toBeGreaterThan(0);
+    for (const content of [
+      `// \0\n${route}`,
+      Buffer.concat([Buffer.from("// caf"), Buffer.from([0xe9]), Buffer.from(`\n${route}`)]),
+      `${route}// ${"x".repeat(4000)}\n`,
+    ])
+      expect(await findingsOf(content)).toEqual(clean);
+  });
+
+  it("skips UTF-16 text and binary data", async () => {
+    const utf16 = Buffer.from(`\ufeff${route}`, "utf16le");
+    expect((await findingsOf(utf16)).skipped).toEqual([{ path: "app.js", reason: "binary" }]);
+    const binary = Buffer.from([0x47, 0x40, 0x00, 0x10, 0xff, 0xfe, 0x00, 0x00, 0x9c]);
+    expect((await findingsOf(binary)).skipped).toEqual([{ path: "app.js", reason: "binary" }]);
+  });
+
+  it("skips a file nested too deeply to parse into facts, and scans the rest", async () => {
+    const root = await temporaryDir();
+    const depth = 900;
+    await writeFile(
+      join(root, "deep.js"),
+      `const x =\n${"{a:\n".repeat(depth)}1\n${"}\n".repeat(depth)};\n`,
+    );
+    await writeFile(join(root, "app.js"), route);
+    for (const workers of [0, 2]) {
+      const result = await scan(root, { workers });
+      expect(result.skipped).toEqual([{ path: "deep.js", reason: "too_deep" }]);
+      expect(result.findings.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("binaries in a scanned project", () => {
