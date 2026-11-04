@@ -116,6 +116,13 @@ export const API = {
 
 /** The header carrying the per-process session token on authenticated requests. */
 export const TOKEN_HEADER = "X-Plenger-Token";
+/**
+ * The fragment parameter of the link the launcher prints, which hands the page its
+ * session token (`http://127.0.0.1:4180/#token=...`). A fragment never reaches a server.
+ */
+export const TOKEN_LINK_PARAMETER = "token";
+/** Where the page keeps the session token, so later tabs on the same address need no link. */
+export const TOKEN_STORAGE_KEY = "plenger.session-token";
 /** Provider settings can include a bounded price table for up to 100 models. */
 export const PROVIDER_SETTINGS_BYTES = 128 * 1024;
 /** Short selects retain their compact list; larger lists include a search field. */

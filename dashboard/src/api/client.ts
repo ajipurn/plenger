@@ -36,6 +36,8 @@ import {
   type StartSecurityScan,
   type ThemeResult,
   TOKEN_HEADER,
+  TOKEN_LINK_PARAMETER,
+  TOKEN_STORAGE_KEY,
   type UpdateRepositoryRequest,
 } from "../../../src/dashboard/contract.ts";
 import type { ProviderInput, SavedProvider } from "../../../src/redteam/provider-config.ts";
@@ -91,8 +93,51 @@ function withId(path: string, id: string): string {
   return `${path}?id=${encodeURIComponent(id)}`;
 }
 
+/** The page could not prove it was opened from the link the launcher printed. */
+export class SessionLinkError extends Error {}
+
+const SESSION_LINK_MESSAGE =
+  "Open the dashboard with the link the plenger command printed in your terminal.";
+
+/**
+ * The session token: from the printed link's fragment, which is then removed from the
+ * address bar, or as kept for this address by an earlier tab.
+ */
+function sessionToken(): string | null {
+  const linked = new URLSearchParams(window.location.hash.slice(1)).get(TOKEN_LINK_PARAMETER);
+  if (linked) {
+    try {
+      window.localStorage.setItem(TOKEN_STORAGE_KEY, linked);
+    } catch {
+      // Storage may be unavailable; this tab still has the token.
+    }
+    const { pathname, search } = window.location;
+    window.history.replaceState(window.history.state, "", `${pathname}${search}`);
+    return linked;
+  }
+  try {
+    return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export async function connect(): Promise<DashboardApi> {
-  const response = await fetch(API.session, { cache: "no-store" });
+  const token = sessionToken();
+  if (token === null) throw new SessionLinkError(SESSION_LINK_MESSAGE);
+  const response = await fetch(API.session, {
+    cache: "no-store",
+    headers: { [TOKEN_HEADER]: token },
+  });
+  if (response.status === 403) {
+    // A token from an earlier run on the same address.
+    try {
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    } catch {
+      // Nothing kept.
+    }
+    throw new SessionLinkError(SESSION_LINK_MESSAGE);
+  }
   if (!response.ok)
     throw new Error("Unable to connect to Plenger. Restart the dashboard and try again.");
   const session = (await response.json()) as DashboardSession;

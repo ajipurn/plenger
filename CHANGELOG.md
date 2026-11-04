@@ -8,6 +8,27 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+### Changed
+
+- The dashboard link that `plenger` prints now carries the session token after
+  `#token=`. The page reads it there, removes it from the address bar and keeps it
+  for later tabs on the same address. The session request now needs the token too,
+  so another local user or process can no longer ask the service for it.
+- Internal errors of the dashboard service are now logged to standard error, with
+  secrets redacted. The page still shows only a generic message.
+
+### Fixed
+
+- Git and the folder dialogs now run by an absolute path from the home folder. On
+  Windows, a `git.exe` or `powershell.exe` in the reviewed project could run instead
+  of the system one, because Windows looks in the current folder first. PATH
+  entries that are relative or empty are skipped, also when the updater looks for
+  npm.
+- Creating the provider encryption key and the ChatGPT host identity is now atomic.
+  A crash or a second dashboard starting at the same time can no longer leave an
+  empty key file that stops the dashboard from starting. An empty file left by an
+  earlier version is reported with what to do.
+
 ## 0.1.2 (2026-11-04)
 
 ### Changed

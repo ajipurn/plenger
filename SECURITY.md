@@ -17,8 +17,9 @@
   database; keys entered for one run stay in memory.
 - The dashboard launched by `plenger` binds to `127.0.0.1`, checks the request
   Host and Origin,
-  requires a per-launch session token for state-changing requests and serves
-  the page with a Content Security Policy. It enables no CORS access.
+  requires a per-launch session token on every API request and serves the page
+  with a Content Security Policy. It enables no CORS access. The token reaches
+  the page only through the link the launcher prints.
 - Reports redact recognised secrets. Redaction is not exhaustive; review
   exports before sharing them.
 

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parsePort } from "../cli/dashboard.ts";
+import { TOKEN_LINK_PARAMETER } from "./contract.ts";
 import { startDashboard } from "./server.ts";
 
 interface DevOptions {
@@ -73,7 +74,14 @@ async function main() {
       ],
       {
         cwd: dashboardDirectory,
-        env: { ...process.env, PLENGER_DASHBOARD_API_TARGET: api.url },
+        env: {
+          ...process.env,
+          PLENGER_DASHBOARD_API_TARGET: api.url,
+          // Vite serves the page, so it prints the link with the token and sends the token
+          // for the saved appearance.
+          PLENGER_DASHBOARD_TOKEN:
+            new URLSearchParams(new URL(api.link).hash.slice(1)).get(TOKEN_LINK_PARAMETER) ?? "",
+        },
         stdio: "inherit",
       },
     );

@@ -3,7 +3,7 @@ import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from
 import type { SecurityWorkspace } from "../../../src/dashboard/contract.ts";
 import { SECURITY_POLL_MS } from "../../../src/dashboard/contract.ts";
 import type { SavedProvider } from "../../../src/redteam/provider-config.ts";
-import { connect, type DashboardApi } from "../api/client.ts";
+import { connect, type DashboardApi, SessionLinkError } from "../api/client.ts";
 import { DashboardProvider } from "../app/DashboardContext.tsx";
 import { useDensity } from "../app/useDensity.ts";
 import { useTheme } from "../app/useTheme.ts";
@@ -106,9 +106,13 @@ export function SecurityApp() {
           setLoading(false);
         }
       })
-      .catch(() => {
+      .catch((reason: unknown) => {
         if (!stopped) {
-          setError("Unable to connect to the local service. Restart Plenger and reload this page.");
+          setError(
+            reason instanceof SessionLinkError
+              ? reason.message
+              : "Unable to connect to the local service. Restart Plenger and reload this page.",
+          );
           setLoading(false);
         }
       });

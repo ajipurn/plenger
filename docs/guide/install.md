@@ -40,8 +40,9 @@ plenger --help
 plenger --version
 ```
 
-Open the printed local URL in your browser. The workspace defaults to the
-current directory. Port 0, the default, chooses a free loopback port.
+Open the printed link in your browser. It carries the session token after `#token=`,
+so only someone who sees the link can use the dashboard; later tabs on the same
+address need no link. The workspace defaults to the current directory. Port 0, the default, chooses a free loopback port.
 `--data-dir` selects the SQLite data folder. Stop the service with Ctrl+C.
 See [dashboard.md](dashboard.md) for projects, scans and provider settings.
 

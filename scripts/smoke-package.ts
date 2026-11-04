@@ -191,7 +191,11 @@ async function main() {
         assert.equal((await server.fetchPage(asset)).status, 200);
       }
       assert.equal((await server.fetchPage("/findings")).status, 200);
-      const session = (await (await server.fetchPage(API.session)).json()) as DashboardSession;
+      // The session endpoint needs the token from the printed link.
+      assert.equal((await server.fetchPage(API.session)).status, 403);
+      const session = (await (
+        await server.fetchPage(API.session, { headers: { [TOKEN_HEADER]: server.token } })
+      ).json()) as DashboardSession;
       const response = await server.fetchPage(API.scan, {
         method: "POST",
         headers: { "Content-Type": "application/json", [TOKEN_HEADER]: session.token },

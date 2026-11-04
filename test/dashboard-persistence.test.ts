@@ -204,7 +204,7 @@ describe("SQLite dashboard persistence", () => {
     await dashboard.close();
     await start();
     expect((await state()).density).toBe("compact");
-    const session = await (await fetch(`${dashboard.url}/api/session`)).json();
+    const session = await (await request("/api/session")).json();
     expect(session).toMatchObject({ density: "compact" });
     expect(await (await fetch(dashboard.url)).text()).toContain('data-density="compact"');
   });
