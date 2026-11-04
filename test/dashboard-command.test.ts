@@ -11,7 +11,11 @@ beforeEach(() => {
   close.mockClear();
   close.mockResolvedValue(undefined);
   start.mockReset();
-  start.mockResolvedValue({ url: "http://127.0.0.1:12345", close });
+  start.mockResolvedValue({
+    url: "http://127.0.0.1:12345",
+    link: "http://127.0.0.1:12345/#token=abc123",
+    close,
+  });
 });
 
 async function runServe(argv: string[], signal: "SIGINT" | "SIGTERM") {
@@ -50,7 +54,8 @@ describe("dashboard command lifecycle", () => {
     expect(start).toHaveBeenCalledWith({ port: 0 });
     expect(close).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ code: 0, stderr: "" });
-    expect(result.stdout).toContain("http://127.0.0.1:12345");
+    // The printed link hands the page its session token.
+    expect(result.stdout).toContain("http://127.0.0.1:12345/#token=abc123");
   });
 
   it("passes a workspace folder and explicit port, then handles SIGTERM", async () => {

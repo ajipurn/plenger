@@ -19,8 +19,6 @@ export interface Route {
   /** Exact segments, or `:name` for one non-empty segment. */
   path: string;
   handler: RouteHandler;
-  /** Served without the session token; only the session endpoint itself. */
-  public?: boolean;
 }
 
 export type RouteMatch =

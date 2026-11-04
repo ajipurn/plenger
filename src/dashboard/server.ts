@@ -3,8 +3,10 @@ import { executeCampaign } from "../redteam/campaign.ts";
 import type { fetchModelPricing } from "../redteam/models-dev-pricing.ts";
 import type { fetchModelWindow } from "../redteam/models-dev-window.ts";
 import { executeRun } from "../redteam/run.ts";
+import { redact } from "../shared/secrets.ts";
 import { DashboardStore } from "../storage/store.ts";
 import { ChatgptLogin } from "./chatgpt-login.ts";
+import { TOKEN_LINK_PARAMETER } from "./contract.ts";
 import { chooseNativeFolder, type FolderPicker } from "./folder-picker.ts";
 import { HttpError, INTERNAL_ERROR_MESSAGE, json, requireMethod } from "./http.ts";
 import { ModelPricingCatalog } from "./model-pricing.ts";
@@ -35,10 +37,17 @@ export interface DashboardOptions {
   campaignExecutor?: typeof executeCampaign;
   pricingLoader?: typeof fetchModelPricing;
   windowLoader?: typeof fetchModelWindow;
+  /** Where internal errors are logged, redacted; standard error by default. */
+  log?: (line: string) => void;
 }
 
 export interface Dashboard {
   url: string;
+  /**
+   * The address to open, with the session token in its fragment. Only someone who sees
+   * this link can use the dashboard; other local users and processes cannot.
+   */
+  link: string;
   close(): Promise<void>;
 }
 
@@ -74,6 +83,7 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
   };
   const routes = dashboardRoutes(services);
   const address: LocalAddress = { host: "", origin: "" };
+  const log = options.log ?? ((line: string) => process.stderr.write(`${line}\n`));
 
   async function handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const styleNonce = newStyleNonce();
@@ -98,6 +108,8 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
           return;
         }
         const failure = error instanceof HttpError ? error : null;
+        // The page gets a generic message; the cause stays in this process's log.
+        if (failure === null) log(internalError(request, error));
         json(response, failure?.status ?? 500, {
           error: failure?.message ?? INTERNAL_ERROR_MESSAGE,
         });
@@ -130,6 +142,7 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
   let closing: Promise<void> | undefined;
   return {
     url: address.origin,
+    link: `${address.origin}/#${TOKEN_LINK_PARAMETER}=${token}`,
     async close() {
       closing ??= (async () => {
         supervisor.abortAll();
@@ -152,16 +165,28 @@ export async function startDashboard(options: DashboardOptions = {}): Promise<Da
   };
 }
 
-/** Authenticate (except the session route), match, run the handler and send its reply. */
+/** Authenticate every request, match, run the handler and send its reply. */
 async function dispatch(
   routes: readonly Route[],
   token: string,
   context: { request: IncomingMessage; response: ServerResponse; url: URL },
 ): Promise<void> {
+  requireToken(context.request, token);
   const match = matchRoute(routes, context.request.method, context.url.pathname);
-  if (!match.route?.public) requireToken(context.request, token);
   if (!match.route) throw match.error;
   const reply = await match.route.handler({ ...context, params: match.params });
   if (reply === undefined || context.response.destroyed) return;
   json(context.response, reply.status, reply.body);
+}
+
+/** A redacted log line for a request that failed inside the service. */
+function internalError(request: IncomingMessage, error: unknown): string {
+  let path = "?";
+  try {
+    path = new URL(request.url ?? "/", "http://dashboard").pathname;
+  } catch {
+    // An unparsable target is logged without its path.
+  }
+  const cause = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  return redact(`plenger: ${request.method ?? "?"} ${path} failed: ${cause}`);
 }

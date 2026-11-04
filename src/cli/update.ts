@@ -85,8 +85,10 @@ function npmEntry(): string {
     ...(process.env.npm_execpath?.endsWith("npm-cli.js") ? [process.env.npm_execpath] : []),
     join(dirname(process.execPath), "node_modules/npm/bin/npm-cli.js"),
     resolve(dirname(process.execPath), "../lib/node_modules/npm/bin/npm-cli.js"),
+    // A relative PATH entry names the current folder, which is not where npm lives.
     ...(process.env.PATH ?? "")
       .split(delimiter)
+      .filter((path) => isAbsolute(path))
       .flatMap((path) =>
         process.platform === "win32"
           ? [join(path, "node_modules/npm/bin/npm-cli.js")]
