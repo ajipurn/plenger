@@ -142,7 +142,7 @@ export async function dispatchModelCall(
         return await provider.generate(request, allowance);
       } catch (error) {
         if (error instanceof ModelProviderHttpError)
-          report.error = `Model provider returned HTTP ${error.status}. Check model availability and access in Providers.`;
+          report.error = `Model provider returned HTTP ${error.status}${error.summary}. Check model availability and access in Providers.`;
         throw error;
       }
     },

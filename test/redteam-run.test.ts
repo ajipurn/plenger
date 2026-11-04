@@ -553,9 +553,17 @@ describe("bounded provider transport", () => {
     ]);
     expect(() => normalizeTools([{ description: "no name" }])).toThrow("tool definition");
     let sent: Record<string, unknown> = {};
+    let url = "";
+    // A compatible server keeps chat completions; OpenAI itself takes tools on Responses.
     const provider = createRunProvider(
-      { provider: "openai", model: "test-model", apiKey: "test-private-key" },
-      async (_url, init) => {
+      {
+        provider: "openai",
+        model: "test-model",
+        apiKey: "test-private-key",
+        baseUrl: "https://llm.example.test/v1",
+      },
+      async (target, init) => {
+        url = String(target);
         sent = JSON.parse(init?.body as string);
         return Response.json({
           choices: [{ finish_reason: "stop", message: { content: "ok" } }],
@@ -566,7 +574,106 @@ describe("bounded provider transport", () => {
       { messages: [{ role: "user", content: "hi" }], tools: [flat] },
       { signal: new AbortController().signal, maxOutputTokens: 16 },
     );
+    expect(url).toBe("https://llm.example.test/v1/chat/completions");
     expect(sent.tools).toEqual([{ type: "function", function: { ...flat } }]);
+  });
+
+  it("sends OpenAI requests with tools to the Responses API and the rest to chat completions", async () => {
+    const urls: string[] = [];
+    const bodies: Record<string, unknown>[] = [];
+    const provider = createRunProvider(
+      { provider: "openai", model: "gpt-test", apiKey: "test-private-key", maxOutputTokens: null },
+      async (target, init) => {
+        urls.push(String(target));
+        bodies.push(JSON.parse(init?.body as string));
+        if (String(target).endsWith("/chat/completions"))
+          return Response.json({
+            choices: [{ finish_reason: "stop", message: { content: "ok" } }],
+          });
+        const output = [
+          { type: "reasoning", id: "rs_1", encrypted_content: "opaque" },
+          { type: "function_call", call_id: "call_1", name: "lookup", arguments: '{"q":"x"}' },
+        ];
+        return new Response(
+          `data: ${JSON.stringify({ type: "response.completed", response: { status: "completed", service_tier: "default", output, usage: { input_tokens: 20, output_tokens: 5, total_tokens: 25, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 2 } } } })}\n\n`,
+          { headers: { "Content-Type": "text/event-stream" } },
+        );
+      },
+    );
+    const tools = [
+      { type: "function", function: { name: "lookup", parameters: { type: "object" } } },
+    ];
+    const allowance = { signal: new AbortController().signal, maxOutputTokens: 64 };
+    const reply = await provider.generate(
+      {
+        messages: [
+          { role: "system", content: "s" },
+          { role: "user", content: "hi" },
+        ],
+        tools,
+        cache: "session-1",
+      },
+      allowance,
+    );
+    expect(reply.value.toolCalls).toEqual([
+      { id: "call_1", name: "lookup", arguments: { q: "x" } },
+    ]);
+    expect(reply.tokenDetails).toBeDefined();
+    // The next turn carries the encrypted reasoning and the exact call back.
+    await provider.generate(
+      {
+        messages: [
+          { role: "system", content: "s" },
+          { role: "user", content: "hi" },
+          {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_1",
+                type: "function",
+                function: { name: "lookup", arguments: '{"q":"x"}' },
+              },
+            ],
+          },
+          { role: "tool", tool_call_id: "call_1", content: "found" },
+        ],
+        tools,
+        cache: "session-1",
+      },
+      allowance,
+    );
+    await provider.generate(
+      { messages: [{ role: "user", content: "hi" }], tools: null },
+      allowance,
+    );
+    expect(urls).toEqual([
+      "https://api.openai.com/v1/responses",
+      "https://api.openai.com/v1/responses",
+      "https://api.openai.com/v1/chat/completions",
+    ]);
+    expect(bodies[0]).toMatchObject({
+      model: "gpt-test",
+      store: false,
+      stream: true,
+      max_output_tokens: 64,
+      prompt_cache_key: "session-1",
+      include: ["reasoning.encrypted_content"],
+      tools: [{ type: "function", name: "lookup", strict: false }],
+      input: [
+        { role: "developer", content: "s" },
+        { role: "user", content: "hi" },
+      ],
+    });
+    expect((bodies[1]?.input as unknown[] | undefined)?.slice(2)).toEqual([
+      { type: "reasoning", id: "rs_1", encrypted_content: "opaque" },
+      { type: "function_call", call_id: "call_1", name: "lookup", arguments: '{"q":"x"}' },
+      { type: "function_call_output", call_id: "call_1", output: "found" },
+    ]);
+    // Enforced limits: the Responses API takes an output cap, unlike the ChatGPT backend.
+    expect(
+      provider.reservation({ messages: [], tools, cache: "s" }, "setup").tokenLimitMode,
+    ).toBeUndefined();
   });
   it("does not export provider error bodies or access credentials", async () => {
     const provider = createRunProvider(

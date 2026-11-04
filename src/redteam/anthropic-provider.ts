@@ -5,11 +5,11 @@ import { type ClaudeTokenUsage, parseClaudeTokenUsage } from "./model-pricing.ts
 import {
   eventStream,
   ModelProviderConnectionError,
-  ModelProviderHttpError,
   type ModelReply,
   type ModelRequest,
   normalizeTools,
   type ProviderAccess,
+  providerHttpError,
   type RunProvider,
   readModelJson,
   record,
@@ -153,10 +153,7 @@ export function createAnthropicProvider(
       } catch {
         throw new ModelProviderConnectionError("Claude", "request");
       }
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw new ModelProviderHttpError(response.status);
-      }
+      if (!response.ok) throw await providerHttpError(response);
       // A server that ignores `stream` answers with one JSON message, which reads the same.
       const raw = record(
         eventStream(response)

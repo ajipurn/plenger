@@ -73,7 +73,8 @@ requests. OAuth refresh is serialized separately and makes no inference call.
 
 Saved OpenAI connections with automatic output settings keep an enforced output
 cap. Requests send the operation allowance, up to 16,384 tokens, as
-`max_completion_tokens`, so a completed response never exceeds its reservation.
+`max_completion_tokens`, or as `max_output_tokens` when a request with tools goes
+to the Responses API, so a completed response never exceeds its reservation.
 Claude automatic settings also keep an enforced output cap, using the smaller of
 model metadata and the operation allowance.
 Provider model catalog requests make no inference calls and do not reserve model tokens.

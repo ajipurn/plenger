@@ -554,7 +554,7 @@ describe("exploring AI review", () => {
     expect(model.bodies).toHaveLength(2);
   });
 
-  it("explores through the chat-completions transport with plain function tools", async () => {
+  it("explores through the chat-completions transport of a compatible server with plain function tools", async () => {
     const snapshot = await project();
     const bodies: Record<string, unknown>[] = [];
     let ids: string[] = [];
@@ -601,6 +601,7 @@ describe("exploring AI review", () => {
           provider: "openai",
           model: "gpt-test",
           apiKey: "openai-test-key-1",
+          baseUrl: "https://llm.example.test/v1",
           maxOutputTokens: 8192,
         },
         mode: "explore",

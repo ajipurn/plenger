@@ -128,7 +128,7 @@ export async function generateFixPrompt(
       });
     if (error instanceof ModelProviderHttpError)
       throw new FixPromptError(
-        `The provider returned HTTP ${error.status}. Check the saved provider's model and access.`,
+        `The provider returned HTTP ${error.status}${error.summary}. Check the saved provider's model and access.`,
         { cause: error },
       );
     if (error instanceof BudgetStoppedError) {

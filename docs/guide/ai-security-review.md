@@ -355,9 +355,11 @@ the candidates they reported, so it explores elsewhere and does not repeat
 them.
 
 New Scan selects Explore for Claude connections and Batch for the others,
-which can choose Explore. On OpenAI, Gemini and Ollama the tools go through
-chat completions, on a ChatGPT subscription through the Responses transport;
-there the submit tools are not strict, so the host's checks and the one
+which can choose Explore. On OpenAI's own endpoint the tools go through the
+Responses API, because OpenAI's reasoning models reject function tools on chat
+completions. On Gemini, Ollama and an OpenAI-compatible server behind another
+base URL they go through chat completions, and on a ChatGPT subscription through
+the Responses transport. There the submit tools are not strict, so the host's checks and the one
 correction carry the schema, and no cache breakpoint is sent. Whether an
 Ollama model calls tools depends on the model. Only Claude has been measured.
 
