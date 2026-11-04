@@ -8,6 +8,18 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+### Added
+
+- A proof test harness for M11 (`docs/design/proof-tests.md`), not yet reachable from
+  the dashboard. It runs one test against a copy of a project in a networkless
+  `proof-python` or `proof-node` image with a fixed package set. It reports path
+  traversal (CWE-22) and command injection (CWE-78) effects that come from the cited
+  code through the entry, and the host decides Proven, Not reproduced or Could not
+  run. A test that starts processes, touches the canaries, or changes project code,
+  the standard library, JavaScript intrinsics or the environment cannot be Proven.
+  `pnpm qualify:proof` builds both images and runs the handwritten and adversarial
+  tests.
+
 ## 0.1.4 (2026-11-04)
 
 ### Changed

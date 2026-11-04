@@ -8,5 +8,11 @@
     "line": 6,
     "endLine": 8
   },
-  "static": ["PLG802"]
+  "static": ["PLG802"],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "server.ts", "line": 7, "endLine": 7 }
+    ]
+  }
 }

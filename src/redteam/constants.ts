@@ -186,3 +186,34 @@ export const MODELS_DEV_PRICING = {
   cacheMs: 24 * 60 * 60 * 1000,
   retryMs: 5 * 60 * 1000,
 } as const;
+
+/** Weaknesses a proof test can observe; see docs/design/proof-tests.md. */
+export const PROOF_WEAKNESSES = ["CWE-22", "CWE-78"] as const;
+export type ProofWeakness = (typeof PROOF_WEAKNESSES)[number];
+export const PROOF_OUTCOMES = ["proven", "not-reproduced", "could-not-run"] as const;
+export type ProofOutcome = (typeof PROOF_OUTCOMES)[number];
+/** The proof images reuse the pinned bases of the llmfy and Vercel images. */
+export const PROOF_RUNTIME = { python: LLMFY_RUNTIME.python, node: VERCEL_RUNTIME.node } as const;
+/** Every check a proof worker's `ready` frame must report: the same as its base runtime's. */
+export const PROOF_ISOLATION_CHECKS = {
+  "proof-python": LLMFY_ISOLATION_CHECKS,
+  "proof-node": VERCEL_ISOLATION_CHECKS,
+} as const;
+export const PROOF_LIMITS = {
+  /** The test file the model writes. */
+  testBytes: 16 * 1024,
+  /** Output and error text kept per case. */
+  outputBytes: 8 * 1024,
+  errorBytes: 2 * 1024,
+  /** Effects a case may report, and the length of an effect's path or command. */
+  effects: 32,
+  targetCharacters: 512,
+  /** Entry and cited ranges per run, and the lines a case may report as reached. */
+  ranges: 8,
+  reachedLines: 4000,
+  /** Transport deadline of one run (both cases), and of one case inside the container. */
+  runTimeoutMs: 60_000,
+  caseTimeoutMs: 20_000,
+  /** Combined stdout and stderr the host accepts from a proof worker. */
+  workerOutputBytes: 128 * 1024,
+} as const;

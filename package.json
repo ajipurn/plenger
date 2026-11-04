@@ -52,6 +52,7 @@
     "check": "pnpm typecheck && pnpm --filter @plenger/dashboard typecheck && pnpm --filter @plenger/docs typecheck && pnpm lint && pnpm test",
     "qualify:llmfy": "node scripts/qualify-llmfy.ts",
     "qualify:vercel": "node scripts/qualify-vercel.ts",
+    "qualify:proof": "node scripts/qualify-proof.ts",
     "grammars": "node scripts/update-grammars.ts",
     "bench": "node scripts/benchmark.ts",
     "evaluate": "node scripts/evaluate.ts",
@@ -81,6 +82,7 @@
     "runtimes",
     "!runtimes/llmfy/.dockerignore",
     "!runtimes/llmfy/requirements.in",
+    "!runtimes/proof-python/requirements.in",
     "schemas"
   ]
 }

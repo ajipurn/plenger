@@ -1,0 +1,8 @@
+FROM docker.io/library/python:3.12.13-slim-bookworm@sha256:3f9c7f75b916e8279e24136d7a57769aba9e193715be52570417698c52d6eed0
+WORKDIR /opt/plenger
+COPY requirements.txt ./requirements.txt
+RUN python -m pip install --no-cache-dir --only-binary=:all: --require-hashes -r requirements.txt
+COPY --chmod=0444 proof.py ./proof.py
+USER 65532:65532
+ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ENTRYPOINT ["python", "-I", "/opt/plenger/proof.py"]

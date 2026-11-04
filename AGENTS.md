@@ -71,7 +71,8 @@ pnpm evaluate                        # static detection on test/fixtures/evaluat
 - **Tests.** Black-box tests call `main()` or `startDashboard()`; use the helpers
   in `test/support/` (`fixturePath`, `temporaryDir`, `stubProvider`, the dashboard
   harness) instead of copying setup code. Container-gated suites skip unless
-  `PLENGER_TEST_LLMFY_IMAGE` / `PLENGER_TEST_VERCEL_IMAGE` are set.
+  `PLENGER_TEST_LLMFY_IMAGE` / `PLENGER_TEST_VERCEL_IMAGE` /
+  `PLENGER_TEST_PROOF_PYTHON_IMAGE` / `PLENGER_TEST_PROOF_NODE_IMAGE` are set.
 - **Status lives in `docs/STATUS.md`.** Do not add "remains pending" sentences to
   other docs; link there. Docs are English, short sentences, no em-dashes.
 - **Biome must pass with zero diagnostics.** Run `pnpm format` before finishing.

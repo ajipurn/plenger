@@ -37,6 +37,37 @@ export interface EvaluationCase {
   note?: string;
   /** Scanned as a package (library mode): its public functions' parameters are input. */
   library?: true;
+  /**
+   * What a proof test of the labeled weakness should show (docs/design/proof-tests.md):
+   * Proven for a vulnerable case, Not reproduced for its safe twin. `entry` holds the
+   * function bodies where the input enters.
+   */
+  proof?: { expected: "proven" | "not-reproduced"; entry: Span[] };
+}
+
+function proofLabel(
+  id: string,
+  kind: EvaluationCase["kind"],
+  value: unknown,
+): NonNullable<EvaluationCase["proof"]> {
+  const expected = kind === "vulnerable" ? "proven" : "not-reproduced";
+  if (
+    !isRecord(value) ||
+    value.expected !== expected ||
+    !Array.isArray(value.entry) ||
+    value.entry.length === 0 ||
+    !value.entry.every(
+      (span) =>
+        isRecord(span) &&
+        typeof span.path === "string" &&
+        Number.isSafeInteger(span.line) &&
+        Number.isSafeInteger(span.endLine) &&
+        (span.line as number) >= 1 &&
+        (span.endLine as number) >= (span.line as number),
+    )
+  )
+    throw new Error(`Invalid proof label: ${id}`);
+  return { expected, entry: value.entry as Span[] };
 }
 
 export interface Metrics {
@@ -170,6 +201,9 @@ export async function loadCorpus(dir: string): Promise<EvaluationCase[]> {
       static: [...(label.static as string[])].sort(),
       ...(typeof label.note === "string" ? { note: label.note } : {}),
       ...(label.library === true ? { library: true as const } : {}),
+      ...(label.proof !== undefined
+        ? { proof: proofLabel(entry.name, label.kind, label.proof) }
+        : {}),
     });
   }
   return cases;

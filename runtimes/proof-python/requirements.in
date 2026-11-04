@@ -1,0 +1,13 @@
+fastapi
+flask
+httpx
+jinja2
+langchain-core
+numpy
+openai
+pydantic
+pyyaml
+requests
+sqlalchemy
+werkzeug
+itsdangerous
