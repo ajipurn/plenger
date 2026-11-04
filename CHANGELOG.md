@@ -8,6 +8,8 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+## 0.1.4 (2026-11-04)
+
 ### Changed
 
 - New Scan shows the most a Quick scan, or a round of an unlimited Full coverage scan,
