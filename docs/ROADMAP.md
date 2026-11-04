@@ -312,6 +312,7 @@ checkout. Installed-package CI jobs cover Linux, macOS and Windows on every
 push and pull request. 0.1.0 was published to npm on 2026-11-02, and 0.1.1 the
 same day through the Release workflow: staged by trusted publishing with
 provenance, approved by a maintainer, and reached by a live `plenger update`.
+0.1.2 followed on 2026-11-04 through the same workflow.
 
 npm is the only distribution; the standalone binary build was dropped. See
 [design/distribution.md](design/distribution.md), [guide/install.md](guide/install.md)
