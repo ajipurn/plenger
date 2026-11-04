@@ -1,7 +1,9 @@
 # Proof tests (M11 design)
 
 Status: M11a, the harness and its oracles, is implemented and tested with
-handwritten tests. M11b to M11d are design. The milestone is
+handwritten tests. In M11b, the engine part (entries, the session and its
+measurement) is implemented; records and the dashboard are design, as are M11c
+and M11d. The milestone is
 [M11](../ROADMAP.md#m11-validation-by-execution-in-progress); the ideas come from
 [strix-adoption.md](strix-adoption.md#m11-validation-by-execution). What works
 and what is qualified is in [../STATUS.md](../STATUS.md).
@@ -174,6 +176,23 @@ projects; the harness now refuses the change and watches the directory.
 An effect a library runs later from a callback has no project frame on its
 stack. It is not attributed: Not reproduced, never Proven.
 
+### Entries
+
+The host derives the entry from the static inventory; the model never chooses
+it, or it could pick an inner helper and skip the check that guards it.
+`proofEntries()` in `src/redteam/proof-entry.ts` takes the handler definitions
+of the routes and tools whose traced effects, or the calls on the way to them,
+fall inside the cited lines, and else in a cited file. Only a project with no
+route and no tool at all, such as a job or a library, falls back to the public
+function that encloses the first cited range. A project with routes or tools
+whose traces do not reach the cited lines has no entry, and the proof test
+cannot start.
+
+On the corpus, every Python, JavaScript and TypeScript case of CWE-22 and
+CWE-78 gets an entry: 56 of 62 from routes and tools, 6 from the fallback, all
+of them jobs that read a remote service. Every labeled entry range lies inside
+the derived one.
+
 ### Fresh marker
 
 The host makes a new `PLENGER_<32 hex>` marker for every run. The model writes
@@ -216,12 +235,19 @@ alone, so a changed `JSON.stringify` or `toJSON` cannot forge it.
 
 - `case.json` gains a `proof` field on runnable pairs: the expected outcome,
   `"proven"` on the vulnerable twin and `"not-reproduced"` on the safe twin,
-  and the entry ranges. M11a labels 8 pairs, both weaknesses and both families.
-  The other 46 Python, JavaScript and TypeScript cases of CWE-22 and CWE-78 are
-  labeled in M11b.
-- **False proofs.** The safe twin gets the vulnerable twin's finding, pointed
-  at its own location: a finding the review wrongly supported. Its proof test
-  must not be Proven, in every run. This is the acceptance that never relaxes.
+  and the entry ranges, labeled by hand to check the derived ones. All 62
+  Python, JavaScript and TypeScript cases of CWE-22 and CWE-78 are labeled. Seven
+  vulnerable ones carry `unprovable` with the reason the harness cannot show them
+  (no shell, Windows separators, a prefix bug on a subfolder, a delete in a
+  separate process); they count for false proofs on their twins, not for yield.
+- **False proofs.** Both twins get the same neutral finding: it claims the
+  weakness at the labeled lines and says nothing about why. The safe twin's then
+  stands for a finding the review wrongly supported. Its proof test must not be
+  Proven, in every run. This is the acceptance that never relaxes.
+- `pnpm evaluate -- --proof --provider <name> --yes` runs a session per labeled
+  case with a saved connection and reports false proofs, yield, outcomes, stops,
+  tokens and model calls per run. It states the token ceiling first and runs
+  nothing without `--yes`.
 - **Yield.** The share of runnable vulnerable cases that are Proven.
 - **Retest.** The pairs model a fix: the test that proved the vulnerable twin,
   run against the safe twin, must give Not reproduced with the intended case
@@ -308,12 +334,24 @@ else the last run.
    set and the oracle that applies.
 4. **Tools.** The review's read tools (`list_files`, `read_file`, `search`,
    `outline`), `run_test {source}` and `give_up {reason}`. `run_test` returns
-   the outcome, the reason, what the harness observed and up to 8 KiB of
-   output. The model may revise the test and run it again.
-5. **End.** On the first Proven run, `give_up`, or a limit.
+   the outcome, the reason, what the harness observed and the last 4 KiB of
+   each case's output, never the marker. The model may revise the test and run
+   it again.
+5. **End.** On the first Proven run, `give_up`, or a limit. Near a limit the
+   session asks for one last test and refuses read tools.
 
-Initial limits, tuned by the evaluation: 10 model calls, 4 test runs,
-400,000 tokens and 10 minutes per session; 60 seconds per run.
+Initial limits, tuned by the evaluation (`PROOF_SESSION_LIMITS`): 10 model
+calls, 4 test runs, 400,000 tokens and 10 minutes per session; 60 seconds per
+run. `proofConnection()` in `src/redteam/proof-provider.ts` bounds the provider
+as an exploring review does and enforces the calls, tokens and time with
+`ModelBudget`; a budget stop ends the session like its own limit.
+
+`proofSession()` in `src/redteam/proof-session.ts` has its own turn loop. It
+was meant to share the review's `exploreSession()`, but the two end
+differently: the review ends on an accepted submission with one correction,
+the proof session on a Proven run or `give_up`. Sharing would have changed a
+measured loop for no gain, so the session reuses the provider transport, the
+budget and the read tools instead.
 
 Output and error text are redacted with `redact()` and capped before they reach
 the model or storage. The host environment is never passed to the container.
@@ -357,13 +395,14 @@ Execution stays in `src/redteam/`, as the scan rules require.
   it. Pins, the supported CWEs and limits are in `src/redteam/constants.ts`.
 - `src/redteam/proof-run.ts`: checks a test and runs it once through
   `runWorker()`. `runtime.ts` builds the images with `prepareProofRuntime()`.
-- From M11b, `src/redteam/proof-session.ts`: the session loop. `redteam` may
-  not import `assessment`, so the session receives the read tools as a
-  parameter. The generic turn loop of `exploreSession()` (limits, closing
-  notice, cut replies) moves to `src/redteam/` so both sessions share it.
-- `src/security/` maps a `SecurityFinding` to the session's input and stores
-  records through a new `storage` repository. The dashboard adds its API paths
-  to `src/dashboard/contract.ts`.
+- `src/redteam/proof-entry.ts`, `proof-session.ts` and `proof-provider.ts`:
+  the entries, the session loop and its model connection. `redteam` may not
+  import `assessment`, so the session receives the read tools as a parameter.
+- `scripts/lib/proof-evaluation.ts`: the measurement, with the review's read
+  tools.
+- Still to come: `src/security/` maps a `SecurityFinding` to the session's input
+  and stores records through a new `storage` repository. The dashboard adds its
+  API paths to `src/dashboard/contract.ts`.
 
 ## Threats
 
@@ -384,15 +423,15 @@ Execution stays in `src/redteam/`, as the scan rules require.
 | Checkpoint | Deliverable | Acceptance |
 | --- | --- | --- |
 | M11a Harness and oracles | Both images with the package set, the harness, CWE-22 and CWE-78 oracles, the run frames and handwritten tests. No model | For 8 pairs (both weaknesses, both families) the handwritten test is Proven on the vulnerable twin and Not reproduced on the safe twin. Adversarial tests are never Proven: a test that creates the effect, passes a callback that does, or changes a setting, a project function, the standard library or an intrinsic, also when it restores it. Every isolation check reports. Container tests skip unless `PLENGER_TEST_PROOF_PYTHON_IMAGE` and `PLENGER_TEST_PROOF_NODE_IMAGE` are set |
-| M11b Proof session | The model session, limits, cost before start, records, the dashboard section and a scripted-model integration test | Three live runs on the labeled pairs: no safe twin Proven; yield, Could not run reasons, tokens and time recorded |
+| M11b Proof session | Engine: derived entries, the model session, its limits and connection, the measurement and scripted-model tests. Then records, cost before start and the dashboard section | Three live runs on the labeled pairs: no safe twin Proven; yield, Could not run reasons, tokens and time recorded |
 | M11c Retest | Retest, the intended-case gate and the test in the fix prompt | Each proving test from M11b is Not reproduced against its safe twin with the intended case passing |
 | M11d Coverage | CWE-89 and CWE-502 oracles; the dependency decision for packages outside the set | Runnable share on the corpus and on two named projects recorded; no safe twin Proven |
 
 ## Open questions
 
-- Where M11b takes a finding's entry ranges: the routes and tools of the static
-  inventory that reach the cited file, or the finding's first evidence range.
-  The model must not choose them, or it could pick an inner helper.
+- Whether the public-function fallback should also apply to a job function in a
+  project that has routes, and how to tell such a job from a helper the routes
+  guard.
 - Project dependencies outside the package set: lockfile install in a build
   stage or an image the user supplies. Measure first how many imports of real
   projects the set leaves out.

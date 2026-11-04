@@ -8,5 +8,11 @@
     "line": 6,
     "endLine": 11
   },
-  "static": ["PLG810"]
+  "static": ["PLG810"],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "mirror.js", "line": 7, "endLine": 10 }
+    ]
+  }
 }

@@ -10,5 +10,12 @@
   },
   "static": [
     "PLG101"
-  ]
+  ],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "tools.py", "line": 14, "endLine": 15 }
+    ],
+    "unprovable": "The model's text runs as a one-element argv without a shell, so injection needs a specific binary rather than a shell payload."
+  }
 }

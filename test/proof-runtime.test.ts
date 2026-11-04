@@ -2,7 +2,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadCorpus } from "../scripts/lib/evaluation.ts";
-import { PROOF_ISOLATION_CHECKS } from "../src/redteam/constants.ts";
+import { PROOF_ISOLATION_CHECKS, PROOF_SESSION_LIMITS } from "../src/redteam/constants.ts";
+import { proofEntries } from "../src/redteam/proof-entry.ts";
 import type {
   ProofFamily,
   ProofOutcome,
@@ -11,6 +12,8 @@ import type {
   ProofWeakness,
 } from "../src/redteam/proof-model.ts";
 import { runProofTest } from "../src/redteam/proof-run.ts";
+import { proofSession } from "../src/redteam/proof-session.ts";
+import { scan } from "../src/scan.ts";
 import { fixturePath } from "./support/fixtures.ts";
 
 // Built by `pnpm qualify:proof`; see CONTRIBUTING.md. Not part of the offline suite.
@@ -40,7 +43,8 @@ const TESTS: Record<string, string> = {
 };
 
 const corpus = await loadCorpus(fixturePath("evaluation"));
-const labeled = corpus.filter((item) => item.proof !== undefined);
+/** Labeled cases that have a handwritten test; the others are for model sessions. */
+const labeled = corpus.filter((item) => item.proof !== undefined && item.id in TESTS);
 
 async function sources(root: string): Promise<{ path: string; content: string }[]> {
   const found: { path: string; content: string }[] = [];
@@ -78,7 +82,7 @@ async function prove(options: {
   });
 }
 
-it("gives every proof label a handwritten test in both families", () => {
+it("labels every handwritten test's case, in both families", () => {
   expect(labeled.map((item) => item.id).sort()).toEqual(Object.keys(TESTS).sort());
   const families = new Set(Object.values(TESTS).map(familyOf));
   for (const weakness of ["CWE-22", "CWE-78"])
@@ -112,6 +116,59 @@ describe("handwritten proof tests on the labeled pairs", () => {
         );
       },
       60_000,
+    );
+  }
+});
+
+describe("a scripted session in the real image, with entries from the scan", () => {
+  for (const id of [
+    "py-shell-tool",
+    "py-shell-tool-allowlist",
+    "ts-route-git-log-exec",
+    "ts-route-git-log-allowlist",
+  ]) {
+    const item = corpus.find((candidate) => candidate.id === id);
+    const test = TESTS[id] as string;
+    it.skipIf(!IMAGES[familyOf(test)] || !item)(
+      id,
+      async () => {
+        if (!item) return;
+        const family = familyOf(test);
+        const source = await readFile(fixturePath(`proof/${test}`), "utf8");
+        const entries = proofEntries(await scan(item.root, { facts: true }), [item.location]);
+        let turn = 0;
+        const result = await proofSession({
+          image: IMAGES[family] as string,
+          family,
+          finding: {
+            title: item.summary,
+            weakness: item.cwe as ProofWeakness,
+            summary: item.summary,
+            attackPath: item.summary,
+            validation: "source-supported",
+            evidence: [{ ...item.location, snippet: "" }],
+          },
+          entries,
+          cited: [item.location],
+          sources: await sources(item.root),
+          files: [],
+          tools: { definitions: [], run: async () => ({}) },
+          // A model that runs the handwritten test once, then gives up.
+          send: async () => ({
+            content: null,
+            toolCalls: [
+              turn++ === 0
+                ? { id: "run", name: "run_test", arguments: { source } }
+                : { id: "end", name: "give_up", arguments: { reason: "One test was enough." } },
+            ],
+          }),
+          tokens: { used: () => 0, limit: PROOF_SESSION_LIMITS.tokens },
+        });
+        expect(entries.via).toBe("inventory");
+        expect(result.outcome, result.reason).toBe(item.proof?.expected);
+        expect(result.runs).toHaveLength(1);
+      },
+      120_000,
     );
   }
 });

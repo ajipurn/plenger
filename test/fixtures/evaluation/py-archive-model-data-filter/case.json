@@ -7,5 +7,11 @@
     "line": 13,
     "endLine": 14
   },
-  "static": []
+  "static": [],
+  "proof": {
+    "expected": "not-reproduced",
+    "entry": [
+      { "path": "models.py", "line": 10, "endLine": 15 }
+    ]
+  }
 }

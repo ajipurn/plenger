@@ -11,12 +11,17 @@
 //   its requests, prices and window; the saved connection is not changed.
 //   --concurrency reviews that many cases at a time (default 1). A review the provider
 //   rejects with HTTP 429 is rerun after a pause, and the report counts the reruns.
+//   --proof runs proof sessions instead (docs/design/proof-tests.md): for each case with
+//   a proof label the model writes and runs tests, and the cases' code runs in the proof
+//   containers. It needs Docker or Podman and uses PLENGER_TEST_PROOF_PYTHON_IMAGE and
+//   PLENGER_TEST_PROOF_NODE_IMAGE when set, or builds the images.
 
 import { writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { EXPLORE_LIMITS, SECURITY_REVIEW_LIMITS } from "../src/assessment/review-model.ts";
 import { ModelWindowCatalog } from "../src/dashboard/model-windows.ts";
-import { MODEL_ID } from "../src/redteam/constants.ts";
+import { MODEL_ID, PROOF_SESSION_LIMITS } from "../src/redteam/constants.ts";
+import { prepareProofRuntime } from "../src/redteam/runtime.ts";
 import { ProviderRepository } from "../src/storage/provider-repository.ts";
 import {
   type AiConnection,
@@ -26,6 +31,7 @@ import {
   formatEvaluation,
   loadCorpus,
 } from "./lib/evaluation.ts";
+import { evaluateProof, formatProofEvaluation } from "./lib/proof-evaluation.ts";
 
 const { values } = parseArgs({
   // pnpm 10 passes the `--` of `pnpm evaluate -- --provider x` through to the script.
@@ -41,6 +47,7 @@ const { values } = parseArgs({
     json: { type: "string" },
     mode: { type: "string" },
     concurrency: { type: "string" },
+    proof: { type: "boolean" },
     yes: { type: "boolean" },
   },
 });
@@ -55,6 +62,61 @@ if (values.model !== undefined && (!MODEL_ID.test(values.model) || values.model.
   throw new Error("Use --model with a model id.");
 const corpus = values.corpus ?? "test/fixtures/evaluation";
 const cases = await loadCorpus(corpus);
+
+if (values.proof) {
+  const names = values.provider ?? [];
+  if (names.length !== 1) throw new Error("Use --proof with one --provider.");
+  const labeled = cases.filter((item) => item.proof !== undefined);
+  console.log(
+    `Proof sessions: ${labeled.length} cases × ${runs} runs, each at most ${PROOF_SESSION_LIMITS.modelCalls} model requests and ${PROOF_SESSION_LIMITS.tokens.toLocaleString("en-US")} tokens; at most ${(labeled.length * runs * PROOF_SESSION_LIMITS.tokens).toLocaleString("en-US")} tokens in all.`,
+  );
+  if (!values.yes) {
+    console.log(
+      "Redacted corpus source would be sent to the provider, and the cases' code would run in the proof containers. Add --yes to run it.",
+    );
+    process.exit(2);
+  }
+  const signal = AbortSignal.timeout(1_200_000);
+  const images = {
+    python:
+      process.env.PLENGER_TEST_PROOF_PYTHON_IMAGE ??
+      (await prepareProofRuntime("proof-python", signal)),
+    javascript:
+      process.env.PLENGER_TEST_PROOF_NODE_IMAGE ??
+      (await prepareProofRuntime("proof-node", signal)),
+  };
+  const store = await ProviderRepository.open(values["data-dir"]);
+  let report: string;
+  let json: unknown;
+  try {
+    const name = names[0] as string;
+    const saved = store.providers
+      .readProviders()
+      .find((item) => item.id === name || item.name === name);
+    if (!saved) throw new Error(`No saved provider named ${name}.`);
+    const { access } = store.providers.resolveProvider(saved.id);
+    const model = values.model ?? saved.model;
+    const evaluation = await evaluateProof(cases, {
+      provider: { name: saved.name, model },
+      access: { ...access, model },
+      images,
+      runs,
+      onCase: (outcome, run) =>
+        console.log(`run ${run} ${outcome.id}: ${outcome.outcome} (${outcome.reason})`),
+    });
+    report = formatProofEvaluation(evaluation, new Date().toISOString().slice(0, 10));
+    json = evaluation;
+  } finally {
+    store.close();
+  }
+  if (values.json) await writeFile(values.json, `${JSON.stringify(json, null, 2)}\n`);
+  if (values.output) {
+    await writeFile(values.output, report);
+    console.log(`wrote ${values.output}`);
+  } else console.log(report);
+  process.exit(0);
+}
+
 const staticOutcomes = await evaluateStatic(cases);
 
 const evaluations: AiEvaluation[] = [];
