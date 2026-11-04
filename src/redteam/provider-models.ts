@@ -1,7 +1,12 @@
 import { isRecord } from "../shared/guards.ts";
 import { redact } from "../shared/secrets.ts";
 import { ANTHROPIC, PROVIDER_MODEL_LIMITS as LIMITS, MODEL_ID } from "./constants.ts";
-import { ModelProviderHttpError, type ProviderAccess, readModelJson } from "./provider.ts";
+import {
+  ModelProviderHttpError,
+  type ProviderAccess,
+  providerHttpError,
+  readModelJson,
+} from "./provider.ts";
 import {
   hasProviderModelCatalog,
   PROVIDER_URLS,
@@ -75,7 +80,7 @@ export async function listProviderModels(
   } catch (error) {
     if (error instanceof ModelProviderHttpError)
       throw new Error(
-        `Unable to load models: provider returned HTTP ${error.status}. Check the API key and base URL.`,
+        `Unable to load models: provider returned HTTP ${error.status}${error.summary}. Check the API key and base URL.`,
       );
     throw new Error("Unable to load models. Check the API key, base URL and provider connection.");
   }
@@ -126,10 +131,7 @@ async function catalogJson(
   } catch {
     throw new Error("Model catalog connection failed or was interrupted.");
   }
-  if (!response.ok) {
-    await response.body?.cancel();
-    throw new ModelProviderHttpError(response.status);
-  }
+  if (!response.ok) throw await providerHttpError(response);
   const raw = await readModelJson(response, LIMITS.bytes);
   if (!isRecord(raw)) throw new Error("Invalid model catalog.");
   return raw;

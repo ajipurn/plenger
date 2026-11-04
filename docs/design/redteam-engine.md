@@ -90,7 +90,11 @@ qualified against charged usage.
 ## Provider transport
 
 `src/redteam/provider.ts` implements one chat-completions client for OpenAI,
-Ollama and Gemini (through Gemini's OpenAI-compatible endpoint). It uses fixed
+Ollama and Gemini (through Gemini's OpenAI-compatible endpoint). An OpenAI
+request with tools on OpenAI's own endpoint goes to the Responses API instead
+(`responses-provider.ts`), with `max_output_tokens`, `store: false` and encrypted
+reasoning carried between turns: OpenAI's reasoning models reject function tools
+on chat completions. It uses fixed
 base URLs per provider or the saved base URL, sends `redirect: "error"`, makes
 no SDK retries and never discovers credentials. OpenAI requests set
 `max_completion_tokens` and `store: false`; others set `max_tokens`. Gemini

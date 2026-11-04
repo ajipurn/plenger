@@ -490,7 +490,7 @@ export async function reviewProject(
         : error instanceof BudgetStoppedError
           ? `Security review stopped: ${error.reason}.`
           : error instanceof ModelProviderHttpError
-            ? `The provider returned HTTP ${error.status}. Check its model and access settings.`
+            ? `The provider returned HTTP ${error.status}${error.summary}. Check its model and access settings.`
             : error instanceof ModelProviderFailureError
               ? error.message
               : error instanceof ModelProviderConnectionError

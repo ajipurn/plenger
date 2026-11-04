@@ -17,6 +17,7 @@ import {
 } from "./constants.ts";
 import { type BillableTokenUsage, parseOpenAITokenUsage } from "./model-pricing.ts";
 import { PROVIDER_URLS, providerBaseUrl, validateProviderSettings } from "./provider-config.ts";
+import { createResponsesProvider } from "./responses-provider.ts";
 
 export interface ModelRequest {
   messages: unknown[];
@@ -99,12 +100,91 @@ export function replyToolCalls(access: Pick<ProviderAccess, "requestBounds">): n
 }
 
 /** Only the status is surfaced; provider error bodies may contain request data. */
+/**
+ * What a provider's error reply names, as short codes: its error type, code and the
+ * request field it rejected. Never its message, which may echo request data.
+ */
+export interface ProviderErrorDetail {
+  type?: string;
+  code?: string;
+  param?: string;
+}
+
 export class ModelProviderHttpError extends Error {
   readonly status: number;
-  constructor(status: number) {
-    super(`Model provider returned HTTP ${status}. Check access and model availability.`);
+  readonly detail: ProviderErrorDetail;
+  constructor(status: number, detail: ProviderErrorDetail = {}) {
+    super(
+      `Model provider returned HTTP ${status}${describeProviderError(detail)}. Check access and model availability.`,
+    );
     this.status = status;
+    this.detail = detail;
   }
+
+  /** ` (invalid_request_error, param tools[0])` for a message, or nothing. */
+  get summary(): string {
+    return describeProviderError(this.detail);
+  }
+}
+
+const ERROR_CODE = /^[\w.-]{1,64}$/;
+const ERROR_PARAM = /^[\w.[\]-]{1,96}$/;
+/** Error replies are short; more than this is not read. */
+const ERROR_BODY_BYTES = 16 * 1024;
+
+function describeProviderError({ type, code, param }: ProviderErrorDetail): string {
+  const parts = [type, code !== type ? code : undefined, param ? `param ${param}` : undefined];
+  const named = parts.filter((part) => part !== undefined);
+  return named.length ? ` (${named.join(", ")})` : "";
+}
+
+/**
+ * The codes in an error reply: OpenAI-compatible `{error: {type, code, param}}`,
+ * Anthropic `{type: "error", error: {type}}` and Google `{error: {status}}`, also in a
+ * list. Values that are not short codes are left out.
+ */
+export function providerErrorDetail(body: unknown): ProviderErrorDetail {
+  const value = Array.isArray(body) ? body[0] : body;
+  const error = isRecord(value) && isRecord(value.error) ? value.error : null;
+  if (error === null) return {};
+  const code = (field: unknown) =>
+    typeof field === "string" && ERROR_CODE.test(field) ? field : undefined;
+  const detail: ProviderErrorDetail = {};
+  const type = code(error.type) ?? code(error.status);
+  const named = code(error.code);
+  const param =
+    typeof error.param === "string" && ERROR_PARAM.test(error.param) ? error.param : undefined;
+  if (type) detail.type = type;
+  if (named) detail.code = named;
+  if (param) detail.param = param;
+  return detail;
+}
+
+/** Reads the start of a failed reply for its error codes, then the error to throw. */
+export async function providerHttpError(response: Response): Promise<ModelProviderHttpError> {
+  let text = "";
+  try {
+    const reader = response.body?.getReader();
+    if (reader !== undefined) {
+      const decoder = new TextDecoder();
+      for (let bytes = 0; bytes < ERROR_BODY_BYTES; ) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        text += decoder.decode(value, { stream: true });
+      }
+      await reader.cancel().catch(() => undefined);
+    }
+  } catch {
+    // An unreadable error body names nothing.
+  }
+  let body: unknown = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // Not JSON, or cut at the byte limit.
+  }
+  return new ModelProviderHttpError(response.status, providerErrorDetail(body));
 }
 
 /**
@@ -173,7 +253,41 @@ export function createRunProvider(
   if (access.provider !== "ollama" && !access.apiKey)
     throw new Error("Enter your selected provider's API key for this run.");
   if (access.provider === "anthropic") return createAnthropicProvider(access, dispatch);
-  const url = `${providerBaseUrl(access.baseUrl ?? PROVIDER_URLS[access.provider])}/chat/completions`;
+  const base = providerBaseUrl(access.baseUrl ?? PROVIDER_URLS[access.provider]);
+  const chat = createChatCompletionsProvider(access, base, dispatch);
+  // OpenAI's reasoning models take function tools only on the Responses API: chat
+  // completions answers "Function tools with reasoning_effort are not supported" (HTTP
+  // 400). A compatible server behind another base URL may have no Responses endpoint,
+  // so it keeps chat completions, as requests without tools do.
+  if (access.provider !== "openai" || base !== PROVIDER_URLS.openai) return chat;
+  const apiKey = access.apiKey ?? "";
+  const responses = createResponsesProvider(
+    access,
+    {
+      label: "OpenAI",
+      name: "openai",
+      url: `${base}/responses`,
+      credential: async () => apiKey,
+      backend: "api",
+    },
+    dispatch,
+  );
+  const transport = (request: ModelRequest) => (request.tools?.length ? responses : chat);
+  return {
+    name: chat.name,
+    model: chat.model,
+    reservation: (request, purpose) => transport(request).reservation(request, purpose),
+    generate: (request, allowance) => transport(request).generate(request, allowance),
+  };
+}
+
+/** The chat completions transport of OpenAI, Gemini, Ollama and compatible servers. */
+function createChatCompletionsProvider(
+  access: ProviderAccess,
+  base: string,
+  dispatch: typeof fetch,
+): RunProvider {
+  const url = `${base}/chat/completions`;
   // Automatic output settings (null) use the operation's whole allowance as the ceiling.
   // The ceiling is always sent, so every reservation stays enforced by the provider.
   const outputLimit = Math.min(
@@ -245,10 +359,7 @@ export function createRunProvider(
       } catch {
         throw new ModelProviderConnectionError("Model", "request");
       }
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw new ModelProviderHttpError(response.status);
-      }
+      if (!response.ok) throw await providerHttpError(response);
       const raw = eventStream(response)
         ? await streamedChatCompletion(response, replyProgress(onProgress), replyToolCalls(access))
         : await readModelJson(response);

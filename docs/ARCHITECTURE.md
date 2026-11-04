@@ -205,6 +205,8 @@ explicit start.
   flow (PKCE, loopback callback, id-token verification, refresh, model
   catalog) and `chatgpt-provider.ts` is its streaming Responses API transport,
   which reports observed token thresholds instead of an enforced output cap.
+  `responses-provider.ts` holds that transport; OpenAI requests with tools on
+  OpenAI's own endpoint use it too, with an enforced `max_output_tokens`.
 - **Trial input.** `attack-model.ts` holds the built-in control and probe
   input as templates with `{{name}}` placeholders, the placeholders each
   profile's runner fills, and the fill and validation helpers.

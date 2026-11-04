@@ -225,9 +225,10 @@ and Responses transports. M9b adds:
 
 - Claude: strict tool input schemas, cache breakpoints and tool use together
   with the closing turn.
-- OpenAI chat completions and Gemini's compatible endpoint: strict function
-  schemas where accepted. Gemini thought signatures are already kept between
-  turns.
+- OpenAI: function tools through the Responses API on OpenAI's own endpoint,
+  since its reasoning models reject them on chat completions; chat completions
+  for a compatible server behind another base URL. Gemini's compatible endpoint:
+  chat completions. Gemini thought signatures are already kept between turns.
 - ChatGPT subscription: function calls through the Responses transport.
 - Ollama: tool support depends on the model, so batch mode is the default.
 

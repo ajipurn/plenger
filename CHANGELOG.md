@@ -8,6 +8,17 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+### Fixed
+
+- An Explore scan on the OpenAI API failed at its first request with HTTP 400. OpenAI's
+  reasoning models reject function tools on chat completions, so requests with tools
+  to OpenAI's own endpoint now use the Responses API, with an enforced output cap and
+  their reasoning carried between turns. Batch scans, fix prompts and OpenAI-compatible
+  servers behind another base URL keep chat completions.
+- A provider error now names the short codes in the provider's reply, such as
+  `invalid_request_error` and the rejected field `reasoning_effort`. It never shows the
+  provider's message, which can repeat the request.
+
 ## 0.1.2 (2026-11-04)
 
 ### Changed
