@@ -4,7 +4,7 @@ import type { ScanReply, SecurityScan } from "../../../src/dashboard/contract.ts
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber, NumericText } from "../shared/MorphNumber.tsx";
 import type { SourceCoverage } from "./coverage.ts";
-import { phaseLabel } from "./ui.tsx";
+import { phaseLabel, roundStatusLabel } from "./ui.tsx";
 
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 /** A rough average for estimating output while it streams; reported usage replaces it. */
@@ -108,7 +108,9 @@ export function ScanRounds({
                       </span>
                     )}
                     {review.status !== "completed" && (
-                      <span className="security-status scan-failed">{review.status}</span>
+                      <span className="security-status scan-failed">
+                        {roundStatusLabel[review.status]}
+                      </span>
                     )}
                   </span>
                   <span>

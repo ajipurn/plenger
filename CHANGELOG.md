@@ -8,8 +8,36 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+### Changed
+
+- New Scan shows the most a Quick scan, or a round of an unlimited Full coverage scan,
+  can charge: its token maximum and, for priced models, the same in USD.
+- The dashboard uses one word for each thing: "round" for one AI review, "Discovering
+  findings" for the discovery phase, Finished, Failed, Stopped and Declined for a
+  round's outcome, "None" when a scan used no provider, "Local files" when there is no
+  commit, and "Static only" and "Continue with AI" for scans saved by those removed
+  choices. Add project says that a project can be in any language.
+- Findings search also matches CWE ids and file paths.
+- While a scan runs, the workspace is fetched at most every five seconds instead of
+  about once a second; the scan's own page still updates on every save.
+
 ### Fixed
 
+- Findings filters, search and page are kept in the address, so Back from a finding
+  returns to the same list, and choosing a project no longer clears the sort.
+- One failed refresh no longer leaves the error banner up after later refreshes work.
+- A restarted service, or a token from an earlier run, now shows the message to open
+  the printed link, and the page stops polling and reconnecting. A service that cannot
+  be reached is named as such instead of "Failed to fetch", and a scan page retries.
+- Add project opens empty each time instead of keeping the previous entry, and New
+  Scan keeps its closing animation.
+- A finding whose scan could not load says so instead of "Finding not found".
+- Text in the dashboard could flash in a fallback font before its own font appeared.
+  Every response, hashed build files included, was sent with `Cache-Control:
+  no-store`, so each load fetched the fonts again, and only after the first render.
+  Hashed files under `/assets` may now be kept by the browser, and the page preloads
+  its Geist, Geist Mono and Bytesized fonts with the bundle. The page itself and the
+  API stay `no-store`.
 - The PLENGER wordmark in the installed dashboard fell back to a monospace font. The
   build inlined its small Bytesized font as a `data:` URL, which the dashboard's
   Content Security Policy blocks; fonts are now separate files under `/assets`. The

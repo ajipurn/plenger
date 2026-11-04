@@ -16,6 +16,12 @@ import { useSecurityEvents } from "./useSecurityEvents.ts";
 
 /** How long the workspace waits after a pushed save, so a burst of saves refreshes once. */
 const SAVE_REFRESH_MS = 250;
+/**
+ * A running scan saves about once a second, and each save is pushed. The workspace holds
+ * every finding of every project, so it is fetched at most this often; the scan's own
+ * page loads that scan on each save.
+ */
+const WORKSPACE_REFRESH_MS = 5000;
 /** How long after the first route shows the other routes start loading. */
 const PRELOAD_DELAY_MS = 500;
 
@@ -74,11 +80,16 @@ export function SecurityApp() {
   const [providers, setProviders] = useState<SavedProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // The service no longer knows this page's session: polling and Retry cannot help.
+  const [lost, setLost] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [newScan, setNewScan] = useState(false);
   const [addRepository, setAddRepository] = useState(false);
   const [formsRequested, setFormsRequested] = useState(false);
   const [repositoryId, setRepositoryId] = useState("");
+  // Each opening gets a fresh form; the drawer stays mounted while it closes.
+  const [addOpenings, setAddOpenings] = useState(0);
+  const [scanOpenings, setScanOpenings] = useState(0);
   const [resumeNewScan, setResumeNewScan] = useState(false);
   const newTrigger = useRef<HTMLButtonElement>(null);
   const newReturnFocus = useRef<HTMLElement | null>(null);
@@ -108,6 +119,7 @@ export function SecurityApp() {
       })
       .catch((reason: unknown) => {
         if (!stopped) {
+          if (reason instanceof SessionLinkError) setLost(true);
           setError(
             reason instanceof SessionLinkError
               ? reason.message
@@ -137,33 +149,46 @@ export function SecurityApp() {
   }, [api]);
   // Bumped by each pushed scan save, which refreshes the workspace.
   const [saves, setSaves] = useState(0);
+  const refreshedAt = useRef(0);
   const pushed = useSecurityEvents(api, active, (event) => {
     if (event.type === "scan") setSaves((value) => value + 1);
   });
   // biome-ignore lint/correctness/useExhaustiveDependencies: each pushed save refreshes the workspace
   useEffect(() => {
-    if (!api || !active) return;
+    if (!api || !active || lost) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
+        refreshedAt.current = performance.now();
         const next = await api.securityWorkspace();
-        if (!stopped) setData(next);
-      } catch {
-        if (!stopped)
-          setError("Unable to refresh scan progress. Check the local service connection.");
+        if (!stopped) {
+          setData(next);
+          setError("");
+        }
+      } catch (failure) {
+        if (stopped) return;
+        if (failure instanceof SessionLinkError) {
+          setLost(true);
+          setError(failure.message);
+          return;
+        }
+        setError("Unable to refresh scan progress. Check the local service connection.");
       } finally {
         // Pushed saves replace polling; without them, poll while a scan runs.
         if (!stopped && !pushed) timer = setTimeout(() => void poll(), SECURITY_POLL_MS);
       }
     };
-    // A burst of saves within the short wait refreshes once.
-    timer = setTimeout(() => void poll(), pushed ? SAVE_REFRESH_MS : SECURITY_POLL_MS);
+    // A burst of saves refreshes once, and saves of a long scan at most every few seconds.
+    const wait = pushed
+      ? Math.max(SAVE_REFRESH_MS, refreshedAt.current + WORKSPACE_REFRESH_MS - performance.now())
+      : SECURITY_POLL_MS;
+    timer = setTimeout(() => void poll(), wait);
     return () => {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [api, active, pushed, saves]);
+  }, [api, active, pushed, saves, lost]);
   useLayoutEffect(() => {
     if (previousPath.current !== location.pathname) {
       previousPath.current = location.pathname;
@@ -174,12 +199,14 @@ export function SecurityApp() {
     newReturnFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setRepositoryId(id);
+    setScanOpenings((count) => count + 1);
     setFormsRequested(true);
     setNewScan(true);
   }
   function openAdd() {
     addTrigger.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setAddOpenings((count) => count + 1);
     setFormsRequested(true);
     setAddRepository(true);
   }
@@ -241,18 +268,21 @@ export function SecurityApp() {
           {error && (
             <div className="security-service-error" role="alert">
               <p>{error}</p>
-              <Button
-                className="button button-secondary"
-                onClick={() =>
-                  api
-                    ? void refresh().catch((failure) =>
-                        setError(errorMessage(failure, "Unable to refresh workspace.")),
-                      )
-                    : window.location.reload()
-                }
-              >
-                {api ? "Retry" : "Reload page"}
-              </Button>
+              {!lost && (
+                <Button
+                  className="button button-secondary"
+                  onClick={() =>
+                    api
+                      ? void refresh().catch((failure) => {
+                          if (failure instanceof SessionLinkError) setLost(true);
+                          setError(errorMessage(failure, "Unable to refresh workspace."));
+                        })
+                      : window.location.reload()
+                  }
+                >
+                  {api ? "Retry" : "Reload page"}
+                </Button>
+              )}
             </div>
           )}
           {loading ? (
@@ -366,6 +396,7 @@ export function SecurityApp() {
             }
           >
             <ProjectForm
+              key={addOpenings}
               open={addRepository}
               onClose={() => {
                 setAddRepository(false);
@@ -393,7 +424,7 @@ export function SecurityApp() {
               }}
             />
             <NewScanForm
-              key={`${repositoryId}:${newScan}`}
+              key={`${repositoryId}:${scanOpenings}`}
               open={newScan}
               repositoryId={repositoryId}
               repositories={data.repositories}

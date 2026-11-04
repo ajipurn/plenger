@@ -83,7 +83,7 @@ export function ScanProgress({
         />
         <div className="security-scan-progress-copy" role="status">
           <p className="security-scan-progress-kicker">
-            {ai ? `${SCAN_DEPTHS[scan.depth].label} scan` : "Static scan"}
+            {ai ? `${SCAN_DEPTHS[scan.depth].label} scan` : "Static only"}
           </p>
           <h2>{stopping ? "Stopping scan" : phaseLabel[scan.phase]}</h2>
         </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { SecurityEvent } from "../../../src/dashboard/contract.ts";
-import type { DashboardApi } from "../api/client.ts";
+import { type DashboardApi, SessionLinkError } from "../api/client.ts";
 
 /** The first wait before reconnecting; each failure doubles it up to the maximum. */
 const RETRY_MS = 1_000;
@@ -39,7 +39,12 @@ async function connect(api: DashboardApi, hub: Hub, controller: AbortController)
           setConnected(hub, true);
         },
       );
-    } catch {
+    } catch (error) {
+      // A lost session does not come back by reconnecting; the page asks for the link.
+      if (error instanceof SessionLinkError) {
+        setConnected(hub, false);
+        return;
+      }
       /* Reconnect below; subscribers poll meanwhile. */
     }
     // A stream aborted when its last subscriber left must not report on a newer one.

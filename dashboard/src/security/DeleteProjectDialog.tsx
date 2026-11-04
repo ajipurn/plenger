@@ -68,7 +68,7 @@ export function DeleteProjectDialog({
         <>
           <NumericText>
             {scans
-              ? `Delete ${project?.name} and its ${scans} ${plural(scans, "scan")} from this device? Saved findings, reviews, imported evidence and the threat model are deleted with it.`
+              ? `Delete ${project?.name} and its ${scans} ${plural(scans, "scan")} from this device? Saved findings, rounds, imported evidence and the threat model are deleted with it.`
               : `Delete ${project?.name} from this device? It has no saved scans.`}
           </NumericText>{" "}
           The folder and its files stay unchanged. This cannot be undone.

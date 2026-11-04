@@ -7,6 +7,31 @@
     <meta name="color-scheme" content="dark" />
     <title>Plenger | Source security workspace</title>
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <!--
+      Fetch the latin fonts with the bundle instead of after the first render, so text does
+      not show in a fallback font and then swap. Vite hashes these to the files the CSS uses.
+    -->
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      crossorigin
+      href="./node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2"
+    />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      crossorigin
+      href="./node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2"
+    />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      crossorigin
+      href="./node_modules/@fontsource/bytesized/files/bytesized-latin-400-normal.woff2"
+    />
   </head>
   <body data-overlayscrollbars-initialize>
     <div id="root"></div>

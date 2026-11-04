@@ -209,6 +209,20 @@ describe("local dashboard transport", () => {
     expect((await api("/api/not-here")).status).toBe(404);
   });
 
+  it("lets the browser keep hashed build assets and nothing else", async () => {
+    await mkdir(join(root, "assets", "assets"), { recursive: true });
+    await writeFile(join(root, "assets", "assets", "geist-latin-BgDaEnEv.woff2"), "font");
+    // Fetched again on every load, the fonts showed text in a fallback font first.
+    const font = await fetch(`${dashboard.url}/assets/geist-latin-BgDaEnEv.woff2`);
+    expect(font.status).toBe(200);
+    expect(font.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
+    for (const path of ["/", "/findings", "/app.js"])
+      expect((await fetch(`${dashboard.url}${path}`)).headers.get("cache-control")).toBe(
+        "no-store",
+      );
+    expect((await api("/api/session")).headers.get("cache-control")).toBe("no-store");
+  });
+
   it("binds stylesheet nonces to each HTML response without enabling inline scripts", async () => {
     const first = await fetch(dashboard.url);
     const html = await first.text();

@@ -17,6 +17,7 @@ import {
   type SecurityWorkspace,
   type StaticReviewFinding,
 } from "../../../src/dashboard/contract.ts";
+import { SessionLinkError } from "../api/client.ts";
 import { useApi } from "../app/DashboardContext.tsx";
 import { ReaEvidencePanel } from "../findings/ReaEvidencePanel.tsx";
 import { errorMessage } from "../shared/async.ts";
@@ -37,6 +38,7 @@ import {
   dismissalLabel,
   FindingsTable,
   legacyScanLabel,
+  roundStatusLabel,
   ScanDuration,
   ScanStatus,
 } from "./ui.tsx";
@@ -90,7 +92,11 @@ export function ScanDetailPage({
             timer = setTimeout(() => void load(), SECURITY_POLL_MS);
         }
       } catch (failure) {
-        if (!stopped) setError(errorMessage(failure, "Unable to load scan."));
+        if (stopped) return;
+        setError(errorMessage(failure, "Unable to load scan."));
+        // A failed load of a live page tries again, slower; a lost session does not.
+        if (!(failure instanceof SessionLinkError) && !live)
+          timer = setTimeout(() => void load(), SECURITY_POLL_MS * 5);
       }
     };
     void load();
@@ -629,7 +635,7 @@ export function ScanDetailPage({
                 <div>
                   <dt>Provider</dt>
                   <dd>
-                    {scan.provider?.name ?? "Offline scan"}
+                    {scan.provider?.name ?? "None"}
                     <small>{scan.provider?.model}</small>
                   </dd>
                 </div>
@@ -953,7 +959,7 @@ function RoundCoverageSummary({
             · <MorphNumber value={coverage.revisitedFiles} /> revisited
           </>
         )}{" "}
-        · {review.status}
+        · {roundStatusLabel[review.status]}
         {review.validator ? ` · validation by ${review.validator.model}` : ""}
       </p>
     </>

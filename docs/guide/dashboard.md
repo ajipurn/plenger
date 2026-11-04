@@ -150,8 +150,8 @@ paused scan does not block other scans.
 
 Scans saved by the former **Static only** choice still open as static results.
 Their candidates stay **Unvalidated**. Use **Scan again** for a full review.
-Scans saved by the former **Continue with AI** keep the **AI review** label and
-link to the saved static scan they continued.
+Scans saved by the former **Continue with AI** carry that label and link to the
+saved static scan they continued.
 
 Each scan first runs the offline scanner, then AI discovery, STRIDE and source
 validation.

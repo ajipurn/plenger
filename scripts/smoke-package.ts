@@ -181,6 +181,8 @@ async function main() {
       const html = await home.text();
       assert.match(html, /<title>Plenger \| Source security workspace<\/title>/);
       assert.match(html, /id="root"/);
+      // The fonts load with the bundle, so text never renders in a fallback font first.
+      assert.equal([...html.matchAll(/<link\s+rel="preload"\s+as="font"/g)].length, 3);
       const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(
         (match) => match[1],
       );
