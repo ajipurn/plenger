@@ -8,6 +8,13 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+### Fixed
+
+- The PLENGER wordmark in the installed dashboard fell back to a monospace font. The
+  build inlined its small Bytesized font as a `data:` URL, which the dashboard's
+  Content Security Policy blocks; fonts are now separate files under `/assets`. The
+  package check fails if a stylesheet inlines a font again.
+
 ## 0.1.3 (2026-11-04)
 
 ### Changed

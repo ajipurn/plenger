@@ -82,6 +82,10 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false,
+    // Vite inlines small files as data: URLs, which the service's Content Security Policy
+    // (`default-src 'self'`) blocks for fonts: the 2.6 KB Bytesized wordmark font fell
+    // back to monospace. Fonts stay files under /assets.
+    assetsInlineLimit: (file) => (/\.(?:woff2?|ttf|otf)$/.test(file) ? false : undefined),
     rolldownOptions: {
       onwarn(warning, warn) {
         // This SPA has no server component boundary; retain all other warnings.

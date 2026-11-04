@@ -188,7 +188,11 @@ async function main() {
       assert.ok(assets.some((path) => path?.endsWith(".css")));
       for (const asset of assets) {
         assert.ok(asset);
-        assert.equal((await server.fetchPage(asset)).status, 200);
+        const response = await server.fetchPage(asset);
+        assert.equal(response.status, 200);
+        // The Content Security Policy blocks fonts from data: URLs, so none may be inlined.
+        if (asset.endsWith(".css"))
+          assert.doesNotMatch(await response.text(), /url\(\s*["']?data:font/);
       }
       assert.equal((await server.fetchPage("/findings")).status, 200);
       // The session endpoint needs the token from the printed link.
