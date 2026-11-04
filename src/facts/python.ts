@@ -27,6 +27,7 @@ import type {
   Ref,
   Value,
 } from "./model.ts";
+import { ANCHORED_FLAG } from "./query.ts";
 
 export function extractPython(root: Node): FileFacts {
   const extractor = new PythonExtractor();
@@ -129,7 +130,9 @@ function limits(node: Node, truth: boolean): Limit[] {
       const [pattern, value] = args;
       const test = method === "fullmatch" ? "fullmatches" : "matches";
       if (object.text === "re" && REGEX_TESTS.has(method ?? "") && pattern && value)
-        return [{ subject: value, allowed: pattern, test }];
+        return args.slice(2).every(anchorsWhole)
+          ? [{ subject: value, allowed: pattern, test }]
+          : [];
       if (REGEX_TESTS.has(method ?? "") && method !== "search" && args.length === 1 && pattern)
         return [{ subject: pattern, allowed: object, test }];
       // `str(path).startswith(str(BASE) + os.sep)`, `path.is_relative_to(BASE)`
@@ -149,6 +152,14 @@ function limits(node: Node, truth: boolean): Limit[] {
 }
 
 const REGEX_TESTS = new Set(["match", "fullmatch", "search"]);
+
+/** Whether a flags argument of an `re` call (`re.I`, `flags=re.I | re.A`) keeps its anchors. */
+function anchorsWhole(argument: Node): boolean {
+  const value =
+    argument.type === "keyword_argument" ? argument.childForFieldName("value") : argument;
+  if (value === null) return false;
+  return value.text.split("|").every((flag) => ANCHORED_FLAG.test(flag.trim()));
+}
 
 /** Functions that never return: Flask's and werkzeug's `abort`, `sys.exit`, `os._exit`. */
 const NEVER_RETURNS = /^(?:(?:flask|quart|werkzeug(?:\.exceptions)?)\.abort|sys\.exit|os\._exit)$/;

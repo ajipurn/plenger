@@ -8,6 +8,42 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+### Changed
+
+- Redaction now covers more credential shapes before source reaches a provider or a
+  report:
+  - values given to credential names, such as `AWS_SECRET_ACCESS_KEY=...`,
+    `DB_PASSWORD=...` and `"db_password": "..."`;
+  - JSON web tokens, `Bearer` and `Basic` credentials, and passwords in URLs;
+  - npm, GitLab and Google OAuth tokens, Slack webhooks and encrypted private keys.
+  The last group also counts as hardcoded secrets in the static rules.
+- A generated fix prompt may use up to 8,192 output tokens, up from 2,048. That
+  leaves room for a full prompt and for a thinking model's reasoning.
+
+### Fixed
+
+- One file nested very deeply no longer stops the whole static scan. A file whose
+  syntax tree is more than 1,000 levels deep is skipped as `too_deep`, and the rest
+  of the project is scanned.
+- One stray byte no longer hides a file from the static scan:
+  - a NUL byte in a comment no longer makes the file binary;
+  - a byte that is not UTF-8 is read as a replacement character;
+  - one long comment or string line no longer makes the file count as minified.
+  SARIF now also warns about files skipped as minified.
+- Some checks were accepted although they confine nothing, and now are not:
+  - a name pattern with a multiline flag (`/…/m`, `re.M`);
+  - `includes("..")` on a JavaScript `req.query` or `req.body` value that may be
+    an array, unless the value is also checked to be text;
+  - a prompt whose answer is thrown away (`input("Press enter")`), which no longer
+    counts as a human approval.
+- An AI finding no longer inherits the triage status of a saved finding on the same
+  lines when the two name different weaknesses.
+- When two rounds of one scan report the same AI finding, the best supported report
+  is kept.
+- An Explore session no longer ends without a submission when one turn of reads
+  would pass its request or token limit. The read that does not fit is refused, and
+  the closing turn asks for the answer.
+
 ## 0.1.1 (2026-11-02)
 
 ### Changed

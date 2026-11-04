@@ -16,7 +16,11 @@ import { redact, redactReport } from "../shared/secrets.ts";
 const LIMITS = {
   contextBytes: 24 * 1024,
   outputCharacters: 12_000,
-  outputTokens: 2048,
+  /**
+   * Room for a prompt of `outputCharacters` and the reasoning of a thinking model. The
+   * ChatGPT transport cannot cap output, so a reply past this stops the request.
+   */
+  outputTokens: 8192,
   tokens: 200_000,
   timeoutMs: 60_000,
 } as const;

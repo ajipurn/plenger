@@ -19,7 +19,14 @@ The scan reports the files it parsed per language, files with syntax errors
 it excluded: dependencies, build output, virtualenvs (detected by `pyvenv.cfg`),
 and whatever the project's `.gitignore` files ignore. The engine option `gitignore: false` turns the last rule off. The walker never follows symlinks and applies size and
 file-count limits. Type declarations and minified bundles are skipped with a
-reason. TypeScript 5 type syntax the bundled grammar does not know
+reason. A bundle counts as minified when nine tenths of its text is on lines of 300
+or more characters and its other lines are comments and at most three short lines;
+one long line in written code does not skip a file. A file is binary when its first
+8 KiB hold NUL bytes and the file is not UTF-8, or when NUL bytes are a tenth of them
+(UTF-16 text). Other bytes that are not UTF-8 are read as replacement characters,
+and NUL bytes as spaces, so every position is kept. A file whose syntax tree is more
+than 1,000 levels deep is skipped as `too_deep` and the rest of the project is
+scanned; the deepest of about 110,000 published files measured 219. TypeScript 5 type syntax the bundled grammar does not know
 (`export type * from`, type arguments after an import type, `in`/`out` variance)
 is blanked before parsing; it has no runtime effect and positions are kept. A
 JavaScript or TSX file the grammar rejects is parsed again in two other ways, and
@@ -124,8 +131,11 @@ holds around the effect (`if (HOSTS.has(url.hostname)) { ... }`):
   or a lookup into a fixed table (`COMMANDS[kind]`, `COMMANDS.get(kind)`)
 - for a URL: its host (`url.hostname`, `urlparse(u).hostname`) in a fixed allowlist
 - for a file path: a name matching a pattern of letters, digits, `_` and `-`
-  (anchored with `^` and `$`, or tested with `re.fullmatch`); a
-  value checked for `..` and for `/` or for being absolute; or a resolved path
+  (anchored with `^` and `$`, or tested with `re.fullmatch`), with no multiline flag
+  (`/…/m`, `re.M`); a value checked for `..` and for `/` or for being absolute, where
+  in JavaScript a value from `req.query` or `req.body`, which a parser can make an
+  array, must also be checked to be text (`typeof name === "string"`,
+  `!Array.isArray(name)`); or a resolved path
   (`realpath`, `resolve`) checked to lie in a fixed base with `is_relative_to` or a
   prefix that ends with a separator (`BASE + os.sep`), since `/srv/notes_old`
   starts with `/srv/notes`; or a resolved path whose `relative_to(BASE)` runs in a

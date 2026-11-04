@@ -98,6 +98,33 @@ describe("AI finding identity", () => {
     expect(next.map((item) => item.id)).toEqual([saved[0]?.id, expect.any(String)]);
     expect(next[1]?.id).not.toBe(saved[0]?.id);
   });
+
+  it("does not give a different weakness on a shared line a saved finding's identity", () => {
+    const saved = scanFindings(job("one"), empty, [], [review([aiFinding("Tenant leak", 2)])]);
+    const injection = { ...aiFinding("Query built from input", 2), cwe: "CWE-89" };
+    const [next] = scanFindings(job("two"), empty, [], [review([injection])], saved);
+    expect(next?.id).not.toBe(saved[0]?.id);
+    const related = { ...aiFinding("Missing owner check", 2), cwe: "CWE-862" };
+    const [same] = scanFindings(job("three"), empty, [], [review([related])], saved);
+    expect(same?.id).toBe(saved[0]?.id);
+  });
+
+  it("keeps the best supported report when two rounds report the same finding", () => {
+    const supported = aiFinding("Tenant leak", 2);
+    const unsure = { ...aiFinding("Tenant leak", 2), validation: "needs-review" } as ReviewFinding;
+    for (const rounds of [
+      [supported, unsure],
+      [unsure, supported],
+    ]) {
+      const found = scanFindings(
+        job("one"),
+        empty,
+        [],
+        rounds.map((finding, index) => ({ ...review([finding]), id: `review-${index}` })),
+      );
+      expect(found.map((item) => item.validationStatus)).toEqual(["source-supported"]);
+    }
+  });
 });
 
 describe("finding lifecycle", () => {

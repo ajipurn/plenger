@@ -162,7 +162,7 @@ describe("dashboard fix prompts from saved findings", () => {
     expect(bodies).toHaveLength(1);
     const body = required(bodies[0], "request body");
     expect(body.tools).toBeUndefined();
-    expect(body.max_tokens).toBe(2048);
+    expect(body.max_tokens).toBe(8192);
     expect(JSON.stringify(body)).not.toContain(fixture);
     expect(JSON.stringify(body)).not.toContain(key);
     const messages = body.messages as { content: { text: string }[] }[];

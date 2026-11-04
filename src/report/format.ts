@@ -107,8 +107,9 @@ export function toSarif(report: Report, options: SourceOptions = {}) {
   const warnings: string[] = [];
   const syntaxErrors = report.files.filter((file) => file.syntaxErrors).length;
   const skipped = report.skipped.filter((file) =>
-    ["unreadable", "too_large", "binary", "not_utf8"].includes(file.reason),
+    ["unreadable", "too_large", "binary", "not_utf8", "too_deep"].includes(file.reason),
   ).length;
+  const minified = report.skipped.filter((file) => file.reason === "minified").length;
   if (syntaxErrors)
     warnings.push(
       `${syntaxErrors} ${syntaxErrors === 1 ? "file has" : "files have"} syntax errors; results may be incomplete.`,
@@ -116,6 +117,10 @@ export function toSarif(report: Report, options: SourceOptions = {}) {
   if (skipped)
     warnings.push(
       `${skipped} source ${skipped === 1 ? "file" : "files"} could not be analysed; see run.properties.skipped.`,
+    );
+  if (minified)
+    warnings.push(
+      `${minified} ${minified === 1 ? "file looks" : "files look"} minified and ${minified === 1 ? "was" : "were"} not analysed; see run.properties.skipped.`,
     );
   if (report.truncated) warnings.push("File limit reached; this scan is truncated.");
   const traces = incompleteTraces(report.inventory).length;

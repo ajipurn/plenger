@@ -395,6 +395,12 @@ function paramsOf(facts: FileFacts, scope: string | null): Set<string> {
 }
 
 /**
+ * Python `re` flags that keep `^` and `$` at the ends of the value: case, ASCII, Unicode
+ * and dot-all. `re.M` (`re.MULTILINE`) anchors them at every line instead.
+ */
+export const ANCHORED_FLAG = /^(?:0|(?:re\.)?(?:I|IGNORECASE|A|ASCII|U|UNICODE|S|DOTALL))$/;
+
+/**
  * Traces a value back through variables (loop variables included), calls (their
  * receivers and arguments) and string building to the parameters, calls and request
  * objects it is computed from. Over-approximates: a call's result is taken to depend

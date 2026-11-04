@@ -3,7 +3,7 @@
  * `interrupt_before`), approval middleware, and calls in handlers that ask a person.
  */
 
-import type { Argument, FileFacts } from "../facts/model.ts";
+import type { Argument, CallFact, FileFacts } from "../facts/model.ts";
 import { deref, isEnabled, literalString, provenanceOf, select } from "../facts/query.ts";
 import type { Agent, Location, Tool } from "../inventory/model.ts";
 import { MODULE_SCOPE, type ProjectIndex } from "../project/index.ts";
@@ -134,7 +134,8 @@ export class ApprovalFinder {
       if (
         name !== undefined &&
         call.ref?.kind !== "local" &&
-        compiledSinks().approvals.test(name)
+        compiledSinks().approvals.test(name) &&
+        decides(call, name, file.facts)
       ) {
         found = name;
         break;
@@ -148,6 +149,25 @@ export class ApprovalFinder {
     this.#approvals.set(memoKey, found);
     return found;
   }
+}
+
+/**
+ * Approval calls that decide while their result goes unused: an interrupt pauses the
+ * graph and `question` answers through its callback.
+ */
+const DECIDES_UNUSED = /(?:[.#]interrupt|\.question)$/;
+
+/**
+ * Whether an approval call can stop what follows: its answer is used, or it decides
+ * without one, as `click.confirm(..., abort=True)` raises on a no. A prompt whose
+ * answer is thrown away (`input("Press enter")`) approves nothing.
+ */
+function decides(call: CallFact, name: string, facts: FileFacts): boolean {
+  return (
+    call.discarded !== true ||
+    DECIDES_UNUSED.test(name) ||
+    isEnabled(select(call.arguments, facts, "abort")[0], facts)
+  );
 }
 
 /** An approval option set to anything but false or never. */
