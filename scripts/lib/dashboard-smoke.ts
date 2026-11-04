@@ -43,13 +43,14 @@ export async function launchDashboard(options: DashboardLaunch) {
     }
   };
   try {
-    const origin = await new Promise<string>((accept, reject) => {
+    const link = await new Promise<string>((accept, reject) => {
       const timeout = setTimeout(
         () => reject(new Error(`Dashboard startup timed out. ${stderr}`)),
         15_000,
       );
       const detect = () => {
-        const url = /http:\/\/127\.0\.0\.1:\d+/.exec(stdout)?.[0];
+        // The printed link carries the session token: `http://127.0.0.1:4180/#token=...`.
+        const url = /http:\/\/127\.0\.0\.1:\d+\/#token=[a-f0-9]+/.exec(stdout)?.[0];
         if (url) {
           clearTimeout(timeout);
           accept(url);
@@ -62,7 +63,10 @@ export async function launchDashboard(options: DashboardLaunch) {
       }, reject);
       detect();
     });
+    const { origin, hash } = new URL(link);
     return {
+      /** The session token from the printed link. */
+      token: new URLSearchParams(hash.slice(1)).get("token") ?? "",
       fetchPage: (path: string, options: RequestInit = {}) =>
         fetch(`${origin}${path}`, { ...options, signal: AbortSignal.timeout(30_000) }),
       dispose,

@@ -42,7 +42,8 @@ pnpm dev --workspace path/to/project --port 4180
 `pnpm dashboard` builds the frontend once, then starts Vite with hot reload and
 the local service. Frontend changes reload through Vite. Restart the command
 after changing service source code. Its Vite server binds to `127.0.0.1` and defaults to port
-5173; `--port` changes the Vite port, and the API service takes a free port.
+5173; `--port` changes the Vite port, and the API service takes a free port. Open
+the `Plenger dashboard:` link Vite prints, which carries the session token.
 `pnpm dev` serves the last frontend build without Vite. See
 [../../CONTRIBUTING.md](../../CONTRIBUTING.md).
 
@@ -463,7 +464,10 @@ credentials, saved model lists, the theme and density are kept. Project files an
 unchanged. Finish, pause or stop active scans before clearing data.
 
 The service binds to `127.0.0.1` and checks Host and Origin against its local
-address. Requests require a token generated per launch. No CORS access is
+address. Every request, the session request included, requires a token generated
+per launch. The page reads it from the printed link's `#token=` fragment, removes
+it from the address bar and keeps it for later tabs on the same address; another
+local user or process cannot ask the service for it. No CORS access is
 enabled. The page enforces a Content Security Policy. Fonts are bundled locally.
 The frontend uses React Router, React Aria Components, Tailwind and Gravity icons.
 

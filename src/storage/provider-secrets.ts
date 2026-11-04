@@ -1,20 +1,54 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { open, readFile, writeFile } from "node:fs/promises";
+import { copyFile, link, open, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { API_KEY_PREVIEW } from "../redteam/constants.ts";
 import type { ProviderModelConnection } from "../redteam/provider-models.ts";
 import { isErrno } from "../shared/guards.ts";
 import { StoreValidationError } from "./errors.ts";
 
+/**
+ * Creates the private file `path` holding `content` unless it exists. The content is
+ * written and synced to a temporary file that is then linked into place, so a second
+ * dashboard starting at the same time, or a start after a crash, never reads it empty or
+ * half written. Returns whether this call created the file.
+ */
+async function createPrivateFile(path: string, content: Buffer | string): Promise<boolean> {
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  const file = await open(
+    temporary,
+    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
+    0o600,
+  );
+  try {
+    await file.writeFile(content);
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+  try {
+    await link(temporary, path);
+    return true;
+  } catch (error) {
+    if (isErrno(error, "EEXIST")) return false;
+    if (!["EPERM", "ENOTSUP", "ENOSYS"].some((code) => isErrno(error, code))) throw error;
+    // A filesystem without hard links: an exclusive copy keeps the file whole once written.
+    try {
+      await copyFile(temporary, path, constants.COPYFILE_EXCL);
+      return true;
+    } catch (copyError) {
+      if (isErrno(copyError, "EEXIST")) return false;
+      throw copyError;
+    }
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
 /** One non-secret installation identity, reused across ChatGPT account registrations. */
 export async function chatgptHostId(directory: string): Promise<string> {
   const path = join(directory, "chatgpt-host");
-  try {
-    await writeFile(path, `urn:uuid:${randomUUID()}`, { flag: "wx", mode: 0o600 });
-  } catch (error) {
-    if (!isErrno(error, "EEXIST")) throw error;
-  }
+  await createPrivateFile(path, `urn:uuid:${randomUUID()}`);
   const value = await readFile(path, "utf8");
   if (!/^urn:uuid:[a-f0-9-]{36}$/.test(value))
     throw new Error("Invalid ChatGPT host identity in the data directory.");
@@ -24,22 +58,16 @@ export async function chatgptHostId(directory: string): Promise<string> {
 /** Local encryption at rest. The key belongs to this user's data directory, not exports or SQLite. */
 export async function providerEncryptionKey(directory: string): Promise<Buffer> {
   const path = join(directory, "provider-key");
-  try {
-    const file = await open(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
-    try {
-      const key = randomBytes(32);
-      await file.writeFile(key);
-      await file.sync();
-      return key;
-    } finally {
-      await file.close();
-    }
-  } catch (error) {
-    if (!isErrno(error, "EEXIST")) throw error;
-  }
+  const key = randomBytes(32);
+  if (await createPrivateFile(path, key)) return key;
   const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
     const stat = await file.stat();
+    // Earlier versions created the file before writing it, so a crash could leave it empty.
+    if (stat.isFile() && stat.size === 0)
+      throw new Error(
+        `The provider encryption key file ${path} is empty, as an interrupted first start leaves it. If no provider keys were saved yet, delete it and start again.`,
+      );
     if (
       !stat.isFile() ||
       stat.size !== 32 ||

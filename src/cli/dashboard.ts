@@ -62,7 +62,7 @@ export async function launchDashboard(
   process.on("SIGTERM", close);
   let checking: Promise<void> | undefined;
   try {
-    io.stdout(`Plenger dashboard: ${dashboard.url}\nPress Ctrl+C to stop.\n`);
+    io.stdout(`Plenger dashboard: ${dashboard.link}\nPress Ctrl+C to stop.\n`);
     checking = updates.notify(io, controller.signal).catch(() => undefined);
     await closed.promise;
     return 0;

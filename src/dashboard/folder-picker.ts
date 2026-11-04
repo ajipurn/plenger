@@ -1,6 +1,8 @@
 import { execFile } from "node:child_process";
+import { homedir } from "node:os";
 import { sep } from "node:path";
 import { promisify } from "node:util";
+import { findExecutable, windowsPowerShell } from "../shared/executable.ts";
 
 const execute = promisify(execFile);
 const MAC_PICKER = `on run argv
@@ -33,22 +35,32 @@ try {
 
 export type FolderPicker = (path: string, signal: AbortSignal) => Promise<string | null>;
 
-/** Use OS dialogs without interpolating project paths into executable scripts. */
+/**
+ * Use OS dialogs without interpolating project paths into executable scripts. Each
+ * dialog runs by an absolute path from the home folder: the dashboard usually starts
+ * in the project, and Windows runs a `powershell.exe` from there before the system one.
+ */
 export const chooseNativeFolder: FolderPicker = async (path, signal) => {
-  const options = { encoding: "utf8" as const, signal, timeout: 300_000, maxBuffer: 16_384 };
+  const options = {
+    cwd: homedir(),
+    encoding: "utf8" as const,
+    signal,
+    timeout: 300_000,
+    maxBuffer: 16_384,
+  };
   let output: string;
   if (process.platform === "darwin") {
     ({ stdout: output } = await execute("/usr/bin/osascript", ["-e", MAC_PICKER, path], options));
   } else if (process.platform === "win32") {
     ({ stdout: output } = await execute(
-      "powershell.exe",
+      windowsPowerShell(),
       ["-NoProfile", "-STA", "-Command", WINDOWS_PICKER],
       { ...options, windowsHide: true, env: { ...process.env, PLENGER_FOLDER_INITIAL: path } },
     ));
   } else if (process.platform === "linux") {
     try {
       ({ stdout: output } = await execute(
-        "zenity",
+        program("zenity"),
         [
           "--file-selection",
           "--directory",
@@ -62,7 +74,7 @@ export const chooseNativeFolder: FolderPicker = async (path, signal) => {
       if (!hasCode(error, "ENOENT")) throw error;
       try {
         ({ stdout: output } = await execute(
-          "kdialog",
+          program("kdialog"),
           ["--getexistingdirectory", path, "--title", "Choose a Plenger project folder"],
           options,
         ));
@@ -77,6 +89,13 @@ export const chooseNativeFolder: FolderPicker = async (path, signal) => {
   // Strip only the dialog's output terminator; spaces can be part of a folder name.
   return output.replace(/\r?\n$/, "") || null;
 };
+
+/** A dialog program's absolute path; a missing one fails as running it would. */
+function program(name: string): string {
+  const found = findExecutable(name);
+  if (found !== null) return found;
+  throw Object.assign(new Error(`${name} was not found on PATH.`), { code: "ENOENT" });
+}
 
 function hasCode(error: unknown, code: string | number): boolean {
   return error instanceof Error && "code" in error && error.code === code;

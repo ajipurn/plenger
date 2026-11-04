@@ -57,6 +57,8 @@ describe("local dashboard transport", () => {
     expect(session.token).toMatch(/^[a-f0-9]{64}$/);
     const missing = await fetch(`${dashboard.url}/api/folders`);
     expect(missing.status).toBe(403);
+    // The session endpoint needs the token too: any local process could call it.
+    expect((await fetch(`${dashboard.url}/api/session`)).status).toBe(403);
     expect((await api("/api/folders", undefined, { "X-Plenger-Token": "wrong" })).status).toBe(403);
     for (const endpoint of [
       "/api/session",
@@ -148,10 +150,18 @@ describe("local dashboard transport", () => {
     const first = api("/api/scan", { path: fixture });
     await started.promise;
     expect((await api("/api/plan", { path: llmfy })).status).toBe(409);
-    result.reject(new Error("private-path credential=do-not-repeat"));
+    result.reject(
+      new Error("private-path credential=do-not-repeat token=Zq8vN2kT5wR9mL3xB7cJ1pF4"),
+    );
     const failed = await first;
     expect(failed.status).toBe(500);
     expect(await failed.text()).not.toContain("do-not-repeat");
+    // The cause is logged for the person running plenger, with secrets redacted.
+    const logged = dashboard.logs.find((line) =>
+      line.startsWith("plenger: POST /api/scan failed:"),
+    );
+    expect(logged).toContain("private-path credential=do-not-repeat");
+    expect(logged).not.toContain("Zq8vN2kT5wR9mL3xB7cJ1pF4");
     spy.mockRestore();
     expect((await api("/api/plan", { path: llmfy })).status).toBe(200);
   });

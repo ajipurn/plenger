@@ -5,6 +5,7 @@ import {
   type DashboardSession,
   type DashboardState,
   TOKEN_HEADER,
+  TOKEN_LINK_PARAMETER,
 } from "../../src/dashboard/contract.ts";
 import { type DashboardOptions, startDashboard } from "../../src/dashboard/server.ts";
 
@@ -25,6 +26,8 @@ export interface TestDashboardOptions
 export interface TestDashboard {
   url: string;
   session: DashboardSession;
+  /** What the service logged, instead of standard error. */
+  logs: string[];
   /** GET without a body, POST with one; the token and JSON content type are preset. */
   request(path: string, body?: unknown, headers?: Record<string, string>): Promise<Response>;
   state(): Promise<DashboardState>;
@@ -42,7 +45,9 @@ export async function writeTestAssets(assets: string, html = INDEX_HTML): Promis
 export async function startTestDashboard(options: TestDashboardOptions): Promise<TestDashboard> {
   const { root, html, assets: assetsOverride, dataDir: dataDirOverride, ...rest } = options;
   const assets = await writeTestAssets(assetsOverride ?? join(root, "assets"), html);
+  const logs: string[] = [];
   const dashboard = await startDashboard({
+    log: (line) => logs.push(line),
     ...rest,
     assets,
     dataDir: dataDirOverride ?? join(root, "data"),
@@ -57,8 +62,11 @@ export async function startTestDashboard(options: TestDashboardOptions): Promise
         throw new Error("No public model windows in this offline test.");
       }),
   });
+  const token = new URLSearchParams(new URL(dashboard.link).hash.slice(1)).get(
+    TOKEN_LINK_PARAMETER,
+  );
   const session = (await (
-    await fetch(`${dashboard.url}${API.session}`)
+    await fetch(`${dashboard.url}${API.session}`, { headers: { [TOKEN_HEADER]: token ?? "" } })
   ).json()) as DashboardSession;
   const request: TestDashboard["request"] = (path, body, headers = {}) =>
     fetch(`${dashboard.url}${path}`, {
@@ -69,6 +77,7 @@ export async function startTestDashboard(options: TestDashboardOptions): Promise
   return {
     url: dashboard.url,
     session,
+    logs,
     request,
     state: async () => (await (await request(API.state)).json()) as DashboardState,
     close: () => dashboard.close(),
