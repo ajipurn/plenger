@@ -195,6 +195,11 @@ describe("proof test rules", () => {
     ["javascript", 'import { execSync } from "node:child_process";\n'],
     ["javascript", "Error.prepareStackTrace = () => [];\n"],
     ["javascript", "const marker = 'PLENGER_';\n"],
+    ["javascript", "export async function testWeakness() {\n  process.chdir('/tmp');\n}\n"],
+    [
+      "python",
+      "import contextlib\ndef test_weakness(plenger):\n    with contextlib.chdir('/'):\n        pass\n",
+    ],
   ] as const)("refuses %s text that reaches the harness: %j", (family, text) => {
     expect(proofTestRule(family, text)).toEqual(expect.any(String));
   });

@@ -126,6 +126,7 @@ const PYTHON_RULES: [RegExp, string][] = [
     /(?<![\w.])open\b|\bfrom\s+os\s+import\b|^\s*(?:import\s+(?:[\w.]+\s*,\s*)*|from\s+)(?:io|shutil|tempfile|glob)\b|\bos\s*\.\s*(?!path\b|environ\b|sep\b|getcwd\b)\w+|\.(?:read_text|read_bytes|write_text|write_bytes|unlink|rmdir|mkdir|touch|iterdir|symlink_to|hardlink_to|chmod)\b/m,
     "The test may not use file functions; use plenger.write, plenger.read and plenger.folder.",
   ],
+  [/\bchdir\b|\bgetcwd\s*=/, "The test may not change the working directory."],
 ];
 const JAVASCRIPT_RULES: [RegExp, string][] = [
   [
@@ -141,6 +142,7 @@ const JAVASCRIPT_RULES: [RegExp, string][] = [
     "The test may not change stack traces or module hooks.",
   ],
   [/\beval\s*\(|\bFunction\s*\(/, "The test may not evaluate generated code."],
+  [/\bchdir\b|\bprocess\s*\.\s*cwd\s*=/, "The test may not change the working directory."],
   // A file function handed to project code as a callback would run in a project frame.
   [
     /["'](?:node:)?fs(?:\/promises)?["']/,

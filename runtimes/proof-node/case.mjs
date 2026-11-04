@@ -45,6 +45,7 @@ const mkdirSync = fs.mkdirSync;
 const writeFileSync = fs.writeFileSync;
 const capture = Error.captureStackTrace;
 const exit = process.exit.bind(process);
+const cwd = process.cwd.bind(process);
 const environment = process.env;
 
 const name = process.argv[2];
@@ -147,9 +148,9 @@ function frames(skip) {
 function allowedPath(value) {
   if (typeof value !== "string") return false;
   try {
-    return under(realpathSync(resolvePath(value)), BASE);
+    return under(realpathSync(resolvePath(cwd(), value)), BASE);
   } catch {
-    return under(resolvePath(value), BASE);
+    return under(resolvePath(cwd(), value), BASE);
   }
 }
 
@@ -184,6 +185,9 @@ function state(watched, namespaces) {
   const variables = ObjectKeys(environment);
   for (let index = 0; index < variables.length; index++)
     values[`environment ${variables[index]}`] = environment[variables[index]];
+  values["working directory"] = cwd();
+  values["process.chdir"] = process.chdir;
+  values["process.cwd"] = process.cwd;
   return values;
 }
 
@@ -215,9 +219,10 @@ function record(effect) {
 
 // --- Wrappers on the file and process APIs.
 
+/** An absolute path, against the real working directory: path.resolve alone asks process.cwd. */
 function toPath(value) {
-  if (typeof value === "string") return resolvePath(value);
-  if (BufferIsBuffer(value)) return resolvePath(BufferToString(value, "utf8"));
+  if (typeof value === "string") return resolvePath(cwd(), value);
+  if (BufferIsBuffer(value)) return resolvePath(cwd(), BufferToString(value, "utf8"));
   if (value instanceof URL && value.protocol === "file:") return toFilePath(value);
   return null;
 }
@@ -355,6 +360,16 @@ for (const key of FILE_FUNCTIONS) {
 for (const key of ["exec", "execSync", "execFile", "execFileSync", "spawn", "spawnSync", "fork"])
   wrap(cp, key, processCall);
 module.syncBuiltinESMExports();
+
+// Relative paths in the project resolve against the working directory, so moving it
+// next to a guarded folder would fake a traversal. The test may not move it.
+const chdir = process.chdir;
+const guardedChdir = (directory) => {
+  if (frames(guardedChdir).first === "test")
+    throw new Error("The test may not change the working directory.");
+  return ReflectApply(chdir, process, [directory]);
+};
+process.chdir = guardedChdir;
 
 // Built-in modules and the intrinsics a check can rely on.
 const WATCHED = [

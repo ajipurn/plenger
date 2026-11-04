@@ -53,4 +53,21 @@ path checks; the harness now uses functions it saved before the test loaded.
 This is harness evidence on 16 corpus cases and 4 small fixtures. It does not
 measure a model writing tests, which is M11b, and it does not cover tests written
 to defeat the harness; see the threats in the design.
+
+## Update: the working directory (same day)
+
+A later review of the corpus found a third gap. A test could move the working
+directory next to a guarded folder (`process.chdir`, `contextlib.chdir`), so that
+a safe project's relative path resolved inside it. On the images above, two new
+adversarial tests were Proven although both projects are safe:
+`env-root-python` and `ts-read-tool-no-separators`.
+
+The harness now refuses a working-directory change by the test, watches the
+working directory, `process.chdir` and `process.cwd`, and resolves paths against
+the directory it saved before the test loaded; the text rules refuse `chdir`.
+With the Python image `sha256:7529eb0d085046e6723b59867d4f31c7e2a3c48b636f68963bca1636c72ab5f0`
+and the Node image `sha256:cd970c535f9d19425b6d4de80a03c9029b90a4ca65cf0294f099b7ef46f195d1`,
+`test/proof-runtime.test.ts` passed 29 tests: the 16 cases as above and 12
+attempts to fake a proof, none Proven.
+
 Status: [../STATUS.md](../STATUS.md).

@@ -420,14 +420,19 @@ class Case:
         local = self.frames.local
         if getattr(local, "busy", False):
             return
-        if event not in FILE_EVENTS and event not in PROCESS_EVENTS:
+        if event not in FILE_EVENTS and event not in PROCESS_EVENTS and event != "os.chdir":
             return
         local.busy = True
         try:
             first, inner, outer = self.frames.walk(_getframe(1))
             if first == "harness":
                 return
-            if event in PROCESS_EVENTS:
+            if event == "os.chdir":
+                # Relative paths in the project resolve against the working directory, so
+                # moving it next to a guarded folder would fake a traversal.
+                if first == "test":
+                    raise PermissionError("The test may not change the working directory.")
+            elif event in PROCESS_EVENTS:
                 self.process(event, args, first, inner, outer)
             else:
                 self.file(event, args, first, inner, outer)
@@ -502,10 +507,12 @@ def snapshot_stdlib():
 
 
 def state_of():
-    """Functions and classes of the watched modules, project classes and the environment."""
+    """Functions and classes of the watched modules, project classes, the environment and
+    the working directory."""
     found = snapshot_stdlib()
     found.update(project_classes())
     found.update({f"environment {key}": value for key, value in _environ.items()})
+    found["working directory"] = _getcwd()
     return found
 
 

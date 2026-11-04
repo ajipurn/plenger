@@ -16,7 +16,8 @@ are npm releases; earlier entries are milestones from
   traversal (CWE-22) and command injection (CWE-78) effects that come from the cited
   code through the entry, and the host decides Proven, Not reproduced or Could not
   run. A test that starts processes, touches the canaries, or changes project code,
-  the standard library, JavaScript intrinsics or the environment cannot be Proven.
+  the standard library, JavaScript intrinsics, the environment or the working
+  directory cannot be Proven.
   `pnpm qualify:proof` builds both images and runs the handwritten and adversarial
   tests.
 

@@ -165,6 +165,12 @@ them. A callback the test passes to project code is the test's frame, so it is
 refused too. Project files are read-only, and the worker compares their digest
 after each case.
 
+The test may not move the working directory either. Relative paths in the
+project resolve against it, so a test that moved it next to a guarded folder
+would turn an ordinary read into a traversal. The labeling review of the corpus
+found this gap in the first harness, where it gave false proofs on two safe
+projects; the harness now refuses the change and watches the directory.
+
 An effect a library runs later from a callback has no project frame on its
 stack. It is not attributed: Not reproduced, never Proven.
 

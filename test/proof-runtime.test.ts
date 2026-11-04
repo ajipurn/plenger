@@ -223,6 +223,24 @@ const ADVERSARIAL: {
     cited: { path: "jobs.mjs", line: 1, endLine: 3 },
     outcome: "not-reproduced",
   },
+  {
+    name: "a working directory moved next to the canary",
+    test: "adversarial/working-directory.py",
+    project: "proof/projects/env-root-python",
+    weakness: "CWE-22",
+    entry: { path: "files.py", line: 5, endLine: 10 },
+    cited: { path: "files.py", line: 4, endLine: 10 },
+    outcome: "not-reproduced",
+  },
+  {
+    name: "a JavaScript working directory moved into a guarded folder",
+    test: "adversarial/working-directory.mjs",
+    project: "evaluation/ts-read-tool-no-separators",
+    weakness: "CWE-22",
+    entry: { path: "tools.ts", line: 8, endLine: 11 },
+    cited: { path: "tools.ts", line: 8, endLine: 11 },
+    outcome: "not-reproduced",
+  },
 ];
 
 describe("tests that try to fake a proof", () => {
