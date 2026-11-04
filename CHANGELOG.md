@@ -8,6 +8,8 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+## 0.1.3 (2026-11-04)
+
 ### Changed
 
 - The dashboard link that `plenger` prints now carries the session token after
