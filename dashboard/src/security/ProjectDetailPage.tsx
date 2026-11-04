@@ -328,7 +328,7 @@ export function ProjectDetailPage({
                   <div>
                     <dt>Provider</dt>
                     <dd>
-                      {latest.provider?.name ?? "Offline scan"}
+                      {latest.provider?.name ?? "None"}
                       <small>{latest.provider?.model}</small>
                     </dd>
                   </div>

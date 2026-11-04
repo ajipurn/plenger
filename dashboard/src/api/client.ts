@@ -122,6 +122,21 @@ function sessionToken(): string | null {
   }
 }
 
+/**
+ * The service answers 403 only when the page's token or address is not its own: the
+ * service restarted, or the token came from an earlier run on the same address.
+ */
+function sessionLost(): SessionLinkError {
+  try {
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    // Nothing kept.
+  }
+  return new SessionLinkError(SESSION_LINK_MESSAGE);
+}
+
+const UNREACHABLE = "Unable to reach the local service. Check that plenger is still running.";
+
 export async function connect(): Promise<DashboardApi> {
   const token = sessionToken();
   if (token === null) throw new SessionLinkError(SESSION_LINK_MESSAGE);
@@ -129,29 +144,29 @@ export async function connect(): Promise<DashboardApi> {
     cache: "no-store",
     headers: { [TOKEN_HEADER]: token },
   });
-  if (response.status === 403) {
-    // A token from an earlier run on the same address.
-    try {
-      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-    } catch {
-      // Nothing kept.
-    }
-    throw new SessionLinkError(SESSION_LINK_MESSAGE);
-  }
+  if (response.status === 403) throw sessionLost();
   if (!response.ok)
     throw new Error("Unable to connect to Plenger. Restart the dashboard and try again.");
   const session = (await response.json()) as DashboardSession;
   async function request<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-    const result = await fetch(path, {
-      method: body === undefined ? "GET" : "POST",
-      cache: "no-store",
-      ...(signal ? { signal } : {}),
-      headers: {
-        [TOKEN_HEADER]: session.token,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
+    let result: Response;
+    try {
+      result = await fetch(path, {
+        method: body === undefined ? "GET" : "POST",
+        cache: "no-store",
+        ...(signal ? { signal } : {}),
+        headers: {
+          [TOKEN_HEADER]: session.token,
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+    } catch (error) {
+      // An abort is the caller's; anything else means the service is gone.
+      if (signal?.aborted) throw error;
+      throw new Error(UNREACHABLE);
+    }
+    if (result.status === 403) throw sessionLost();
     const value = (await result.json()) as Partial<ErrorResponse>;
     if (!result.ok) throw new Error(value.error ?? "Unable to complete this request. Try again.");
     return value as T;
@@ -180,6 +195,7 @@ export async function connect(): Promise<DashboardApi> {
         signal,
         headers: { [TOKEN_HEADER]: session.token },
       });
+      if (response.status === 403) throw sessionLost();
       if (!response.ok || !response.body) throw new Error("Unable to open scan events.");
       onOpen();
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();

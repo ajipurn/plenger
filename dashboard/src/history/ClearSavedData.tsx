@@ -23,7 +23,7 @@ export function ClearSavedData({
       busy={busy}
       error={error}
       title="Clear all workspace data?"
-      description="Permanently delete all saved projects, scans, findings, reviews, imported evidence and red-team results on this device. Providers and their credentials are kept. Your project files and exported reports stay unchanged. This cannot be undone."
+      description="Permanently delete all saved projects, scans, findings, rounds, imported evidence and red-team results on this device. Providers and their credentials are kept. Your project files and exported reports stay unchanged. This cannot be undone."
       confirmLabel={
         <>
           {busy ? <span className="spinner" aria-hidden="true" /> : <Icon name="trash" />}

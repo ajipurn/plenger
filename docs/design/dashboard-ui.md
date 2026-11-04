@@ -126,8 +126,8 @@ Scans shows start time, local source, duration, reported tokens and status.
 Search and state filters operate on saved jobs. Scan details have Findings and
 Outputs tabs with metadata beside them. Outputs includes architecture, assets,
 trust boundaries, all six STRIDE categories, source coverage and optional REA
-imports. Scans with several batches expose their independent batches and
-limitations. The summary shows files covered, why batches stopped and what the
+imports. Scans with several rounds expose their independent rounds and
+limitations. The summary shows files covered, why rounds stopped and what the
 limit was charged. A scan that finished what it set out to do carries a green
 check: a Quick round, or Full coverage that read every file or found nothing new.
 A finished Quick scan says it is complete and how many files Full coverage would
@@ -155,7 +155,7 @@ after a job ends, never while it is paused. Empty failed runs are incomplete, ne
 The progress card lists the stages on a vertical timeline. The active stage
 holds its description and the latest activity, newest first. The heading shows
 the tokens charged so far. A source and shield illustration follows the active
-phase. It loops while the scan works, because a batch scan can wait minutes
+phase. It loops while the scan works, because a Batch round can wait minutes
 for one reply with no new step. It works like a spinner, so it has no pause
 control. Each step that arrives adds one ring from the shield. Motion stops
 while a scan cancels. Reduced motion keeps it static.

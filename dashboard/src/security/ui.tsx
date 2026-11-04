@@ -7,6 +7,7 @@ import {
   findingValidation,
   type ReviewPath,
   type SecurityFinding,
+  type SecurityReview,
   type SecurityScanSummary,
 } from "../../../src/dashboard/contract.ts";
 import { SEVERITIES } from "../../../src/rules/model.ts";
@@ -64,17 +65,24 @@ export const scanStatusLabel: Record<SecurityScanSummary["status"], string> = {
   // The person ended the scan; the saved value predates Stop.
   cancelled: "Stopped",
 };
+/** A round's outcome, worded as the scan statuses are. */
+export const roundStatusLabel: Record<SecurityReview["status"], string> = {
+  completed: "Finished",
+  failed: "Failed",
+  cancelled: "Stopped",
+  refused: "Declined by the provider",
+};
 /**
  * Every scan now runs static analysis, discovery and validation, so only scans saved by the
  * removed Static only and Continue with AI choices are named.
  */
 export function legacyScanLabel(scan: SecurityScanSummary): string | null {
   if (scan.workflow === "static") return "Static only";
-  return scan.parentScanId ? "AI review" : null;
+  return scan.parentScanId ? "Continue with AI" : null;
 }
 export const phaseLabel = {
   reading: "Reading source",
-  discovering: "Threat modeling and discovery",
+  discovering: "Discovering findings",
   validating: "Validating findings",
   finished: "Finished",
 };

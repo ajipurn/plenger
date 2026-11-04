@@ -76,20 +76,33 @@ export async function staticFile(
     const info = await lstat(candidate);
     if (!within(resolved) || !info.isFile() || info.isSymbolicLink())
       throw new Error("invalid asset");
-    sendAsset(response, candidate, await readFile(resolved), styleNonce, appearance);
+    sendAsset(response, candidate, await readFile(resolved), styleNonce, appearance, {
+      immutable: HASHED_ASSET.test(path),
+    });
   } catch (error) {
     // Whatever went wrong (missing, escaped the root, unreadable), the answer is the same 404.
     throw new HttpError(404, "Dashboard page not found.", { cause: error });
   }
 }
 
-/** HTML gets the saved appearance and this response's stylesheet nonce before it is sent. */
+/**
+ * Files Vite writes under `/assets` with a content hash in the name
+ * (`index-Da5TupHm.css`). A new build gets new names, so they never go stale.
+ */
+const HASHED_ASSET = /^\/assets\/[^/]+-[\w-]{8}\.[a-z0-9]+$/;
+
+/**
+ * HTML gets the saved appearance and this response's stylesheet nonce before it is sent.
+ * Hashed assets may be kept by the browser: without that every load fetched the fonts
+ * again and showed text in a fallback font until they arrived.
+ */
 export function sendAsset(
   response: ServerResponse,
   name: string,
   bytes: Buffer,
   styleNonce: string,
   appearance: DashboardAppearance,
+  { immutable = false }: { immutable?: boolean } = {},
 ): void {
   let content = bytes;
   if (extname(name) === ".html") {
@@ -101,6 +114,7 @@ export function sendAsset(
   }
   response.writeHead(200, {
     "Content-Type": CONTENT_TYPES[extname(name)] ?? "application/octet-stream",
+    ...(immutable ? { "Cache-Control": "private, max-age=31536000, immutable" } : {}),
   });
   response.end(content);
 }

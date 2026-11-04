@@ -192,8 +192,8 @@ export function ProjectForm({
             </Button>
           </div>
           <p className="muted">
-            Choose a folder containing Python, JavaScript, TypeScript or PHP source files. Git is
-            optional.
+            Choose a project folder in any language. Python, JavaScript, TypeScript and PHP also get
+            static analysis. Git is optional.
           </p>
         </div>
         <div className="security-form-block">
@@ -387,7 +387,8 @@ export function NewScanForm({
     clearValidatorCatalog,
     restoreValidatorCatalog,
   ]);
-  const pricingActive = open && depth === "full" && limited;
+  // Prices give every plan a cost, not only a USD limit.
+  const pricingActive = open;
   const discoveryPrices = useScanModelPricing(api, provider, model, pricingActive);
   const validationPrices = useScanModelPricing(api, validator, validatorModel, pricingActive);
   const selectedPricing = discoveryPrices.pricing;
@@ -513,6 +514,14 @@ export function NewScanForm({
       ? Math.min(budget.contextBytes, EXPLORE_LIMITS.firstBytes)
       : budget.contextBytes) / 1024,
   );
+  // The same maximum in USD when the models are priced. A subscription is not billed at
+  // API rates, so its figure is named as an API-rate equivalent.
+  const roundCost =
+    mostUsd === null
+      ? ""
+      : subscription
+        ? ` (USD ${mostUsd.toFixed(2)} at standard API rates)`
+        : ` (USD ${mostUsd.toFixed(2)} at current prices)`;
   const planDetail = [
     !provider
       ? ""
@@ -524,17 +533,19 @@ export function NewScanForm({
     validator && mode === "batch"
       ? "A validation model with a smaller or unknown window lowers it."
       : "",
-    depth === "quick" || limitError
+    limitError
       ? ""
-      : !limited
-        ? `Each round charges up to ${mostTokens.toLocaleString()} tokens.`
-        : kind === "usd" && subscription
-          ? `Each round reserves up to USD ${mostUsd?.toFixed(2)} at standard API rates. Subscription usage is checked after each response.`
-          : `Each round charges at most ${
-              kind === "tokens"
-                ? `${mostTokens.toLocaleString()} tokens`
-                : `USD ${mostUsd?.toFixed(2)} at current prices`
-            }, so at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "round fits" : "rounds fit"}. Most rounds charge less.`,
+      : depth === "quick"
+        ? `The scan charges at most ${mostTokens.toLocaleString()} tokens${roundCost}. Most scans charge less.`
+        : !limited
+          ? `Each round charges up to ${mostTokens.toLocaleString()} tokens${roundCost}.`
+          : kind === "usd" && subscription
+            ? `Each round reserves up to USD ${mostUsd?.toFixed(2)} at standard API rates. Subscription usage is checked after each response.`
+            : `Each round charges at most ${
+                kind === "tokens"
+                  ? `${mostTokens.toLocaleString()} tokens`
+                  : `USD ${mostUsd?.toFixed(2)} at current prices`
+              }, so at least ${guaranteed.toLocaleString()} ${guaranteed === 1 ? "round fits" : "rounds fit"}. Most rounds charge less.`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -861,10 +872,10 @@ export function NewScanForm({
             <div className="security-scan-row" data-align="text">
               <span className="security-scan-row-label">Model</span>
               <p className="security-scan-row-control muted">
-                Save a model connection to review source.{" "}
                 <Link className="security-row-link" to="/settings/providers" onClick={onClose}>
-                  Configure a provider
-                </Link>
+                  Add a provider
+                </Link>{" "}
+                to review source.
               </p>
             </div>
           )}

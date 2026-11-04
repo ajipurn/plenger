@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { Dialog, DialogTrigger, Heading, Popover } from "react-aria-components";
 import { useSearchParams } from "react-router";
 import {
@@ -10,7 +10,7 @@ import {
 } from "../../../src/dashboard/contract.ts";
 import { Icon } from "../shared/icons.tsx";
 import { MorphNumber } from "../shared/MorphNumber.tsx";
-import { useSortReset, useTableSort } from "../shared/table-sort.tsx";
+import { useTableSort } from "../shared/table-sort.tsx";
 import { Button, Checkbox, Input, Select } from "../shared/ui.tsx";
 import { RUNNING_SCAN_REASON } from "./running-scan.ts";
 import { SeverityFlow } from "./SeverityFlow.tsx";
@@ -24,6 +24,43 @@ import {
   validationLabel,
 } from "./ui.tsx";
 
+const OPEN_STATUSES: readonly FindingStatus[] = ["new", "triaged", "in-progress"];
+const SEVERITIES = ["critical", "high", "medium", "low"] as const;
+const VALIDATIONS = ["active", "all", ...Object.keys(validationLabel)];
+
+interface FindingFilters {
+  query: string;
+  statuses: FindingStatus[];
+  severity: string;
+  validation: string;
+  /** Zero-based; the address shows it from 1. */
+  page: number;
+}
+
+/**
+ * The filters as the address keeps them (`?q=&status=new,triaged&severity=high`), so
+ * Back from a finding returns to the same list. Defaults are left out of the address.
+ */
+function readFilters(params: URLSearchParams): FindingFilters {
+  const status = params.get("status");
+  const severity = params.get("severity") ?? "all";
+  const validation = params.get("validation") ?? "active";
+  return {
+    query: params.get("q") ?? "",
+    statuses:
+      status === null
+        ? [...OPEN_STATUSES]
+        : FINDING_STATUSES.filter((item) => status.split(",").includes(item)),
+    severity: (SEVERITIES as readonly string[]).includes(severity) ? severity : "all",
+    validation: VALIDATIONS.includes(validation) ? validation : "active",
+    page: Math.max(0, Math.floor(Number(params.get("page")) || 1) - 1),
+  };
+}
+
+function sameStatuses(a: readonly FindingStatus[], b: readonly FindingStatus[]): boolean {
+  return a.length === b.length && a.every((status) => b.includes(status));
+}
+
 export function FindingsPage({
   data,
   onNewScan,
@@ -34,12 +71,39 @@ export function FindingsPage({
   const id = useId();
   const running = data.scans.some((scan) => scan.status === "running");
   const [params, setParams] = useSearchParams();
-  const [query, setQuery] = useState("");
-  const [statuses, setStatuses] = useState<FindingStatus[]>(["new", "triaged", "in-progress"]);
-  const [severity, setSeverity] = useState("all");
-  const [validation, setValidation] = useState("active");
-  const [page, setPage] = useState(0);
+  const { query, statuses, severity, validation, page } = readFilters(params);
   const repository = params.get("project") ?? params.get("repository") ?? "all";
+  /** Changes filters in the address, keeping the sort and the other filters; the page resets unless given. */
+  const update = useCallback(
+    (changes: Partial<FindingFilters> & { project?: string }) => {
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          const set = (key: string, value: string | null) =>
+            value === null ? next.delete(key) : next.set(key, value);
+          if (changes.query !== undefined) set("q", changes.query || null);
+          if (changes.statuses !== undefined)
+            set(
+              "status",
+              sameStatuses(changes.statuses, OPEN_STATUSES) ? null : changes.statuses.join(","),
+            );
+          if (changes.severity !== undefined)
+            set("severity", changes.severity === "all" ? null : changes.severity);
+          if (changes.validation !== undefined)
+            set("validation", changes.validation === "active" ? null : changes.validation);
+          if (changes.project !== undefined) {
+            next.delete("repository");
+            set("project", changes.project === "all" ? null : changes.project);
+          }
+          const nextPage = changes.page ?? 0;
+          set("page", nextPage > 0 ? String(nextPage + 1) : null);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setParams],
+  );
   const names = useMemo(
     () => new Map(data.repositories.map((item) => [item.id, item.name])),
     [data.repositories],
@@ -55,19 +119,30 @@ export function FindingsPage({
               : findingValidation(item) === validation)) &&
           (severity === "all" || item.severity === severity) &&
           (repository === "all" || item.repositoryId === repository) &&
-          `${item.title} ${names.get(item.repositoryId) ?? ""} ${item.rootCause}`
+          [
+            item.title,
+            names.get(item.repositoryId) ?? "",
+            item.rootCause,
+            item.cwe ?? "",
+            ...item.evidence.map((cite) => cite.path),
+          ]
+            .join(" ")
             .toLowerCase()
             .includes(query.toLowerCase()),
       ),
     [data.findings, statuses, severity, validation, repository, query, names],
   );
   const findingSort = useTableSort(FINDING_SORT, FINDING_DEFAULT_SORT);
-  useSortReset(findingSort.sort, () => setPage(0));
+  // A new sort starts at the first page; returning to the list keeps its page.
+  const sortKey = findingSort.sort ? `${findingSort.sort.direction}:${findingSort.sort.key}` : "";
+  const [seenSort, setSeenSort] = useState(sortKey);
+  useEffect(() => {
+    if (seenSort === sortKey) return;
+    setSeenSort(sortKey);
+    if (page > 0) update({});
+  }, [sortKey, seenSort, page, update]);
   const sorted = findingSort.apply(filtered);
-  const change = (next: FindingStatus[]) => {
-    setStatuses(next);
-    setPage(0);
-  };
+  const change = (next: FindingStatus[]) => update({ statuses: next });
   const pageSize = WORKSPACE_LIMITS.pageSize;
   const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / pageSize) - 1));
   const view =
@@ -104,10 +179,7 @@ export function FindingsPage({
             type="search"
             placeholder="Search findings"
             value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setPage(0);
-            }}
+            onChange={(event) => update({ query: event.target.value })}
           />
         </div>
         <label className="sr-only" htmlFor={`${id}-repository`}>
@@ -121,10 +193,7 @@ export function FindingsPage({
             { value: "all", label: "All projects" },
             ...data.repositories.map((item) => ({ value: item.id, label: item.name })),
           ]}
-          onValueChange={(value) => {
-            setParams(value === "all" ? {} : { project: value });
-            setPage(0);
-          }}
+          onValueChange={(value) => update({ project: value })}
         />
         <label className="sr-only" htmlFor={`${id}-view`}>
           Finding view
@@ -193,10 +262,7 @@ export function FindingsPage({
                     { value: "all", label: "All validation outcomes" },
                     ...Object.entries(validationLabel).map(([value, label]) => ({ value, label })),
                   ]}
-                  onValueChange={(value) => {
-                    setValidation(value);
-                    setPage(0);
-                  }}
+                  onValueChange={(value) => update({ validation: value })}
                 />
               </div>
               <div className="security-filter-section">
@@ -207,17 +273,11 @@ export function FindingsPage({
                   label="Severity"
                   id={`${id}-severity`}
                   value={severity}
-                  items={["all", "critical", "high", "medium", "low"].map((value) => ({
+                  items={["all", ...SEVERITIES].map((value) => ({
                     value,
-                    label:
-                      value === "all"
-                        ? "All severities"
-                        : `${value[0]?.toUpperCase()}${value.slice(1)}`,
+                    label: value === "all" ? "All severities" : capitalized(value),
                   }))}
-                  onValueChange={(value) => {
-                    setSeverity(value);
-                    setPage(0);
-                  }}
+                  onValueChange={(value) => update({ severity: value })}
                 />
               </div>
             </Dialog>
@@ -236,19 +296,25 @@ export function FindingsPage({
           </Button>
         ))}
         {severity !== "all" && (
-          <Button className="security-chip" onClick={() => setSeverity("all")}>
-            Severity: {severity} <Icon name="close" />
+          <Button
+            className="security-chip"
+            aria-label={`Remove ${capitalized(severity)} severity filter`}
+            onClick={() => update({ severity: "all" })}
+          >
+            Severity: {capitalized(severity)} <Icon name="close" />
           </Button>
         )}
         <Button
           className="button button-ghost"
-          onClick={() => {
-            change([...FINDING_STATUSES]);
-            setSeverity("all");
-            setValidation("all");
-            setQuery("");
-            setParams({});
-          }}
+          onClick={() =>
+            update({
+              statuses: [...FINDING_STATUSES],
+              severity: "all",
+              validation: "all",
+              query: "",
+              project: "all",
+            })
+          }
         >
           Clear filters
         </Button>
@@ -264,7 +330,7 @@ export function FindingsPage({
             page={currentPage}
             count={pageSize}
             total={filtered.length}
-            onChange={setPage}
+            onChange={(next) => update({ page: next })}
           />
         </>
       ) : (
@@ -293,4 +359,8 @@ export function FindingsPage({
       )}
     </>
   );
+}
+
+function capitalized(value: string): string {
+  return `${value[0]?.toUpperCase() ?? ""}${value.slice(1)}`;
 }

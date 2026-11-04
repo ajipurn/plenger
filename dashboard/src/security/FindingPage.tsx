@@ -51,9 +51,9 @@ export function FindingPage({
             setLoadingOccurrence(false);
           }
         })
-        .catch(() => {
+        .catch((failure) => {
           if (active) {
-            setError("Unable to load this finding's scan occurrence.");
+            setError(errorMessage(failure, "Unable to load this finding's scan occurrence."));
             setLoadingOccurrence(false);
           }
         });
@@ -86,8 +86,8 @@ export function FindingPage({
   if (!finding)
     return (
       <Empty
-        title="Finding not found"
-        description="Return to the findings list or open a saved scan."
+        title={error ? "Finding could not load" : "Finding not found"}
+        description={error || "Return to the findings list or open a saved scan."}
         action={
           <Link className="button button-primary" to="/findings">
             All findings
@@ -194,7 +194,7 @@ export function FindingPage({
                   </h3>
                   <p className="muted">
                     Source scan: {entry.sourceScanId}
-                    {entry.reviewId ? ` · Review: ${entry.reviewId}` : ""}
+                    {entry.reviewId ? ` · Round: ${entry.reviewId}` : ""}
                   </p>
                   {entry.review && (
                     <p>
@@ -246,7 +246,7 @@ export function FindingPage({
             <div>
               <dt>Observed revision</dt>
               <dd>
-                <code>{scan?.revision.commit?.slice(0, 12) ?? "Working tree"}</code>
+                <code>{scan?.revision.commit?.slice(0, 12) ?? "Local files"}</code>
               </dd>
             </div>
             <div>

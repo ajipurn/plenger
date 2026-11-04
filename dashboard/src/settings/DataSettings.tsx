@@ -50,7 +50,7 @@ export function DataSettings({ active, onCleared }: { active: boolean; onCleared
               </li>
               <li>
                 <Icon name="history" />
-                <span>Scans, findings and reviews</span>
+                <span>Scans, findings and rounds</span>
               </li>
               <li>
                 <Icon name="data-stores" />
