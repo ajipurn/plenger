@@ -14,7 +14,8 @@
 //   --proof runs proof sessions instead (docs/design/proof-tests.md): for each case with
 //   a proof label the model writes and runs tests, and the cases' code runs in the proof
 //   containers. It needs Docker or Podman and uses PLENGER_TEST_PROOF_PYTHON_IMAGE and
-//   PLENGER_TEST_PROOF_NODE_IMAGE when set, or builds the images.
+//   PLENGER_TEST_PROOF_NODE_IMAGE when set, or builds the images. --case <id>, repeated,
+//   limits it to those labeled cases.
 
 import { writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
@@ -48,6 +49,7 @@ const { values } = parseArgs({
     mode: { type: "string" },
     concurrency: { type: "string" },
     proof: { type: "boolean" },
+    case: { type: "string", multiple: true },
     yes: { type: "boolean" },
   },
 });
@@ -66,7 +68,14 @@ const cases = await loadCorpus(corpus);
 if (values.proof) {
   const names = values.provider ?? [];
   if (names.length !== 1) throw new Error("Use --proof with one --provider.");
-  const labeled = cases.filter((item) => item.proof !== undefined);
+  const only = values.case ?? [];
+  const unknown = only.filter(
+    (id) => !cases.some((item) => item.id === id && item.proof !== undefined),
+  );
+  if (unknown.length) throw new Error(`No labeled proof case named ${unknown.join(", ")}.`);
+  const labeled = cases.filter(
+    (item) => item.proof !== undefined && (only.length === 0 || only.includes(item.id)),
+  );
   console.log(
     `Proof sessions: ${labeled.length} cases × ${runs} runs, each at most ${PROOF_SESSION_LIMITS.modelCalls} model requests and ${PROOF_SESSION_LIMITS.tokens.toLocaleString("en-US")} tokens; at most ${(labeled.length * runs * PROOF_SESSION_LIMITS.tokens).toLocaleString("en-US")} tokens in all.`,
   );
@@ -96,11 +105,13 @@ if (values.proof) {
     if (!saved) throw new Error(`No saved provider named ${name}.`);
     const { access } = store.providers.resolveProvider(saved.id);
     const model = values.model ?? saved.model;
-    const evaluation = await evaluateProof(cases, {
+    const pricing = saved.modelPricing?.find((item) => item.model === model);
+    const evaluation = await evaluateProof(labeled, {
       provider: { name: saved.name, model },
       access: { ...access, model },
       images,
       runs,
+      ...(pricing ? { pricing } : {}),
       onCase: (outcome, run) =>
         console.log(`run ${run} ${outcome.id}: ${outcome.outcome} (${outcome.reason})`),
     });

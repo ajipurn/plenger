@@ -429,6 +429,12 @@ Execution stays in `src/redteam/`, as the scan rules require.
 
 ## Open questions
 
+- Provider policy. In the first live pilot OpenAI's classifier declined every
+  command-injection session (`cyber_policy`). Framing the instructions as the
+  owner's regression test with harmless markers halved the declines; those left
+  are command injection through a route. A declined session ends as Could not run
+  with the provider's code. Whether a neutral finding title avoids the rest, and
+  how other providers answer, is to measure.
 - Whether the public-function fallback should also apply to a job function in a
   project that has routes, and how to tell such a job from a helper the routes
   guard.

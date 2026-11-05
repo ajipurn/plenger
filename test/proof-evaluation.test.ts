@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadCorpus } from "../scripts/lib/evaluation.ts";
 import {
+  estimateUsd,
   formatProofEvaluation,
   type ProofCaseOutcome,
   proveCase,
@@ -92,6 +93,7 @@ describe("proof evaluation", () => {
         modelCalls: 2,
         testRuns: 1,
         tokens: 1000,
+        usage: { inputTokens: 900, outputTokens: 100, unreportedCalls: 0 },
         durationMs: 1,
         entryMatchesLabel: true,
         unprovable,
@@ -110,13 +112,22 @@ describe("proof evaluation", () => {
       safe: 2,
       falseProofs: 1,
       tokens: 5000,
+      inputTokens: 4500,
+      outputTokens: 500,
       stops: { proven: 5 },
     });
+    const pricing = {
+      model: "m",
+      rates: { input: 1, output: 5, cacheRead: 0.1, cacheWrite5m: 1.25, cacheWrite1h: 2 },
+    };
+    // 4,500 input tokens at USD 1 and 500 output tokens at USD 5 per million.
+    expect(estimateUsd(scoreProof(run), pricing)).toBeCloseTo(0.007);
     const report = formatProofEvaluation(
-      { provider: { name: "Test", model: "m" }, runs: [run] },
+      { provider: { name: "Test", model: "m" }, pricing, runs: [run] },
       "2026-11-04",
     );
     expect(report).toContain("| 1 | 1 of 2 | 1 of 2 |");
+    expect(report).toContain("| 10 | 4,500 / 500 | 5,000 | 0.01 |");
     expect(report).toContain("| `d` | safe | proven |");
     expect(report).toContain("| `e` | vulnerable, unprovable | not-reproduced |");
   });
