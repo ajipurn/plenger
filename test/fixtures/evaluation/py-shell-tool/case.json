@@ -10,5 +10,11 @@
   },
   "static": [
     "PLG101"
-  ]
+  ],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "tools.py", "line": 9, "endLine": 10 }
+    ]
+  }
 }

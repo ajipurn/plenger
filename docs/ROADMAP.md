@@ -40,7 +40,7 @@ that need no execution.
 
 Validation is a second model review of the source. Validation by execution,
 reproducing a finding in a sandbox, is planned as
-[M11](#m11-validation-by-execution-planned) and builds on the red-team
+[M11](#m11-validation-by-execution-in-progress) and builds on the red-team
 containers. Red-team work (M6 and M7) is postponed. The
 existing managed profiles stay available from the CLI, and the retained
 direction and contracts below describe that engine rather than the workspace.
@@ -382,16 +382,23 @@ guides of M10c were measured and removed, because they lowered precision. See [S
 | M10d Change review (removed) | A scan scope for the changes since a commit or branch, with scope rules for introduced, newly reached and weakened paths and removed controls. An opt-in model review of pull requests in the GitHub Action | Diff cases in the corpus. Git reads run no project filters or diff drivers. An Action integration test with the synthetic provider |
 | M10e Long scans | A Full coverage scan continues after its limit with a new one. Scan details show live activity | Integration tests for continuation and a browser check for the timeline |
 
-### M11 Validation by execution (planned)
+### M11 Validation by execution (in progress)
 
 A proof test confirms a source-supported finding. After an explicit start, the
-model on the host writes one test and runs it inside a networkless container
-built from the red-team runtimes. The test fails when the weakness exists. The
-outcome is proven, not reproduced or could not run; not reproduced is not
-evidence of safety. Retest runs the same test after a fix. Plenger does not
-write to the project. M11 starts after M10a and a reviewed design of its own.
-The open decisions are in
-[design/strix-adoption.md](design/strix-adoption.md#m11-validation-by-execution).
+model on the host writes one test and runs it inside a networkless container.
+A harness watches for the effect the weakness allows, and the host decides the
+outcome from what it observed: proven, not reproduced or could not run; not
+reproduced is not evidence of safety. Retest runs the same test after a fix.
+Plenger does not write to the project. The design, which settles the open
+decisions of
+[design/strix-adoption.md](design/strix-adoption.md#m11-validation-by-execution),
+is [design/proof-tests.md](design/proof-tests.md).
+
+**Delivered:** M11a, the harness and its oracles for CWE-22 and CWE-78 in a
+Python and a Node image, run by handwritten tests. See [STATUS.md](STATUS.md).
+
+**Next checkpoints:** M11b, the model session and the dashboard section; M11c,
+retest; M11d, more weaknesses and project dependencies.
 
 ## Risks
 

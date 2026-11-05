@@ -1,8 +1,8 @@
 # Ideas adopted from Strix (design)
 
-Status: M10 is implemented and measured; M11 is planned. The checkpoints
+Status: M10 is implemented and measured; M11 is in progress. The checkpoints
 are [M10](../ROADMAP.md#m10-review-discipline-and-scope-done) and
-[M11](../ROADMAP.md#m11-validation-by-execution-planned). What works and
+[M11](../ROADMAP.md#m11-validation-by-execution-in-progress). What works and
 what is qualified is in [../STATUS.md](../STATUS.md).
 
 ## Why
@@ -221,7 +221,8 @@ Execution stays in `src/redteam/`, after an explicit start, as the scan rules
 require. M11 changes the priority set on 2026-10-16, when red-team work was
 postponed. It starts only after M10a and a reviewed design of its own.
 
-Decisions that design must make:
+Decisions that design must make. The draft that answers them is
+[proof-tests.md](proof-tests.md).
 
 1. **Dependencies.** Installing them needs network access and runs package
    scripts. Options: a separate install stage in its own container with

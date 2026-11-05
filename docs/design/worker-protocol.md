@@ -1,10 +1,13 @@
 # Worker protocol
 
 The host (`src/redteam/`) and a container worker (`runtimes/llmfy/worker.py`,
-`runtimes/llmfy/qualify.py`, `runtimes/vercel/worker.mjs` with `bridge.mjs`)
-exchange newline-delimited JSON over the container's stdin and stdout. This
-page is the message catalogue derived from that code. It documents direction,
-fields, limits, ordering and the differences between the runtimes.
+`runtimes/llmfy/qualify.py`, `runtimes/vercel/worker.mjs` with `bridge.mjs`, and
+the proof workers `runtimes/proof-python/proof.py` and
+`runtimes/proof-node/proof.mjs`) exchange newline-delimited JSON over the
+container's stdin and stdout. This page is the message catalogue derived from
+that code. It documents direction, fields, limits, ordering and the differences
+between the runtimes. The proof workers are described in
+[Proof runtime](#proof-runtime).
 
 ## Version
 
@@ -267,6 +270,54 @@ worker-> finished
 
 Any frame after `finished`, any event before the first model call, any
 out-of-sequence id or sequence number, and any unknown type end the worker.
+
+## Proof runtime
+
+The proof workers run one proof test
+([proof-tests.md](proof-tests.md)). They use the transport, launcher flags,
+cleanup and protocol version above. They call no model, so they send no
+`model_request`. Their frames are new and change no existing frame.
+
+| Limit | Value |
+| --- | --- |
+| Request line read by the worker | 6 MiB |
+| Captured source in the request | 4 MiB |
+| Test file | 16 KiB |
+| Combined stdout and stderr accepted by the host | 128 KiB |
+| Transport deadline | 60 s |
+| One case inside the container | 20 s, then its process group is killed |
+| Worker-side backstop | Exit code 124 after 70 s |
+
+Request (host to worker):
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `sources` | `[{path, content}]` | Relative paths without empty, `.`, `..` or hidden segments, no duplicates; written read-only under `/tmp/project` |
+| `test` | string | The test file, written read-only to `/tmp/proof/test/` |
+| `entry`, `cited` | `[{path, line, endLine}]` | 1 to 8 ranges each, in files of `sources` |
+| `weakness` | string | `CWE-22` or `CWE-78` |
+| `marker` | string | `PLENGER_<32 hex>`, new for every run |
+| `protocolVersion`, `hostMarker` | | Added by the launcher |
+
+Frames (worker to host), in this order:
+
+- `ready` `{protocolVersion, python | node, packages, isolationChecks}`: the
+  checks of the llmfy worker (Python) or the Vercel worker (Node), the runtime
+  version and the version of each package in the image's set. The host requires
+  the exact check list and version.
+- `case` twice, `intended` then `weakness`: `{name, status, failedAt, error,
+  output, effects, effectsDropped, reached, replaced, canary}`. `status` is
+  `passed`, `failed`, `error` or `timeout`; `failedAt` is `import`, `test` or
+  null. `error` is at most 2 KiB and `output` at most 8 KiB. `effects` holds at
+  most 32 `{kind, operation, target, guarded, shell, innermost, outermost}`
+  records; `reached` maps entry and cited files to the lines that ran during the
+  case call; `replaced` lists what the test changed; `canary` says whether the
+  command canary held the expected value after the case.
+- `finished` `{completed: true}`.
+
+The host validates every field (`parseProofCase` in `src/redteam/proof-model.ts`)
+and decides the outcome itself. Any other frame, order or value fails the run as
+Could not run.
 
 ## Differences between the runtimes
 

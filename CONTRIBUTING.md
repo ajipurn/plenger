@@ -204,6 +204,7 @@ The next run builds a new runtime image.
 ```sh
 pnpm qualify:llmfy    # builds the llmfy image, runs the synthetic suite and the container tests
 pnpm qualify:vercel   # builds the Next.js image and runs test/redteam-vercel-run.test.ts against it
+pnpm qualify:proof    # builds both proof images and runs test/proof-runtime.test.ts against them
 ```
 
 Each script prints the immutable image id it tested. To rerun the container
@@ -213,6 +214,8 @@ tests against an existing image, set the variable and run Vitest directly:
 | --- | --- | --- |
 | `PLENGER_TEST_LLMFY_IMAGE` | `test/redteam-runtime.test.ts`, `test/redteam-worker.test.ts` | `sha256:<id>` for Podman, `docker:sha256:<id>` for Docker |
 | `PLENGER_TEST_VERCEL_IMAGE` | `test/redteam-vercel-run.test.ts` | Same format |
+| `PLENGER_TEST_PROOF_PYTHON_IMAGE` | `test/proof-runtime.test.ts` | Same format |
+| `PLENGER_TEST_PROOF_NODE_IMAGE` | `test/proof-runtime.test.ts` | Same format |
 
 Mutable tags are rejected. The image must come from this repository's recipe;
 the variables are not an interface for arbitrary images.
@@ -236,6 +239,21 @@ changing a version there, regenerate `runtimes/vercel/package-lock.json` with
 rebuild with `pnpm qualify:vercel`. The host checks the exact `ai`, Node and
 observer versions reported by the worker, so a version change also touches
 `src/redteam/vercel-run.ts` and the worker.
+
+The proof images carry a fixed package set instead of project dependencies; see
+[docs/design/proof-tests.md](docs/design/proof-tests.md#decision-1-dependencies).
+After changing `runtimes/proof-python/requirements.in`:
+
+```sh
+uv pip compile runtimes/proof-python/requirements.in --python-version 3.12 \
+  --python-platform aarch64-unknown-linux-gnu --only-binary :all: \
+  --exclude-newer 2026-11-04 --generate-hashes --no-header --no-annotate \
+  --output-file runtimes/proof-python/requirements.txt
+```
+
+After changing `runtimes/proof-node/package.json`, run
+`npm install --package-lock-only --ignore-scripts` in that directory. Then run
+`pnpm qualify:proof`; the harness reports the versions it found.
 
 Base images are pinned by digest in each `Dockerfile`. A recipe change produces
 a new image digest; the qualification records in `docs/qualifications/` state
