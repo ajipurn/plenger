@@ -217,3 +217,50 @@ export const PROOF_LIMITS = {
   /** Combined stdout and stderr the host accepts from a proof worker. */
   workerOutputBytes: 128 * 1024,
 } as const;
+/** Packages each proof image carries, named to the model; the image reports versions. */
+export const PROOF_PACKAGES = {
+  "proof-python": [
+    "fastapi",
+    "flask",
+    "httpx",
+    "jinja2",
+    "langchain-core",
+    "numpy",
+    "openai",
+    "pydantic",
+    "pyyaml",
+    "requests",
+    "sqlalchemy",
+    "werkzeug",
+    "itsdangerous",
+  ],
+  "proof-node": ["ai", "express", "zod"],
+} as const;
+/** Bounds of one proof session, in which a model writes and runs tests; the evaluation tunes them. */
+export const PROOF_SESSION_LIMITS = {
+  modelCalls: 10,
+  runs: 4,
+  tokens: 400_000,
+  timeMs: 600_000,
+  requestBytes: 192 * 1024,
+  outputTokens: 16_384,
+  toolsPerTurn: 8,
+  /** Output and error text of one case, as the model sees it. */
+  caseTextBytes: 4096,
+  /** A `give_up` reason. */
+  reasonCharacters: 300,
+  /** Replies cut at the output allowance that a session answers with a request to shorten. */
+  cutReplies: 1,
+} as const;
+export const PROOF_SESSION_STOPS = [
+  "proven",
+  "gave-up",
+  "runs",
+  "model-calls",
+  "time",
+  "tokens",
+  "request-size",
+  "invalid",
+  "refused",
+] as const;
+export type ProofSessionStop = (typeof PROOF_SESSION_STOPS)[number];

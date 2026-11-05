@@ -10,5 +10,12 @@
   },
   "static": [
     "PLG104"
-  ]
+  ],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "tools.ts", "line": 9, "endLine": 10 }
+    ],
+    "unprovable": "Without '/' a name climbs only to the working directory, and a backslash is not a separator on Linux."
+  }
 }

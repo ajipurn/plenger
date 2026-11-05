@@ -8,5 +8,12 @@
     "line": 9,
     "endLine": 13
   },
-  "static": ["PLG802"]
+  "static": ["PLG802"],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "server.ts", "line": 10, "endLine": 12 }
+    ],
+    "unprovable": "A prefix check without a separator on a subfolder of the working directory; no guarded folder shares that subfolder's prefix."
+  }
 }

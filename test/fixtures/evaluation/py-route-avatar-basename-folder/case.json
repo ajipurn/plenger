@@ -8,5 +8,12 @@
     "line": 10,
     "endLine": 15
   },
-  "static": ["PLG802"]
+  "static": ["PLG802"],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "app.py", "line": 11, "endLine": 14 }
+    ],
+    "unprovable": "A base name can only be '..', so the write lands one folder above the avatars folder, never inside a guarded folder."
+  }
 }

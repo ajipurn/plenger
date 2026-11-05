@@ -20,6 +20,13 @@ are npm releases; earlier entries are milestones from
   directory cannot be Proven.
   `pnpm qualify:proof` builds both images and runs the handwritten and adversarial
   tests.
+- A proof session, also not yet reachable from the dashboard: a model reads the
+  project, writes a proof test and runs it, within 10 model calls, 4 test runs and
+  400,000 tokens, until a run is Proven or it gives up. The entry it must go through
+  comes from the static inventory, never from the model: the routes and tools whose
+  traced effects reach the cited lines, or, in a project with neither, the public
+  function that holds them. `pnpm evaluate -- --proof --provider <name> --yes`
+  measures sessions on the labeled corpus; a Proven safe case counts as a false proof.
 
 ## 0.1.4 (2026-11-04)
 

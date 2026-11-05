@@ -40,9 +40,11 @@ export interface EvaluationCase {
   /**
    * What a proof test of the labeled weakness should show (docs/design/proof-tests.md):
    * Proven for a vulnerable case, Not reproduced for its safe twin. `entry` holds the
-   * function bodies where the input enters.
+   * function bodies where the input enters. `unprovable`, on a vulnerable case only,
+   * says why the harness cannot show the weakness; the case then counts toward false
+   * proofs on its twin but not toward yield.
    */
-  proof?: { expected: "proven" | "not-reproduced"; entry: Span[] };
+  proof?: { expected: "proven" | "not-reproduced"; entry: Span[]; unprovable?: string };
 }
 
 function proofLabel(
@@ -64,10 +66,16 @@ function proofLabel(
         Number.isSafeInteger(span.endLine) &&
         (span.line as number) >= 1 &&
         (span.endLine as number) >= (span.line as number),
-    )
+    ) ||
+    (value.unprovable !== undefined &&
+      (kind !== "vulnerable" || typeof value.unprovable !== "string" || !value.unprovable))
   )
     throw new Error(`Invalid proof label: ${id}`);
-  return { expected, entry: value.entry as Span[] };
+  return {
+    expected,
+    entry: value.entry as Span[],
+    ...(typeof value.unprovable === "string" ? { unprovable: value.unprovable } : {}),
+  };
 }
 
 export interface Metrics {

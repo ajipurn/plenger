@@ -395,10 +395,12 @@ decisions of
 is [design/proof-tests.md](design/proof-tests.md).
 
 **Delivered:** M11a, the harness and its oracles for CWE-22 and CWE-78 in a
-Python and a Node image, run by handwritten tests. See [STATUS.md](STATUS.md).
+Python and a Node image, run by handwritten tests. The engine part of M11b:
+entries derived from the static inventory, the model session and its
+measurement. See [STATUS.md](STATUS.md).
 
-**Next checkpoints:** M11b, the model session and the dashboard section; M11c,
-retest; M11d, more weaknesses and project dependencies.
+**Next checkpoints:** a live measurement of M11b, then its records and dashboard
+section; M11c, retest; M11d, more weaknesses and project dependencies.
 
 ## Risks
 

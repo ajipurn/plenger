@@ -144,7 +144,14 @@ pnpm evaluate
 pnpm evaluate --corpus test/fixtures/evaluation-library
 pnpm evaluate --provider "Claude review" --runs 3 --yes --output docs/qualifications/detection-claude-2026-10-16.md
 pnpm evaluate --provider "Claude review" --runs 1 --mode explore --yes --json explore.json
+pnpm evaluate --proof --provider "ChatGPT" --runs 1 --yes --output proof.md
 ```
+
+`--proof` runs proof sessions on the cases with a `proof` label instead of the
+review: the model writes tests and the cases' code runs in the proof images, so it
+needs Docker or Podman. It uses `PLENGER_TEST_PROOF_PYTHON_IMAGE` and
+`PLENGER_TEST_PROOF_NODE_IMAGE` when set, or builds the images. Without `--yes` it
+prints the token ceiling and stops.
 
 `--write` replaces the expected files with the current output. Review every
 changed line against the source before committing; the expected files are the

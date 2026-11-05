@@ -233,8 +233,11 @@ explicit start.
 - **Proof tests.** `proof-model.ts` holds the case records, the test rules and
   `decideProof()`, the host's outcome rules; it has no `node:` imports.
   `proof-run.ts` checks a test, runs it once through `worker.ts` in the proof
-  image of its family and validates every frame. Nothing calls a model yet.
-  See [design/proof-tests.md](design/proof-tests.md).
+  image of its family and validates every frame. `proof-entry.ts` derives the
+  entry from the inventory, `proof-session.ts` is the model's turn loop with
+  `run_test` and `give_up`, and `proof-provider.ts` bounds its connection with
+  `ModelBudget`. The read tools come in as a parameter, since `redteam` does not
+  import `assessment`. See [design/proof-tests.md](design/proof-tests.md).
 
 The host to container protocol is specified in
 [design/worker-protocol.md](design/worker-protocol.md); the workers live in

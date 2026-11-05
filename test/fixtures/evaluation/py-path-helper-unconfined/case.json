@@ -10,5 +10,11 @@
   },
   "static": [
     "PLG802"
-  ]
+  ],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "app.py", "line": 10, "endLine": 11 }
+    ]
+  }
 }
