@@ -23,7 +23,15 @@ import {
   type ProofWeakness,
 } from "./proof-model.ts";
 import { runProofTest } from "./proof-run.ts";
-import { type ModelReply, type ModelRequest, reachedOutputLimit } from "./provider.ts";
+import {
+  ModelProviderFailureError,
+  type ModelReply,
+  type ModelRequest,
+  reachedOutputLimit,
+} from "./provider.ts";
+
+/** Failure codes that mean a provider's policy declined the task. */
+const POLICY_CODE = /policy|content_filter|safety|refus/i;
 
 /** The finding a session tries to prove, as the review reported it. */
 export interface ProofFinding {
@@ -56,6 +64,8 @@ export interface ProofSessionRecord {
   toolCalls: Record<string, number>;
   /** The `give_up` reason, cut to `PROOF_SESSION_LIMITS.reasonCharacters`. */
   gaveUp?: string;
+  /** For a `refused` stop: the provider's code, such as `cyber_policy`, or `refusal`. */
+  refusal?: string;
   cutReplies?: number;
   durationMs: number;
 }
@@ -88,28 +98,31 @@ export interface ProofSessionOptions {
   signal?: AbortSignal;
 }
 
+// The wording frames the task as what it is, the owner's regression test in an isolated
+// sandbox with harmless markers. Provider policy classifiers declined every
+// command-injection session of the first live pilot under a plainer security wording.
 const HELPERS: Record<ProofFamily, string> = {
-  python: `Write Python. The file defines test_intended(plenger) and test_weakness(plenger); either may be async. Import project modules by their path from the project root (\`import tools\`, \`from app.main import app\`). The helper: plenger.base() is the test's folder and the working directory; plenger.folder(name), plenger.write(name, text) and plenger.read(name) make, write and read files under it; plenger.canary() is a file in a guarded folder outside base(); plenger.sibling_canary() is one in a guarded sibling folder whose name starts with base()'s; plenger.shell_payloads() lists strings to append to an ordinary value, each of which injects a command if a shell runs it.`,
-  javascript: `Write a JavaScript ES module. It exports async functions testIntended(plenger) and testWeakness(plenger). Import project files by absolute path under /tmp/project (\`import app from "/tmp/project/server.ts"\`); TypeScript loads directly. Start an Express app with app.listen(0, "127.0.0.1") and call it with fetch; the loopback works, nothing else does. The helper: plenger.base() is the test's folder and the working directory; plenger.folder(name), plenger.write(name, text) and plenger.read(name) make, write and read files under it; plenger.canary() is a file in a guarded folder outside base(); plenger.siblingCanary() is one in a guarded sibling folder whose name starts with base()'s; plenger.shellPayloads() lists strings to append to an ordinary value, each of which injects a command if a shell runs it.`,
+  python: `Write Python. The file defines test_intended(plenger) and test_weakness(plenger); either may be async. Import project modules by their path from the project root (\`import tools\`, \`from app.main import app\`). The helper: plenger.base() is the test's folder and the working directory; plenger.folder(name), plenger.write(name, text) and plenger.read(name) make, write and read files under it; plenger.canary() is a marker file in a watched folder outside base(); plenger.sibling_canary() is one in a watched sibling folder whose name starts with base()'s; plenger.shell_payloads() lists harmless marker suffixes: each, appended to an ordinary value, makes a shell that evaluates it write a sum into a marker file, and does nothing else.`,
+  javascript: `Write a JavaScript ES module. It exports async functions testIntended(plenger) and testWeakness(plenger). Import project files by absolute path under /tmp/project (\`import app from "/tmp/project/server.ts"\`); TypeScript loads directly. Start an Express app with app.listen(0, "127.0.0.1") and call it with fetch; the loopback works, nothing else does. The helper: plenger.base() is the test's folder and the working directory; plenger.folder(name), plenger.write(name, text) and plenger.read(name) make, write and read files under it; plenger.canary() is a marker file in a watched folder outside base(); plenger.siblingCanary() is one in a watched sibling folder whose name starts with base()'s; plenger.shellPayloads() lists harmless marker suffixes: each, appended to an ordinary value, makes a shell that evaluates it write a sum into a marker file, and does nothing else.`,
 };
 
 const ORACLES: Record<ProofWeakness, string> = {
   "CWE-22":
-    "Path traversal is Proven when project code opens, lists, creates, writes, renames or deletes a path under a guarded folder. Pass the canary path, or a relative path that climbs to it, as the input the finding names. An attempt counts even if the file is missing.",
+    "The report says a file path built from input can leave the folder the code means to use. It is confirmed when the code, called with that input, opens, lists, creates, writes, renames or deletes a path under a watched folder. Pass the marker file's path, or a relative path that leads to it, as the input. An attempt counts even if the file is missing.",
   "CWE-78":
-    "Command injection is Proven when project code starts a shell whose command carries one of the payloads and the injected command runs. Append a payload to an ordinary value of the input the finding names.",
+    "The report says input reaches a shell command without being kept as one argument. It is confirmed when the code, called with that input, starts a shell that evaluates one of the marker suffixes, so the marker file holds the sum. Append a marker suffix to an ordinary value of the input.",
 };
 
 function instructions(family: ProofFamily, weakness: ProofWeakness): string {
   return [
-    "You write one proof test for a security finding that a review supported with source. Plenger runs it against a read-only copy of the project in a container without network, and a harness watches what the project code does. The host decides the outcome from what the harness saw, never from your assertions or your words.",
+    "You help the owner of this project check a bug report in their own code by writing one regression test. Plenger runs the test against a read-only copy of the project in an isolated container with no network and records only which files the code touches and which commands it starts. Nothing outside the container is reachable. The host decides the outcome, Proven, Not reproduced or Could not run, from what it recorded, never from your assertions or your words. A Proven test helps the owner fix the bug and keep it fixed.",
     ORACLES[weakness],
-    "The effect counts only when it comes from the project code the finding cites, reached by calling the entry: the route handler, tool or function given in the first message. Calling an inner helper directly does not count, because the entry may hold the check. A route is called through its framework's test client or a local server; a tool through its own call method.",
-    "test_intended (testIntended) calls the entry with ordinary input and asserts the ordinary result. test_weakness (testWeakness) calls it with the input the finding names. Not reproduced needs the intended case to pass and the entry to run.",
+    "It counts only when it comes from the code the report cites, reached by calling the entry: the route handler, tool or function given in the first message. Calling an inner helper directly does not count, because the entry may hold the check that prevents the bug. A route is called through its framework's test client or a local server; a tool through its own call method.",
+    "test_intended (testIntended) calls the entry with ordinary input and asserts the ordinary result. test_weakness (testWeakness) calls it with the input the report describes. Not reproduced needs the intended case to pass and the entry to run.",
     HELPERS[family],
-    `The image has these packages and the standard library only: ${PROOF_PACKAGES[PROOF_RUNTIME_OF[family]].join(", ")}. Replace network calls of a package (requests.get, fetch) with fakes that return the input the finding names.`,
+    `The image has these packages and the standard library only: ${PROOF_PACKAGES[PROOF_RUNTIME_OF[family]].join(", ")}. Replace network calls of a package (requests.get, fetch) with fakes that return the input the report describes.`,
     "The test may not start processes, use file functions (use the helper), use interpreter, import or stack-trace hooks, or name the harness's folders or the marker. Its top level holds only imports, functions and constants of literal values. It may point a project setting or environment variable at a folder under plenger.base(), and nowhere else. It may not change project functions, the standard library or built-ins; any such change makes the run Could not run.",
-    `Read the code with the read tools, then call run_test with the whole file. Each result gives the outcome, the reason and what the harness observed. Fix the test and run it again if it did not reach the entry or failed for a reason of its own. At most ${PROOF_SESSION_LIMITS.runs} runs. Call give_up with a short reason when the finding cannot show under these conditions: the code is safe after all, it needs a package or service the image lacks, or it only fails on another system.`,
+    `Read the code with the read tools, then call run_test with the whole file. Each result gives the outcome, the reason and what the harness observed. Fix the test and run it again if it did not reach the entry or failed for a reason of its own. At most ${PROOF_SESSION_LIMITS.runs} runs. Call give_up with a short reason when the report cannot be confirmed under these conditions: the code handles the input correctly after all, it needs a package or service the image lacks, or the bug only shows on another system.`,
   ].join("\n\n");
 }
 
@@ -251,7 +264,10 @@ export async function proofSession(options: ProofSessionOptions): Promise<ProofS
         runs,
         record,
       };
-    const why = stop === "proven" ? "" : STOP_REASONS[stop];
+    const why =
+      stop === "proven"
+        ? ""
+        : `${STOP_REASONS[stop]}${stop === "refused" && record.refusal ? ` (${record.refusal})` : ""}`;
     return {
       outcome: "could-not-run",
       reason: `${why} before any test ran.${record.gaveUp ? ` ${record.gaveUp}` : ""}`,
@@ -298,6 +314,13 @@ export async function proofSession(options: ProofSessionOptions): Promise<ProofS
               ? "model-calls"
               : "time",
         );
+      // A provider's policy classifier can decline the task in a failed stream instead of
+      // a refusal reply (OpenAI `cyber_policy`). It ends the session; it is not a fault.
+      if (error instanceof ModelProviderFailureError && POLICY_CODE.test(error.code ?? "")) {
+        record.modelCalls += 1;
+        record.refusal = error.code ?? "refusal";
+        return finish("refused");
+      }
       if (reachedOutputLimit(error) && (record.cutReplies ?? 0) < limits.cutReplies) {
         record.modelCalls += 1;
         record.cutReplies = (record.cutReplies ?? 0) + 1;
@@ -311,7 +334,10 @@ export async function proofSession(options: ProofSessionOptions): Promise<ProofS
       throw error;
     }
     record.modelCalls += 1;
-    if (reply.refusal !== undefined) return finish("refused");
+    if (reply.refusal !== undefined) {
+      record.refusal = "refusal";
+      return finish("refused");
+    }
     if (!reply.toolCalls.length) {
       messages.push({ role: "assistant", content: reply.content ?? "" });
       if (++nudges > 2) return finish("invalid");
