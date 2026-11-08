@@ -1,7 +1,7 @@
 import { posix } from "node:path";
 import type { FileFacts, Ref, Value } from "../facts/model.ts";
 import { byFamily, type Language } from "../source/languages.ts";
-import { localPythonModules } from "./modules.ts";
+import { localPythonModules, namespacePythonModules } from "./modules.ts";
 
 export interface ProjectFile {
   /** Relative to the project root, with forward slashes. */
@@ -36,6 +36,8 @@ export class Project {
   readonly root: string;
   readonly files = new Map<string, ProjectFile>();
   readonly localModules: Set<string>;
+  /** Local modules that are directories without `__init__.py` (namespace packages). */
+  readonly namespaceModules: Set<string>;
   readonly #pythonModules = new Map<string, string[]>();
   readonly #aliases: { prefix: string; targets: string[] }[];
   readonly #exports = new Map<string, Map<string, Export>>();
@@ -52,6 +54,7 @@ export class Project {
     this.root = root;
     for (const file of files) this.files.set(file.path, file);
     this.localModules = localPythonModules(files.map((file) => file.path));
+    this.namespaceModules = namespacePythonModules(files.map((file) => file.path));
     // A scanned directory that is itself a package (`examples/__init__.py`) is imported by its name.
     const rootPackage = posix.basename(root.replace(/\\/g, "/"));
     const packaged = this.files.has("__init__.py") && /^[A-Za-z_]\w*$/.test(rootPackage);
@@ -102,7 +105,17 @@ export class Project {
       const dir = [...up, ...rest].join("/");
       return this.#pythonFile(dir);
     }
-    if (!this.localModules.has(module.split(".")[0] ?? "")) return undefined;
+    const segments = module.split(".");
+    // A script's own directory comes first on the import path: `python agent/main.py`
+    // imports `helpers` from `agent/helpers.py`.
+    const sibling = this.#pythonFile(posix.join(posix.dirname(from), ...segments));
+    if (sibling !== undefined) return sibling;
+    if (!this.localModules.has(segments[0] ?? "")) return undefined;
+    // Then the module at the project root or under `src/`, before one that only ends
+    // in the same names (`svc/b/utils.py` is not `import utils`).
+    const top =
+      this.#pythonFile(segments.join("/")) ?? this.#pythonFile(["src", ...segments].join("/"));
+    if (top !== undefined) return top;
     const candidates = this.#pythonModules.get(module) ?? [];
     return closest(from, candidates);
   }
@@ -209,6 +222,15 @@ export class Project {
       const submodule = this.#pythonFile(`${path.replace(/(?:\/__init__)?\.py$/, "")}/${head}`);
       if (submodule !== undefined) entry = { kind: "module", path: submodule };
     }
+    if (entry === undefined && head !== "" && depth < LINK_DEPTH) {
+      // `export * from "./shell"` (never the default export): one of that module's names.
+      for (const fact of file.facts.imports) {
+        if (fact.kind !== "reexport" || fact.imported !== "*" || fact.typeOnly) continue;
+        const target = this.resolveModule(path, fact.module);
+        const found = target === undefined ? null : this.#resolveIn(target, memberPath, depth + 1);
+        if (found !== null) return found;
+      }
+    }
     if (entry === undefined) return null;
     switch (entry.kind) {
       case "definition":
@@ -262,7 +284,9 @@ function collectExports(file: ProjectFile, exports: Map<string, Export>): void {
   const { facts } = file;
   for (const fact of facts.imports) {
     if (fact.scope !== null || fact.local === null || fact.typeOnly) continue;
-    const path = fact.kind === "member" || fact.kind === "default" ? (fact.imported ?? "") : "";
+    // A re-export names what it exports from its module, as a member import does.
+    const named = fact.kind === "member" || fact.kind === "default" || fact.kind === "reexport";
+    const path = named ? (fact.imported ?? "") : "";
     exports.set(fact.local, { kind: "import", ref: importRef(file.language, fact.module, path) });
   }
   facts.assignments.forEach((assignment, index) => {

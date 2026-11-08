@@ -21,6 +21,28 @@ are npm releases; earlier entries are milestones from
   format that holds a placeholder word inside its random part (`…TestE5…`) is no
   longer taken for a placeholder; the word must stand on its own (`sk-your-key`).
 
+### Fixed
+
+- The static scan missed effects that it now traces:
+  - Node built-ins imported by default (`import cp from "node:child_process"`,
+    `import fs from "fs"`) and fs-extra's default import.
+  - Functions wrapped by `util.promisify`, such as `promisify(exec)`.
+  - A helper called first with a constant and then with a tool's input
+    (`run("ls"); run(command)`): only the first call was kept.
+  - A function first traced inside a cycle or at the depth limit, whose shortened
+    result was reused for every later caller.
+  - Tools exported through a barrel file: `export { x } from`, `export *`,
+    `export { x as y } from` and `export * as ns from`.
+  - A Python script's import of a module beside it (`agent/main.py` importing
+    `helpers`). A bare import now prefers the module at the root or under `src/` to
+    one in an unrelated directory with the same name.
+  - SDKs named like a directory without `__init__.py`: with `openai/chat.py` or
+    `mcp/server.py`, `openai` and `mcp` are the installed SDKs, not project code.
+  - The code of LangGraph and llmfy graph nodes. A node's effects are the agent's
+    (`Capability.node` names the node), so PLG201 and PLG301 see a node that runs a
+    command, and a graph run with a custom state (`graph.invoke({"task": task})`)
+    passes that state's values.
+
 ## 0.1.4 (2026-11-04)
 
 ### Changed

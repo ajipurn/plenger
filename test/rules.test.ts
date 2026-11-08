@@ -1990,6 +1990,216 @@ describe("secrets", () => {
   });
 });
 
+describe("findings across helpers, modules and graph nodes", () => {
+  async function findings(files: Record<string, string>): Promise<string[]> {
+    const root = await temporaryDir("plenger-rules-");
+    for (const [path, content] of Object.entries(files)) {
+      await mkdir(join(root, path, ".."), { recursive: true });
+      await writeFile(join(root, path), content);
+    }
+    return (await scan(root)).findings.map((item) => `${item.rule} ${item.subject.name}`).sort();
+  }
+
+  it("matches Node built-ins imported by default and functions wrapped by promisify", async () => {
+    expect(
+      await findings({
+        "server.ts": `import cp from "node:child_process";
+import { exec } from "node:child_process";
+import fs from "fs";
+import http from "node:http";
+import util, { promisify } from "node:util";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+
+const execAsync = promisify(exec);
+const execUtil = util.promisify(cp.exec);
+const server = new McpServer({ name: "ops", version: "1.0.0" });
+server.tool("default_import", { cmd: z.string() }, async ({ cmd }) => { cp.exec(cmd); return { content: [] }; });
+server.tool("promisified", { cmd: z.string() }, async ({ cmd }) => { await execAsync(cmd); return { content: [] }; });
+server.tool("util_promisified", { cmd: z.string() }, async ({ cmd }) => { await execUtil(cmd); return { content: [] }; });
+server.tool("read_sync", { path: z.string() }, async ({ path }) => ({ content: [{ type: "text", text: fs.readFileSync(path, "utf8") }] }));
+server.tool("fetch_url", { url: z.string() }, async ({ url }) => { http.get(url); return { content: [] }; });
+`,
+      }),
+    ).toEqual([
+      "PLG101 default_import",
+      "PLG101 promisified",
+      "PLG101 util_promisified",
+      "PLG104 read_sync",
+      "PLG105 fetch_url",
+    ]);
+  });
+
+  it("keeps each call of a helper, and traces again what a cycle or the depth limit cut short", async () => {
+    const chain = Array.from(
+      { length: 7 },
+      (_, index) => `def f${index + 1}(c):\n    f${index + 2}(c)\n`,
+    );
+    expect(
+      await findings({
+        // The constant call came first and hid the call with the tool's input.
+        "helper.py": `import subprocess
+from langchain_core.tools import tool
+
+def run(cmd):
+    subprocess.run(cmd, shell=True)
+
+@tool
+def shell(x: str) -> str:
+    """Run."""
+    run("ls -la")
+    run(x)
+    return ""
+`,
+        // \`dispatch\` traced inside \`execute\` misses \`execute\`'s effects, and was reused.
+        "cycle.py": `import subprocess
+from langchain_core.tools import tool
+
+def execute(step):
+    if step.get("next"):
+        dispatch(step["next"])
+    return step
+
+def dispatch(step):
+    subprocess.run(step["command"], shell=True)
+    execute(step)
+
+@tool
+def run_plan(plan: dict) -> str:
+    """Run a plan."""
+    execute(plan)
+    return ""
+
+@tool
+def run_step(step: dict) -> str:
+    """Run one step."""
+    dispatch(step)
+    return ""
+`,
+        // \`f6\` traced at depth 6 under \`alpha\` misses its effect, and was reused for \`beta\`.
+        "depth.py": `import subprocess
+from langchain_core.tools import tool
+
+${chain.join("\n").replace("def f6(c):\n    f7(c)", "def f6(c):\n    shell_out(c)\n    f7(c)")}
+def f8(c):
+    pass
+
+def shell_out(c):
+    subprocess.run(c, shell=True)
+
+@tool
+def alpha(c: str) -> str:
+    """A."""
+    f1(c)
+    return ""
+
+@tool
+def beta(c: str) -> str:
+    """B."""
+    f6(c)
+    return ""
+`,
+      }),
+    ).toEqual(["PLG101 beta", "PLG101 run_plan", "PLG101 run_step", "PLG101 shell"]);
+  });
+
+  it.each([
+    ['export { shell } from "./shell";', "shell", "shell"],
+    ['export * from "./shell";', "shell", "shell"],
+    ['export { shell as run } from "./shell";', "run", "run"],
+    ['export { default as run } from "./shell";', "run", "run"],
+    ['export * as kit from "./shell";', "kit", "kit.shell"],
+  ])("links a tool through the barrel %s", async (barrel, imported, used) => {
+    expect(
+      await findings({
+        "tools/shell.ts": `import { execSync } from "node:child_process";
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+export const shell = tool(async ({ cmd }) => String(execSync(cmd)), { name: "shell", description: "Run", schema: z.object({ cmd: z.string() }) });
+export default shell;
+`,
+        "tools/index.ts": `${barrel}\n`,
+        "agent.ts": `import { ChatOpenAI } from "@langchain/openai";
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { ${imported} } from "./tools";
+export const agent = createReactAgent({ llm: new ChatOpenAI(), tools: [${used}] });
+`,
+      }),
+    ).toEqual(["PLG101 shell", "PLG201 agent"]);
+  });
+
+  it("resolves a script's sibling module, and keeps SDKs named like a directory without __init__.py", async () => {
+    expect(
+      await findings({
+        "agent/helpers.py":
+          "import subprocess\n\ndef run(cmd):\n    subprocess.run(cmd, shell=True)\n",
+        "agent/main.py": `from helpers import run
+from langchain_core.tools import tool
+
+@tool
+def shell(x: str) -> str:
+    """Run."""
+    run(x)
+    return ""
+`,
+        "mcp/server.py": `import subprocess
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("ops")
+
+@mcp.tool()
+def remote_shell(cmd: str) -> str:
+    return subprocess.run(cmd, shell=True, capture_output=True, text=True).stdout
+
+if __name__ == "__main__":
+    mcp.run(transport="streamable-http")
+`,
+      }),
+    ).toEqual(["PLG101 remote_shell", "PLG101 shell", "PLG601 ops"]);
+  });
+
+  it("traces the effects of graph nodes and the custom state a graph runs with", async () => {
+    expect(
+      await findings({
+        "graph.py": `import subprocess
+from typing import TypedDict
+from fastapi import FastAPI
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, StateGraph
+
+llm = ChatOpenAI(model="gpt-4o")
+
+class State(TypedDict):
+    task: str
+    command: str
+
+def plan(state: State):
+    reply = llm.invoke(f"Write one shell command for: {state['task']}")
+    return {"command": reply.content}
+
+def execute(state: State):
+    subprocess.run(state["command"], shell=True)
+    return {}
+
+builder = StateGraph(State)
+builder.add_node("plan", plan)
+builder.add_node("execute", execute)
+builder.set_entry_point("plan")
+builder.add_edge("plan", "execute")
+builder.add_edge("execute", END)
+graph = builder.compile()
+
+app = FastAPI()
+
+@app.post("/ask")
+def ask(task: str):
+    return graph.invoke({"task": task, "command": ""})
+`,
+      }),
+    ).toEqual(["PLG201 builder", "PLG301 POST /ask"]);
+  });
+});
+
 describe("rule reference", () => {
   it("is up to date with the catalog (run node scripts/rules-doc.ts)", async () => {
     const doc = await readFile(new URL("../docs/RULES.md", import.meta.url), "utf8");

@@ -258,6 +258,8 @@ export const PYTHON_RULES: DetectorRule[] = [
       "#0.messages[*].content",
       "#0.messages",
       "#0.input",
+      // A custom state: `graph.invoke({"task": task})`.
+      "#0[*]",
     ],
   },
   {

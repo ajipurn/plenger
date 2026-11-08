@@ -105,9 +105,13 @@ export class FileDetector {
 
   isLocalModule(module: string): boolean {
     if (this.scope.language !== "python") return false;
-    return (
-      module.startsWith(".") || this.project.project.localModules.has(module.split(".")[0] ?? "")
-    );
+    if (module.startsWith(".")) return true;
+    const { localModules, namespaceModules } = this.project.project;
+    const top = module.split(".")[0] ?? "";
+    if (!localModules.has(top)) return false;
+    // A directory without `__init__.py` does not hide an installed package of its name:
+    // with `openai/chat.py` or `mcp/server.py`, `openai` and `mcp` are still the SDKs.
+    return !namespaceModules.has(top) || frameworkOfModule(top, this.scope.language) === undefined;
   }
 
   whereHolds(rule: DetectorRule, args: CallFact["arguments"] | null): boolean {

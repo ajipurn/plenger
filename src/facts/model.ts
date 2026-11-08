@@ -95,7 +95,10 @@ export interface ImportFact {
   module: string;
   /** Imported member, `default` for JS default imports; null when the module itself is bound. */
   imported: string | null;
-  /** Local name bound; null for side-effect, wildcard and re-export imports. */
+  /**
+   * Local name bound; for a re-export, the name it is exported as. Null for side-effect
+   * and wildcard imports and for `export * from`.
+   */
   local: string | null;
   kind:
     | "module"

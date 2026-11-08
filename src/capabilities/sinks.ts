@@ -46,6 +46,8 @@ const each = (base: string, members: string) => `${base}.{${members}}`;
 
 const PY_HTTP = "get,post,put,patch,delete,head,options,request,stream,send";
 const JS_HTTP = "get,post,put,patch,delete,head,options,request";
+// A default import of a Node built-in reads like `require` (`node:fs#readFile`); one of
+// fs-extra, a CommonJS package, reads `fs-extra#default.readFile`.
 const FS = "{node:fs,fs,node:fs/promises,fs/promises,fs-extra}";
 const PATH = "pathlib.{Path,PurePath,PosixPath,WindowsPath}()";
 /**
@@ -428,7 +430,7 @@ export const JAVASCRIPT_SINKS: Sink[] = [
   {
     kind: "file_write",
     calls: [
-      `${FS}#{writeFile,writeFileSync,appendFile,appendFileSync,createWriteStream,outputFile,outputJson,writeJson}`,
+      `${FS}{#,#default.}{writeFile,writeFileSync,appendFile,appendFileSync,createWriteStream,outputFile,outputJson,writeJson}`,
       `${FS}#{promises,default}.{writeFile,appendFile}`,
       "Bun.write",
     ],
@@ -438,7 +440,7 @@ export const JAVASCRIPT_SINKS: Sink[] = [
   {
     kind: "file_write",
     calls: [
-      `${FS}#{mkdir,mkdirSync,rename,renameSync,copyFile,copyFileSync,cp,cpSync,symlink,chmod,copy,move,ensureDir}`,
+      `${FS}{#,#default.}{mkdir,mkdirSync,rename,renameSync,copyFile,copyFileSync,cp,cpSync,symlink,chmod,copy,move,ensureDir}`,
       `${FS}#{promises,default}.{mkdir,rename,copyFile,cp,symlink,chmod}`,
     ],
     input: "#0",
@@ -446,7 +448,7 @@ export const JAVASCRIPT_SINKS: Sink[] = [
   {
     kind: "file_delete",
     calls: [
-      `${FS}#{unlink,unlinkSync,rm,rmSync,rmdir,rmdirSync,remove,removeSync,emptyDir}`,
+      `${FS}{#,#default.}{unlink,unlinkSync,rm,rmSync,rmdir,rmdirSync,remove,removeSync,emptyDir}`,
       `${FS}#{promises,default}.{unlink,rm,rmdir}`,
       "rimraf#{rimraf,default,sync}",
     ],
@@ -455,7 +457,7 @@ export const JAVASCRIPT_SINKS: Sink[] = [
   {
     kind: "file_read",
     calls: [
-      `${FS}#{readFile,readFileSync,createReadStream,readJson}`,
+      `${FS}{#,#default.}{readFile,readFileSync,createReadStream,readJson}`,
       `${FS}#{promises,default}.readFile`,
       "Bun.file",
     ],
@@ -464,7 +466,10 @@ export const JAVASCRIPT_SINKS: Sink[] = [
   },
   {
     kind: "file_read",
-    calls: [`${FS}#{readdir,readdirSync,opendir}`, `${FS}#{promises,default}.{readdir,opendir}`],
+    calls: [
+      `${FS}{#,#default.}{readdir,readdirSync,opendir}`,
+      `${FS}#{promises,default}.{readdir,opendir}`,
+    ],
     input: "#0",
   },
   {

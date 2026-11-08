@@ -81,15 +81,18 @@ function requestToAgent(
   const seen = new Set<string>();
   for (const action of actions) {
     const tool = action.tool === undefined ? undefined : cx.tools.get(action.tool);
-    const id = `${tool?.id ?? action.target}|${action.kind}`;
+    const id = `${tool?.id ?? action.node ?? action.target}|${action.kind}`;
     if (seen.has(id) || seen.size >= MAX_ACTION_EVIDENCE) continue;
     seen.add(id);
+    const actor =
+      tool !== undefined
+        ? `tool ${code(tool.name)}`
+        : action.node !== undefined
+          ? `graph node ${code(action.node)}`
+          : "the agent";
     evidence.push({
       location: tool?.location ?? action.location,
-      message:
-        tool === undefined
-          ? `the agent can ${ACTION_PHRASE[action.kind]}`
-          : `tool ${code(tool.name)} can ${ACTION_PHRASE[action.kind]}`,
+      message: `${actor} can ${ACTION_PHRASE[action.kind]}`,
     });
   }
   const notes =

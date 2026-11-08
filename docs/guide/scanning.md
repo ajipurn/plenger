@@ -95,7 +95,8 @@ plenger follows calls into project functions, methods and constructors (across
 files, six levels deep) down to a call with an outside effect. Each capability
 carries the call chain and the non-constant inputs of the effect, with caller
 arguments bound to callee parameters at every step. Agents roll up their tools'
-capabilities, their MCP servers, delegates and their own code execution. Entry
+capabilities, the effects of their graph nodes (LangGraph and llmfy `add_node`),
+their MCP servers, delegates and their own code execution. Entry
 points report the models and agents they reach and with what input. Framework
 built-in tools map to known capabilities, marked `hosted` when they run at the
 provider.

@@ -1,3 +1,4 @@
+import { isBuiltin } from "node:module";
 import type { Node } from "web-tree-sitter";
 import {
   addBinding,
@@ -54,6 +55,8 @@ const WRAPPERS = new Set([
   "satisfies_expression",
   "non_null_expression",
 ]);
+/** `util.promisify`, which wraps a callback function without changing what it does. */
+const PROMISIFY = /^(?:node:)?util#promisify$/;
 /** Statements that leave the enclosing block. */
 const EXITS = new Set([
   "return_statement",
@@ -339,7 +342,9 @@ class JavaScriptExtractor implements LanguageHooks {
           kind: "default",
           typeOnly,
         });
-        this.bindImport(scope, part.text, module, "default", node);
+        // A Node built-in's default export is the module itself, as `require` gives it:
+        // `import fs from "node:fs"` makes `fs.readFileSync` read `node:fs#readFileSync`.
+        this.bindImport(scope, part.text, module, isBuiltin(module) ? "" : "default", node);
       } else if (part.type === "namespace_import") {
         const local = part.namedChildren[0]?.text;
         if (local === undefined) continue;
@@ -371,7 +376,17 @@ class JavaScriptExtractor implements LanguageHooks {
       const clause = node.namedChildren.find((child) => child?.type === "export_clause");
       const specifiers =
         clause?.namedChildren.filter((child) => child?.type === "export_specifier") ?? [];
-      if (specifiers.length === 0) {
+      // `export * as tools from "./tools"` exports the module under one name.
+      const namespace = node.namedChildren.find((child) => child?.type === "namespace_export");
+      if (namespace != null) {
+        this.addImport(node, scope, {
+          module: source,
+          imported: null,
+          local: nameText(namespace.namedChildren[0] ?? null),
+          kind: "reexport",
+          typeOnly,
+        });
+      } else if (specifiers.length === 0) {
         this.addImport(node, scope, {
           module: source,
           imported: "*",
@@ -385,9 +400,10 @@ class JavaScriptExtractor implements LanguageHooks {
         this.addImport(node, scope, {
           module: source,
           imported,
-          local: null,
+          // The name it is exported as: `export { shell as run } from "./shell"`.
+          local: nameText(specifier?.childForFieldName("alias") ?? null) ?? imported,
           kind: "reexport",
-          typeOnly,
+          typeOnly: typeOnly || (specifier != null && hasChild(specifier, "type")),
         });
       }
       return;
@@ -803,7 +819,12 @@ class JavaScriptExtractor implements LanguageHooks {
           return this.cx.importRef(module, "");
         }
         const base = this.resolve(callee, scope, depth + 1);
-        return base === null ? null : this.cx.extend(base, "()");
+        if (base === null) return null;
+        // `promisify(exec)` is `exec` returning a promise: calling it calls `exec`.
+        const wrapped = node.childForFieldName("arguments")?.namedChildren[0];
+        if (PROMISIFY.test(base.name) && wrapped != null)
+          return this.resolve(wrapped, scope, depth + 1);
+        return this.cx.extend(base, "()");
       }
       case "new_expression": {
         const target = node.childForFieldName("constructor");

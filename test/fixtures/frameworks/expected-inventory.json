@@ -94,7 +94,7 @@
     "js/openai-agents.ts:11 @openai/agents#Agent name=Billing model=- tools=[refund_order]+0 prompts=[prompt@11] nodes=[] delegates=[] mcp=[] runs=[] capabilities=[]",
     "js/openai-agents.ts:12 @openai/agents#Agent name=Translator model=- tools=[]+0 prompts=[prompt@12] nodes=[] delegates=[] mcp=[] runs=[] capabilities=[]",
     "js/openai-agents.ts:15 @openai/agents#Agent name=Triage model=gpt-4.1 tools=[webSearchTool,translate]+0 prompts=[prompt@15] nodes=[] delegates=[agent@11] mcp=[mcp-client@13] runs=[25(message:param)] capabilities=[agent,mcp,network]",
-    "js/rag-graph.ts:25 @langchain/langgraph#StateGraph name=- model=- tools=[lookup]+0 prompts=[] nodes=[agent-><anonymous>@26:21,tools->-] delegates=[] mcp=[] runs=[38((await c.req.json()).question:name)] capabilities=[]",
+    "js/rag-graph.ts:25 @langchain/langgraph#StateGraph name=- model=- tools=[lookup]+0 prompts=[] nodes=[agent-><anonymous>@26:21,tools->-] delegates=[] mcp=[] runs=[38((await c.req.json()).question:name)] capabilities=[llm]",
     "python/autogen_team.py:12 autogen_agentchat.agents.AssistantAgent name=researcher model=gpt-4o tools=[search_web]+0 prompts=[prompt@12] nodes=[] delegates=[] mcp=[] runs=[] capabilities=[]",
     "python/autogen_team.py:13 autogen_agentchat.agents.AssistantAgent name=critic model=gpt-4o tools=[]+0 prompts=[prompt@13] nodes=[] delegates=[] mcp=[] runs=[] capabilities=[]",
     "python/autogen_team.py:14 autogen_agentchat.teams.RoundRobinGroupChat name=- model=- tools=[]+0 prompts=[] nodes=[] delegates=[agent@12,agent@13] mcp=[] runs=[18(task:param)] capabilities=[agent]",
@@ -105,12 +105,12 @@
     "python/llamaindex_agent.py:18 llama_index.core.agent.workflow.FunctionAgent name=- model=gpt-4o-mini tools=[multiply,docs]+0 prompts=[prompt@18] nodes=[] delegates=[] mcp=[] runs=[26(question:param)] capabilities=[]",
     "python/llmfy_agent.py:34 llmfy.LLMfy name=- model=gpt-4o-mini tools=[]+0 prompts=[prompt@18] nodes=[] delegates=[] mcp=[] runs=[35(question:param)] capabilities=[]",
     "python/llmfy_agent.py:41 llmfy.LLMfy name=- model=gpt-4o-mini tools=[get_order,cancel_order]+0 prompts=[prompt@41] nodes=[] delegates=[] mcp=[] runs=[53(state[\"messages\"]:param)] capabilities=[]",
-    "python/llmfy_agent.py:59 llmfy.FlowEngine name=- model=- tools=[]+0 prompts=[] nodes=[main->build_agent.main_orchestrator,tools->build_agent.tools_executor] delegates=[] mcp=[] runs=[70(user_input:param)] capabilities=[]",
+    "python/llmfy_agent.py:59 llmfy.FlowEngine name=- model=- tools=[]+0 prompts=[] nodes=[main->build_agent.main_orchestrator,tools->build_agent.tools_executor] delegates=[] mcp=[] runs=[70(user_input:param)] capabilities=[agent,llm]",
     "python/openai_agents_app.py:17 agents.Agent name=Billing model=- tools=[refund_order,lookup_order]+0 prompts=[prompt@17] nodes=[] delegates=[] mcp=[] runs=[] capabilities=[]",
     "python/openai_agents_app.py:23 agents.Agent name=Translator model=- tools=[]+0 prompts=[prompt@23] nodes=[] delegates=[] mcp=[] runs=[] capabilities=[]",
     "python/openai_agents_app.py:27 agents.Agent name=Triage model=gpt-4.1 tools=[WebSearchTool,translate]+0 prompts=[prompt@27] nodes=[] delegates=[agent@17] mcp=[mcp-client@25] runs=[38(message:param)] capabilities=[agent,mcp,network]",
     "python/pydantic_ai_agent.py:14 pydantic_ai.Agent name=- model=openai:gpt-4o tools=[current_time,run_tests,version]+0 prompts=[prompt@14,prompt@35] nodes=[] delegates=[] mcp=[mcp-client@12] runs=[40(question:param)] capabilities=[mcp,process]",
-    "python/rag_graph.py:42 langgraph.graph.StateGraph name=- model=- tools=[lookup]+0 prompts=[] nodes=[agent->call_model,tools->-] delegates=[] mcp=[] runs=[54(request.json[\"question\"]:name)] capabilities=[]",
+    "python/rag_graph.py:42 langgraph.graph.StateGraph name=- model=- tools=[lookup]+0 prompts=[] nodes=[agent->call_model,tools->-] delegates=[] mcp=[] runs=[54(request.json[\"question\"]:name)] capabilities=[llm]",
     "python/smolagents_agent.py:28 smolagents.CodeAgent name=- model=Qwen/Qwen3-Coder-480B-A35B-Instruct tools=[DuckDuckGoSearchTool,get_weather,delete_file]+0 prompts=[] nodes=[] delegates=[] mcp=[] runs=[36(task:param)] capabilities=[code,file_delete,network]"
   ],
   "tools": [
