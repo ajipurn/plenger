@@ -6,7 +6,11 @@ import {
   type ProofSessionOptions,
   proofSession,
 } from "../src/redteam/proof-session.ts";
-import type { ModelReply, ModelRequest } from "../src/redteam/provider.ts";
+import {
+  ModelProviderFailureError,
+  type ModelReply,
+  type ModelRequest,
+} from "../src/redteam/provider.ts";
 
 const marker = `PLENGER_${"d".repeat(32)}`;
 const TEST = "import tools\n\ndef test_intended(plenger):\n    pass\n";
@@ -204,6 +208,20 @@ describe("proof session", () => {
     );
     // The read asked for after the closing notice is refused.
     expect(readTools.calls).toHaveLength(PROOF_SESSION_LIMITS.modelCalls - 1);
+  });
+
+  it("ends on a provider policy failure as a refusal, and rethrows other failures", async () => {
+    const declined = scripted([new ModelProviderFailureError("OpenAI", "cyber_policy")]);
+    const result = await proofSession(options(declined.send, async () => runResult("proven")));
+    expect(result).toMatchObject({
+      outcome: "could-not-run",
+      reason: "The provider refused the request (cyber_policy) before any test ran.",
+      record: { stop: "refused", refusal: "cyber_policy", modelCalls: 1 },
+    });
+    const broken = scripted([new ModelProviderFailureError("OpenAI", "server_error")]);
+    await expect(
+      proofSession(options(broken.send, async () => runResult("proven"))),
+    ).rejects.toThrow("server_error");
   });
 
   it("stops on a refusal, on silence and on its token limit", async () => {

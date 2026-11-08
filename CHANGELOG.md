@@ -27,6 +27,8 @@ are npm releases; earlier entries are milestones from
   traced effects reach the cited lines, or, in a project with neither, the public
   function that holds them. `pnpm evaluate -- --proof --provider <name> --yes`
   measures sessions on the labeled corpus; a Proven safe case counts as a false proof.
+  A provider that declines the task, such as OpenAI's `cyber_policy`, ends the session
+  as Could not run with its code.
 
 ## 0.1.4 (2026-11-04)
 

@@ -7,7 +7,9 @@ import { readdir, readFile } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
 import { ExploreTools, exploreTools, ReadLog } from "../../src/assessment/review-explore.ts";
 import { ReviewSourceReader } from "../../src/assessment/review-source.ts";
+import type { ModelBudget } from "../../src/redteam/budget.ts";
 import type { ProofOutcome, ProofSessionStop } from "../../src/redteam/constants.ts";
+import type { ModelPricing } from "../../src/redteam/model-pricing.ts";
 import { proofEntries } from "../../src/redteam/proof-entry.ts";
 import type { ProofFamily, ProofWeakness } from "../../src/redteam/proof-model.ts";
 import { proofConnection } from "../../src/redteam/proof-provider.ts";
@@ -27,7 +29,10 @@ export interface ProofCaseOutcome {
   stop: ProofSessionStop | null;
   modelCalls: number;
   testRuns: number;
+  /** What the budget charged: reported usage, or a request's reservation without it. */
   tokens: number;
+  /** Usage the provider reported, and the calls that reported none. */
+  usage: { inputTokens: number; outputTokens: number; unreportedCalls: number };
   durationMs: number;
   /** The derived entry holds every labeled entry range. */
   entryMatchesLabel: boolean;
@@ -37,7 +42,23 @@ export interface ProofCaseOutcome {
 
 export interface ProofEvaluation {
   provider: { name: string; model: string };
+  /** The connection's saved prices, for an estimate in USD. */
+  pricing?: ModelPricing;
   runs: ProofCaseOutcome[][];
+}
+
+const NO_USAGE: ProofCaseOutcome["usage"] = { inputTokens: 0, outputTokens: 0, unreportedCalls: 0 };
+
+function reportedUsage(budget: ModelBudget): ProofCaseOutcome["usage"] {
+  const usage = { ...NO_USAGE };
+  for (const call of budget.snapshot().calls) {
+    if (call.usage === null) usage.unreportedCalls += 1;
+    else {
+      usage.inputTokens += call.usage.inputTokens + call.usage.additionalTokens;
+      usage.outputTokens += call.usage.outputTokens;
+    }
+  }
+  return usage;
 }
 
 const WEAKNESS_NAMES: Record<ProofWeakness, string> = {
@@ -111,7 +132,7 @@ export async function proveCase(
     entryMatchesLabel,
     unprovable: item.proof?.unprovable !== undefined,
   } as const;
-  const empty = { stop: null, modelCalls: 0, testRuns: 0, tokens: 0 };
+  const empty = { stop: null, modelCalls: 0, testRuns: 0, tokens: 0, usage: NO_USAGE };
   if (!family || !entries.ranges.length)
     return {
       ...base,
@@ -166,6 +187,7 @@ export async function proveCase(
       modelCalls: result.record.modelCalls,
       testRuns: result.runs.length,
       tokens: connection.tokens.used(),
+      usage: reportedUsage(connection.budget),
       durationMs: Math.round(performance.now() - started),
     };
   } catch (error) {
@@ -175,6 +197,7 @@ export async function proveCase(
       outcome: "failed",
       reason: errorMessage(error).slice(0, 300),
       tokens: connection.tokens.used(),
+      usage: reportedUsage(connection.budget),
       durationMs: Math.round(performance.now() - started),
     };
   }
@@ -188,6 +211,7 @@ export async function evaluateProof(
     access: ProviderAccess;
     images: Record<ProofFamily, string>;
     runs: number;
+    pricing?: ModelPricing;
     dispatch?: typeof fetch;
     session?: typeof proofSession;
     onCase?: (outcome: ProofCaseOutcome, run: number) => void;
@@ -204,7 +228,11 @@ export async function evaluateProof(
     }
     runs.push(outcomes);
   }
-  return { provider: options.provider, runs };
+  return {
+    provider: options.provider,
+    ...(options.pricing ? { pricing: options.pricing } : {}),
+    runs,
+  };
 }
 
 export interface ProofScore {
@@ -220,6 +248,9 @@ export interface ProofScore {
   stops: Partial<Record<ProofSessionStop, number>>;
   entryMismatches: number;
   tokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  unreportedCalls: number;
   modelCalls: number;
 }
 
@@ -247,21 +278,38 @@ export function scoreProof(outcomes: readonly ProofCaseOutcome[]): ProofScore {
     stops,
     entryMismatches: outcomes.filter((item) => !item.entryMatchesLabel).length,
     tokens: outcomes.reduce((sum, item) => sum + item.tokens, 0),
+    inputTokens: outcomes.reduce((sum, item) => sum + item.usage.inputTokens, 0),
+    outputTokens: outcomes.reduce((sum, item) => sum + item.usage.outputTokens, 0),
+    unreportedCalls: outcomes.reduce((sum, item) => sum + item.usage.unreportedCalls, 0),
     modelCalls: outcomes.reduce((sum, item) => sum + item.modelCalls, 0),
   };
+}
+
+/**
+ * Reported usage at the saved input and output rates. Cache reads are not discounted,
+ * so it errs high; calls that reported no usage are not in it.
+ */
+export function estimateUsd(score: ProofScore, pricing: ModelPricing): number {
+  return (
+    (score.inputTokens * pricing.rates.input + score.outputTokens * pricing.rates.output) /
+    1_000_000
+  );
 }
 
 export function formatProofEvaluation(evaluation: ProofEvaluation, date: string): string {
   const lines = [
     `# Proof sessions: ${evaluation.provider.name}, \`${evaluation.provider.model}\` (${date})`,
     "",
-    "| Run | False proofs | Yield | Proven | Not reproduced | Could not run | Failed | Tokens | Model calls |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| Run | False proofs | Yield | Proven | Not reproduced | Could not run | Failed | Model calls | Input / output tokens | Accounted tokens | USD (est.) |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   ];
+  const { pricing } = evaluation;
   evaluation.runs.forEach((outcomes, index) => {
     const score = scoreProof(outcomes);
+    const usd = pricing ? `${estimateUsd(score, pricing).toFixed(2)}` : "-";
+    const unreported = score.unreportedCalls ? ` (${score.unreportedCalls} calls unreported)` : "";
     lines.push(
-      `| ${index + 1} | ${score.falseProofs} of ${score.safe} | ${score.proven} of ${score.vulnerable} | ${score.outcomes.proven} | ${score.outcomes["not-reproduced"]} | ${score.outcomes["could-not-run"]} | ${score.failed} | ${score.tokens.toLocaleString("en-US")} | ${score.modelCalls} |`,
+      `| ${index + 1} | ${score.falseProofs} of ${score.safe} | ${score.proven} of ${score.vulnerable} | ${score.outcomes.proven} | ${score.outcomes["not-reproduced"]} | ${score.outcomes["could-not-run"]} | ${score.failed} | ${score.modelCalls} | ${score.inputTokens.toLocaleString("en-US")} / ${score.outputTokens.toLocaleString("en-US")}${unreported} | ${score.tokens.toLocaleString("en-US")} | ${usd} |`,
     );
   });
   lines.push(
