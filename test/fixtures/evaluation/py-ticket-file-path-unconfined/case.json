@@ -11,5 +11,11 @@
   "static": [
     "PLG802"
   ],
-  "note": "The deciding helper sits outside the Explore first message and the batch."
+  "note": "The deciding helper sits outside the Explore first message and the batch.",
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "app/api/routes/attachments.py", "line": 33, "endLine": 40 }
+    ]
+  }
 }

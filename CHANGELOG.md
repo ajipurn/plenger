@@ -10,6 +10,25 @@ are npm releases; earlier entries are milestones from
 
 ### Added
 
+- A proof test harness for M11 (`docs/design/proof-tests.md`), not yet reachable from
+  the dashboard. It runs one test against a copy of a project in a networkless
+  `proof-python` or `proof-node` image with a fixed package set. It reports path
+  traversal (CWE-22) and command injection (CWE-78) effects that come from the cited
+  code through the entry, and the host decides Proven, Not reproduced or Could not
+  run. A test that starts processes, touches the canaries, or changes project code,
+  the standard library, JavaScript intrinsics, the environment or the working
+  directory cannot be Proven.
+  `pnpm qualify:proof` builds both images and runs the handwritten and adversarial
+  tests.
+- A proof session, also not yet reachable from the dashboard: a model reads the
+  project, writes a proof test and runs it, within 10 model calls, 4 test runs and
+  400,000 tokens, until a run is Proven or it gives up. The entry it must go through
+  comes from the static inventory, never from the model: the routes and tools whose
+  traced effects reach the cited lines, or, in a project with neither, the public
+  function that holds them. `pnpm evaluate -- --proof --provider <name> --yes`
+  measures sessions on the labeled corpus; a Proven safe case counts as a false proof.
+  A provider that declines the task, such as OpenAI's `cyber_policy`, ends the session
+  as Could not run with its code.
 - The static scan finds the tools of low-level MCP servers. TypeScript servers that
   answer `setRequestHandler(CallToolRequestSchema, ...)` and Python servers with an
   `@server.call_tool()` handler had no tools, so nothing the model could reach

@@ -186,3 +186,81 @@ export const MODELS_DEV_PRICING = {
   cacheMs: 24 * 60 * 60 * 1000,
   retryMs: 5 * 60 * 1000,
 } as const;
+
+/** Weaknesses a proof test can observe; see docs/design/proof-tests.md. */
+export const PROOF_WEAKNESSES = ["CWE-22", "CWE-78"] as const;
+export type ProofWeakness = (typeof PROOF_WEAKNESSES)[number];
+export const PROOF_OUTCOMES = ["proven", "not-reproduced", "could-not-run"] as const;
+export type ProofOutcome = (typeof PROOF_OUTCOMES)[number];
+/** The proof images reuse the pinned bases of the llmfy and Vercel images. */
+export const PROOF_RUNTIME = { python: LLMFY_RUNTIME.python, node: VERCEL_RUNTIME.node } as const;
+/** Every check a proof worker's `ready` frame must report: the same as its base runtime's. */
+export const PROOF_ISOLATION_CHECKS = {
+  "proof-python": LLMFY_ISOLATION_CHECKS,
+  "proof-node": VERCEL_ISOLATION_CHECKS,
+} as const;
+export const PROOF_LIMITS = {
+  /** The test file the model writes. */
+  testBytes: 16 * 1024,
+  /** Output and error text kept per case. */
+  outputBytes: 8 * 1024,
+  errorBytes: 2 * 1024,
+  /** Effects a case may report, and the length of an effect's path or command. */
+  effects: 32,
+  targetCharacters: 512,
+  /** Entry and cited ranges per run, and the lines a case may report as reached. */
+  ranges: 8,
+  reachedLines: 4000,
+  /** Transport deadline of one run (both cases), and of one case inside the container. */
+  runTimeoutMs: 60_000,
+  caseTimeoutMs: 20_000,
+  /** Combined stdout and stderr the host accepts from a proof worker. */
+  workerOutputBytes: 128 * 1024,
+} as const;
+/** Packages each proof image carries, named to the model; the image reports versions. */
+export const PROOF_PACKAGES = {
+  "proof-python": [
+    "fastapi",
+    "flask",
+    "httpx",
+    "jinja2",
+    "langchain-core",
+    "numpy",
+    "openai",
+    "pydantic",
+    "pyyaml",
+    "requests",
+    "sqlalchemy",
+    "werkzeug",
+    "itsdangerous",
+  ],
+  "proof-node": ["ai", "express", "zod"],
+} as const;
+/** Bounds of one proof session, in which a model writes and runs tests; the evaluation tunes them. */
+export const PROOF_SESSION_LIMITS = {
+  modelCalls: 10,
+  runs: 4,
+  tokens: 400_000,
+  timeMs: 600_000,
+  requestBytes: 192 * 1024,
+  outputTokens: 16_384,
+  toolsPerTurn: 8,
+  /** Output and error text of one case, as the model sees it. */
+  caseTextBytes: 4096,
+  /** A `give_up` reason. */
+  reasonCharacters: 300,
+  /** Replies cut at the output allowance that a session answers with a request to shorten. */
+  cutReplies: 1,
+} as const;
+export const PROOF_SESSION_STOPS = [
+  "proven",
+  "gave-up",
+  "runs",
+  "model-calls",
+  "time",
+  "tokens",
+  "request-size",
+  "invalid",
+  "refused",
+] as const;
+export type ProofSessionStop = (typeof PROOF_SESSION_STOPS)[number];

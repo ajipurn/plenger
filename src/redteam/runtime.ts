@@ -24,8 +24,21 @@ export const RUNTIME_FILES = {
     "google.mjs",
     "sqlite.mjs",
   ],
+  "proof-python": ["Dockerfile", "requirements.txt", "proof.py"],
+  "proof-node": ["Dockerfile", "package.json", "package-lock.json", "proof.mjs", "case.mjs"],
 } as const;
 type RuntimeProfile = keyof typeof RUNTIME_FILES;
+
+/**
+ * The proof image of a family. It holds the harness and the package set, never project
+ * code, so one image serves every project and run.
+ */
+export async function prepareProofRuntime(
+  runtime: "proof-python" | "proof-node",
+  signal: AbortSignal,
+): Promise<string> {
+  return prepareRuntime(runtime, signal);
+}
 
 /** A run owns its image tag. Removing it never forces removal of another run's image. */
 export interface DisposableRuntime {
@@ -182,7 +195,8 @@ async function prepareManagedRuntime(
       ],
       {
         signal,
-        timeout: options.disposable || profile === "vercel" ? RUNTIME_BUILD_TIMEOUT_MS : 120_000,
+        // Only the qualification fixture is small enough for two minutes.
+        timeout: options.disposable || profile !== "llmfy" ? RUNTIME_BUILD_TIMEOUT_MS : 120_000,
         maxBuffer: 4 * 1024 * 1024,
       },
     );

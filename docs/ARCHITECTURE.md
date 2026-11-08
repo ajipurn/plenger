@@ -34,7 +34,7 @@ src/
   shared/                leaf utilities: secrets, runtime assets, JSON, hashing, guards
 dashboard/src/           React page bundled by Vite, organised by feature
 docs-site/               Fumadocs and Next.js static documentation; outside the package
-runtimes/                container recipes and in-container workers (llmfy, Next.js)
+runtimes/                container recipes and in-container workers (llmfy, Next.js, proof tests)
 schemas/                 generated JSON schemas (`pnpm generate`)
 test/                    vitest suites, `support/` helpers, fixture corpora and golden files
 ```
@@ -230,10 +230,19 @@ explicit start.
   schemas from it.
 - **Qualification.** `qualification.ts` and `qualification-broker.ts` run the
   synthetic container suites used by `pnpm qualify:*`.
+- **Proof tests.** `proof-model.ts` holds the case records, the test rules and
+  `decideProof()`, the host's outcome rules; it has no `node:` imports.
+  `proof-run.ts` checks a test, runs it once through `worker.ts` in the proof
+  image of its family and validates every frame. `proof-entry.ts` derives the
+  entry from the inventory, `proof-session.ts` is the model's turn loop with
+  `run_test` and `give_up`, and `proof-provider.ts` bounds its connection with
+  `ModelBudget`. The read tools come in as a parameter, since `redteam` does not
+  import `assessment`. See [design/proof-tests.md](design/proof-tests.md).
 
 The host to container protocol is specified in
 [design/worker-protocol.md](design/worker-protocol.md); the workers live in
-`runtimes/llmfy/` and `runtimes/vercel/`.
+`runtimes/llmfy/`, `runtimes/vercel/`, `runtimes/proof-python/` and
+`runtimes/proof-node/`.
 
 Modules the browser bundles must stay free of `node:` imports. From the engine
 these are `dashboard/contract.ts`, `redteam/constants.ts`,
@@ -317,8 +326,9 @@ tests speak HTTP to `startDashboard()`, and the inventory and rules tests compar
 whole scans with the golden files under `test/fixtures/*/expected-*.json`.
 `test/support/` holds the shared helpers (`fixturePath`, `temporaryDir`, the
 synthetic provider, the dashboard harness, corpus list, benchmark scoring).
-Container-gated suites skip unless `PLENGER_TEST_LLMFY_IMAGE` or
-`PLENGER_TEST_VERCEL_IMAGE` is set; see [CONTRIBUTING.md](../CONTRIBUTING.md).
+Container-gated suites skip unless `PLENGER_TEST_LLMFY_IMAGE`,
+`PLENGER_TEST_VERCEL_IMAGE` or the two `PLENGER_TEST_PROOF_*_IMAGE` variables are
+set; see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Where a change belongs
 

@@ -27,6 +27,13 @@ Labeled cases for `pnpm evaluate`. Each folder is one small project with a
   false positives. `test/evaluation.test.ts` fails when the scanner's behaviour
   drifts from them, so update the label after reviewing the change.
 - `note`: why the static result differs from the ground truth, when it does.
+- `proof`: on pairs a proof test can run (docs/design/proof-tests.md). `expected` is
+  `proven` for the vulnerable twin and `not-reproduced` for the safe one. `entry`
+  holds the function bodies where the input enters; a proof must go through them,
+  and `test/proof-entry.test.ts` checks that the entry the host derives holds
+  them. `unprovable`, on a vulnerable case, says why the harness cannot show it.
+  `test/proof-runtime.test.ts` runs the handwritten tests in `test/fixtures/proof/`
+  for some of the labeled cases.
 
 Cases come in pairs. Keep each one small and free of unrelated issues: a finding
 outside the labeled location counts as unlabeled. When a pair needs more than one

@@ -8,5 +8,12 @@
     "line": 11,
     "endLine": 15
   },
-  "static": ["PLG801"]
+  "static": ["PLG801"],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "app.py", "line": 12, "endLine": 15 }
+    ],
+    "unprovable": "The delete runs in an rm process started without a shell; the harness sees file effects only from Python code."
+  }
 }

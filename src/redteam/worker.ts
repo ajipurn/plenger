@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { errorMessage } from "../shared/guards.ts";
 import { BudgetStoppedError } from "./budget.ts";
-import { IMAGE_ID, WORKER_PROTOCOL_VERSION, WORKER_TIMEOUT_MS } from "./constants.ts";
+import { IMAGE_ID, PROOF_LIMITS, WORKER_PROTOCOL_VERSION, WORKER_TIMEOUT_MS } from "./constants.ts";
 import type { BudgetScenario } from "./qualification-broker.ts";
 
 /**
@@ -15,6 +15,48 @@ import type { BudgetScenario } from "./qualification-broker.ts";
 export const EXPIRES_LABEL = "org.plenger.expires";
 /** Margin past the deadline for the expiry label and the Podman daemon backstop. */
 const BACKSTOP_GRACE_MS = 10_000;
+
+/** The bundled images a worker runs, each with its own entrypoint. */
+export type WorkerRuntime = "llmfy" | "vercel" | "proof-python" | "proof-node";
+
+/** Entrypoint, arguments, output cap and container purpose of each runtime's worker. */
+function launchOf(options: WorkerLaunch): {
+  entrypoint: string;
+  args: string[];
+  outputBytes: number;
+  purpose: string;
+} {
+  switch (options.runtime) {
+    case "vercel":
+      return {
+        entrypoint: "node",
+        args: ["/opt/plenger/worker.mjs"],
+        outputBytes: 512 * 1024,
+        purpose: "redteam-run",
+      };
+    case "proof-python":
+      return {
+        entrypoint: "python",
+        args: ["-I", "/opt/plenger/proof.py"],
+        outputBytes: PROOF_LIMITS.workerOutputBytes,
+        purpose: "proof-test",
+      };
+    case "proof-node":
+      return {
+        entrypoint: "node",
+        args: ["/opt/plenger/proof.mjs"],
+        outputBytes: PROOF_LIMITS.workerOutputBytes,
+        purpose: "proof-test",
+      };
+    default:
+      return {
+        entrypoint: "python",
+        args: ["-I", options.projectRequest ? "/opt/plenger/worker.py" : "/opt/plenger/qualify.py"],
+        outputBytes: 64 * 1024,
+        purpose: options.projectRequest ? "redteam-run" : "qualification",
+      };
+  }
+}
 
 /** Receives one worker frame and may return a reply frame to write back. */
 export type WorkerHandler = (message: unknown) => Promise<unknown | undefined>;
@@ -76,7 +118,7 @@ export interface WorkerLaunch {
   onMessage?: WorkerHandler;
   /** A managed project run instead of fixture qualification. */
   projectRequest?: Record<string, unknown>;
-  runtime?: "llmfy" | "vercel";
+  runtime?: WorkerRuntime;
   onLaunch?: (name: string) => void;
 }
 
@@ -119,7 +161,7 @@ export async function runWorker(image: string, options: WorkerLaunch): Promise<s
             },
       ),
       timeoutMs,
-      maxOutputBytes: options.runtime === "vercel" ? 512 * 1024 : 64 * 1024,
+      maxOutputBytes: launchOf(options).outputBytes,
       ...(options.signal ? { signal: options.signal } : {}),
       ...(options.onMessage ? { onMessage: options.onMessage } : {}),
     });
@@ -169,14 +211,14 @@ export function containerArguments(
   timeoutMs: number,
   options: WorkerLaunch,
 ): string[] {
-  const vercel = options.runtime === "vercel";
+  const launch = launchOf(options);
   return [
     "run",
     "--rm",
     "--name",
     name,
     "--label",
-    `org.plenger.purpose=${options.projectRequest ? "redteam-run" : "qualification"}`,
+    `org.plenger.purpose=${launch.purpose}`,
     "--label",
     `${EXPIRES_LABEL}=${Date.now() + timeoutMs + BACKSTOP_GRACE_MS}`,
     "--pull=never",
@@ -213,11 +255,9 @@ export function containerArguments(
           "--env=no_proxy=",
         ]),
     "--interactive",
-    vercel ? "--entrypoint=node" : "--entrypoint=python",
+    `--entrypoint=${launch.entrypoint}`,
     image,
-    ...(vercel
-      ? ["/opt/plenger/worker.mjs"]
-      : ["-I", options.projectRequest ? "/opt/plenger/worker.py" : "/opt/plenger/qualify.py"]),
+    ...launch.args,
   ];
 }
 

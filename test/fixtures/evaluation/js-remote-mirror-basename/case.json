@@ -7,5 +7,11 @@
     "line": 6,
     "endLine": 11
   },
-  "static": []
+  "static": [],
+  "proof": {
+    "expected": "not-reproduced",
+    "entry": [
+      { "path": "mirror.js", "line": 7, "endLine": 10 }
+    ]
+  }
 }

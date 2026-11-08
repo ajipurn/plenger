@@ -10,5 +10,12 @@
   },
   "static": [
     "PLG101"
-  ]
+  ],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "tools.ts", "line": 9, "endLine": 12 }
+    ],
+    "unprovable": "execFileSync runs the chosen program without a shell or arguments, so injection needs a specific binary rather than a shell payload."
+  }
 }

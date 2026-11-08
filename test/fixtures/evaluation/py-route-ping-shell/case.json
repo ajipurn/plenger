@@ -8,5 +8,11 @@
     "line": 5,
     "endLine": 7
   },
-  "static": ["PLG801"]
+  "static": ["PLG801"],
+  "proof": {
+    "expected": "proven",
+    "entry": [
+      { "path": "app/main.py", "line": 11, "endLine": 11 }
+    ]
+  }
 }

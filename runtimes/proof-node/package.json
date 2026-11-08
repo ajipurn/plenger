@@ -1,0 +1,11 @@
+{
+  "name": "plenger-proof-node-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ai": "7.0.29",
+    "express": "5.3.0",
+    "zod": "4.4.3"
+  }
+}
