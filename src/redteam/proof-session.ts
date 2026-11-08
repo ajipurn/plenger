@@ -211,7 +211,8 @@ const STOP_REASONS: Record<Exclude<ProofSessionStop, "proven">, string> = {
 
 /**
  * Run one session. Cancellation rethrows; a provider failure rethrows too, since the
- * caller owns the connection. Every other end is a result.
+ * caller owns the connection, except a policy failure (`cyber_policy` and similar
+ * codes), which ends the session as `refused`. Every other end is a result.
  */
 export async function proofSession(options: ProofSessionOptions): Promise<ProofSessionResult> {
   if (!options.entries.ranges.length)
