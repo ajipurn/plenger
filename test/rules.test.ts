@@ -1869,6 +1869,32 @@ describe("secrets", () => {
     ).toBe("OpenAI API key");
   });
 
+  it("recognises a key that ends in a dash or holds a placeholder word inside random text", () => {
+    // Assembled here, so the repository holds no key-shaped literal.
+    const google = ["AIza", "SyB3k9Qx8RvT2mN7pL4sW6yBz1Xc5Vd8Fg-"].join("");
+    expect(findSecret(`key=${google}`)?.name).toBe("Google API key");
+    expect(redactKnown(`https://example.com/maps?key=${google}`)).toBe(
+      "https://example.com/maps?key=<redacted>",
+    );
+    const anthropic = ["sk-ant-api03", "Zq8vN2kTestE5wR9mL3xB7cJ1pF4hG6"].join("-");
+    expect(redact(`api_key="${anthropic}"`)).toBe('api_key="<redacted>"');
+    expect(findSecret("sk-ant-api03-test-key-1234567890abcdefgh")).toBeNull();
+  });
+
+  it.each([
+    ["csrf-token-", 8192],
+    ["x-api_key-", 8192],
+    ["a.", 32768],
+    ["eyJ-", 32768],
+  ] as const)("redacts a long line of repeated %j in linear time", (part, size) => {
+    const text = part.repeat(Math.ceil(size / part.length));
+    const started = performance.now();
+    redact(text);
+    secretIn(text);
+    // Matching inside each run took seconds here (cubic for credential names).
+    expect(performance.now() - started).toBeLessThan(200);
+  });
+
   it("recognises credentials written out in prose", () => {
     expect(secretIn("Call the API with password: Tr0ub4dor-x9Kq7mW2")).toBe("credential");
     expect(secretIn("Never reveal the password to anyone.")).toBeNull();

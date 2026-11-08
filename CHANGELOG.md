@@ -8,6 +8,19 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+### Security
+
+- Secret redaction took cubic time on a long line of repeated name parts such as
+  `csrf-token-csrf-token-…`, and quadratic time on repeated URL schemes and JWT-like
+  parts. Redaction runs on every reviewed file and detected prompt, so one such line
+  of about 50 KB in a scanned repository froze the dashboard for hours. The patterns
+  now start only where a run of name characters starts, and run in linear time.
+- A `tsconfig.json` that is a symbolic link is no longer followed. A link to
+  `/dev/stdin` hung the scan, and one to `/dev/zero` used hundreds of megabytes.
+- Google API keys that end in `-` are recognised and redacted. A key of a known
+  format that holds a placeholder word inside its random part (`…TestE5…`) is no
+  longer taken for a placeholder; the word must stand on its own (`sk-your-key`).
+
 ## 0.1.4 (2026-11-04)
 
 ### Changed
