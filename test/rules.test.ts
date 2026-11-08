@@ -1797,6 +1797,243 @@ def remove_confirmed(path: str) -> str:
       ["remove_confirmed", "click.confirm"],
     ]);
   });
+
+  it("find the tools of low-level MCP servers, which answer every call in one handler", async () => {
+    const root = await project({
+      "server.ts": `import { readFile } from "node:fs/promises";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+
+const server = new Server({ name: "files", version: "1.0.0" }, { capabilities: { tools: {} } });
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [] }));
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const text = await readFile(String(request.params.arguments?.path), "utf8");
+  return { content: [{ type: "text", text }] };
+});
+`,
+      "server.py": `from mcp.server.lowlevel import Server
+
+app = Server("files")
+
+
+@app.call_tool()
+async def call_tool(name: str, arguments: dict):
+    with open(arguments["path"]) as handle:
+        return handle.read()
+`,
+    });
+    const result = await scan(root);
+    // The ListTools handler is not a tool; the CallTool handler stands for all of them.
+    expect(
+      result.inventory.tools.map((tool) => `${tool.location.path} ${tool.name}`).sort(),
+    ).toEqual(["server.py call_tool", "server.ts tools/call"]);
+    expect(result.inventory.mcpServers.map((server) => server.tools.length)).toEqual([1, 1]);
+    expect(
+      result.findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort(),
+    ).toEqual(["PLG104 call_tool", "PLG104 tools/call"]);
+  });
+
+  it("find Claude Agent SDK tools and name Google ADK as unrecognised", async () => {
+    const root = await project({
+      "notes.py": `from claude_agent_sdk import create_sdk_mcp_server, tool
+
+
+@tool("read_note", "Read a note", {"path": str})
+async def read_note(args):
+    with open(args["path"]) as handle:
+        return {"content": [{"type": "text", "text": handle.read()}]}
+
+
+notes = create_sdk_mcp_server(name="notes", version="1.0.0", tools=[read_note])
+`,
+      "notes.ts": `import { readFile } from "node:fs/promises";
+import { tool } from "@anthropic-ai/claude-agent-sdk";
+import { z } from "zod";
+
+export const writeNote = tool("show_note", "Show a note", { path: z.string() }, async (args) => ({
+  content: [{ type: "text", text: await readFile(args.path, "utf8") }],
+}));
+`,
+      "agent.py": `from google.adk.agents import Agent
+
+root_agent = Agent(name="helper", model="gemini", instruction="Help.")
+`,
+    });
+    const result = await scan(root);
+    expect(result.inventory.tools.map((tool) => `${tool.framework} ${tool.name}`).sort()).toEqual([
+      "claude-agent-sdk read_note",
+      "claude-agent-sdk show_note",
+    ]);
+    expect(
+      result.findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort(),
+    ).toEqual(["PLG104 read_note", "PLG104 show_note"]);
+    expect(result.inventory.unrecognised).toEqual([{ module: "google.adk", files: ["agent.py"] }]);
+  });
+
+  it("take yaml.load and numpy.load as deserializers only with the options that build objects", async () => {
+    const root = await project({
+      "app.py": `import numpy
+import yaml
+from flask import Flask, request
+
+app = Flask(__name__)
+
+
+@app.post("/loader")
+def loader():
+    return str(yaml.load(request.data, Loader=yaml.Loader))
+
+
+@app.post("/unsafe-loader")
+def unsafe_loader():
+    return str(yaml.load(request.data, yaml.UnsafeLoader))
+
+
+@app.post("/safe-loader")
+def safe_loader():
+    return str(yaml.load(request.data, Loader=yaml.CSafeLoader))
+
+
+@app.post("/pickled")
+def pickled():
+    return str(numpy.load(request.files["f"], allow_pickle=True))
+
+
+@app.post("/arrays")
+def arrays():
+    return str(numpy.load(request.files["f"]))
+
+
+class SafeInclude(yaml.SafeLoader):
+    pass
+
+
+@app.post("/subclass")
+def subclass():
+    return str(yaml.load(request.data, Loader=DeepLoader))
+
+
+@app.post("/safe-subclass")
+def safe_subclass():
+    return str(yaml.load(request.data, Loader=SafeInclude))
+
+
+@app.post("/unsafe-all")
+def unsafe_all():
+    return str(list(yaml.unsafe_load_all(request.data)))
+`,
+      // A loader that extends one that builds objects builds them too, through any depth.
+      "loaders.py": `import yaml
+
+
+class IncludeLoader(yaml.Loader):
+    pass
+
+
+class DeepLoader(IncludeLoader):
+    pass
+`,
+    });
+    await writeFile(
+      join(root, "app.py"),
+      `from loaders import DeepLoader\n${await readFile(join(root, "app.py"), "utf8")}`,
+    );
+    const findings = (await scan(root)).findings;
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG807 POST /loader",
+      "PLG807 POST /pickled",
+      "PLG807 POST /subclass",
+      "PLG807 POST /unsafe-all",
+      "PLG807 POST /unsafe-loader",
+    ]);
+  });
+
+  it("find Claude Agent SDK servers and agents, with the tools they may use without asking", async () => {
+    const root = await project({
+      "ops.py": `import subprocess
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, create_sdk_mcp_server, query, tool
+from fastapi import FastAPI
+
+
+@tool("run", "Run a command", {"cmd": str})
+async def run(args):
+    subprocess.run(args["cmd"], shell=True)
+    return {"content": []}
+
+
+ops = create_sdk_mcp_server(name="ops", version="1.0.0", tools=[run])
+fixer = ClaudeAgentOptions(system_prompt="You fix builds.", mcp_servers={"ops": ops}, allowed_tools=["Read", "mcp__ops__run"])
+reviewer = ClaudeAgentOptions(system_prompt="Review.", permission_mode="bypassPermissions")
+
+app = FastAPI()
+
+
+@app.post("/fix")
+async def fix(task: str):
+    async for message in query(prompt=task, options=fixer):
+        print(message)
+
+
+@app.post("/review")
+async def review(diff: str):
+    async with ClaudeSDKClient(options=reviewer) as client:
+        await client.query(diff)
+`,
+      "notes.ts": `import { readFile } from "node:fs/promises";
+import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
+import express from "express";
+import { z } from "zod";
+
+const showNote = tool("show_note", "Show a note", { path: z.string() }, async (args) => ({
+  content: [{ type: "text", text: await readFile(args.path, "utf8") }],
+}));
+const notes = createSdkMcpServer({ name: "notes", version: "1.0.0", tools: [showNote] });
+
+const app = express();
+app.post("/ask", async (req, res) => {
+  for await (const message of query({ prompt: req.body.question, options: { mcpServers: { notes } } }))
+    res.write(JSON.stringify(message));
+  res.end();
+});
+`,
+    });
+    const { inventory, findings } = await scan(root);
+    const names = new Map(inventory.tools.map((tool) => [tool.id, tool.name]));
+    const toolNames = (ids: string[]) => ids.map((id) => names.get(id)).sort();
+    expect(
+      inventory.mcpServers.map((server) => [
+        server.name,
+        server.transport,
+        toolNames(server.tools),
+      ]),
+    ).toEqual([
+      ["notes", "in-process", ["show_note"]],
+      ["ops", "in-process", ["run"]],
+    ]);
+    expect(
+      inventory.agents.map((agent) => [
+        `${agent.location.path}:${agent.location.line}`,
+        toolNames(agent.tools),
+        agent.invocations.flatMap((run) => run.inputs.map((part) => part.text)),
+      ]),
+    ).toEqual([
+      ["notes.ts:13", ["show_note"], ["req.body.question"]],
+      ["ops.py:13", ["Read", "run"], ["task"]],
+      // Without asking, a bypassPermissions agent may use every tool the SDK has.
+      ["ops.py:14", toolNames(inventory.agents[2]?.tools ?? []), ["diff"]],
+    ]);
+    expect(toolNames(inventory.agents[2]?.tools ?? [])).toContain("Bash");
+    expect(findings.map((finding) => `${finding.rule} ${finding.subject.name}`).sort()).toEqual([
+      "PLG101 Bash",
+      "PLG101 run",
+      "PLG104 show_note",
+      "PLG201 fixer",
+      "PLG201 reviewer",
+      // Reading notes is not an action, so `/ask` has no PLG301.
+      "PLG301 POST /fix",
+      "PLG301 POST /review",
+    ]);
+  });
 });
 
 describe("triage score", () => {

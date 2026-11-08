@@ -220,7 +220,10 @@ export interface McpServer {
   framework: string;
   location: Location;
   name: string | null;
-  /** `stdio`, `streamable-http`, `sse`, or null when plenger saw no transport. */
+  /**
+   * `stdio`, `streamable-http`, `sse`, `in-process` (an agent SDK's server that the
+   * agent runs itself), or null when plenger saw no transport.
+   */
   transport: string | null;
   tools: string[];
   resources: McpMember[];

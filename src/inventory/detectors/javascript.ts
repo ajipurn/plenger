@@ -1,4 +1,4 @@
-import type { DetectorRule } from "../detectors.ts";
+import { CLAUDE_AGENT_TOOLS, type DetectorRule } from "../detectors.ts";
 
 // `openai#default` (default import), `openai#OpenAI` (named) and `openai` (require).
 const OPENAI = "openai{#default,#OpenAI,#AzureOpenAI,}";
@@ -135,6 +135,40 @@ export const JAVASCRIPT_RULES: DetectorRule[] = [
     framework: "langchain",
     calls: CHAT_MODELS.map((model) => `${model}()**.bindTools`),
     tools: "#0",
+  },
+  // Claude Agent SDK: `tool(name, description, schema, handler)`.
+  {
+    kind: "tool_factory",
+    framework: "claude-agent-sdk",
+    calls: ["@anthropic-ai/claude-agent-sdk#tool"],
+    name: "#0",
+    description: "#1",
+    handler: "#3",
+  },
+  {
+    kind: "mcp_server",
+    framework: "claude-agent-sdk",
+    calls: ["@anthropic-ai/claude-agent-sdk#createSdkMcpServer"],
+    name: "#0.name",
+    tools: "#0.tools",
+    transport: "in-process",
+  },
+  // `query({ prompt, options })` is the agent and its run.
+  {
+    kind: "agent",
+    framework: "claude-agent-sdk",
+    calls: ["@anthropic-ai/claude-agent-sdk#query"],
+    model: "#0.options.model",
+    system: ["#0.options.systemPrompt", "#0.options.systemPrompt.append"],
+    mcp: "#0.options.mcpServers",
+    builtins: "#0.options.allowedTools",
+    allBuiltins: {
+      path: "#0.options.permissionMode",
+      equals: ["bypassPermissions"],
+      tools: CLAUDE_AGENT_TOOLS,
+    },
+    invoke: ["@anthropic-ai/claude-agent-sdk#query"],
+    input: ["#0.prompt"],
   },
   {
     kind: "tool_factory",
@@ -281,6 +315,20 @@ export const JAVASCRIPT_RULES: DetectorRule[] = [
     name: "#0",
     description: "#1.description",
     handler: "#-1",
+  },
+  // The low-level server answers every tool call in one handler that switches on the
+  // tool name; it stands for all of the server's tools.
+  {
+    kind: "mcp_member",
+    framework: "mcp",
+    member: "tool",
+    calls: [
+      `${MCP_LOW_LEVEL}().setRequestHandler`,
+      ...members(MCP_SERVER, ["server.setRequestHandler"]),
+    ],
+    where: { path: "#0", named: ["CallToolRequestSchema"] },
+    handler: "#1",
+    label: "tools/call",
   },
   {
     kind: "mcp_member",

@@ -59,8 +59,12 @@ export class ToolRegistry {
   }
 
   /** Tools named in a tools argument: a list, a `{ name: tool }` object, or tool schemas. */
-  toolsFrom(values: Value[], span: Span, framework: string): { ids: string[]; unresolved: number } {
-    const ids: string[] = [];
+  toolsFrom(
+    values: Value[],
+    span: Span,
+    framework: string,
+  ): { ids: string[]; tools: Tool[]; unresolved: number } {
+    const tools: Tool[] = [];
     let unresolved = 0;
     const visit = (value: Value, key: string | null, depth: number) => {
       const target = deref(value, this.#scope.facts);
@@ -74,10 +78,10 @@ export class ToolRegistry {
       }
       const tool = this.toolOf(target, key, span, framework);
       if (tool === undefined) unresolved++;
-      else ids.push(tool.id);
+      else if (!tools.includes(tool)) tools.push(tool);
     };
     for (const value of values) visit(value, null, 0);
-    return { ids: [...new Set(ids)], unresolved };
+    return { ids: tools.map((tool) => tool.id), tools, unresolved };
   }
 
   toolOf(value: Value, key: string | null, span: Span, framework: string): Tool | undefined {

@@ -69,7 +69,11 @@ Per project the inventory lists:
   base class name ends in `Tool` and that defines `execute`, `_execute`, `run`,
   `_run`, `arun` or `_arun` is a tool, reported under the framework "Project
   tool classes"
-- MCP servers (tools, resources, prompts, transport) and clients (command or URL)
+- MCP servers (tools, resources, prompts, transport) and clients (command or URL).
+  A low-level server answers every tool call in one handler,
+  `setRequestHandler(CallToolRequestSchema, ...)` in TypeScript or
+  `@server.call_tool()` in Python; that handler is reported as one tool,
+  `tools/call` or the function's name, whose arguments the model chooses
 - prompts: fixed text, dynamic parts, template variables and users
 - data stores: vector stores, embeddings, retrievers, checkpointers
 - HTTP entry points
@@ -81,7 +85,12 @@ Detection is data: patterns over canonical call, decorator and base-class names
 in [src/inventory/detectors/](../../src/inventory/detectors/). Imports of the
 project's own modules are resolved across files, so a tool declared in one file
 attaches to the server or agent created in another. The supported frameworks are
-listed in [history/m0-m5.md](../history/m0-m5.md#m2-agent-inventory-done).
+listed in [history/m0-m5.md](../history/m0-m5.md#m2-agent-inventory-done); since
+then the Claude Agent SDK (TypeScript and Python) has been added: its tools, its
+in-process MCP servers and its agents. A Claude agent's tools are those of its
+in-process servers and the SDK tools that `allowed_tools` names, or all of the SDK
+tools in `bypassPermissions` mode. Imports of AI frameworks plenger has no detectors
+for, such as Google ADK, are reported as unrecognised.
 
 ## Capabilities
 
@@ -90,9 +99,12 @@ commands, execute code, write or delete files, reach the network, databases,
 messages or payments, read secrets or environment variables, deserialise
 untrusted data or drive a browser. `torch.load` with `weights_only=True` is not
 such a deserializer: its unpickler refuses classes other than tensors and plain
-containers. For every tool handler and HTTP entry point,
-plenger follows calls into project functions, methods and constructors (across
-files, six levels deep) down to a call with an outside effect. Each capability
+containers. `yaml.load` is one only with a loader that builds objects (`Loader`,
+`UnsafeLoader`, `FullLoader`, their C variants and project classes based on them),
+not with `SafeLoader` or `BaseLoader`, and `numpy.load` only with
+`allow_pickle=True`. For every tool handler and HTTP entry point, plenger follows
+calls into project functions, methods and constructors (across files, six levels
+deep) down to a call with an outside effect. Each capability
 carries the call chain and the non-constant inputs of the effect, with caller
 arguments bound to callee parameters at every step. Agents roll up their tools'
 capabilities, the effects of their graph nodes (LangGraph and llmfy `add_node`),

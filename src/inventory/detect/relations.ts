@@ -219,9 +219,13 @@ export class Relations {
           .filter((id) => id !== agent.id);
       }
       if (rule.mcp !== undefined) {
+        const values = select(call.arguments, facts, rule.mcp);
         agent.mcpClients = d.instances
-          .instancesIn(select(call.arguments, facts, rule.mcp), "mcp_client")
+          .instancesIn(values, "mcp_client")
           .map((instance) => instance.component.id);
+        // A server the agent runs in its own process: its tools are the agent's.
+        for (const { component } of d.instances.instancesIn(values, "mcp_server"))
+          agent.tools = [...new Set([...agent.tools, ...component.tools])];
       }
     }
     for (const link of d.receiverLinks) {

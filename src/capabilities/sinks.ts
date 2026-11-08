@@ -12,6 +12,12 @@ export interface Sink {
   except?: string[];
   /** Argument path of an option that, set to a literal true, makes the call safe (`weights_only=True`). */
   safeOption?: string;
+  /**
+   * The call is this sink only when the argument at `option` names a matching value: a
+   * loader that builds objects (`yaml.load(s, Loader=yaml.Loader)`) or a literal true
+   * (`numpy.load(f, allow_pickle=True)`). Without one the call is safe.
+   */
+  requires?: { option: string; value: RegExp };
   /** Argument path (facts/query.ts `select`) of the main input. */
   input?: string;
   /** Take the input from the first call of the chain (`Path(p).write_text()` acts on `p`). */
@@ -159,13 +165,27 @@ export const PYTHON_SINKS: Sink[] = [
       each("dill", "load,loads"),
       each("cloudpickle", "load,loads"),
       "marshal.loads",
-      each("yaml", "unsafe_load,full_load"),
+      each("yaml", "unsafe_load,full_load,unsafe_load_all,full_load_all"),
       "joblib.load",
       each("shelve", "open"),
       "pandas.read_pickle",
       "statsmodels.{iolib,iolib.api,iolib.smpickle,api}.load_pickle",
     ],
     input: "filepath_or_buffer|fname|#0",
+  },
+  {
+    kind: "deserialize",
+    calls: [each("yaml", "load,load_all")],
+    input: "stream|#0",
+    // These loaders build Python objects from tags; SafeLoader and BaseLoader do not.
+    requires: { option: "Loader|#1", value: /(?:^|\.)C?(?:Unsafe|Full)?Loader$/ },
+  },
+  {
+    kind: "deserialize",
+    calls: ["numpy.load"],
+    input: "file|#0",
+    // Object arrays are unpickled only when allowed; the default refuses them.
+    requires: { option: "allow_pickle", value: /^(?:True|true)$/ },
   },
   {
     // Hub code named by a model's `auto_map`, downloaded and imported.
@@ -552,6 +572,11 @@ export const JAVASCRIPT_SINKS: Sink[] = [
 export const BUILTIN_TOOL_CAPABILITIES: { name: RegExp; kind: CapabilityKind; hosted?: boolean }[] =
   [
     { name: /^(?:ShellTool|LocalShellTool|shellTool)$/, kind: "process" },
+    // The Claude Agent SDK's tools, by the names `allowed_tools` gives them.
+    { name: /^Bash$/, kind: "process" },
+    { name: /^(?:Write|Edit|MultiEdit|NotebookEdit)$/, kind: "file_write" },
+    { name: /^(?:Read|Glob|Grep)$/, kind: "file_read" },
+    { name: /^WebSearch$/, kind: "network", hosted: true },
     {
       name: /^(?:ApplyPatchTool|applyPatchTool|FileWriterTool|WriteFileTool|CopyFileTool|MoveFileTool)$/,
       kind: "file_write",

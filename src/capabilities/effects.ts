@@ -10,6 +10,7 @@ import type {
   DefinitionFact,
   FileFacts,
   GuardFact,
+  Ref,
   Span,
   Value,
 } from "../facts/model.ts";
@@ -223,6 +224,21 @@ export class EffectTracer {
    * Calls that tracing a function and every project function it reached could not
    * follow, or null when it followed all of them. Call `effects` for the function first.
    */
+  /** Canonical names of a project class's bases, through the project's own base classes. */
+  baseNames(path: string, ref: Ref, depth: number): string[] {
+    if (ref.kind !== "local" || ref.path !== "" || depth > MAX_DEPTH) return [];
+    const file = ref.file ?? path;
+    const definition = this.#project.files
+      .get(file)
+      ?.facts.definitions.find((candidate) => candidate.id === ref.definition);
+    if (definition?.kind !== "class") return [];
+    return definition.bases.flatMap((base) =>
+      base.kind === "name" && base.ref !== null
+        ? [base.ref.name, ...this.baseNames(file, base.ref, depth + 1)]
+        : [],
+    );
+  }
+
   gaps(path: string, definition: string): TraceGaps | null {
     const depthLimited = new Map<string, Location>();
     const dynamic = new Map<string, Location>();
@@ -308,8 +324,12 @@ export class EffectTracer {
         ({ pattern, sink }) => (!local || sink.projectClasses === true) && pattern.test(name),
       );
       const safe =
-        match?.sink.safeOption !== undefined &&
-        trueOption(callee, file.facts, match.sink.safeOption);
+        (match?.sink.safeOption !== undefined &&
+          trueOption(callee, file.facts, match.sink.safeOption)) ||
+        (match?.sink.requires !== undefined &&
+          !optionMatches(callee, file.facts, match.sink.requires, (ref) =>
+            this.baseNames(file.path, ref, 0),
+          ));
       if (match !== undefined && !safe)
         effects.push(this.sinkEffect(file, callee, match.sink, location, limitedFor));
     }
@@ -1644,6 +1664,27 @@ function shellOption(call: CallFact, facts: FileFacts, path: string): boolean {
   if (target.kind === "literal")
     return !/^(?:False|false|None|null|undefined|0)$/.test(target.text);
   return true;
+}
+
+/**
+ * Whether the argument at `option` is a name or literal that `value` matches, or a
+ * project class with such a base (`class IncludeLoader(yaml.Loader)`).
+ */
+function optionMatches(
+  call: CallFact,
+  facts: FileFacts,
+  { option, value }: NonNullable<Sink["requires"]>,
+  baseNames: (ref: Ref) => string[],
+): boolean {
+  const [argument] = select(call.arguments, facts, option);
+  const target = argument === undefined ? undefined : deref(argument, facts);
+  const texts =
+    target?.kind === "name"
+      ? [target.ref?.name ?? target.text, ...(target.ref ? baseNames(target.ref) : [])]
+      : target?.kind === "literal"
+        ? [target.text]
+        : [];
+  return texts.some((text) => value.test(text));
 }
 
 /** An option set to a literal true: `weights_only=True`. */

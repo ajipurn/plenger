@@ -8,6 +8,32 @@ are npm releases; earlier entries are milestones from
 
 ## Unreleased
 
+### Added
+
+- The static scan finds the tools of low-level MCP servers. TypeScript servers that
+  answer `setRequestHandler(CallToolRequestSchema, ...)` and Python servers with an
+  `@server.call_tool()` handler had no tools, so nothing the model could reach
+  through them was reported. The handler is now one tool, `tools/call` or its
+  function's name, and its effects are traced like any other tool's.
+- The Claude Agent SDK is detected in Python and TypeScript:
+  - tools: `@tool(name, description, schema)` and `tool(name, description, schema, handler)`;
+  - servers: `create_sdk_mcp_server` and `createSdkMcpServer`, with the tools they
+    list and the transport `in-process`;
+  - agents: `ClaudeAgentOptions`, run by `query(prompt, options)` or
+    `ClaudeSDKClient(options).query(prompt)`, and `query({ prompt, options })` in
+    TypeScript.
+
+  An agent's tools are those of its in-process servers and the SDK tools that
+  `allowed_tools` names (`Bash`, `Write`, `Read` and the rest), or all of the SDK
+  tools with `permission_mode="bypassPermissions"`.
+- Google ADK imports are reported as unrecognised AI framework usage instead of
+  being left out.
+- `yaml.load` and `yaml.load_all` with a loader that builds objects (`Loader`,
+  `UnsafeLoader`, `FullLoader`, their C variants and project classes based on them),
+  and `numpy.load` with `allow_pickle=True`, count as deserializers. With
+  `SafeLoader`, `BaseLoader` or no `allow_pickle` they do not. `yaml.unsafe_load_all`
+  and `yaml.full_load_all` count too, as `unsafe_load` and `full_load` did.
+
 ### Security
 
 - Secret redaction took cubic time on a long line of repeated name parts such as
