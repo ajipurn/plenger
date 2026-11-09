@@ -364,6 +364,9 @@
         "tool": {
           "type": "string"
         },
+        "node": {
+          "type": "string"
+        },
         "command": {
           "type": "string",
           "enum": ["shell", "program", "arguments"]

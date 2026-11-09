@@ -167,6 +167,13 @@ class CapabilityAnalyzer {
       for (const capability of tools.get(id)?.capabilities ?? [])
         capabilities.push({ ...capability, tool: id });
     }
+    // A graph node is the agent's own code, run on the graph's state: `add_node("run", run)`.
+    for (const node of agent.nodes) {
+      if (node.handler === null) continue;
+      const path = node.handlerPath ?? agent.location.path;
+      for (const capability of this.#effects.effects(path, node.handler, 0))
+        capabilities.push({ ...capability, node: node.name });
+    }
     for (const id of agent.mcpClients) {
       const client = this.#inventory.mcpClients.find((candidate) => candidate.id === id);
       if (client === undefined) continue;

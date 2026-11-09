@@ -11,11 +11,24 @@ export const PLACEHOLDER =
   /x{4}|\.{3}|<|your|example|placeholder|dummy|fake|changeme|replace|insert|not[-_ ]?needed|test|todo|redacted/i;
 
 /**
+ * The placeholder words standing on their own, not inside other letters: a key of a
+ * known format is random, so `sk-your-key-here` and `AKIAIOSFODNN7EXAMPLE` are
+ * placeholders but the `TestE5` that a real key can contain by chance is not.
+ */
+const PLACEHOLDER_WORD =
+  /x{4}|\.{3}|<|(?<![a-z])(?:your|example|placeholder|dummy|fake|changeme|replace|insert|not[-_ ]?needed|test|todo|redacted)(?![a-z])/i;
+
+/**
  * Whether a string could be a real secret: long enough, mixed letters and digits, not
  * an obvious placeholder, and not too repetitive.
  */
 export function looksLikeSecret(text: string): boolean {
-  if (text.length < 16 || /\s/.test(text) || PLACEHOLDER.test(text)) return false;
+  return !PLACEHOLDER.test(text) && randomEnough(text);
+}
+
+/** Long enough, mixed letters and digits, and not too repetitive. */
+function randomEnough(text: string): boolean {
+  if (text.length < 16 || /\s/.test(text)) return false;
   if (!/[A-Za-z]/.test(text) || !/\d/.test(text)) return false;
   return entropy(text) >= 3;
 }
@@ -40,7 +53,8 @@ const SECRET_FORMATS: { name: string; pattern: RegExp; entropy?: true }[] = [
   { name: "Anthropic API key", pattern: /\bsk-ant-(?:api|admin)\d{2}-[\w-]{20,}/, entropy: true },
   { name: "OpenRouter API key", pattern: /\bsk-or-v1-[a-f0-9]{32,}/ },
   { name: "OpenAI API key", pattern: /\bsk-(?:proj-|svcacct-|admin-)?[\w-]{20,}/, entropy: true },
-  { name: "Google API key", pattern: /\bAIza[\w-]{35}\b/ },
+  // Not `\b` at the end: a key can end in `-`.
+  { name: "Google API key", pattern: /\bAIza[\w-]{35}(?![\w-])/ },
   { name: "AWS access key", pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/ },
   { name: "GitHub token", pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_\w{22,})/ },
   { name: "Hugging Face token", pattern: /\bhf_[A-Za-z0-9]{30,}\b/, entropy: true },
@@ -74,7 +88,7 @@ const GLOBAL_FORMATS = SECRET_FORMATS.map((format) => ({
 
 /** A match of a format that is a real secret rather than a documentation placeholder. */
 function isSecretMatch(format: (typeof SECRET_FORMATS)[number], match: string): boolean {
-  return !PLACEHOLDER.test(match) && !(format.entropy && !looksLikeSecret(match));
+  return !PLACEHOLDER_WORD.test(match) && !(format.entropy && !randomEnough(match));
 }
 
 /** The first known secret format in a text, if any. */
@@ -94,19 +108,25 @@ const CREDENTIAL_PHRASE =
 const QUOTED = /(["'`])([^"'`\s]{20,})\1/g;
 const PRIVATE_KEY_BLOCK =
   /-----BEGIN ((?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?)-----[\s\S]*?(?:-----END \1-----|$)/g;
+// The patterns below that start with a run of characters start only where such a run
+// starts (a lookbehind, not `\b`). Starting inside the run too makes a long line of
+// repeated parts, which a scanned repository controls, take quadratic or cubic time.
+
 /** A JSON web token: three base64url parts, the first two encoding JSON objects. */
-const JWT = /\beyJ[\w-]{8,}\.eyJ[\w-]{8,}\.[\w-]{8,}/g;
+const JWT = /(?<![\w-])eyJ[\w-]{8,}\.eyJ[\w-]{8,}\.[\w-]{8,}/g;
 /** The password in a URL's user information: `postgres://app:s3cret@db/app`. */
-const URL_PASSWORD = /\b([a-z][a-z\d+.-]*:\/\/[^\s:@/"'`]*:)([^\s@/"'`]+)@/gi;
+const URL_PASSWORD = /(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/[^\s:@/"'`]*:)([^\s@/"'`]+)@/gi;
 /** The credential of an authorization header: `Authorization: Bearer ...`. */
 const AUTHORIZATION = /\b(Bearer|Basic|Token)(\s+)([\w.~+/-]{16,}=*)/g;
 /**
  * A value given to a name for a credential, as code and configuration write it:
  * `AWS_SECRET_ACCESS_KEY=...`, `"db_password": "..."`, `SECRET_KEY = '...'`. The
- * groups are the name, the operator, the quote (or none) and the value.
+ * groups are the name, the operator, the quote (or none) and the value. The name is a
+ * whole run of name characters followed by an operator, whose last dotted part holds
+ * the credential word (the lookbehind, checked once per run).
  */
 const ASSIGNED_CREDENTIAL =
-  /\b([\w.-]*?(?:password|passwd|passphrase|secret|api[_-]?key|access[_-]?key|private[_-]?key|token|credentials?)[\w-]*)(["']?\s*(?:=|:|=>)\s*)(["'`]?)([^\s"'`,;{}()]+)\3/gi;
+  /(?<![\w.-])([\w.-]+)(?=["']?\s*(?:=|:|=>))(?<=(?:password|passwd|passphrase|secret|api[_-]?key|access[_-]?key|private[_-]?key|token|credentials?)[\w-]*)(["']?\s*(?:=|:|=>)\s*)(["'`]?)([^\s"'`,;{}()]+)\3/gi;
 
 /** The kind of secret a text contains, if any: a known key format, or a credential written out. */
 export function secretIn(text: string): string | null {
@@ -198,7 +218,10 @@ export function redact(text: string, credentials: readonly string[] = []): strin
       ASSIGNED_CREDENTIAL,
       (whole, name: string, operator: string, quote: string, value: string) =>
         // `DB_PASSWORD=...` in an environment file holds text, unquoted.
-        assignedCredential(value, quote !== "" || (ENVIRONMENT_NAME.test(name) && operator === "="))
+        assignedCredential(
+          value,
+          quote !== "" || (ENVIRONMENT_NAME.test(name.replace(/^[.-]+/, "")) && operator === "="),
+        )
           ? `${name}${operator}${quote}${REDACTED}${quote}`
           : whole,
     )

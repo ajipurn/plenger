@@ -44,7 +44,9 @@ function unapprovedActions(cx: RuleContext): Draft[] {
     if (agent.approval !== undefined) continue;
     const actions = agent.capabilities.filter(
       (capability) =>
-        capability.tool !== undefined && cx.isAction(capability) && !cx.approved(capability),
+        (capability.tool !== undefined || capability.node !== undefined) &&
+        cx.isAction(capability) &&
+        !cx.approved(capability),
     );
     if (actions.length === 0) continue;
     const name = cx.agentName(agent);
@@ -107,16 +109,26 @@ function unapproved(
   const seen = new Set<string>();
   for (const capability of actions) {
     const tool = capability.tool === undefined ? undefined : cx.tools.get(capability.tool);
-    const id = `${tool?.id}|${capability.kind}`;
-    if (tool === undefined || seen.has(id) || evidence.length > MAX_ACTION_EVIDENCE) continue;
-    seen.add(id);
-    evidence.push({
-      location: tool.location,
-      message: `tool ${code(tool.name)} can ${ACTION_PHRASE[capability.kind]}`,
-    });
+    const node = capability.node;
+    const id = `${tool?.id ?? `node:${node}`}|${capability.kind}`;
+    if (seen.has(id) || evidence.length > MAX_ACTION_EVIDENCE) continue;
+    if (tool !== undefined) {
+      seen.add(id);
+      evidence.push({
+        location: tool.location,
+        message: `tool ${code(tool.name)} can ${ACTION_PHRASE[capability.kind]}`,
+      });
+    } else if (node !== undefined) {
+      seen.add(id);
+      evidence.push({
+        location: capability.location,
+        message: `graph node ${code(node)} can ${ACTION_PHRASE[capability.kind]}`,
+      });
+    }
   }
+  const nodes = actions.some((capability) => capability.node !== undefined);
   const notes = [
-    "No approval option (`needs_approval`, `interrupt_before`, `HumanInTheLoopMiddleware`, `needsApproval`) or prompt to a person was seen for these tools.",
+    `No approval option (\`needs_approval\`, \`interrupt_before\`, \`HumanInTheLoopMiddleware\`, \`needsApproval\`) or prompt to a person was seen for these ${nodes ? "tools and graph nodes" : "tools"}.`,
   ];
   if (site.exposedBy !== undefined) notes.push(`Reachable from ${code(site.exposedBy)}.`);
   return {
@@ -138,7 +150,8 @@ function localCodeExecution(cx: RuleContext): Draft[] {
   const drafts: Draft[] = [];
   for (const agent of cx.inventory.agents) {
     const capability = agent.capabilities.find(
-      (item) => item.kind === "code" && item.tool === undefined,
+      // The agent's own executor; code a graph node runs is one of its actions (PLG201).
+      (item) => item.kind === "code" && item.tool === undefined && item.node === undefined,
     );
     if (
       capability === undefined ||

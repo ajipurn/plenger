@@ -101,6 +101,7 @@ const definitions: Record<string, Schema> = {
     {
       hosted: yes,
       tool: text,
+      node: text,
       command: choices("shell", "program", "arguments"),
       program: parts,
       query: yes,

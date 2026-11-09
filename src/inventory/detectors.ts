@@ -28,8 +28,12 @@ export type DetectorRule =
 interface RuleBase {
   /** Framework id from frameworks.ts. */
   framework: string;
-  /** Match only when the argument at `path` is one of these strings (`boto3.client("bedrock-runtime")`). */
-  where?: { path: string; equals: string[] };
+  /**
+   * Match only when the argument at `path` is one of these strings
+   * (`boto3.client("bedrock-runtime")`), or a name imported as one of these
+   * (`setRequestHandler(CallToolRequestSchema, ...)`).
+   */
+  where?: { path: string; equals: string[] } | { path: string; named: string[] };
 }
 
 /** Constructs a model client or model object. */
@@ -72,8 +76,12 @@ export interface AgentRule extends RuleBase {
   input?: string[];
   /** Agents this agent hands off to or coordinates. */
   delegates?: string;
-  /** MCP clients (or toolsets) the agent uses. */
+  /** MCP clients (or toolsets) the agent uses; an in-process MCP server adds its tools. */
   mcp?: string;
+  /** Framework tools the agent may use without asking, by name (`allowed_tools=["Bash"]`). */
+  builtins?: string;
+  /** Framework tools the agent may use when an option is one of `equals` (`permission_mode="bypassPermissions"`). */
+  allBuiltins?: { path: string; equals: string[]; tools: string[] };
 }
 
 /** A call that runs an agent passed as an argument (`Runner.run(agent, input)`). */
@@ -135,10 +143,14 @@ export interface GraphNodeRule extends RuleBase {
   handler: string;
 }
 
-interface McpServerRule extends RuleBase {
+export interface McpServerRule extends RuleBase {
   kind: "mcp_server";
   calls: string[];
   name?: string;
+  /** Tools given as a list when the server is made (`create_sdk_mcp_server(tools=[...])`). */
+  tools?: string;
+  /** The transport, when the server has only one (`in-process` for an agent SDK's own server). */
+  transport?: string;
 }
 
 /** Registers a tool, resource or prompt on an MCP server, by decorator or call. */
@@ -150,6 +162,8 @@ export interface McpMemberRule extends RuleBase {
   name?: string;
   description?: string;
   handler?: string;
+  /** The name when neither the call nor its handler names the member (`tools/call`). */
+  label?: string;
 }
 
 /** Starts an MCP server on a transport. */
@@ -202,3 +216,20 @@ interface PromptRule extends RuleBase {
 }
 
 export const AGENT_METHODS = ["invoke", "ainvoke", "stream", "astream", "batch", "abatch"];
+
+/**
+ * The Claude Agent SDK's tools that act on the machine or the network, which an agent
+ * may use without asking in `bypassPermissions` mode.
+ */
+export const CLAUDE_AGENT_TOOLS = [
+  "Bash",
+  "Write",
+  "Edit",
+  "MultiEdit",
+  "NotebookEdit",
+  "Read",
+  "Glob",
+  "Grep",
+  "WebFetch",
+  "WebSearch",
+];

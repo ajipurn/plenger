@@ -39,6 +39,12 @@ export const FRAMEWORKS: FrameworkInfo[] = [
   },
   { id: "llmfy", name: "llmfy", python: ["llmfy"] },
   {
+    id: "claude-agent-sdk",
+    name: "Claude Agent SDK",
+    python: ["claude_agent_sdk"],
+    javascript: ["@anthropic-ai/claude-agent-sdk"],
+  },
+  {
     id: "openai-agents",
     name: "OpenAI Agents SDK",
     python: ["agents"],
@@ -103,6 +109,7 @@ const UNSUPPORTED_AI_MODULES: Record<LanguageFamily, string[]> = {
     "transformers",
     "agno",
     "strands",
+    "google.adk",
   ],
   javascript: [
     "llamaindex",
@@ -111,6 +118,7 @@ const UNSUPPORTED_AI_MODULES: Record<LanguageFamily, string[]> = {
     "cohere-ai",
     "@huggingface/*",
     "@voltagent/*",
+    "@google/adk",
   ],
   // PHP namespaces: openai-php/client, google-gemini-php, LLPhant, Prism, Neuron AI, Symfony AI.
   php: ["OpenAI", "Gemini", "LLPhant", "Prism\\Prism", "NeuronAI", "Symfony\\AI"],

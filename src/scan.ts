@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { analyzeCapabilities } from "./capabilities/analyze.ts";
 import type { FileFacts } from "./facts/index.ts";
@@ -21,6 +21,7 @@ import {
   type SkipReason,
 } from "./source/files.ts";
 import type { BinaryKind, Language, TextKind } from "./source/languages.ts";
+import { readSource } from "./source/read.ts";
 
 export interface ScannedFile {
   path: string;
@@ -110,7 +111,7 @@ export async function scan(root: string, options: ScanOptions = {}): Promise<Sca
 
   // Facts are per file; linking points imports of project files at what those files define.
   const project = Project.link(collected.root, parsed, {
-    tsconfig: await readOptional(join(collected.root, "tsconfig.json")),
+    tsconfig: await readConfig(join(collected.root, "tsconfig.json"), maxFileBytes),
   });
   const inventory = buildInventory(project);
   const { functions, received } = analyzeCapabilities(project, inventory, {
@@ -160,11 +161,18 @@ async function sha256(path: string): Promise<string | null> {
   }
 }
 
-/** A file's text, or undefined when it is missing or unreadable. */
-async function readOptional(path: string): Promise<string | undefined> {
+/**
+ * A configuration file's text, or undefined when it is missing, unreadable, too large
+ * or not a regular file. The repository controls it: a symbolic link to `/dev/stdin`
+ * or `/dev/zero`, or outside the project, is not followed.
+ */
+async function readConfig(path: string, maxFileBytes: number): Promise<string | undefined> {
   try {
-    return await readFile(path, "utf8");
+    const stats = await lstat(path);
+    if (!stats.isFile() || stats.size > maxFileBytes) return undefined;
   } catch {
     return undefined;
   }
+  const text = await readSource(path, maxFileBytes);
+  return typeof text === "string" ? text : undefined;
 }

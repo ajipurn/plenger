@@ -56,6 +56,8 @@ export interface Capability {
   hosted?: true;
   /** For an agent's capabilities: the tool that provides it; absent when it is the agent's own. */
   tool?: string;
+  /** For an agent's capabilities: the graph node whose code has it (LangGraph `add_node`). */
+  node?: string;
   /**
    * For `process`: how the input reaches the command. `shell`: a shell runs it, so
    * input can add commands; `program`: input can name the program; `arguments`: input
@@ -218,7 +220,10 @@ export interface McpServer {
   framework: string;
   location: Location;
   name: string | null;
-  /** `stdio`, `streamable-http`, `sse`, or null when plenger saw no transport. */
+  /**
+   * `stdio`, `streamable-http`, `sse`, `in-process` (an agent SDK's server that the
+   * agent runs itself), or null when plenger saw no transport.
+   */
   transport: string | null;
   tools: string[];
   resources: McpMember[];

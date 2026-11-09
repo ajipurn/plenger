@@ -13,6 +13,7 @@ import type {
   AgentRule,
   DetectorRule,
   McpClientRule,
+  McpServerRule,
   ModelRule,
   ToolBuiltinRule,
   ToolClassRule,
@@ -92,9 +93,44 @@ export function agent(d: FileDetector, rule: AgentRule, call: CallFact, index: n
     component.tools.push(...tools.ids);
     component.unresolvedTools += tools.unresolved;
   }
+  for (const name of builtinNames(d, rule, call)) {
+    const tool = d.tools.add({
+      id: scope.id("tool", call.span),
+      framework: rule.framework,
+      location: scope.location(call.span),
+      name,
+      description: null,
+      handler: null,
+      params: [],
+      via: "builtin",
+      server: null,
+    });
+    component.tools.push(tool.id);
+  }
   d.agentLinks.push({ agent: component, rule, call });
   d.inventory.agents.push(component);
   d.instances.register(index, { kind: "agent", component, rule });
+}
+
+/**
+ * The framework tools an agent may use without asking: those its options name, and
+ * all of them when an option grants them (`permission_mode="bypassPermissions"`). Names
+ * of MCP tools (`mcp__server__tool`) are left to the servers that provide them.
+ */
+function builtinNames(d: FileDetector, rule: AgentRule, call: CallFact): string[] {
+  const { scope, facts } = d;
+  const names =
+    rule.builtins === undefined
+      ? []
+      : scope
+          .strings(select(call.arguments, facts, rule.builtins))
+          .filter((name) => !name.startsWith("mcp__"));
+  const all = rule.allBuiltins;
+  if (all !== undefined) {
+    const option = scope.literal(select(call.arguments, facts, all.path));
+    if (option !== null && all.equals.includes(option)) names.push(...all.tools);
+  }
+  return [...new Set(names)];
 }
 
 export function toolDecorator(
@@ -206,24 +242,46 @@ export function toolBuiltin(
 
 export function mcpServer(
   d: FileDetector,
-  framework: string,
+  rule: McpServerRule,
   call: CallFact,
   index: number,
-  namePath: string | undefined,
 ): void {
   const { scope } = d;
   const server: McpServer = {
     id: scope.id("mcp", call.span),
-    framework,
+    framework: rule.framework,
     location: scope.location(call.span),
-    name: namePath === undefined ? null : scope.literal(select(call.arguments, d.facts, namePath)),
-    transport: null,
+    name:
+      rule.name === undefined ? null : scope.literal(select(call.arguments, d.facts, rule.name)),
+    transport: rule.transport ?? null,
     tools: [],
     resources: [],
     prompts: [],
   };
   d.inventory.mcpServers.push(server);
   d.instances.register(index, { kind: "mcp_server", component: server });
+  // Tools listed when the server is made may come from any file: they are resolved
+  // once every file's tools exist, with the agents.
+  if (rule.tools !== undefined) d.serverLinks.push({ server, rule, call });
+}
+
+/** An MCP server's tools given as a list (`create_sdk_mcp_server(tools=[read_note])`). */
+export function mcpServerTools(
+  d: FileDetector,
+  server: McpServer,
+  rule: McpServerRule,
+  call: CallFact,
+): void {
+  if (rule.tools === undefined) return;
+  const { tools } = d.tools.toolsFrom(
+    select(call.arguments, d.facts, rule.tools),
+    call.span,
+    rule.framework,
+  );
+  for (const tool of tools) {
+    tool.server ??= server.id;
+    if (!server.tools.includes(tool.id)) server.tools.push(tool.id);
+  }
 }
 
 export function mcpClient(

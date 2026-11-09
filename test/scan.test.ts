@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -84,6 +84,50 @@ describe("files the scan could skip", () => {
       expect(result.findings.length).toBeGreaterThan(0);
     }
   });
+
+  // Windows needs a privilege to create file symlinks.
+  it.skipIf(process.platform === "win32")(
+    "reads tsconfig.json only when it is a regular file in the project",
+    async () => {
+      const tsconfig = JSON.stringify({ compilerOptions: { paths: { "#lib/*": ["lib/*"] } } });
+      async function agentTools(link: boolean): Promise<number[]> {
+        const root = await temporaryDir();
+        await mkdir(join(root, "lib"));
+        await writeFile(
+          join(root, "lib", "shell.ts"),
+          [
+            'import { execSync } from "node:child_process";',
+            'import { tool } from "@langchain/core/tools";',
+            'import { z } from "zod";',
+            "export const shell = tool(async ({ cmd }) => String(execSync(cmd)), {",
+            '  name: "shell", description: "Run", schema: z.object({ cmd: z.string() }),',
+            "});",
+          ].join("\n"),
+        );
+        await writeFile(
+          join(root, "agent.ts"),
+          [
+            'import { ChatOpenAI } from "@langchain/openai";',
+            'import { createReactAgent } from "@langchain/langgraph/prebuilt";',
+            'import { shell } from "#lib/shell";',
+            "export const agent = createReactAgent({ llm: new ChatOpenAI(), tools: [shell] });",
+          ].join("\n"),
+        );
+        if (link) {
+          const outside = await temporaryDir();
+          await writeFile(join(outside, "tsconfig.json"), tsconfig);
+          await symlink(join(outside, "tsconfig.json"), join(root, "tsconfig.json"));
+        } else {
+          await writeFile(join(root, "tsconfig.json"), tsconfig);
+        }
+        const result = await scan(root);
+        return result.inventory.agents.map((agent) => agent.tools.length);
+      }
+      expect(await agentTools(false)).toEqual([1]);
+      // A link could point at /dev/stdin, /dev/zero or a file outside the project.
+      expect(await agentTools(true)).toEqual([0]);
+    },
+  );
 });
 
 describe("binaries in a scanned project", () => {

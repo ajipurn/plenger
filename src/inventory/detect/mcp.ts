@@ -55,6 +55,7 @@ export function mcpMemberCall(d: FileDetector, rule: McpMemberRule, call: CallFa
   const name =
     (rule.name === undefined ? null : scope.literal(select(call.arguments, facts, rule.name))) ??
     handler?.name ??
+    rule.label ??
     ANONYMOUS;
   const description =
     (rule.description === undefined

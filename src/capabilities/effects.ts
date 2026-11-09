@@ -10,6 +10,7 @@ import type {
   DefinitionFact,
   FileFacts,
   GuardFact,
+  Ref,
   Span,
   Value,
 } from "../facts/model.ts";
@@ -58,6 +59,18 @@ interface Visit {
   depthLimited: Map<string, Location>;
   dynamic: Map<string, Location>;
   callees: Set<string>;
+  /** Functions still being traced that this trace reached again (a cycle), so their effects are missing. */
+  waitsOn: Set<string>;
+  /** Some calls were not followed because of the depth limit. */
+  depthCut: boolean;
+}
+
+/** A result that a cycle or the depth limit cut short, and the depth it was traced at. */
+interface ShortResult {
+  result: Capability[];
+  depth: number;
+  waitsOn: Set<string>;
+  depthCut: boolean;
 }
 
 interface Guard {
@@ -109,6 +122,8 @@ export class EffectTracer {
   readonly #llmCalls = new Map<string, LlmCall>();
   readonly #agentRuns = new Map<string, { agent: Agent; inputs: DynamicPart[] }>();
   readonly #memo = new Map<string, Capability[]>();
+  /** Results cut short, by function: the shallowest trace so far. */
+  readonly #partial = new Map<string, ShortResult>();
   readonly #active = new Set<string>();
   readonly #visits = new Map<string, Visit>();
   readonly #tracing: Visit[] = [];
@@ -142,10 +157,32 @@ export class EffectTracer {
     const memoKey = `${path}|${definition}`;
     const cached = this.#memo.get(memoKey);
     if (cached !== undefined) return cached;
+    // A result cut short serves only callers as deep or deeper, which could follow no
+    // more; a shallower caller traces the function again.
+    const caller = this.#tracing.at(-1);
+    const partial = this.#partial.get(memoKey);
+    if (partial !== undefined && depth >= partial.depth) {
+      if (caller !== undefined) cutShort(caller, partial);
+      return partial.result;
+    }
     const file = this.#project.files.get(path);
-    if (file === undefined || this.#active.has(memoKey) || depth > MAX_DEPTH) return [];
+    if (file === undefined) return [];
+    if (this.#active.has(memoKey)) {
+      caller?.waitsOn.add(memoKey);
+      return [];
+    }
+    if (depth > MAX_DEPTH) {
+      if (caller !== undefined) caller.depthCut = true;
+      return [];
+    }
     this.#active.add(memoKey);
-    const visit: Visit = { depthLimited: new Map(), dynamic: new Map(), callees: new Set() };
+    const visit: Visit = {
+      depthLimited: new Map(),
+      dynamic: new Map(),
+      callees: new Set(),
+      waitsOn: new Set(),
+      depthCut: false,
+    };
     this.#visits.set(memoKey, visit);
     this.#tracing.push(visit);
     const scopes = this.#index.scopesOf(file, definition);
@@ -161,7 +198,25 @@ export class EffectTracer {
     this.#tracing.pop();
     this.#active.delete(memoKey);
     const result = unique(found).map((effect) => withGuards(effect, guards));
-    this.#memo.set(memoKey, result);
+    // Reaching itself again does not cut a function short: its own trace has it all.
+    visit.waitsOn.delete(memoKey);
+    if (visit.waitsOn.size === 0 && !visit.depthCut) {
+      this.#memo.set(memoKey, result);
+    } else {
+      const cut: ShortResult = {
+        result,
+        depth,
+        waitsOn: visit.waitsOn,
+        depthCut: visit.depthCut,
+      };
+      this.#partial.set(memoKey, cut);
+      if (caller !== undefined) cutShort(caller, cut);
+    }
+    // A cut by depth holds for any trace; one by a cycle only within the trace whose
+    // functions were still open, so those go when a trace from the top ends.
+    if (this.#tracing.length === 0) {
+      for (const [key, cut] of this.#partial) if (cut.waitsOn.size > 0) this.#partial.delete(key);
+    }
     return result;
   }
 
@@ -169,6 +224,21 @@ export class EffectTracer {
    * Calls that tracing a function and every project function it reached could not
    * follow, or null when it followed all of them. Call `effects` for the function first.
    */
+  /** Canonical names of a project class's bases, through the project's own base classes. */
+  baseNames(path: string, ref: Ref, depth: number): string[] {
+    if (ref.kind !== "local" || ref.path !== "" || depth > MAX_DEPTH) return [];
+    const file = ref.file ?? path;
+    const definition = this.#project.files
+      .get(file)
+      ?.facts.definitions.find((candidate) => candidate.id === ref.definition);
+    if (definition?.kind !== "class") return [];
+    return definition.bases.flatMap((base) =>
+      base.kind === "name" && base.ref !== null
+        ? [base.ref.name, ...this.baseNames(file, base.ref, depth + 1)]
+        : [],
+    );
+  }
+
   gaps(path: string, definition: string): TraceGaps | null {
     const depthLimited = new Map<string, Location>();
     const dynamic = new Map<string, Location>();
@@ -254,8 +324,12 @@ export class EffectTracer {
         ({ pattern, sink }) => (!local || sink.projectClasses === true) && pattern.test(name),
       );
       const safe =
-        match?.sink.safeOption !== undefined &&
-        trueOption(callee, file.facts, match.sink.safeOption);
+        (match?.sink.safeOption !== undefined &&
+          trueOption(callee, file.facts, match.sink.safeOption)) ||
+        (match?.sink.requires !== undefined &&
+          !optionMatches(callee, file.facts, match.sink.requires, (ref) =>
+            this.baseNames(file.path, ref, 0),
+          ));
       if (match !== undefined && !safe)
         effects.push(this.sinkEffect(file, callee, match.sink, location, limitedFor));
     }
@@ -279,6 +353,7 @@ export class EffectTracer {
     for (const target of targets) {
       if (depth + 1 > MAX_DEPTH && !this.#memo.has(`${target.path}|${target.definition}`)) {
         visit?.depthLimited.set(locationKey(location), location);
+        if (visit !== undefined) visit.depthCut = true;
         continue;
       }
       visit?.callees.add(`${target.path}|${target.definition}`);
@@ -1591,6 +1666,27 @@ function shellOption(call: CallFact, facts: FileFacts, path: string): boolean {
   return true;
 }
 
+/**
+ * Whether the argument at `option` is a name or literal that `value` matches, or a
+ * project class with such a base (`class IncludeLoader(yaml.Loader)`).
+ */
+function optionMatches(
+  call: CallFact,
+  facts: FileFacts,
+  { option, value }: NonNullable<Sink["requires"]>,
+  baseNames: (ref: Ref) => string[],
+): boolean {
+  const [argument] = select(call.arguments, facts, option);
+  const target = argument === undefined ? undefined : deref(argument, facts);
+  const texts =
+    target?.kind === "name"
+      ? [target.ref?.name ?? target.text, ...(target.ref ? baseNames(target.ref) : [])]
+      : target?.kind === "literal"
+        ? [target.text]
+        : [];
+  return texts.some((text) => value.test(text));
+}
+
 /** An option set to a literal true: `weights_only=True`. */
 function trueOption(call: CallFact, facts: FileFacts, path: string): boolean {
   const [value] = select(call.arguments, facts, path);
@@ -1720,10 +1816,24 @@ function locate(path: string, span: Span): Location {
 }
 
 /** Drops repeated capabilities: same kind, target, location and providing tool. */
+/** Marks a caller's trace as cut short when a callee's was. */
+function cutShort(caller: Visit, callee: { waitsOn: Set<string>; depthCut: boolean }): void {
+  for (const key of callee.waitsOn) caller.waitsOn.add(key);
+  if (callee.depthCut) caller.depthCut = true;
+}
+
+/**
+ * Drops repeated effects: the same call reached again with the same inputs. Calls of
+ * one helper with different inputs stay apart (`run("ls")` and `run(command)`), each
+ * with the call chain its inputs came through.
+ */
 export function unique(capabilities: Capability[]): Capability[] {
   const seen = new Set<string>();
   return capabilities.filter((capability) => {
-    const id = `${capability.kind}|${capability.target}|${locationKey(capability.location)}|${capability.tool ?? ""}`;
+    const inputs = capability.inputs
+      .map((part) => `${part.source}:${part.text}:${part.from?.join(",") ?? ""}`)
+      .join(";");
+    const id = `${capability.kind}|${capability.target}|${locationKey(capability.location)}|${capability.tool ?? ""}|${capability.node ?? ""}|${inputs}`;
     if (seen.has(id)) return false;
     seen.add(id);
     return true;

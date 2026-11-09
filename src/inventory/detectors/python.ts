@@ -1,4 +1,4 @@
-import { AGENT_METHODS, type DetectorRule } from "../detectors.ts";
+import { AGENT_METHODS, CLAUDE_AGENT_TOOLS, type DetectorRule } from "../detectors.ts";
 
 const OPENAI_CLIENTS = "openai.{OpenAI,AsyncOpenAI,AzureOpenAI,AsyncAzureOpenAI}";
 const ANTHROPIC_CLIENTS =
@@ -111,6 +111,46 @@ export const PYTHON_RULES: DetectorRule[] = [
     ],
     name: "#0",
     description: "description",
+  },
+  // Claude Agent SDK: `@tool("name", "description", schema)` on `async def fn(args)`.
+  {
+    kind: "tool_decorator",
+    framework: "claude-agent-sdk",
+    decorators: ["claude_agent_sdk.tool()"],
+    name: "#0",
+    description: "#1",
+  },
+  {
+    kind: "mcp_server",
+    framework: "claude-agent-sdk",
+    calls: ["claude_agent_sdk.create_sdk_mcp_server"],
+    name: "name|#0",
+    tools: "tools",
+    transport: "in-process",
+  },
+  // The options are the agent; `query(prompt, options)` and `ClaudeSDKClient(options)` run it.
+  {
+    kind: "agent",
+    framework: "claude-agent-sdk",
+    calls: ["claude_agent_sdk.ClaudeAgentOptions", "claude_agent_sdk.types.ClaudeAgentOptions"],
+    model: "model",
+    system: ["system_prompt", "system_prompt.append"],
+    mcp: "mcp_servers",
+    builtins: "allowed_tools",
+    allBuiltins: {
+      path: "permission_mode",
+      equals: ["bypassPermissions"],
+      tools: CLAUDE_AGENT_TOOLS,
+    },
+    invoke: ["claude_agent_sdk.ClaudeSDKClient().query"],
+    input: ["prompt|#0"],
+  },
+  {
+    kind: "agent_run",
+    framework: "claude-agent-sdk",
+    calls: ["claude_agent_sdk.query"],
+    agent: "options",
+    input: ["prompt|#0"],
   },
   {
     kind: "tool_class",
@@ -258,6 +298,8 @@ export const PYTHON_RULES: DetectorRule[] = [
       "#0.messages[*].content",
       "#0.messages",
       "#0.input",
+      // A custom state: `graph.invoke({"task": task})`.
+      "#0[*]",
     ],
   },
   {
@@ -303,6 +345,13 @@ export const PYTHON_RULES: DetectorRule[] = [
     decorators: members(FASTMCP, ["tool", "tool()"]),
     name: "name|#0",
     description: "description",
+  },
+  // The low-level server's `@server.call_tool()` handler answers every tool call.
+  {
+    kind: "mcp_member",
+    framework: "mcp",
+    member: "tool",
+    decorators: members(["mcp.server.Server()", "mcp.server.lowlevel.Server()"], ["call_tool()"]),
   },
   {
     kind: "mcp_member",

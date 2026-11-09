@@ -1,15 +1,23 @@
 import type { CallFact, DefinitionFact, FileFacts, Value } from "../../facts/model.ts";
 import { select } from "../../facts/query.ts";
 import type { Language } from "../../source/languages.ts";
-import type { AgentRule, DetectorRule, ToolClassRule } from "../detectors.ts";
+import type { AgentRule, DetectorRule, McpServerRule, ToolClassRule } from "../detectors.ts";
 import { FRAMEWORKS, frameworkOfModule, unsupportedModule } from "../frameworks.ts";
-import { type Agent, emptyInventory, type Inventory, type Prompt, type Tool } from "../model.ts";
+import {
+  type Agent,
+  emptyInventory,
+  type Inventory,
+  type McpServer,
+  type Prompt,
+  type Tool,
+} from "../model.ts";
 import { AGENT_INVOCATION, type Compiled, inPhase, type Phase, rulesFor } from "./compile.ts";
 import {
   agent,
   dataStore,
   mcpClient,
   mcpServer,
+  mcpServerTools,
   model,
   promptCall,
   toolBuiltin,
@@ -51,6 +59,8 @@ export class FileDetector {
   readonly agentLinks: { agent: Agent; rule: AgentRule; call: CallFact }[] = [];
   /** Decorated tools and prompts to attach to the agent instance they were declared on. */
   readonly receiverLinks: { receiver: number | undefined; tool?: Tool; prompt?: Prompt }[] = [];
+  /** MCP servers whose tools are given as a list, resolved once every tool exists. */
+  readonly serverLinks: { server: McpServer; rule: McpServerRule; call: CallFact }[] = [];
 
   constructor(path: string, language: Language, facts: FileFacts, project: ProjectDetector) {
     this.scope = new FileScope(path, language, facts);
@@ -75,6 +85,7 @@ export class FileDetector {
   }
 
   constructAgents(): void {
+    for (const { server, rule, call } of this.serverLinks) mcpServerTools(this, server, rule, call);
     for (const [index, call] of this.facts.calls.entries()) {
       this.matchCall(call, index, "construct_agents");
     }
@@ -105,14 +116,29 @@ export class FileDetector {
 
   isLocalModule(module: string): boolean {
     if (this.scope.language !== "python") return false;
-    return (
-      module.startsWith(".") || this.project.project.localModules.has(module.split(".")[0] ?? "")
-    );
+    if (module.startsWith(".")) return true;
+    const { localModules, namespaceModules } = this.project.project;
+    const top = module.split(".")[0] ?? "";
+    if (!localModules.has(top)) return false;
+    // A directory without `__init__.py` does not hide an installed package of its name:
+    // with `openai/chat.py` or `mcp/server.py`, `openai` and `mcp` are still the SDKs.
+    return !namespaceModules.has(top) || frameworkOfModule(top, this.scope.language) === undefined;
   }
 
   whereHolds(rule: DetectorRule, args: CallFact["arguments"] | null): boolean {
     if (rule.where === undefined) return true;
-    const value = this.scope.literal(select(args, this.facts, rule.where.path));
+    const selected = select(args, this.facts, rule.where.path);
+    if ("named" in rule.where) {
+      const [value] = selected;
+      const name = value?.kind === "name" ? (value.ref?.name ?? value.text) : null;
+      return (
+        name !== null &&
+        rule.where.named.some(
+          (named) => name === named || name.endsWith(`#${named}`) || name.endsWith(`.${named}`),
+        )
+      );
+    }
+    const value = this.scope.literal(selected);
     return value !== null && rule.where.equals.includes(value);
   }
 
@@ -216,7 +242,7 @@ export class FileDetector {
           this.#relations.graphNode(rule, call);
           break;
         case "mcp_server":
-          mcpServer(this, rule.framework, call, index, rule.name);
+          mcpServer(this, rule, call, index);
           break;
         case "mcp_member":
           mcpMemberCall(this, rule, call);
